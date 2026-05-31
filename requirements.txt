@@ -1,0 +1,5 @@
+PyQt6==6.11.0
+PyQt6-Qt6==6.11.1
+PyQt6_sip==13.11.1
+pyrekordbox==0.4.4
+sqlcipher3-wheels==0.5.7
