@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>List Buddy — Prototipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="list-buddy.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #f0eee9; }
+  .lb-frame { width: 100%; height: 100%; filter: drop-shadow(0 22px 50px rgba(30,20,50,0.22)); }
+  .lb-frame > .lb-root { height: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="list-buddy-data.js"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="list-buddy-app.jsx"></script>
+
+<script type="text/babel">
+  const { DesignCanvas, DCSection, DCArtboard } = window;
+  const { ListBuddyApp } = window;
+
+  function App() {
+    return (
+      <DesignCanvas>
+        <DCSection id="d" title="List Buddy · Rack × Dynamic"
+          subtitle="Prototipo interactivo — elegí playlists, mirá la salida numerada por carpeta y exportá. Cambiá de tema y probá Apoyar.">
+          <DCArtboard id="mac" label="macOS" width={980} height={912}>
+            <div className="lb-frame"><ListBuddyApp platform="mac" initialTheme="dark" /></div>
+          </DCArtboard>
+          <DCArtboard id="win" label="Windows 11" width={980} height={904}>
+            <div className="lb-frame"><ListBuddyApp platform="win" initialTheme="light" /></div>
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

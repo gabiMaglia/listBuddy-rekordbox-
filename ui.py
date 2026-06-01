@@ -6,10 +6,13 @@ Ventana principal — PyQt6.
 """
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QDesktopServices, QPixmap
 from PyQt6.QtWidgets import (
+    QDialog,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -28,6 +31,8 @@ from PyQt6.QtWidgets import (
 from db import get_playlist_tree, open_database, playlist_song_count
 from worker import ExportWorker
 
+_KOFI_URL = "https://ko-fi.com/gabrielmaglia"
+
 _DARK_THEME = """
 QWidget { background:#1e1e24; color:#e6e6ea; font-size:13px; }
 QLineEdit, QPlainTextEdit, QTreeWidget {
@@ -45,6 +50,88 @@ QProgressBar {
 QProgressBar::chunk { background:#2d6cdf; border-radius:5px; }
 QTreeWidget::item { padding:4px; }
 """
+
+_DIALOG_THEME = _DARK_THEME + """
+QDialog { background:#1e1e24; }
+"""
+
+_KOFI_BTN_STYLE = """
+QPushButton {
+    background:#FF5E5B; color:white; border:none;
+    border-radius:8px; padding:10px 20px;
+    font-size:14px; font-weight:bold;
+}
+QPushButton:hover { background:#ff7a77; }
+"""
+
+
+class DonationDialog(QDialog):
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("☕  Donar — RB Exporter")
+        self.setFixedSize(300, 440)
+        self.setStyleSheet(_DIALOG_THEME)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(28, 24, 28, 24)
+        layout.setSpacing(14)
+
+        title = QLabel("¿Te sirvió RB Exporter?")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size:15px; font-weight:bold; color:#e6e6ea;")
+        layout.addWidget(title)
+
+        sub = QLabel("Podés invitarme un café en Ko-fi.\nContribución 100 % voluntaria.")
+        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sub.setStyleSheet("color:#999; font-size:12px;")
+        layout.addWidget(sub)
+
+        qr_label = QLabel()
+        qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        qr_pixmap = self._make_qr()
+        if qr_pixmap:
+            qr_label.setPixmap(qr_pixmap)
+        else:
+            qr_label.setText("(QR no disponible)")
+            qr_label.setStyleSheet("color:#666;")
+        layout.addWidget(qr_label)
+
+        url_label = QLabel(_KOFI_URL)
+        url_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        url_label.setStyleSheet("color:#666; font-size:10px;")
+        layout.addWidget(url_label)
+
+        kofi_btn = QPushButton("☕  Abrir Ko-fi en el navegador")
+        kofi_btn.setStyleSheet(_KOFI_BTN_STYLE)
+        kofi_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(_KOFI_URL)))
+        layout.addWidget(kofi_btn)
+
+        close_btn = QPushButton("Cerrar")
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
+
+    @staticmethod
+    def _make_qr() -> QPixmap | None:
+        try:
+            import qrcode  # type: ignore
+
+            qr = qrcode.QRCode(box_size=5, border=2)
+            qr.add_data(_KOFI_URL)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+
+            buf = BytesIO()
+            img.save(buf, format="PNG")
+
+            pixmap = QPixmap()
+            pixmap.loadFromData(buf.getvalue())
+            return pixmap.scaled(
+                200, 200,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        except Exception:
+            return None
 
 
 class MainWindow(QMainWindow):
@@ -105,6 +192,12 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(central)
         self.setStyleSheet(_DARK_THEME)
+
+        # --- Menú Ayuda ---
+        help_menu = self.menuBar().addMenu("Ayuda")
+        donate_action = help_menu.addAction("☕  Donar en Ko-fi…")
+        donate_action.triggered.connect(self._show_donation)
+
         self._load_playlists()
 
     # --------------------------------------------------------------------- #
@@ -243,3 +336,6 @@ class MainWindow(QMainWindow):
 
     def _log(self, text: str) -> None:
         self.log_view.appendPlainText(text)
+
+    def _show_donation(self) -> None:
+        DonationDialog(self).exec()
