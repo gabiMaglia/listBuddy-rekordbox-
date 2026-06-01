@@ -2,6 +2,21 @@
 
 Exporta playlists de Rekordbox 6 a carpetas con prefijo numérico de orden.
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Donar-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/gabrielmaglia)
+
+---
+
+## ☕ Donaciones
+
+RB Exporter es gratuito y de código abierto. Si te sirvió, podés invitarme un café:
+
+**[ko-fi.com/gabrielmaglia](https://ko-fi.com/gabrielmaglia)**
+
+O escaneá el QR desde el menú **Ayuda → Donar en Ko-fi…** dentro de la app.
+
+---
+
 ## Requisitos
 
 - Python 3.11+
@@ -65,10 +80,6 @@ pyinstaller rb_exporter.spec
 
 El ejecutable queda en `dist/RB Exporter.exe`.
 
-**Si el .exe abre pero no puede leer la DB:** probablemente falten hidden imports
-de SQLCipher. Revisá el log de PyInstaller y agregá los módulos faltantes en
-`rb_exporter.spec` → `hiddenimports`.
-
 ### macOS (.app)
 
 Solo se puede buildear **en una Mac** (no es posible cross-compilar desde Windows).
@@ -90,3 +101,10 @@ rekordbox_export.py  # lógica base validada (no modificar)
 requirements.txt     # dependencias pineadas
 rb_exporter.spec     # spec de PyInstaller
 ```
+
+## Licencia
+
+GNU General Public License v3.0 — ver [LICENSE](LICENSE).
+
+En resumen: podés usar, modificar y redistribuir este software libremente,
+siempre que cualquier versión redistribuida también sea de código abierto bajo GPL v3.
