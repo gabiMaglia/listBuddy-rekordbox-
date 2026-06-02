@@ -38,7 +38,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QAction
 
-from db import get_playlist_tree, open_database, playlist_song_count
+from db import get_playlist_tree as rb_get_playlist_tree
+from db import open_database as rb_open_database
+from db import playlist_song_count as rb_song_count
 from worker import ExportWorker
 from ui_components import PlaylistCard, PlaylistGroup
 
@@ -230,6 +232,7 @@ class MainWindow(QMainWindow):
         self._db = None
         self._worker: ExportWorker | None = None
         self._all_cards: list[PlaylistCard] = []
+        self._source: str = "rekordbox"  # "rekordbox" | "traktor"
 
         settings_path = Path(__file__).parent / ".rbe_settings.ini"
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
@@ -339,6 +342,7 @@ class MainWindow(QMainWindow):
         lo.setSpacing(14)
 
         lo.addWidget(self._build_rack_head())
+        lo.addWidget(self._build_source_switcher())
         lo.addWidget(self._build_dest_section())
         lo.addWidget(self._build_playlists_header())
         lo.addWidget(self._build_playlist_scroll(), 1)
@@ -377,6 +381,41 @@ class MainWindow(QMainWindow):
         self._vu_bars = VuBars()
         lo.addWidget(self._vu_bars)
         return rack
+
+    def _build_source_switcher(self) -> QWidget:
+        """Segmented control: Rekordbox | Traktor."""
+        wrap = QWidget()
+        wrap.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        wrap.setObjectName("source_switcher")
+        lo = QHBoxLayout(wrap)
+        lo.setContentsMargins(2, 2, 2, 2)
+        lo.setSpacing(0)
+
+        self._src_rb_btn = QPushButton("Rekordbox")
+        self._src_rb_btn.setObjectName("source_btn_rb")
+        self._src_rb_btn.setProperty("src_active", "true")
+        self._src_rb_btn.clicked.connect(lambda: self._switch_source("rekordbox"))
+
+        self._src_tk_btn = QPushButton("Traktor")
+        self._src_tk_btn.setObjectName("source_btn_tk")
+        self._src_tk_btn.setProperty("src_active", "false")
+        self._src_tk_btn.clicked.connect(lambda: self._switch_source("traktor"))
+
+        lo.addWidget(self._src_rb_btn, 1)
+        lo.addWidget(self._src_tk_btn, 1)
+        return wrap
+
+    def _switch_source(self, source: str) -> None:
+        if source == self._source:
+            return
+        self._source = source
+        # Update button states
+        self._src_rb_btn.setProperty("src_active", "true" if source == "rekordbox" else "false")
+        self._src_tk_btn.setProperty("src_active", "true" if source == "traktor" else "false")
+        for btn in (self._src_rb_btn, self._src_tk_btn):
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+        self._load_playlists()
 
     def _build_dest_section(self) -> QWidget:
         wrap = QWidget()
@@ -587,22 +626,28 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────── Load playlists ─────────────
 
     def _load_playlists(self) -> None:
+        """Load playlists from the active source (Rekordbox or Traktor)."""
+        self._clear_playlist_area()
+
         try:
-            self._db = open_database()
-            tree = get_playlist_tree(self._db)
+            if self._source == "traktor":
+                from traktor_db import (
+                    open_collection,
+                    get_playlist_tree,
+                    playlist_song_count,
+                )
+                col = open_collection()
+                tree = get_playlist_tree(col)
+                self._db = col
+            else:
+                tree = rb_get_playlist_tree(rb_open_database())
+                playlist_song_count = rb_song_count
         except RuntimeError as e:
-            QMessageBox.critical(self, "Error al abrir Rekordbox", str(e))
+            self._show_not_installed(str(e))
             return
 
-        self._all_cards.clear()
-        layout = self.playlist_container_layout
-        for i in reversed(range(layout.count())):
-            item = layout.itemAt(i)
-            w = item.widget() if item else None
-            if w:
-                w.setParent(None)  # type: ignore[arg-type]
-
         card_index = 0
+        layout = self.playlist_container_layout
 
         def add_node(node: dict, group: PlaylistGroup | None = None) -> None:
             nonlocal card_index
@@ -627,7 +672,51 @@ class MainWindow(QMainWindow):
             add_node(node)
 
         self._update_order_numbers()
-        self._log(f"♪ {len(self._all_cards)} playlist(s) cargada(s).")
+        src_label = "Traktor" if self._source == "traktor" else "Rekordbox"
+        self._log(f"♪ {len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
+
+    def _clear_playlist_area(self) -> None:
+        self._all_cards.clear()
+        layout = self.playlist_container_layout
+        for i in reversed(range(layout.count())):
+            item = layout.itemAt(i)
+            w = item.widget() if item else None
+            if w:
+                w.setParent(None)  # type: ignore[arg-type]
+
+    def _show_not_installed(self, detail: str) -> None:
+        """Show a friendly 'not installed' placeholder in the playlist area."""
+        self._clear_playlist_area()
+
+        app_name = "Traktor Pro 3 / 4" if self._source == "traktor" else "Rekordbox 6"
+        card = QWidget()
+        card.setObjectName("not_installed_card")
+        card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        cl = QVBoxLayout(card)
+        cl.setContentsMargins(18, 20, 18, 20)
+        cl.setSpacing(8)
+        cl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        icon = QLabel("◇")
+        icon.setObjectName("not_installed_icon")
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cl.addWidget(icon)
+
+        title = QLabel(f"{app_name} no encontrado")
+        title.setObjectName("not_installed_title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cl.addWidget(title)
+
+        sub = QLabel(detail)
+        sub.setObjectName("not_installed_sub")
+        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sub.setWordWrap(True)
+        cl.addWidget(sub)
+
+        self.playlist_container_layout.insertWidget(
+            self.playlist_container_layout.count() - 1, card
+        )
+        self._update_order_numbers()
 
     # ──────────────────────────────────────── Order tracking ─────────────
 
