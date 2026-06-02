@@ -51,42 +51,49 @@ class GroupData:
 class PreviewWorker(QThread):
     """
     Recibe GroupData con raw_path ya extraído.
-    Solo hace existence checks → emite group_ready cuando termina cada grupo.
+    Hace existence checks con un cache compartido para no re-chequear el mismo
+    archivo dos veces (crítico en discos USB/red donde cada stat puede tardar).
     """
 
     group_ready: pyqtSignal = pyqtSignal(object)  # GroupData
     finished: pyqtSignal    = pyqtSignal()
 
-    def __init__(self, groups: list[GroupData], is_traktor: bool) -> None:
+    def __init__(
+        self,
+        groups: list[GroupData],
+        is_traktor: bool,
+        exists_cache: dict[str, bool],
+    ) -> None:
         super().__init__()
-        self._groups    = groups
-        self._is_traktor = is_traktor
-        self._stop       = False
+        self._groups       = groups
+        self._is_traktor   = is_traktor
+        self._exists_cache = exists_cache   # dict compartido — GIL-safe en CPython
+        self._stop         = False
 
     def cancel(self) -> None:
         self._stop = True
 
-    def run(self) -> None:
-        if not self._is_traktor:
-            from rekordbox_export import resolve_path as _rp
-        else:
-            _rp = None
+    def _check(self, raw: str) -> bool:
+        """Existence check con cache. Primer acceso hace I/O; resto es O(1)."""
+        if raw in self._exists_cache:
+            return self._exists_cache[raw]
 
+        if self._is_traktor:
+            result = Path(raw).exists()
+        else:
+            from rekordbox_export import resolve_path as _rp
+            result = _rp(raw) is not None
+
+        self._exists_cache[raw] = result
+        return result
+
+    def run(self) -> None:
         for group in self._groups:
             if self._stop:
                 break
-
             for track in group.tracks:
                 if self._stop:
                     break
-                raw = track.raw_path
-                if not raw:
-                    track.exists = False
-                elif self._is_traktor:
-                    track.exists = Path(raw).exists()
-                else:
-                    track.exists = _rp(raw) is not None  # type: ignore[misc]
-
+                track.exists = self._check(track.raw_path) if track.raw_path else False
             self.group_ready.emit(group)
-
         self.finished.emit()
