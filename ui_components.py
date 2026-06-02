@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import ClassVar, List
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QRectF, Qt, pyqtSignal
+from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPixmap
 from PyQt6.QtWidgets import (
     QGraphicsOpacityEffect,
     QHBoxLayout,
@@ -50,6 +51,180 @@ _CARD_STYLES: dict[str, dict[str, str]] = {
         ),
     },
 }
+
+
+# ──────────────────────────────────────── Clickable note (♪) ─────────────
+
+class ClickableLabel(QLabel):
+    """QLabel que emite `clicked`. Usado para la nota ♪ del rack-head."""
+
+    clicked: pyqtSignal = pyqtSignal()
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+
+# ──────────────────────────── Rack-head con espectrograma de fondo ────────
+
+class RackHead(QWidget):
+    """
+    Banner del rack con un espectrograma tenue pintado detrás del contenido.
+    super().paintEvent() dibuja el fondo del QSS; encima va el pixmap clippeado
+    al borde redondeado. Los hijos (nota, brand, VU) pintan después, arriba.
+    """
+
+    _RADIUS = 12.0
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._spectro: QPixmap | None = None
+
+    def set_spectrogram(self, pixmap: QPixmap | None) -> None:
+        self._spectro = pixmap
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)               # fondo + borde del QSS
+        if self._spectro is None:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        path = QPainterPath()
+        rect = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
+        path.addRoundedRect(rect, self._RADIUS, self._RADIUS)
+        p.setClipPath(path)
+        scaled = self._spectro.scaled(
+            self.size(),
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        p.drawPixmap(0, 0, scaled)
+
+
+# ──────────────────────────────────────── File row (clickable) ───────────
+
+class FileRow(QWidget):
+    """
+    Fila de archivo en el preview. Si el archivo existe, es clickeable y emite
+    `clicked(raw_path)` para reproducir. Los faltantes quedan inertes.
+    set_playing() usa setStyleSheet inline (no unpolish/polish) para evitar el
+    flicker en cascada documentado en este archivo.
+    """
+
+    clicked: pyqtSignal = pyqtSignal(str)
+
+    def __init__(
+        self,
+        raw_path: str,
+        exists: bool,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._raw_path = raw_path
+        self._exists = exists
+        self.setObjectName("output_file_row")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setProperty("file_missing", "false" if exists else "true")
+        if exists:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mousePressEvent(self, event) -> None:
+        if self._exists and event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self._raw_path)
+        super().mousePressEvent(event)
+
+    def set_playing(self, playing: bool) -> None:
+        if playing:
+            theme = PlaylistCard._theme
+            accent = "#ce7de6" if theme == "dark" else "#8c38bf"
+            soft = (
+                "rgba(206,125,230,28)" if theme == "dark"
+                else "rgba(140,56,191,22)"
+            )
+            self.setStyleSheet(
+                "QWidget#output_file_row {"
+                f" background: {soft};"
+                f" border-left: 2px solid {accent};"
+                "}"
+            )
+        else:
+            self.setStyleSheet("")
+
+
+class SeekBar(QWidget):
+    """Barra de progreso clickeable/arrastrable. Emite seek_requested(ms)."""
+
+    seek_requested: pyqtSignal = pyqtSignal(int)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._pos = 0
+        self._dur = 0
+        self._accent = QColor(206, 125, 230)
+        self.setFixedHeight(14)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+
+    def set_accent(self, hex_color: str) -> None:
+        self._accent = QColor(hex_color)
+        self.update()
+
+    def set_progress(self, pos: int, dur: int) -> None:
+        self._pos = pos
+        self._dur = dur
+        self.update()
+
+    def _fraction_at(self, x: int) -> float:
+        w = max(1, self.width())
+        return min(1.0, max(0.0, x / w))
+
+    def mousePressEvent(self, event) -> None:
+        self._emit_seek(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            self._emit_seek(event)
+
+    def _emit_seek(self, event) -> None:
+        if self._dur <= 0:
+            return
+        frac = self._fraction_at(int(event.position().x()))
+        self._pos = int(frac * self._dur)     # feedback inmediato
+        self.update()
+        self.seek_requested.emit(self._pos)
+
+    def paintEvent(self, _event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        h = self.height()
+        track_h = 4
+        y = (h - track_h) // 2
+        radius = track_h / 2
+
+        # Riel de fondo
+        bg = QColor(self._accent)
+        bg.setAlphaF(0.20)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(bg)
+        p.drawRoundedRect(0, y, self.width(), track_h, radius, radius)
+
+        # Porción reproducida
+        if self._dur > 0:
+            frac = min(1.0, self._pos / self._dur)
+            fill_w = int(self.width() * frac)
+            p.setBrush(self._accent)
+            p.drawRoundedRect(0, y, fill_w, track_h, radius, radius)
+            # Handle
+            cx = fill_w
+            p.drawEllipse(
+                max(5, min(self.width() - 5, cx)) - 5, y + track_h // 2 - 5, 10, 10
+            )
 
 
 class PlaylistCard(QWidget):
