@@ -11,7 +11,10 @@ import math
 from io import BytesIO
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings, pyqtSignal
+from PyQt6.QtCore import (
+    Qt, QTimer, QUrl, QSettings, pyqtSignal,
+    QPropertyAnimation, QEasingCurve,
+)
 from PyQt6.QtGui import (
     QColor,
     QDesktopServices,
@@ -23,6 +26,7 @@ from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
     QFileDialog,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -775,13 +779,46 @@ class MainWindow(QMainWindow):
                 f"{n} carpeta{'s' if n != 1 else ''} · numeración independiente"
             )
 
-        # Debounced: espera 150ms sin más cambios antes de actualizar el preview
         if hasattr(self, "preview_scroll") and self.preview_scroll.isVisible():
+            self._fade_preview_out()      # inmediato — corre en paralelo con el debounce
             self._preview_debounce.start()
 
     # ──────────────────────────────── Output preview (async) ────────────
 
+    # ── Animaciones ──────────────────────────────────────────────────────
+
+    def _fade_preview_out(self) -> None:
+        """Fade-out del contenido actual en paralelo con el debounce timer."""
+        c = self.preview_container
+        if self.preview_layout.count() == 0:
+            return
+        effect = QGraphicsOpacityEffect(c)
+        c.setGraphicsEffect(effect)
+        anim = QPropertyAnimation(effect, b"opacity", c)
+        anim.setDuration(70)
+        anim.setStartValue(1.0)
+        anim.setEndValue(0.0)
+        anim.setEasingCurve(QEasingCurve.Type.InQuad)
+        anim.start()
+
+    def _animate_fade_in(self, widget: QWidget, duration: int = 180) -> None:
+        """Fade-in suave para un widget recién añadido al layout."""
+        effect = QGraphicsOpacityEffect(widget)
+        effect.setOpacity(0.0)
+        widget.setGraphicsEffect(effect)
+        anim = QPropertyAnimation(effect, b"opacity", widget)
+        anim.setDuration(duration)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.setEasingCurve(QEasingCurve.Type.OutQuart)
+        # Remover el efecto al terminar para no penalizar el paint
+        anim.finished.connect(lambda: widget.setGraphicsEffect(None))
+        anim.start()
+
+    # ─────────────────────────────────────────────────────────────────────
+
     def _clear_preview_layout(self) -> None:
+        self.preview_container.setGraphicsEffect(None)  # restaura opacidad
         self._render_gen += 1          # invalida cualquier batch en vuelo
         self._render_queue.clear()
         lo = self.preview_layout
@@ -808,12 +845,13 @@ class MainWindow(QMainWindow):
             self._show_preview_empty()
             return
 
-        # Loading placeholder — aparece de inmediato
+        # Loading placeholder con fade-in suave
         loading = QLabel(f"Cargando {len(selected)} playlist{'s' if len(selected) != 1 else ''}…")
         loading.setObjectName("preview_loading")
         loading.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_layout.addWidget(loading)
         self.preview_layout.addStretch(1)
+        self._animate_fade_in(loading, duration=120)
 
         # ── Extracción de metadata en el main thread (rápido: sólo queries a DB) ──
         groups = self._extract_preview_data(selected)
@@ -927,10 +965,11 @@ class MainWindow(QMainWindow):
         if last and last.spacerItem():
             lo.removeItem(last)
 
-        # Renderizar cabecera del grupo (rápido: ~5 widgets)
+        # Renderizar cabecera del grupo y añadir con fade-in
         grp, files_layout = self._render_group_header(data)
         lo.addWidget(grp)
         lo.addStretch(1)
+        self._animate_fade_in(grp, duration=180)
 
         # Filas: en lotes de 15 para no bloquear el event loop
         self._batch_rows(list(data.tracks), files_layout, gen, batch=15)
