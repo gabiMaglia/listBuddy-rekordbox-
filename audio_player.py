@@ -25,6 +25,7 @@ class AudioPlayer(QObject):
     track_changed:    pyqtSignal = pyqtSignal(str)        # path actual
     error:            pyqtSignal = pyqtSignal(str)        # mensaje legible
     position_changed: pyqtSignal = pyqtSignal(int, int)  # (pos_ms, dur_ms)
+    track_finished:   pyqtSignal = pyqtSignal()          # llegó al final
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -38,6 +39,7 @@ class AudioPlayer(QObject):
         self._player.errorOccurred.connect(self._on_error)
         self._player.positionChanged.connect(self._on_position)
         self._player.durationChanged.connect(self._on_duration)
+        self._player.mediaStatusChanged.connect(self._on_media_status)
 
     # ── API ───────────────────────────────────────────────────────────────
 
@@ -96,3 +98,7 @@ class AudioPlayer(QObject):
 
     def _on_duration(self, dur: int) -> None:
         self.position_changed.emit(self._player.position(), dur)
+
+    def _on_media_status(self, status: QMediaPlayer.MediaStatus) -> None:
+        if status == QMediaPlayer.MediaStatus.EndOfMedia:
+            self.track_finished.emit()

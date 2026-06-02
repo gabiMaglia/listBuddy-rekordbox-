@@ -19,9 +19,11 @@ from PyQt6.QtGui import (
     QColor,
     QDesktopServices,
     QImage,
+    QKeySequence,
     QMouseEvent,
     QPainter,
     QPixmap,
+    QShortcut,
 )
 from PyQt6.QtWidgets import (
     QApplication,
@@ -256,8 +258,10 @@ class MainWindow(QMainWindow):
         self._audio.error.connect(self._on_audio_error)
         self._audio.position_changed.connect(self._on_position_changed)
         self._audio.track_changed.connect(lambda _p: self._seek_row.setVisible(True))
+        self._audio.track_finished.connect(self._on_track_finished)
         self._playing_path: str = ""        # raw_path del track sonando
         self._playing_row: FileRow | None = None
+        self._play_order: list[tuple[str, FileRow]] = []   # (raw_path, row) en orden
 
         # ── Espectrograma de fondo ───────────────────────────────────────
         self._spectro_worker: SpectrogramWorker | None = None
@@ -325,6 +329,9 @@ class MainWindow(QMainWindow):
         )
 
         self._load_playlists()
+
+        self._space_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Space), self)
+        self._space_shortcut.activated.connect(self._on_space)
 
     # ──────────────────────────────────────── Widget builders ────────────
 
@@ -866,6 +873,7 @@ class MainWindow(QMainWindow):
         # Las filas se destruyen acá (deleteLater); soltar la ref al row sonando
         # para no tocar un objeto C++ borrado en el próximo click (→ abort de Qt).
         self._playing_row = None
+        self._play_order.clear()
         lo = self.preview_layout
         while lo.count():
             item = lo.takeAt(0)
@@ -1176,6 +1184,9 @@ class MainWindow(QMainWindow):
             ext_lbl.setProperty("file_missing", "true" if missing else "false")
             rl.addWidget(ext_lbl)
 
+        if track.exists and track.raw_path:
+            self._play_order.append((track.raw_path, row))
+
         return row
 
     # ──────────────────────────────────── Audio playback ─────────────────
@@ -1194,7 +1205,22 @@ class MainWindow(QMainWindow):
             pass
 
     def _play_track(self, raw_path: str) -> None:
-        """Resuelve la ruta real y reproduce. No bloquea (QMediaPlayer async)."""
+        """Slot de FileRow.clicked. La fila emisora es self.sender()."""
+        row = self.sender()
+        self._play_file_row(row if isinstance(row, FileRow) else None, raw_path)
+
+    def _play_file_row(
+        self,
+        row: FileRow | None,
+        raw_path: str,
+        allow_toggle: bool = True,
+    ) -> None:
+        # Click en la fila que ya suena → pausa/reanuda en vez de reiniciar
+        if allow_toggle and raw_path and raw_path == self._playing_path \
+                and self._audio.current_path():
+            self._audio.toggle()
+            return
+
         if self._source == "traktor":
             resolved = raw_path if raw_path and Path(raw_path).exists() else None
         else:
@@ -1207,10 +1233,8 @@ class MainWindow(QMainWindow):
         self._audio.play(resolved)
         self._playing_path = raw_path
 
-        # Mover el highlight a la fila clickeada
         self._set_row_playing(self._playing_row, False)
         self._playing_row = None
-        row = self.sender()
         if isinstance(row, FileRow):
             self._set_row_playing(row, True)
             self._playing_row = row
@@ -1223,6 +1247,28 @@ class MainWindow(QMainWindow):
         else:
             self._play_toggle.setText("▶" if self._playing_path else "♪")
         self._vu_bars.set_live(playing)
+
+    def _on_space(self) -> None:
+        # No robar la barra espaciadora cuando se está escribiendo o sobre un botón
+        from PyQt6.QtWidgets import QAbstractButton
+        fw = QApplication.focusWidget()
+        if isinstance(fw, (QLineEdit, QPlainTextEdit, QAbstractButton)):
+            return
+        self._audio.toggle()
+
+    def _on_track_finished(self) -> None:
+        """Reproduce el siguiente track existente de la cola, si lo hay."""
+        if not self._play_order:
+            return
+        idx = next(
+            (i for i, (rp, _) in enumerate(self._play_order)
+             if rp == self._playing_path),
+            -1,
+        )
+        if idx == -1 or idx + 1 >= len(self._play_order):
+            return
+        next_path, next_row = self._play_order[idx + 1]
+        self._play_file_row(next_row, next_path, allow_toggle=False)
 
     @staticmethod
     def _fmt_ms(ms: int) -> str:
