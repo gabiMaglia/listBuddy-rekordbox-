@@ -1,6 +1,6 @@
 # rb_exporter.spec
 # -----------------
-# PyInstaller spec para RB Exporter.
+# PyInstaller spec para List Buddy.
 # Uso: pyinstaller rb_exporter.spec
 #
 # Notas:
@@ -8,6 +8,10 @@
 # - Si el .exe abre pero falla al leer la DB, probablemente falte algún hidden import.
 #   Revisá el log de PyInstaller buscando "ModuleNotFoundError".
 # - El ícono icon.ico debe existir en el mismo directorio antes de buildear.
+# - Audio: PyInstaller 6.x recoge automáticamente los plugins multimedia de Qt
+#   (libffmpegmediaplugin.dylib, libavcodec/format/util, QtMultimedia.framework).
+#   No se necesita colectar manualmente. Verificar en runtime:
+#   "qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version ..."
 
 import sys
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
@@ -31,6 +35,8 @@ a = Analysis(
         'sqlalchemy',
         'sqlalchemy.dialects.sqlite',
         'sqlalchemy.orm',
+        'PyQt6.QtMultimedia',
+        'numpy',
     ],
     hookspath=[],
     hooksconfig={},
@@ -51,7 +57,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='RB Exporter',
+    name='List Buddy',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

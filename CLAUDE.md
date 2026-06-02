@@ -1,14 +1,14 @@
-# CLAUDE.md — RB Exporter
+# CLAUDE.md — List Buddy
 
 ## Rol esperado
 
-Sos un experto en Python, empaquetado de apps de escritorio para macOS/Windows, y en el funcionamiento interno de Rekordbox (todas sus versiones). Conocés la estructura de su base de datos, el esquema de sus tablas, cómo pyrekordbox la abstrae, y los problemas habituales de integración.
+Sos un experto en Python, empaquetado de apps de escritorio para macOS/Windows, y en el funcionamiento interno de Rekordbox y Traktor (todas sus versiones). Conocés la estructura de sus bases de datos, el esquema de sus tablas, cómo pyrekordbox y el NML de Traktor funcionan, y los problemas habituales de integración.
 
 ---
 
 ## El proyecto
 
-**RB Exporter** es una app de escritorio (PyQt6) que lee la librería de Rekordbox 6 y copia las canciones de las playlists seleccionadas a carpetas organizadas con prefijo numérico de orden.
+**List Buddy** es una app de escritorio (PyQt6) que lee la librería de Rekordbox 6 o Traktor Pro 3/4 y copia las canciones de las playlists seleccionadas a carpetas organizadas con prefijo numérico de orden. También permite previsualizar y reproducir audio directamente desde la interfaz.
 
 ### Flujo de usuario
 
@@ -23,12 +23,19 @@ Sos un experto en Python, empaquetado de apps de escritorio para macOS/Windows, 
 
 ```
 main.py              → entry point. Solo QApplication + MainWindow.show().
-ui.py                → MainWindow (PyQt6). Árbol de playlists, log, barra de progreso.
+ui.py                → MainWindow (PyQt6). Árbol de playlists, preview, reproducción, exportación.
 worker.py            → ExportWorker (QThread). Copia archivos; emite signals log/progress/finished_ok.
 db.py                → Capa de acceso a pyrekordbox. open_database(), list_playlists(), get_playlist_tree().
 rekordbox_export.py  → Lógica base validada. NO modificar sin causa mayor.
-rb_exporter.spec     → Spec de PyInstaller para empaquetar.
+traktor_db.py        → Parser de colección NML de Traktor Pro 3/4. open_collection(), get_playlist_tree().
+preview_worker.py    → PreviewWorker (QThread). Existence checks en background; emite GroupData.
+audio_player.py      → AudioPlayer (QMediaPlayer+FFmpeg). play/pause/seek; señales playing_changed, position_changed, track_finished.
+spectro_worker.py    → SpectrogramWorker (QThread). QAudioDecoder + numpy STFT → QImage tenue de fondo.
+ui_components.py     → PlaylistCard, PlaylistGroup, SeekBar, FileRow, RackHead, ClickableLabel.
+styles.py            → Tokens de diseño dark/light + load_qss().
+rb_exporter.spec     → Spec de PyInstaller para empaquetar (produce "List Buddy" ejecutable).
 requirements.txt     → Dependencias pineadas exactas.
+plans/               → Planes de implementación autocontenidos para ejecutar con Sonnet.
 ```
 
 **Regla de imports:** `main → ui → worker/db → rekordbox_export`. Nunca al revés.
@@ -55,6 +62,7 @@ PyQt6-Qt6    6.11.1
 PyQt6_sip    13.11.1
 pyrekordbox  0.4.4
 sqlcipher3-wheels 0.5.7
+numpy        2.4.6
 ```
 
 Entorno virtual en `.venv/`. Activar antes de correr:
@@ -186,6 +194,18 @@ El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **
    pyinstaller rb_exporter.spec --target-arch universal2
    ```
    Requiere que todas las dependencias nativas (SQLCipher .dylib) también sean universal. `sqlcipher3-wheels` puede no tener universal en todas sus versiones — verificar antes de intentarlo.
+
+8. **Audio (QtMultimedia + FFmpeg):** el spec declara `PyQt6.QtMultimedia` y `numpy`
+   en `hiddenimports`. **PyInstaller 6.x recoge automáticamente** los plugins
+   multimedia (`libffmpegmediaplugin.dylib`, `libdarwinmediaplugin.dylib`,
+   `QtMultimedia.framework`, `libavcodec/format/util`) — no hace falta colectar
+   manualmente. Verificar en runtime que aparezca:
+   `qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version ...`
+   Si el audio no suena en el bundle, incluir manualmente con:
+   ```python
+   collect_dynamic_libs('PyQt6', subdir='Qt6/plugins/multimedia')
+   collect_dynamic_libs('PyQt6', subdir='Qt6/lib')  # libav*
+   ```
 
 7. **Entitlements** (si se firma con hardened runtime):
    ```xml
