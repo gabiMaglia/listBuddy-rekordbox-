@@ -1364,6 +1364,7 @@ class MainWindow(QMainWindow):
         self.progress_section.setVisible(True)
         self.progress.setValue(0)
         self.prog_label.setText("Copiando y numerando…")
+        self.prog_pct.setText("0%")
         self.output_status.setText("exportando…")
         self._vu_bars.set_live(True)
         self.preview_scroll.setVisible(False)
@@ -1391,13 +1392,17 @@ class MainWindow(QMainWindow):
         self.output_status.setText("exportado ✓")
         self._vu_bars.set_live(False)
         self._log(f"\n✓ Listo. {copied} copiadas, {missing} no encontradas.")
-        QMessageBox.information(
-            self, "Exportación terminada",
-            f"Copiadas: {copied}\nNo encontradas: {missing}",
-        )
         self.log_view.setVisible(False)
         self.preview_scroll.setVisible(True)
         self._exists_cache.clear()   # archivos copiados → rutas destino cambiaron
+        # Mantener el cartel de progreso 5 s y luego ocultarlo
+        QTimer.singleShot(5000, self._hide_progress_section)
+
+    def _hide_progress_section(self) -> None:
+        self.progress_section.setVisible(False)
+        self.progress.setValue(0)
+        self.prog_label.setText("Copiando y numerando…")
+        self.prog_pct.setText("0%")
 
     def _log(self, text: str) -> None:
         self.log_view.appendPlainText(text)
