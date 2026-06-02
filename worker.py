@@ -11,7 +11,23 @@ from pathlib import Path
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from rekordbox_export import get_songs, get_content, get_artist, resolve_path, sanitize
+from rekordbox_export import get_songs as _rb_get_songs
+from rekordbox_export import get_content, get_artist, resolve_path, sanitize
+
+
+def _get_songs(pl):
+    """Dispatch to Traktor or Rekordbox get_songs depending on playlist type."""
+    try:
+        from traktor_db import TraktorPlaylist, get_songs as _tk_get_songs
+        if isinstance(pl, TraktorPlaylist):
+            return _tk_get_songs(pl)
+    except ImportError:
+        pass
+    return _rb_get_songs(pl)
+
+
+def get_songs(pl):  # keep public name used by _try_count and callers
+    return _get_songs(pl)
 
 # Límite conservador del stem del filename para no superar MAX_PATH de Windows (260).
 _MAX_STEM = 200
