@@ -244,11 +244,15 @@ class MainWindow(QMainWindow):
         # key: raw_path  value: bool
         self._exists_cache: dict[str, bool] = {}
 
-        # Debounce: espera 150ms sin cambios antes de disparar el preview
+        # Debounce: 80ms sin cambios antes de disparar el preview
         self._preview_debounce = QTimer()
         self._preview_debounce.setSingleShot(True)
-        self._preview_debounce.setInterval(150)
+        self._preview_debounce.setInterval(80)
         self._preview_debounce.timeout.connect(self._start_preview_worker)
+
+        # Cola de grupos pendientes de render + generation counter
+        self._render_queue: list[GroupData] = []
+        self._render_gen: int = 0   # se incrementa al limpiar; invalida batches stale
 
         settings_path = Path(__file__).parent / ".rbe_settings.ini"
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
@@ -778,6 +782,8 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────── Output preview (async) ────────────
 
     def _clear_preview_layout(self) -> None:
+        self._render_gen += 1          # invalida cualquier batch en vuelo
+        self._render_queue.clear()
         lo = self.preview_layout
         while lo.count():
             item = lo.takeAt(0)
@@ -813,12 +819,13 @@ class MainWindow(QMainWindow):
         groups = self._extract_preview_data(selected)
 
         # ── Worker: existence checks en background con cache compartido ──
+        self._render_queue.clear()
         self._preview_worker = PreviewWorker(
             groups,
             self._source == "traktor",
-            self._exists_cache,   # cache compartido — O(1) para paths ya vistos
+            self._exists_cache,
         )
-        self._preview_worker.group_ready.connect(self._on_preview_group_ready)
+        self._preview_worker.group_ready.connect(self._queue_group)
         self._preview_worker.finished.connect(self._on_preview_done)
         self._preview_worker.start()
 
@@ -892,26 +899,68 @@ class MainWindow(QMainWindow):
             ))
         return groups
 
-    def _on_preview_group_ready(self, data: GroupData) -> None:
-        """Llamado desde el worker (via señal) cuando un grupo termina. Renderiza y añade."""
-        lo = self.preview_layout
-        # Remove trailing stretch (if any) to insert before it
-        last = lo.itemAt(lo.count() - 1) if lo.count() else None
-        if last and last.spacerItem():
-            lo.removeItem(last)
-        # Remove loading label once first group arrives
-        if lo.count() == 1:
+    # ── Render queue: un grupo por event-loop tick, filas en lotes de 15 ──────
+
+    def _queue_group(self, data: GroupData) -> None:
+        """Recibe el grupo del worker y lo encola para render diferido."""
+        self._render_queue.append(data)
+        if len(self._render_queue) == 1:               # primer grupo: arrancar el pump
+            QTimer.singleShot(0, self._pump_render_queue)
+
+    def _pump_render_queue(self) -> None:
+        """Procesa un grupo por tick del event loop — nunca bloquea la UI."""
+        if not self._render_queue:
+            return
+        data = self._render_queue.pop(0)
+        gen  = self._render_gen
+        lo   = self.preview_layout
+
+        # Quitar loading label al llegar el primer grupo real
+        if lo.count() >= 1:
             first = lo.itemAt(0)
             if first and first.widget() and first.widget().objectName() == "preview_loading":
                 w = first.widget()
                 lo.removeWidget(w)
                 w.deleteLater()
+        # Quitar stretch final para insertar antes
+        last = lo.itemAt(lo.count() - 1) if lo.count() else None
+        if last and last.spacerItem():
+            lo.removeItem(last)
 
-        lo.addWidget(self._render_group(data))
+        # Renderizar cabecera del grupo (rápido: ~5 widgets)
+        grp, files_layout = self._render_group_header(data)
+        lo.addWidget(grp)
         lo.addStretch(1)
 
+        # Filas: en lotes de 15 para no bloquear el event loop
+        self._batch_rows(list(data.tracks), files_layout, gen, batch=15)
+
+        # Continuar con el siguiente grupo en el próximo tick
+        if self._render_queue:
+            QTimer.singleShot(0, self._pump_render_queue)
+
+    def _batch_rows(
+        self,
+        remaining: list[TrackRow],
+        layout: QVBoxLayout,
+        gen: int,
+        batch: int = 15,
+    ) -> None:
+        """Añade `batch` filas al layout y se re-programa si quedan más."""
+        if gen != self._render_gen:
+            return                             # selección cambió → descartar
+        for _ in range(batch):
+            if not remaining:
+                layout.addStretch(1)
+                return
+            layout.addWidget(self._make_row_widget(remaining.pop(0)))
+        if remaining:
+            QTimer.singleShot(0, lambda: self._batch_rows(remaining, layout, gen, batch))
+        else:
+            layout.addStretch(1)
+
     def _on_preview_done(self) -> None:
-        """Worker terminó. Si aún hay el loading label (sin grupos), limpia."""
+        """Worker terminó. Limpia loading label si no llegó ningún grupo."""
         lo = self.preview_layout
         for i in range(lo.count()):
             item = lo.itemAt(i)
@@ -945,8 +994,12 @@ class MainWindow(QMainWindow):
         el.addStretch(1)
         lo.addWidget(empty)
 
-    def _render_group(self, data: GroupData) -> QWidget:
-        """Renderiza un GroupData (ya con exists checks) en un QWidget. Solo UI, sin I/O."""
+    def _render_group_header(self, data: GroupData) -> tuple[QWidget, QVBoxLayout]:
+        """
+        Crea el widget del grupo con la cabecera y el scroll vacío.
+        Devuelve (grp_widget, files_layout) para que _batch_rows llene las filas.
+        Rápido: solo ~10 widgets, sin I/O.
+        """
         grp = QWidget()
         grp.setObjectName("output_grp")
         grp.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -954,7 +1007,6 @@ class MainWindow(QMainWindow):
         gl.setContentsMargins(0, 0, 0, 0)
         gl.setSpacing(0)
 
-        # ── Group header ──
         head = QWidget()
         head.setObjectName("output_grp_head")
         head.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -963,8 +1015,9 @@ class MainWindow(QMainWindow):
         hl.setSpacing(8)
 
         has_missing = data.missing_count > 0
-        badge_text  = f"{str(data.order).zfill(2)} ⚠" if has_missing else str(data.order).zfill(2)
-        badge = QLabel(badge_text)
+        badge = QLabel(
+            f"{str(data.order).zfill(2)} ⚠" if has_missing else str(data.order).zfill(2)
+        )
         badge.setObjectName("output_grp_badge_warn" if has_missing else "output_grp_badge")
         badge.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         hl.addWidget(badge)
@@ -979,7 +1032,6 @@ class MainWindow(QMainWindow):
 
         gl.addWidget(head)
 
-        # ── Scrollable file list ──
         inner_scroll = QScrollArea()
         inner_scroll.setObjectName("grp_inner_scroll")
         inner_scroll.setWidgetResizable(True)
@@ -994,45 +1046,45 @@ class MainWindow(QMainWindow):
         files_layout.setContentsMargins(0, 2, 0, 4)
         files_layout.setSpacing(0)
 
-        for track in data.tracks:
-            missing = not track.exists
-            row = QWidget()
-            row.setObjectName("output_file_row")
-            row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-            row.setProperty("file_missing", "true" if missing else "false")
-            rl = QHBoxLayout(row)
-            rl.setContentsMargins(13, 4, 13, 4)
-            rl.setSpacing(7)
-
-            idx_lbl = QLabel("✗" if missing else track.num[-2:])
-            idx_lbl.setObjectName("output_file_idx")
-            idx_lbl.setProperty("file_missing", "true" if missing else "false")
-            rl.addWidget(idx_lbl)
-
-            name_lbl = QLabel(f"{track.num} - {track.title}")
-            name_lbl.setObjectName("output_file_name")
-            name_lbl.setProperty("file_missing", "true" if missing else "false")
-            rl.addWidget(name_lbl, 1)
-
-            if track.artist:
-                ar_lbl = QLabel(f"— {track.artist}")
-                ar_lbl.setObjectName("output_file_artist")
-                ar_lbl.setProperty("file_missing", "true" if missing else "false")
-                rl.addWidget(ar_lbl)
-
-            if track.ext:
-                ext_lbl = QLabel(track.ext)
-                ext_lbl.setObjectName("output_file_ext")
-                ext_lbl.setProperty("file_missing", "true" if missing else "false")
-                rl.addWidget(ext_lbl)
-
-            files_layout.addWidget(row)
-
-        files_layout.addStretch(1)
         inner_scroll.setWidget(files_widget)
         gl.addWidget(inner_scroll)
 
-        return grp
+        return grp, files_layout
+
+    def _make_row_widget(self, track: TrackRow) -> QWidget:
+        """Crea una única fila de archivo. Llamado desde _batch_rows."""
+        missing = not track.exists
+        row = QWidget()
+        row.setObjectName("output_file_row")
+        row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        row.setProperty("file_missing", "true" if missing else "false")
+        rl = QHBoxLayout(row)
+        rl.setContentsMargins(13, 4, 13, 4)
+        rl.setSpacing(7)
+
+        idx_lbl = QLabel("✗" if missing else track.num[-2:])
+        idx_lbl.setObjectName("output_file_idx")
+        idx_lbl.setProperty("file_missing", "true" if missing else "false")
+        rl.addWidget(idx_lbl)
+
+        name_lbl = QLabel(f"{track.num} - {track.title}")
+        name_lbl.setObjectName("output_file_name")
+        name_lbl.setProperty("file_missing", "true" if missing else "false")
+        rl.addWidget(name_lbl, 1)
+
+        if track.artist:
+            ar_lbl = QLabel(f"— {track.artist}")
+            ar_lbl.setObjectName("output_file_artist")
+            ar_lbl.setProperty("file_missing", "true" if missing else "false")
+            rl.addWidget(ar_lbl)
+
+        if track.ext:
+            ext_lbl = QLabel(track.ext)
+            ext_lbl.setObjectName("output_file_ext")
+            ext_lbl.setProperty("file_missing", "true" if missing else "false")
+            rl.addWidget(ext_lbl)
+
+        return row
 
     # ──────────────────────────────────────── Actions ────────────────────
 
