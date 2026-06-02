@@ -261,6 +261,8 @@ class MainWindow(QMainWindow):
         settings_path = Path(__file__).parent / ".rbe_settings.ini"
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
         self._theme = str(self.settings.value("theme", "dark"))
+        from ui_components import PlaylistCard as _PC
+        _PC.set_theme(self._theme)
 
         central = QWidget()
         central.setObjectName("central_widget")
@@ -526,8 +528,8 @@ class MainWindow(QMainWindow):
         self.playlist_container = QWidget()
         self.playlist_container.setObjectName("scroll_content")
         self.playlist_container_layout = QVBoxLayout(self.playlist_container)
-        self.playlist_container_layout.setContentsMargins(0, 0, 0, 0)
-        self.playlist_container_layout.setSpacing(0)
+        self.playlist_container_layout.setContentsMargins(6, 6, 6, 6)
+        self.playlist_container_layout.setSpacing(5)
         self.playlist_container_layout.addStretch(1)
 
         scroll.setWidget(self.playlist_container)
@@ -780,26 +782,11 @@ class MainWindow(QMainWindow):
             )
 
         if hasattr(self, "preview_scroll") and self.preview_scroll.isVisible():
-            self._fade_preview_out()      # inmediato — corre en paralelo con el debounce
             self._preview_debounce.start()
 
     # ──────────────────────────────── Output preview (async) ────────────
 
     # ── Animaciones ──────────────────────────────────────────────────────
-
-    def _fade_preview_out(self) -> None:
-        """Fade-out del contenido actual en paralelo con el debounce timer."""
-        c = self.preview_container
-        if self.preview_layout.count() == 0:
-            return
-        effect = QGraphicsOpacityEffect(c)
-        c.setGraphicsEffect(effect)
-        anim = QPropertyAnimation(effect, b"opacity", c)
-        anim.setDuration(70)
-        anim.setStartValue(1.0)
-        anim.setEndValue(0.0)
-        anim.setEasingCurve(QEasingCurve.Type.InQuad)
-        anim.start()
 
     def _animate_fade_in(self, widget: QWidget, duration: int = 180) -> None:
         """Fade-in suave para un widget recién añadido al layout."""
@@ -818,7 +805,6 @@ class MainWindow(QMainWindow):
     # ─────────────────────────────────────────────────────────────────────
 
     def _clear_preview_layout(self) -> None:
-        self.preview_container.setGraphicsEffect(None)  # restaura opacidad
         self._render_gen += 1          # invalida cualquier batch en vuelo
         self._render_queue.clear()
         lo = self.preview_layout
@@ -1061,7 +1047,11 @@ class MainWindow(QMainWindow):
         badge.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         hl.addWidget(badge)
 
-        fname_lbl = QLabel(f"▭  {data.name} /")
+        folder_ic = QLabel("▭")
+        folder_ic.setObjectName("output_grp_folder_icon")
+        hl.addWidget(folder_ic)
+
+        fname_lbl = QLabel(f"{data.name} /")
         fname_lbl.setObjectName("output_grp_fname")
         hl.addWidget(fname_lbl, 1)
 
@@ -1208,9 +1198,15 @@ class MainWindow(QMainWindow):
         self._theme = theme
         self.settings.setValue("theme", theme)
         from styles import load_qss
+        from ui_components import PlaylistCard as _PC
+        _PC.set_theme(theme)
         app = QApplication.instance()
         if app:
             app.setStyleSheet(load_qss(theme))
+        # Refresh cards so their inline stylesheets use new theme colors
+        for card in self._all_cards:
+            if card.isChecked():
+                card._refresh()
         self._sync_theme_toggle(theme)
         self._vu_bars.set_accent(
             "#ce7de6" if theme == "dark" else "#8c38bf"
