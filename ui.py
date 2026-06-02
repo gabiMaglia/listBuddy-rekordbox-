@@ -831,7 +831,7 @@ class MainWindow(QMainWindow):
         hl.addWidget(cnt_lbl)
         gl.addWidget(head)
 
-        # Scrollable file list — all tracks
+        # Scrollable file list — all tracks, with missing-file detection
         inner_scroll = QScrollArea()
         inner_scroll.setObjectName("grp_inner_scroll")
         inner_scroll.setWidgetResizable(True)
@@ -846,8 +846,12 @@ class MainWindow(QMainWindow):
         files_layout.setContentsMargins(0, 2, 0, 4)
         files_layout.setSpacing(0)
 
+        is_traktor = isinstance(card.playlist, _TKPl)
+
         try:
             songs = list(get_songs(card.playlist))
+            missing_count = 0
+
             for i, song in enumerate(songs):
                 content = get_content(song)
                 if content is None:
@@ -858,36 +862,62 @@ class MainWindow(QMainWindow):
                 raw_path = getattr(content, "FolderPath", "") or ""
                 ext = Path(raw_path).suffix.lower() if raw_path else ""
 
+                # ── File existence check ──
+                if is_traktor:
+                    file_exists = Path(raw_path).exists() if raw_path else False
+                else:
+                    from rekordbox_export import resolve_path as _rp
+                    file_exists = _rp(raw_path) is not None
+
+                if not file_exists:
+                    missing_count += 1
+
                 row = QWidget()
                 row.setObjectName("output_file_row")
-                row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+                row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+                row.setProperty("file_missing", "true" if not file_exists else "false")
                 rl = QHBoxLayout(row)
                 rl.setContentsMargins(13, 4, 13, 4)
                 rl.setSpacing(7)
 
-                idx_lbl = QLabel(str(i + 1).zfill(2))
+                # Index — "✗" when missing
+                idx_text = "✗" if not file_exists else str(i + 1).zfill(2)
+                idx_lbl = QLabel(idx_text)
                 idx_lbl.setObjectName("output_file_idx")
+                idx_lbl.setProperty("file_missing", "true" if not file_exists else "false")
                 rl.addWidget(idx_lbl)
 
                 display_title = title if len(title) <= 46 else title[:44] + "…"
                 name_lbl = QLabel(f"{i + 1:03d} - {display_title}")
                 name_lbl.setObjectName("output_file_name")
+                name_lbl.setProperty("file_missing", "true" if not file_exists else "false")
                 rl.addWidget(name_lbl, 1)
 
                 if artist_s:
                     ar_display = artist_s if len(artist_s) <= 22 else artist_s[:20] + "…"
                     ar_lbl = QLabel(f"— {ar_display}")
                     ar_lbl.setObjectName("output_file_artist")
+                    ar_lbl.setProperty("file_missing", "true" if not file_exists else "false")
                     rl.addWidget(ar_lbl)
 
                 if ext:
                     ext_lbl = QLabel(ext)
                     ext_lbl.setObjectName("output_file_ext")
+                    ext_lbl.setProperty("file_missing", "true" if not file_exists else "false")
                     rl.addWidget(ext_lbl)
 
                 files_layout.addWidget(row)
 
             files_layout.addStretch(1)
+
+            # Update badge and block card if all tracks are missing
+            if missing_count > 0:
+                badge.setText(f"{str(order).zfill(2)} ⚠")
+                badge.setObjectName("output_grp_badge_warn")
+                badge.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+                badge.style().unpolish(badge)
+                badge.style().polish(badge)
+
         except Exception as e:
             err = QLabel(f"  (no disponible: {e})")
             err.setObjectName("output_file_more")
