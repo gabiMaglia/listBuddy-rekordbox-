@@ -43,6 +43,7 @@ from db import open_database as rb_open_database
 from db import playlist_song_count as rb_song_count
 from worker import ExportWorker
 from ui_components import PlaylistCard, PlaylistGroup
+from preview_worker import PreviewWorker, GroupData, TrackRow
 
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
 _APP_VERSION = "1.0"
@@ -233,6 +234,13 @@ class MainWindow(QMainWindow):
         self._worker: ExportWorker | None = None
         self._all_cards: list[PlaylistCard] = []
         self._source: str = "rekordbox"  # "rekordbox" | "traktor"
+        self._preview_worker: PreviewWorker | None = None
+
+        # Debounce: espera 150ms sin cambios antes de disparar el preview
+        self._preview_debounce = QTimer()
+        self._preview_debounce.setSingleShot(True)
+        self._preview_debounce.setInterval(150)
+        self._preview_debounce.timeout.connect(self._start_preview_worker)
 
         settings_path = Path(__file__).parent / ".rbe_settings.ini"
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
@@ -672,6 +680,7 @@ class MainWindow(QMainWindow):
             add_node(node)
 
         self._update_order_numbers()
+        self._preview_debounce.start()
         src_label = "Traktor" if self._source == "traktor" else "Rekordbox"
         self._log(f"♪ {len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
 
@@ -752,12 +761,13 @@ class MainWindow(QMainWindow):
                 f"{n} carpeta{'s' if n != 1 else ''} · numeración independiente"
             )
 
+        # Debounced: espera 150ms sin más cambios antes de actualizar el preview
         if hasattr(self, "preview_scroll") and self.preview_scroll.isVisible():
-            self._update_output_preview()
+            self._preview_debounce.start()
 
-    # ──────────────────────────────────────── Output preview ─────────────
+    # ──────────────────────────────── Output preview (async) ────────────
 
-    def _update_output_preview(self) -> None:
+    def _clear_preview_layout(self) -> None:
         lo = self.preview_layout
         while lo.count():
             item = lo.takeAt(0)
@@ -765,46 +775,140 @@ class MainWindow(QMainWindow):
             if w:
                 w.deleteLater()
 
+    def _cancel_preview_worker(self) -> None:
+        if self._preview_worker and self._preview_worker.isRunning():
+            self._preview_worker.group_ready.disconnect()
+            self._preview_worker.finished.disconnect()
+            self._preview_worker.cancel()
+            # Don't block — old worker dies on its own; signals already disconnected
+
+    def _start_preview_worker(self) -> None:
+        """Llamado por el debounce timer. Cancela worker anterior, muestra loading, inicia nuevo."""
+        self._cancel_preview_worker()
+        self._clear_preview_layout()
+
         selected = [c for c in self._all_cards if c.isChecked()]
-
         if not selected:
-            empty = QWidget()
-            empty.setObjectName("preview_empty")
-            empty.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-            el = QVBoxLayout(empty)
-            el.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            el.setSpacing(10)
-
-            icon = QLabel("◇")
-            icon.setObjectName("output_empty_icon")
-            icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            title = QLabel("Sin playlists en cola")
-            title.setObjectName("output_empty_title")
-            title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            sub = QLabel("Elegí una o más playlists\npara ver la salida numerada.")
-            sub.setObjectName("output_empty_sub")
-            sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            el.addStretch(1)
-            el.addWidget(icon)
-            el.addWidget(title)
-            el.addWidget(sub)
-            el.addStretch(1)
-            lo.addWidget(empty)
+            self._show_preview_empty()
             return
 
-        for idx, card in enumerate(selected):
-            lo.addWidget(self._build_output_group(card, idx + 1))
+        # Loading placeholder — aparece de inmediato
+        loading = QLabel(f"Cargando {len(selected)} playlist{'s' if len(selected) != 1 else ''}…")
+        loading.setObjectName("preview_loading")
+        loading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_layout.addWidget(loading)
+        self.preview_layout.addStretch(1)
 
-        lo.addStretch(1)
+        # ── Extracción de metadata en el main thread (rápido: sólo queries a DB) ──
+        groups = self._extract_preview_data(selected)
 
-    def _build_output_group(self, card: PlaylistCard, order: int) -> QWidget:
-        from traktor_db import TraktorPlaylist as _TKPl
-        from traktor_db import get_songs as _tk_get_songs
-        from rekordbox_export import get_songs as _rb_get_songs
+        # ── Worker: existence checks en background (puede ser lento en USB/red) ──
+        self._preview_worker = PreviewWorker(groups, self._source == "traktor")
+        self._preview_worker.group_ready.connect(self._on_preview_group_ready)
+        self._preview_worker.finished.connect(self._on_preview_done)
+        self._preview_worker.start()
+
+    def _extract_preview_data(self, selected: list[PlaylistCard]) -> list[GroupData]:
+        """
+        Extrae metadata de la DB en el main thread y devuelve GroupData con
+        raw_path por track (sin chequear existencia — eso lo hace el worker).
+        """
+        is_traktor = self._source == "traktor"
+
+        if is_traktor:
+            from traktor_db import get_songs as _get_songs
+        else:
+            from rekordbox_export import get_songs as _get_songs  # type: ignore[assignment]
+
         from rekordbox_export import get_content, get_artist, sanitize
 
-        get_songs = _tk_get_songs if isinstance(card.playlist, _TKPl) else _rb_get_songs
+        groups: list[GroupData] = []
+        for idx, card in enumerate(selected):
+            tracks: list[TrackRow] = []
+            try:
+                for i, song in enumerate(_get_songs(card.playlist)):
+                    content = get_content(song)
+                    if not content:
+                        continue
+                    title    = sanitize(str(getattr(content, "Title",  "") or "") or "?")
+                    artist   = get_artist(content)
+                    artist_s = sanitize(str(artist)) if artist else ""
+                    raw      = getattr(content, "FolderPath", "") or ""
+                    ext      = Path(raw).suffix.lower() if raw else ""
+                    tracks.append(TrackRow(
+                        num      = str(i + 1).zfill(3),
+                        title    = title    if len(title)    <= 46 else title[:44]    + "…",
+                        artist   = artist_s if len(artist_s) <= 22 else artist_s[:20] + "…",
+                        ext      = ext,
+                        raw_path = raw,
+                        exists   = True,   # will be updated by worker
+                    ))
+            except Exception:
+                pass
 
+            groups.append(GroupData(
+                name        = card.playlist.Name,
+                order       = idx + 1,
+                total_count = card._track_count,
+                tracks      = tracks,
+            ))
+        return groups
+
+    def _on_preview_group_ready(self, data: GroupData) -> None:
+        """Llamado desde el worker (via señal) cuando un grupo termina. Renderiza y añade."""
+        lo = self.preview_layout
+        # Remove trailing stretch (if any) to insert before it
+        last = lo.itemAt(lo.count() - 1) if lo.count() else None
+        if last and last.spacerItem():
+            lo.removeItem(last)
+        # Remove loading label once first group arrives
+        if lo.count() == 1:
+            first = lo.itemAt(0)
+            if first and first.widget() and first.widget().objectName() == "preview_loading":
+                w = first.widget()
+                lo.removeWidget(w)
+                w.deleteLater()
+
+        lo.addWidget(self._render_group(data))
+        lo.addStretch(1)
+
+    def _on_preview_done(self) -> None:
+        """Worker terminó. Si aún hay el loading label (sin grupos), limpia."""
+        lo = self.preview_layout
+        for i in range(lo.count()):
+            item = lo.itemAt(i)
+            if item and item.widget() and item.widget().objectName() == "preview_loading":
+                w = item.widget()
+                lo.removeWidget(w)
+                w.deleteLater()
+                break
+
+    def _show_preview_empty(self) -> None:
+        lo = self.preview_layout
+        empty = QWidget()
+        empty.setObjectName("preview_empty")
+        empty.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        el = QVBoxLayout(empty)
+        el.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        el.setSpacing(10)
+        icon = QLabel("◇")
+        icon.setObjectName("output_empty_icon")
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title = QLabel("Sin playlists en cola")
+        title.setObjectName("output_empty_title")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sub = QLabel("Elegí una o más playlists\npara ver la salida numerada.")
+        sub.setObjectName("output_empty_sub")
+        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        el.addStretch(1)
+        el.addWidget(icon)
+        el.addWidget(title)
+        el.addWidget(sub)
+        el.addStretch(1)
+        lo.addWidget(empty)
+
+    def _render_group(self, data: GroupData) -> QWidget:
+        """Renderiza un GroupData (ya con exists checks) en un QWidget. Solo UI, sin I/O."""
         grp = QWidget()
         grp.setObjectName("output_grp")
         grp.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -812,26 +916,32 @@ class MainWindow(QMainWindow):
         gl.setContentsMargins(0, 0, 0, 0)
         gl.setSpacing(0)
 
-        # Group header
+        # ── Group header ──
         head = QWidget()
         head.setObjectName("output_grp_head")
         head.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         hl = QHBoxLayout(head)
         hl.setContentsMargins(13, 9, 13, 9)
         hl.setSpacing(8)
-        badge = QLabel(str(order).zfill(2))
-        badge.setObjectName("output_grp_badge")
+
+        has_missing = data.missing_count > 0
+        badge_text  = f"{str(data.order).zfill(2)} ⚠" if has_missing else str(data.order).zfill(2)
+        badge = QLabel(badge_text)
+        badge.setObjectName("output_grp_badge_warn" if has_missing else "output_grp_badge")
         badge.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         hl.addWidget(badge)
-        fname_lbl = QLabel(f"▭  {card.playlist.Name} /")
+
+        fname_lbl = QLabel(f"▭  {data.name} /")
         fname_lbl.setObjectName("output_grp_fname")
         hl.addWidget(fname_lbl, 1)
-        cnt_lbl = QLabel(f"{card._track_count} archivos")
+
+        cnt_lbl = QLabel(f"{data.total_count} archivos")
         cnt_lbl.setObjectName("output_grp_cnt")
         hl.addWidget(cnt_lbl)
+
         gl.addWidget(head)
 
-        # Scrollable file list — all tracks, with missing-file detection
+        # ── Scrollable file list ──
         inner_scroll = QScrollArea()
         inner_scroll.setObjectName("grp_inner_scroll")
         inner_scroll.setWidgetResizable(True)
@@ -846,83 +956,41 @@ class MainWindow(QMainWindow):
         files_layout.setContentsMargins(0, 2, 0, 4)
         files_layout.setSpacing(0)
 
-        is_traktor = isinstance(card.playlist, _TKPl)
+        for track in data.tracks:
+            missing = not track.exists
+            row = QWidget()
+            row.setObjectName("output_file_row")
+            row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            row.setProperty("file_missing", "true" if missing else "false")
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(13, 4, 13, 4)
+            rl.setSpacing(7)
 
-        try:
-            songs = list(get_songs(card.playlist))
-            missing_count = 0
+            idx_lbl = QLabel("✗" if missing else track.num[-2:])
+            idx_lbl.setObjectName("output_file_idx")
+            idx_lbl.setProperty("file_missing", "true" if missing else "false")
+            rl.addWidget(idx_lbl)
 
-            for i, song in enumerate(songs):
-                content = get_content(song)
-                if content is None:
-                    continue
-                title = sanitize(str(getattr(content, "Title", "") or "") or "?")
-                artist = get_artist(content)
-                artist_s = sanitize(str(artist)) if artist else ""
-                raw_path = getattr(content, "FolderPath", "") or ""
-                ext = Path(raw_path).suffix.lower() if raw_path else ""
+            name_lbl = QLabel(f"{track.num} - {track.title}")
+            name_lbl.setObjectName("output_file_name")
+            name_lbl.setProperty("file_missing", "true" if missing else "false")
+            rl.addWidget(name_lbl, 1)
 
-                # ── File existence check ──
-                if is_traktor:
-                    file_exists = Path(raw_path).exists() if raw_path else False
-                else:
-                    from rekordbox_export import resolve_path as _rp
-                    file_exists = _rp(raw_path) is not None
+            if track.artist:
+                ar_lbl = QLabel(f"— {track.artist}")
+                ar_lbl.setObjectName("output_file_artist")
+                ar_lbl.setProperty("file_missing", "true" if missing else "false")
+                rl.addWidget(ar_lbl)
 
-                if not file_exists:
-                    missing_count += 1
+            if track.ext:
+                ext_lbl = QLabel(track.ext)
+                ext_lbl.setObjectName("output_file_ext")
+                ext_lbl.setProperty("file_missing", "true" if missing else "false")
+                rl.addWidget(ext_lbl)
 
-                row = QWidget()
-                row.setObjectName("output_file_row")
-                row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-                row.setProperty("file_missing", "true" if not file_exists else "false")
-                rl = QHBoxLayout(row)
-                rl.setContentsMargins(13, 4, 13, 4)
-                rl.setSpacing(7)
+            files_layout.addWidget(row)
 
-                # Index — "✗" when missing
-                idx_text = "✗" if not file_exists else str(i + 1).zfill(2)
-                idx_lbl = QLabel(idx_text)
-                idx_lbl.setObjectName("output_file_idx")
-                idx_lbl.setProperty("file_missing", "true" if not file_exists else "false")
-                rl.addWidget(idx_lbl)
-
-                display_title = title if len(title) <= 46 else title[:44] + "…"
-                name_lbl = QLabel(f"{i + 1:03d} - {display_title}")
-                name_lbl.setObjectName("output_file_name")
-                name_lbl.setProperty("file_missing", "true" if not file_exists else "false")
-                rl.addWidget(name_lbl, 1)
-
-                if artist_s:
-                    ar_display = artist_s if len(artist_s) <= 22 else artist_s[:20] + "…"
-                    ar_lbl = QLabel(f"— {ar_display}")
-                    ar_lbl.setObjectName("output_file_artist")
-                    ar_lbl.setProperty("file_missing", "true" if not file_exists else "false")
-                    rl.addWidget(ar_lbl)
-
-                if ext:
-                    ext_lbl = QLabel(ext)
-                    ext_lbl.setObjectName("output_file_ext")
-                    ext_lbl.setProperty("file_missing", "true" if not file_exists else "false")
-                    rl.addWidget(ext_lbl)
-
-                files_layout.addWidget(row)
-
-            files_layout.addStretch(1)
-
-            # Update badge and block card if all tracks are missing
-            if missing_count > 0:
-                badge.setText(f"{str(order).zfill(2)} ⚠")
-                badge.setObjectName("output_grp_badge_warn")
-                badge.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-                badge.style().unpolish(badge)
-                badge.style().polish(badge)
-
-        except Exception as e:
-            err = QLabel(f"  (no disponible: {e})")
-            err.setObjectName("output_file_more")
-            files_layout.addWidget(err)
-
+        files_layout.addStretch(1)
         inner_scroll.setWidget(files_widget)
         gl.addWidget(inner_scroll)
 
