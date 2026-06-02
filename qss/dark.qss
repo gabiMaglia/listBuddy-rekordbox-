@@ -91,7 +91,7 @@ QPushButton#source_btn_rb[src_active="true"], QPushButton#source_btn_tk[src_acti
 
 /* ── Destination ── */
 QWidget#path_row_widget {
-    background: @{inset}; border: 1.5px solid @{line}; border-radius: 10px;
+    background: @{surface}; border: 1.5px solid @{line}; border-radius: 10px;
     min-height: 42px; max-height: 42px;
 }
 QLabel#path_folder_icon { color: @{accent}; font-size: 15px; }

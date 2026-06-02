@@ -1029,7 +1029,8 @@ class MainWindow(QMainWindow):
         grp.setObjectName("output_grp")
         grp.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         gl = QVBoxLayout(grp)
-        gl.setContentsMargins(0, 0, 0, 0)
+        # Bottom margin exposes the group's rounded corners below the scroll area
+        gl.setContentsMargins(0, 0, 0, 8)
         gl.setSpacing(0)
 
         head = QWidget()
