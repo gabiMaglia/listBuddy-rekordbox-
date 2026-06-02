@@ -798,7 +798,12 @@ class MainWindow(QMainWindow):
         lo.addStretch(1)
 
     def _build_output_group(self, card: PlaylistCard, order: int) -> QWidget:
-        from rekordbox_export import get_songs, get_content, get_artist, sanitize
+        from traktor_db import TraktorPlaylist as _TKPl
+        from traktor_db import get_songs as _tk_get_songs
+        from rekordbox_export import get_songs as _rb_get_songs
+        from rekordbox_export import get_content, get_artist, sanitize
+
+        get_songs = _tk_get_songs if isinstance(card.playlist, _TKPl) else _rb_get_songs
 
         grp = QWidget()
         grp.setObjectName("output_grp")
