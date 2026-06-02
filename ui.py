@@ -236,6 +236,14 @@ class MainWindow(QMainWindow):
         self._source: str = "rekordbox"  # "rekordbox" | "traktor"
         self._preview_worker: PreviewWorker | None = None
 
+        # Cache de metadata de tracks: evita re-queries SQLAlchemy (N+1 problem)
+        # key: "<source>:<playlist_name>"  value: list[TrackRow] sin exists flags
+        self._track_meta_cache: dict[str, list[TrackRow]] = {}
+
+        # Cache de existencia de archivos: evita stat() repetido (lento en USB/red)
+        # key: raw_path  value: bool
+        self._exists_cache: dict[str, bool] = {}
+
         # Debounce: espera 150ms sin cambios antes de disparar el preview
         self._preview_debounce = QTimer()
         self._preview_debounce.setSingleShot(True)
@@ -417,6 +425,8 @@ class MainWindow(QMainWindow):
         if source == self._source:
             return
         self._source = source
+        self._track_meta_cache.clear()
+        self._exists_cache.clear()
         # Update button states
         self._src_rb_btn.setProperty("src_active", "true" if source == "rekordbox" else "false")
         self._src_tk_btn.setProperty("src_active", "true" if source == "traktor" else "false")
@@ -802,16 +812,29 @@ class MainWindow(QMainWindow):
         # ── Extracción de metadata en el main thread (rápido: sólo queries a DB) ──
         groups = self._extract_preview_data(selected)
 
-        # ── Worker: existence checks en background (puede ser lento en USB/red) ──
-        self._preview_worker = PreviewWorker(groups, self._source == "traktor")
+        # ── Worker: existence checks en background con cache compartido ──
+        self._preview_worker = PreviewWorker(
+            groups,
+            self._source == "traktor",
+            self._exists_cache,   # cache compartido — O(1) para paths ya vistos
+        )
         self._preview_worker.group_ready.connect(self._on_preview_group_ready)
         self._preview_worker.finished.connect(self._on_preview_done)
         self._preview_worker.start()
 
+    def _playlist_cache_key(self, playlist) -> str:
+        uid = (
+            getattr(playlist, "uuid", None)
+            or getattr(playlist, "ID",   None)
+            or playlist.Name
+        )
+        return f"{self._source}:{uid}"
+
     def _extract_preview_data(self, selected: list[PlaylistCard]) -> list[GroupData]:
         """
-        Extrae metadata de la DB en el main thread y devuelve GroupData con
-        raw_path por track (sin chequear existencia — eso lo hace el worker).
+        Extrae metadata de la DB en el main thread.
+        Usa _track_meta_cache para evitar re-queries SQLAlchemy en cada toggle.
+        El campo 'exists' se deja en True — el worker lo actualiza en background.
         """
         is_traktor = self._source == "traktor"
 
@@ -824,27 +847,42 @@ class MainWindow(QMainWindow):
 
         groups: list[GroupData] = []
         for idx, card in enumerate(selected):
-            tracks: list[TrackRow] = []
-            try:
-                for i, song in enumerate(_get_songs(card.playlist)):
-                    content = get_content(song)
-                    if not content:
-                        continue
-                    title    = sanitize(str(getattr(content, "Title",  "") or "") or "?")
-                    artist   = get_artist(content)
-                    artist_s = sanitize(str(artist)) if artist else ""
-                    raw      = getattr(content, "FolderPath", "") or ""
-                    ext      = Path(raw).suffix.lower() if raw else ""
-                    tracks.append(TrackRow(
-                        num      = str(i + 1).zfill(3),
-                        title    = title    if len(title)    <= 46 else title[:44]    + "…",
-                        artist   = artist_s if len(artist_s) <= 22 else artist_s[:20] + "…",
-                        ext      = ext,
-                        raw_path = raw,
-                        exists   = True,   # will be updated by worker
-                    ))
-            except Exception:
-                pass
+            cache_key = self._playlist_cache_key(card.playlist)
+
+            if cache_key in self._track_meta_cache:
+                # Cache hit: copia las filas (worker sobreescribirá exists)
+                cached = self._track_meta_cache[cache_key]
+                tracks = [
+                    TrackRow(
+                        num=t.num, title=t.title, artist=t.artist,
+                        ext=t.ext, raw_path=t.raw_path, exists=True,
+                    )
+                    for t in cached
+                ]
+            else:
+                # Cache miss: query a la DB (solo ocurre la primera vez)
+                tracks: list[TrackRow] = []
+                try:
+                    for i, song in enumerate(_get_songs(card.playlist)):
+                        content = get_content(song)
+                        if not content:
+                            continue
+                        title    = sanitize(str(getattr(content, "Title",  "") or "") or "?")
+                        artist   = get_artist(content)
+                        artist_s = sanitize(str(artist)) if artist else ""
+                        raw      = getattr(content, "FolderPath", "") or ""
+                        ext      = Path(raw).suffix.lower() if raw else ""
+                        tracks.append(TrackRow(
+                            num      = str(i + 1).zfill(3),
+                            title    = title    if len(title)    <= 46 else title[:44]    + "…",
+                            artist   = artist_s if len(artist_s) <= 22 else artist_s[:20] + "…",
+                            ext      = ext,
+                            raw_path = raw,
+                            exists   = True,
+                        ))
+                except Exception:
+                    pass
+                self._track_meta_cache[cache_key] = tracks
 
             groups.append(GroupData(
                 name        = card.playlist.Name,
@@ -1068,6 +1106,7 @@ class MainWindow(QMainWindow):
         )
         self.log_view.setVisible(False)
         self.preview_scroll.setVisible(True)
+        self._exists_cache.clear()   # archivos copiados → rutas destino cambiaron
 
     def _log(self, text: str) -> None:
         self.log_view.appendPlainText(text)
