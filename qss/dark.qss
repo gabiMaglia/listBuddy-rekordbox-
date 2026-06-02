@@ -68,6 +68,7 @@ QLabel#brand_logo_text {
     background: @{accent}; border-radius: 9px; border: 1.5px solid @{accent2};
     color: @{on_accent}; font-size: 18px;
 }
+QLabel#brand_logo_text:hover { background: @{accent2}; }
 QLabel#brand_name { font-size: 14px; font-weight: 700; color: @{text}; background: transparent; }
 QLabel#brand_sub {
     font-family: "SF Mono","Menlo",monospace; font-size: 9px;
@@ -224,6 +225,7 @@ QWidget#grp_files_container  { background: @{surface}; }
 
 /* File rows */
 QWidget#output_file_row { background: transparent; }
+QWidget#output_file_row[file_missing="false"]:hover { background: @{surface2}; }
 QLabel#output_file_idx  { font-family: "SF Mono","Menlo",monospace; font-size: 12px; font-weight: 700; color: @{accent}; min-width: 22px; max-width: 22px; background: transparent; }
 QLabel#output_file_name   { font-family: "SF Mono","Menlo",monospace; font-size: 11.5px; color: @{text}; background: transparent; }
 QLabel#output_file_artist { font-family: "SF Mono","Menlo",monospace; font-size: 11.5px; color: @{muted}; background: transparent; }
@@ -268,3 +270,6 @@ QPushButton#close_dialog_btn {
     border-radius: 9px; padding: 8px 18px; font-size: 13px; font-weight: 600;
 }
 QPushButton#close_dialog_btn:hover { background: @{line2}; }
+
+/* ── Seek bar ── */
+QLabel#seek_time { font-family: "SF Mono","Menlo",monospace; font-size: 10px; color: @{faint}; background: transparent; }

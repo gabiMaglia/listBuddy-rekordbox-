@@ -18,6 +18,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import (
     QColor,
     QDesktopServices,
+    QImage,
     QMouseEvent,
     QPainter,
     QPixmap,
@@ -46,8 +47,17 @@ from db import get_playlist_tree as rb_get_playlist_tree
 from db import open_database as rb_open_database
 from db import playlist_song_count as rb_song_count
 from worker import ExportWorker
-from ui_components import PlaylistCard, PlaylistGroup
+from ui_components import (
+    ClickableLabel,
+    FileRow,
+    PlaylistCard,
+    PlaylistGroup,
+    RackHead,
+    SeekBar,
+)
 from preview_worker import PreviewWorker, GroupData, TrackRow
+from audio_player import AudioPlayer
+from spectro_worker import SpectrogramWorker
 
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
 _APP_VERSION = "1.0"
@@ -240,6 +250,20 @@ class MainWindow(QMainWindow):
         self._source: str = "rekordbox"  # "rekordbox" | "traktor"
         self._preview_worker: PreviewWorker | None = None
 
+        # ── Audio playback ───────────────────────────────────────────────
+        self._audio = AudioPlayer(self)
+        self._audio.playing_changed.connect(self._on_playing_changed)
+        self._audio.error.connect(self._on_audio_error)
+        self._audio.position_changed.connect(self._on_position_changed)
+        self._audio.track_changed.connect(lambda _p: self._seek_row.setVisible(True))
+        self._playing_path: str = ""        # raw_path del track sonando
+        self._playing_row: FileRow | None = None
+
+        # ── Espectrograma de fondo ───────────────────────────────────────
+        self._spectro_worker: SpectrogramWorker | None = None
+        self._spectro_gen: int = 0
+        self._spectro_cache: dict[str, QPixmap] = {}
+
         # Cache de metadata de tracks: evita re-queries SQLAlchemy (N+1 problem)
         # key: "<source>:<playlist_name>"  value: list[TrackRow] sin exists flags
         self._track_meta_cache: dict[str, list[TrackRow]] = {}
@@ -294,6 +318,9 @@ class MainWindow(QMainWindow):
             app.setStyleSheet(load_qss(self._theme))
         self._sync_theme_toggle(self._theme)
         self._vu_bars.set_accent(
+            "#ce7de6" if self._theme == "dark" else "#8c38bf"
+        )
+        self._seek_bar.set_accent(
             "#ce7de6" if self._theme == "dark" else "#8c38bf"
         )
 
@@ -368,6 +395,7 @@ class MainWindow(QMainWindow):
         lo.setSpacing(14)
 
         lo.addWidget(self._build_rack_head())
+        lo.addWidget(self._build_seek_row())
         lo.addWidget(self._build_source_switcher())
         lo.addWidget(self._build_dest_section())
         lo.addWidget(self._build_playlists_header())
@@ -377,18 +405,22 @@ class MainWindow(QMainWindow):
         return col
 
     def _build_rack_head(self) -> QWidget:
-        """lb-rackhead: logo + brand + VU bars."""
-        rack = QWidget()
+        """lb-rackhead: logo (play/pause) + brand + VU bars + espectrograma."""
+        rack = RackHead()
         rack.setObjectName("rack_head")
         rack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._rack_head = rack
         lo = QHBoxLayout(rack)
         lo.setContentsMargins(14, 12, 14, 12)
         lo.setSpacing(11)
 
-        logo = QLabel("♪")
+        logo = ClickableLabel("♪")
         logo.setObjectName("brand_logo_text")
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo.setFixedSize(34, 34)
+        logo.setToolTip("Reproducir / pausar")
+        logo.clicked.connect(self._audio.toggle)
+        self._play_toggle = logo
         lo.addWidget(logo)
 
         brand_block = QWidget()
@@ -407,6 +439,30 @@ class MainWindow(QMainWindow):
         self._vu_bars = VuBars()
         lo.addWidget(self._vu_bars)
         return rack
+
+    def _build_seek_row(self) -> QWidget:
+        row = QWidget()
+        row.setObjectName("seek_row")
+        row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        lo = QHBoxLayout(row)
+        lo.setContentsMargins(2, 0, 2, 0)
+        lo.setSpacing(8)
+
+        self._time_cur = QLabel("0:00")
+        self._time_cur.setObjectName("seek_time")
+        lo.addWidget(self._time_cur)
+
+        self._seek_bar = SeekBar()
+        self._seek_bar.seek_requested.connect(self._audio.seek)
+        lo.addWidget(self._seek_bar, 1)
+
+        self._time_total = QLabel("0:00")
+        self._time_total.setObjectName("seek_time")
+        lo.addWidget(self._time_total)
+
+        row.setVisible(False)          # oculto hasta que cargue un track
+        self._seek_row = row
+        return row
 
     def _build_source_switcher(self) -> QWidget:
         """Segmented control: Rekordbox | Traktor."""
@@ -807,6 +863,9 @@ class MainWindow(QMainWindow):
     def _clear_preview_layout(self) -> None:
         self._render_gen += 1          # invalida cualquier batch en vuelo
         self._render_queue.clear()
+        # Las filas se destruyen acá (deleteLater); soltar la ref al row sonando
+        # para no tocar un objeto C++ borrado en el próximo click (→ abort de Qt).
+        self._playing_row = None
         lo = self.preview_layout
         while lo.count():
             item = lo.takeAt(0)
@@ -1084,10 +1143,13 @@ class MainWindow(QMainWindow):
     def _make_row_widget(self, track: TrackRow) -> QWidget:
         """Crea una única fila de archivo. Llamado desde _batch_rows."""
         missing = not track.exists
-        row = QWidget()
-        row.setObjectName("output_file_row")
-        row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        row.setProperty("file_missing", "true" if missing else "false")
+        row = FileRow(track.raw_path, track.exists)
+        if track.exists:
+            row.clicked.connect(self._play_track)
+        # Re-aplicar highlight si esta fila corresponde al track sonando
+        if track.raw_path and track.raw_path == self._playing_path:
+            row.set_playing(True)
+            self._playing_row = row
         rl = QHBoxLayout(row)
         rl.setContentsMargins(13, 4, 13, 4)
         rl.setSpacing(7)
@@ -1115,6 +1177,107 @@ class MainWindow(QMainWindow):
             rl.addWidget(ext_lbl)
 
         return row
+
+    # ──────────────────────────────────── Audio playback ─────────────────
+
+    def _set_row_playing(self, row: FileRow | None, playing: bool) -> None:
+        """
+        set_playing() defensivo: el row puede ser un objeto C++ ya borrado
+        (preview re-renderizado). Una excepción acá abortaría toda la app porque
+        corre dentro de un slot de Qt, así que la tragamos en silencio.
+        """
+        if row is None:
+            return
+        try:
+            row.set_playing(playing)
+        except RuntimeError:
+            pass
+
+    def _play_track(self, raw_path: str) -> None:
+        """Resuelve la ruta real y reproduce. No bloquea (QMediaPlayer async)."""
+        if self._source == "traktor":
+            resolved = raw_path if raw_path and Path(raw_path).exists() else None
+        else:
+            from rekordbox_export import resolve_path
+            resolved = resolve_path(raw_path)
+        if not resolved:
+            return
+        resolved = str(resolved)
+
+        self._audio.play(resolved)
+        self._playing_path = raw_path
+
+        # Mover el highlight a la fila clickeada
+        self._set_row_playing(self._playing_row, False)
+        self._playing_row = None
+        row = self.sender()
+        if isinstance(row, FileRow):
+            self._set_row_playing(row, True)
+            self._playing_row = row
+
+        self._start_spectrogram(resolved)
+
+    def _on_playing_changed(self, playing: bool) -> None:
+        if playing:
+            self._play_toggle.setText("⏸")
+        else:
+            self._play_toggle.setText("▶" if self._playing_path else "♪")
+        self._vu_bars.set_live(playing)
+
+    @staticmethod
+    def _fmt_ms(ms: int) -> str:
+        s = max(0, ms // 1000)
+        return f"{s // 60}:{s % 60:02d}"
+
+    def _on_position_changed(self, pos: int, dur: int) -> None:
+        self._seek_bar.set_progress(pos, dur)
+        self._time_cur.setText(self._fmt_ms(pos))
+        self._time_total.setText(self._fmt_ms(dur))
+
+    def _on_audio_error(self, msg: str) -> None:
+        self._playing_path = ""
+        self._play_toggle.setText("♪")
+        self._set_row_playing(self._playing_row, False)
+        self._playing_row = None
+        QMessageBox.warning(self, "Reproducción de audio", msg)
+
+    # ── Espectrograma de fondo ─────────────────────────────────────────────
+
+    def _cancel_spectro(self) -> None:
+        if self._spectro_worker and self._spectro_worker.isRunning():
+            try:
+                self._spectro_worker.ready.disconnect()
+            except TypeError:
+                pass
+            self._spectro_worker.cancel()
+
+    def _start_spectrogram(self, resolved_path: str) -> None:
+        if resolved_path in self._spectro_cache:
+            self._rack_head.set_spectrogram(self._spectro_cache[resolved_path])
+            return
+
+        self._cancel_spectro()
+        self._spectro_gen += 1
+        accent = (206, 125, 230) if self._theme == "dark" else (140, 56, 191)
+        w = max(120, self._rack_head.width())
+        h = max(40, self._rack_head.height())
+        self._spectro_worker = SpectrogramWorker(
+            resolved_path, w, h, accent, self._spectro_gen
+        )
+        self._spectro_worker.ready.connect(self._on_spectro_ready)
+        self._spectro_worker.start()
+
+    def _on_spectro_ready(self, img: QImage, generation: int) -> None:
+        if generation != self._spectro_gen:
+            return                      # resultado stale → descartar
+        px = QPixmap.fromImage(img)
+        self._spectro_cache[self._audio.current_path()] = px
+        self._rack_head.set_spectrogram(px)
+
+    def closeEvent(self, event) -> None:
+        self._audio.stop()
+        self._cancel_spectro()
+        super().closeEvent(event)
 
     # ──────────────────────────────────────── Actions ────────────────────
 
@@ -1212,6 +1375,15 @@ class MainWindow(QMainWindow):
         self._vu_bars.set_accent(
             "#ce7de6" if theme == "dark" else "#8c38bf"
         )
+        self._seek_bar.set_accent("#ce7de6" if theme == "dark" else "#8c38bf")
+        # Re-tint del highlight de la fila sonando con el accent del nuevo tema
+        self._set_row_playing(self._playing_row, True)
+        # El espectrograma cacheado está tintado con el accent viejo → recalcular
+        self._spectro_cache.clear()
+        current = self._audio.current_path()
+        if current:
+            self._rack_head.set_spectrogram(None)
+            self._start_spectrogram(current)
         try:
             self.theme_action.setChecked(theme == "light")
         except Exception:
