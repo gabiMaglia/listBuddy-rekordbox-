@@ -672,6 +672,7 @@ class MainWindow(QMainWindow):
         ey = QLabel("SALIDA · VISTA PREVIA")
         ey.setObjectName("output_eyebrow")
         hl.addWidget(ey)
+        hl.addSpacing(14)
         self.output_status = QLabel("en espera")
         self.output_status.setObjectName("output_status_tag")
         hl.addWidget(self.output_status)
