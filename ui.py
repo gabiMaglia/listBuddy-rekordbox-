@@ -336,27 +336,49 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────── Widget builders ────────────
 
     def _build_header(self) -> QWidget:
-        """Thin title bar: title+version center, donate+toggle right."""
+        """Title bar: listBuddy + EXPORT ENGINE eyebrow · now-playing center · controls right."""
         bar = QWidget()
         bar.setObjectName("header_bar")
-        bar.setFixedHeight(42)
+        bar.setFixedHeight(46)
         bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         lo = QHBoxLayout(bar)
         lo.setContentsMargins(14, 0, 12, 0)
-        lo.setSpacing(8)
+        lo.setSpacing(12)
 
-        lo.addStretch(1)
-
+        # ── Izquierda: nombre + eyebrow ──────────────────────────────────
+        brand = QWidget()
+        brand.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        bl = QVBoxLayout(brand)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(0)
+        engine_lbl = QLabel("EXPORT ENGINE")
+        engine_lbl.setObjectName("header_eyebrow")
         title_lbl = QLabel("listBuddy")
         title_lbl.setObjectName("header_title")
-        lo.addWidget(title_lbl)
+        bl.addWidget(engine_lbl)
+        bl.addWidget(title_lbl)
+        lo.addWidget(brand)
 
-        ver_lbl = QLabel(_APP_VERSION)
-        ver_lbl.setObjectName("version_pill")
-        lo.addWidget(ver_lbl)
+        # ── Centro: now-playing ──────────────────────────────────────────
+        now = QWidget()
+        now.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        nl = QVBoxLayout(now)
+        nl.setContentsMargins(0, 0, 0, 0)
+        nl.setSpacing(1)
 
-        lo.addStretch(1)
+        self._header_artist = QLabel("")
+        self._header_artist.setObjectName("header_np_artist")
+        self._header_artist.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        self._header_track = QLabel("")
+        self._header_track.setObjectName("header_np_track")
+        self._header_track.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        nl.addWidget(self._header_artist)
+        nl.addWidget(self._header_track)
+        lo.addWidget(now, 1)
+
+        # ── Derecha: controles ───────────────────────────────────────────
         donate_btn = QPushButton("♥  Apoyar")
         donate_btn.setObjectName("donate_btn")
         donate_btn.clicked.connect(self._show_donation)
@@ -367,7 +389,6 @@ class MainWindow(QMainWindow):
         t_lo = QHBoxLayout(toggle)
         t_lo.setContentsMargins(2, 2, 2, 2)
         t_lo.setSpacing(0)
-
         self._sun_btn = QPushButton("☀")
         self._sun_btn.setObjectName("theme_sun")
         self._moon_btn = QPushButton("🌙")
@@ -376,8 +397,8 @@ class MainWindow(QMainWindow):
         self._moon_btn.clicked.connect(lambda: self._apply_theme("dark"))
         t_lo.addWidget(self._sun_btn)
         t_lo.addWidget(self._moon_btn)
-
         lo.addWidget(toggle)
+
         return bar
 
     def _build_body(self) -> QWidget:
@@ -434,13 +455,10 @@ class MainWindow(QMainWindow):
         brand_block.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         bl = QVBoxLayout(brand_block)
         bl.setContentsMargins(0, 0, 0, 0)
-        bl.setSpacing(1)
+        bl.setSpacing(0)
         name_lbl = QLabel("listBuddy")
         name_lbl.setObjectName("brand_name")
-        sub_lbl = QLabel("EXPORT ENGINE")
-        sub_lbl.setObjectName("brand_sub")
         bl.addWidget(name_lbl)
-        bl.addWidget(sub_lbl)
         lo.addWidget(brand_block, 1)
 
         self._vu_bars = VuBars()
@@ -1239,7 +1257,32 @@ class MainWindow(QMainWindow):
             self._set_row_playing(row, True)
             self._playing_row = row
 
+        self._update_now_playing(row)
         self._start_spectrogram(resolved)
+
+    def _update_now_playing(self, row: FileRow | None = None) -> None:
+        """Extrae título y artista del FileRow activo y los muestra en el header."""
+        title = artist = ""
+        if row is not None:
+            try:
+                lo = row.layout()
+                if lo:
+                    for i in range(lo.count()):
+                        w = lo.itemAt(i).widget()
+                        if not w:
+                            continue
+                        obj = w.objectName()
+                        if obj == "output_file_name":
+                            # Formato: "001 - Title"  →  extraer Title
+                            txt = w.text()
+                            parts = txt.split(" - ", 1)
+                            title = parts[1] if len(parts) > 1 else txt
+                        elif obj == "output_file_artist":
+                            artist = w.text().lstrip("— ").strip()
+            except RuntimeError:
+                pass
+        self._header_track.setText(title)
+        self._header_artist.setText(artist)
 
     def _on_playing_changed(self, playing: bool) -> None:
         if playing:
@@ -1285,6 +1328,7 @@ class MainWindow(QMainWindow):
         self._play_toggle.setText("♪")
         self._set_row_playing(self._playing_row, False)
         self._playing_row = None
+        self._update_now_playing(None)
         QMessageBox.warning(self, "Reproducción de audio", msg)
 
     # ── Espectrograma de fondo ─────────────────────────────────────────────
