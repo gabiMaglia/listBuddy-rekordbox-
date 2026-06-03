@@ -1,4 +1,4 @@
-# CLAUDE.md — List Buddy
+# CLAUDE.md — listBuddy
 
 ## Rol esperado
 
@@ -8,7 +8,7 @@ Sos un experto en Python, empaquetado de apps de escritorio para macOS/Windows, 
 
 ## El proyecto
 
-**List Buddy** es una app de escritorio (PyQt6) que lee la librería de Rekordbox 6 o Traktor Pro 3/4 y copia las canciones de las playlists seleccionadas a carpetas organizadas con prefijo numérico de orden. También permite previsualizar y reproducir audio directamente desde la interfaz.
+**listBuddy** es una app de escritorio (PyQt6) que lee la librería de Rekordbox 6 o Traktor Pro 3/4 y copia las canciones de las playlists seleccionadas a carpetas organizadas con prefijo numérico de orden. También permite previsualizar y reproducir audio directamente desde la interfaz.
 
 ### Flujo de usuario
 
@@ -33,7 +33,7 @@ audio_player.py      → AudioPlayer (QMediaPlayer+FFmpeg). play/pause/seek; se�
 spectro_worker.py    → SpectrogramWorker (QThread). QAudioDecoder + numpy STFT → QImage tenue de fondo.
 ui_components.py     → PlaylistCard, PlaylistGroup, SeekBar, FileRow, RackHead, ClickableLabel.
 styles.py            → Tokens de diseño dark/light + load_qss().
-rb_exporter.spec     → Spec de PyInstaller para empaquetar (produce "List Buddy" ejecutable).
+rb_exporter.spec     → Spec de PyInstaller para empaquetar (produce "listBuddy" ejecutable).
 requirements.txt     → Dependencias pineadas exactas.
 plans/               → Planes de implementación autocontenidos para ejecutar con Sonnet.
 ```

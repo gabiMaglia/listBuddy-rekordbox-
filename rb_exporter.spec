@@ -1,6 +1,6 @@
 # rb_exporter.spec
 # -----------------
-# PyInstaller spec para List Buddy.
+# PyInstaller spec para listBuddy.
 # Uso: pyinstaller rb_exporter.spec
 #
 # Notas:
@@ -57,7 +57,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='List Buddy',
+    name='listBuddy',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -1,4 +1,4 @@
-"""styles.py — List Buddy design tokens + QSS loader."""
+"""styles.py — listBuddy design tokens + QSS loader."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import QApplication
 
 ROOT = Path(__file__).parent
 
-# Design tokens translated from List Buddy CSS (oklch → hex approximations)
+# Design tokens translated from listBuddy CSS (oklch → hex approximations)
 THEMES: Dict[str, Dict[str, str]] = {
     'dark': {
         'bg':          '#1b1927',
