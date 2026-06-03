@@ -1,5 +1,5 @@
 """
-ui.py — List Buddy MainWindow
+ui.py — listBuddy MainWindow
 Layout: header-bar (title + controls) → two-column body
   Left  : rack-head · destination · playlist cards · progress · export
   Right : output preview (groups + scrollable file list)
@@ -179,14 +179,14 @@ class DonationDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("donation_dialog")
-        self.setWindowTitle("Apoyar — List Buddy")
+        self.setWindowTitle("Apoyar — listBuddy")
         self.setFixedSize(310, 400)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(14)
 
-        title = QLabel("¿Te sirvió List Buddy?")
+        title = QLabel("¿Te sirvió listBuddy?")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size:15px; font-weight:700;")
         layout.addWidget(title)
@@ -241,7 +241,7 @@ class DonationDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("List Buddy")
+        self.setWindowTitle("listBuddy")
         self.resize(980, 700)
         self.setMinimumSize(820, 560)
         self.setObjectName("rb_main")
@@ -347,7 +347,7 @@ class MainWindow(QMainWindow):
 
         lo.addStretch(1)
 
-        title_lbl = QLabel("List Buddy")
+        title_lbl = QLabel("listBuddy")
         title_lbl.setObjectName("header_title")
         lo.addWidget(title_lbl)
 
@@ -435,7 +435,7 @@ class MainWindow(QMainWindow):
         bl = QVBoxLayout(brand_block)
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(1)
-        name_lbl = QLabel("List Buddy")
+        name_lbl = QLabel("listBuddy")
         name_lbl.setObjectName("brand_name")
         sub_lbl = QLabel("EXPORT ENGINE")
         sub_lbl.setObjectName("brand_sub")

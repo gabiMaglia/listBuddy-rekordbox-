@@ -1,7 +1,7 @@
 """
 audio_player.py
 ---------------
-Reproducción de audio para el preview de List Buddy.
+Reproducción de audio para el preview de listBuddy.
 
 Envuelve QMediaPlayer + QAudioOutput (PyQt6.QtMultimedia). PyQt6 6.11 trae el
 backend multimedia de FFmpeg embebido, que decodifica mp3 / wav / aiff / mp4 /
