@@ -70,7 +70,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    # Descomentar cuando tengas el ícono:
-    # icon='icon.ico',  # Windows
-    # icon='icon.icns', # macOS (solo buildear en Mac)
+    icon='icon.icns',   # macOS — regenerar con: python scripts/make_icon.py
+    # icon='icon.ico',  # Windows (convertir con sips o ImageMagick)
 )
