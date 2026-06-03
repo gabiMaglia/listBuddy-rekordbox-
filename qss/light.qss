@@ -39,10 +39,16 @@ QScrollBar:horizontal { height: 0; }
 
 /* ── Header bar ── */
 QWidget#header_bar { background: @{title_bar}; border-bottom: 1px solid @{line2}; }
-QLabel#header_title { font-size: 13px; font-weight: 700; color: @{text}; background: transparent; }
-QLabel#version_pill {
-    font-family: "SF Mono","Menlo",monospace; font-size: 10px; color: @{faint};
-    border: none; background: transparent; padding: 0 2px;
+QLabel#header_eyebrow {
+    font-family: "SF Mono","Menlo",monospace; font-size: 8px; font-weight: 700;
+    letter-spacing: 1.2px; color: @{accent}; background: transparent;
+}
+QLabel#header_title { font-size: 15px; font-weight: 700; color: @{text}; background: transparent; }
+QLabel#header_np_track {
+    font-size: 12px; font-weight: 600; color: @{text}; background: transparent;
+}
+QLabel#header_np_artist {
+    font-family: "SF Mono","Menlo",monospace; font-size: 10px; color: @{muted}; background: transparent;
 }
 QPushButton#donate_btn {
     background: @{accent_soft}; border: 1px solid @{line}; border-radius: 7px;
