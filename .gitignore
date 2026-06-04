@@ -6,3 +6,5 @@ build/
 *.spec.bak
 .claude/
 prueba/
+.rbe_settings.ini
+_*.png

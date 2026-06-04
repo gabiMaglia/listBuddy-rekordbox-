@@ -9,18 +9,23 @@ from __future__ import annotations
 from rekordbox_export import get_all_playlists, get_songs
 
 
-def open_database():
+def open_database(path: str | None = None):
     """
     Abre la base de datos de Rekordbox 6.
+    Si `path` apunta a un master.db válido, lo usa; si no, autodetecta.
     Lanza RuntimeError con mensaje claro si falla.
     """
     try:
         from pyrekordbox import Rekordbox6Database
+        if path:
+            return Rekordbox6Database(path)
         return Rekordbox6Database()
     except Exception as e:
         raise RuntimeError(
             "No se pudo abrir la base de datos de Rekordbox.\n"
-            "Asegurate de tener Rekordbox cerrado e instalado.\n\n"
+            "Asegurate de tener Rekordbox cerrado e instalado.\n"
+            "Si tu librería está en una ubicación no estándar, configurá la ruta "
+            "al master.db en Configuración.\n\n"
             f"Detalle: {e}"
         ) from e
 
