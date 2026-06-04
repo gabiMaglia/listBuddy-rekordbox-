@@ -8,3 +8,5 @@ build/
 prueba/
 .rbe_settings.ini
 _*.png
+.DS_Store
+*.DS_Store
