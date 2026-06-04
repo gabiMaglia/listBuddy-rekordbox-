@@ -1,7 +1,7 @@
 """
 main.py
 -------
-Entry point de RB Exporter.
+Entry point de listBuddy.
 """
 from __future__ import annotations
 
@@ -9,11 +9,17 @@ import sys
 
 from PyQt6.QtWidgets import QApplication
 
-from ui import MainWindow
+from app_logging import install_excepthook, setup_logging
+from ui import MainWindow, _APP_VERSION
 from styles import apply_theme
 
 
 def main() -> None:
+    setup_logging(_APP_VERSION)
+    # Instalar el excepthook ANTES de crear la ventana: así también captura
+    # cualquier error durante el arranque, no solo en los slots en runtime.
+    install_excepthook()
+
     app = QApplication(sys.argv)
     apply_theme(app, 'dark')
     win = MainWindow()
