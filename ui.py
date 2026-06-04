@@ -27,6 +27,8 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import (
     QApplication,
+    QCheckBox,
+    QComboBox,
     QDialog,
     QFileDialog,
     QGraphicsOpacityEffect,
@@ -40,10 +42,12 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 from PyQt6.QtGui import QAction
+from PyQt6.QtMultimedia import QMediaDevices
 
 from db import get_playlist_tree as rb_get_playlist_tree
 from db import open_database as rb_open_database
@@ -292,6 +296,15 @@ class MainWindow(QMainWindow):
         from ui_components import PlaylistCard as _PC
         _PC.set_theme(self._theme)
 
+        # ── Configuración persistida ─────────────────────────────────────
+        self._rb_db_path = str(self.settings.value("rb_db_path", "") or "")
+        self._tk_collection_path = str(self.settings.value("tk_collection_path", "") or "")
+        self._auto_advance = self.settings.value("auto_advance", True, type=bool)
+        self._spectro_enabled = self.settings.value("spectrogram_enabled", True, type=bool)
+        self._saved_device_id = str(self.settings.value("audio_device_id", "") or "")
+        self._media_devices = QMediaDevices(self)
+        self._media_devices.audioOutputsChanged.connect(self._refresh_audio_devices)
+
         central = QWidget()
         central.setObjectName("central_widget")
         central.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -300,7 +313,11 @@ class MainWindow(QMainWindow):
         root_layout.setSpacing(0)
 
         root_layout.addWidget(self._build_header())
-        root_layout.addWidget(self._build_body(), 1)
+
+        self._stack = QStackedWidget()
+        self._stack.addWidget(self._build_body())             # 0 = principal
+        self._stack.addWidget(self._build_settings_page())    # 1 = configuración
+        root_layout.addWidget(self._stack, 1)
 
         self.setCentralWidget(central)
 
@@ -327,6 +344,11 @@ class MainWindow(QMainWindow):
         self._seek_bar.set_accent(
             "#ce7de6" if self._theme == "dark" else "#8c38bf"
         )
+
+        self._apply_saved_audio_device()
+        last_dest = str(self.settings.value("last_dest_folder", "") or "")
+        if last_dest:
+            self.folder_edit.setText(last_dest)
 
         self._load_playlists()
 
@@ -379,6 +401,13 @@ class MainWindow(QMainWindow):
         lo.addWidget(now, 1)
 
         # ── Derecha: controles ───────────────────────────────────────────
+        self._settings_btn = QPushButton("⚙")
+        self._settings_btn.setObjectName("settings_btn")
+        self._settings_btn.setToolTip("Configuración")
+        self._settings_btn.setCheckable(True)
+        self._settings_btn.clicked.connect(self._toggle_settings)
+        lo.addWidget(self._settings_btn)
+
         donate_btn = QPushButton("♥  Apoyar")
         donate_btn.setObjectName("donate_btn")
         donate_btn.clicked.connect(self._show_donation)
@@ -733,6 +762,237 @@ class MainWindow(QMainWindow):
         lo.addWidget(panel, 1)
         return col
 
+    # ──────────────────────────────────────── Settings page ──────────────
+
+    def _build_settings_page(self) -> QWidget:
+        page = QWidget()
+        page.setObjectName("settings_page")
+        page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(18, 18, 18, 18)
+        outer.setSpacing(14)
+
+        # ── Top bar: volver + título ─────────────────────────────────────
+        top = QWidget()
+        top.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        tl = QHBoxLayout(top)
+        tl.setContentsMargins(0, 0, 0, 0)
+        tl.setSpacing(10)
+        back = QPushButton("←  Volver")
+        back.setObjectName("settings_back")
+        back.clicked.connect(lambda: self._toggle_settings(False))
+        title = QLabel("Configuración")
+        title.setObjectName("settings_title")
+        tl.addWidget(back)
+        tl.addWidget(title)
+        tl.addStretch(1)
+        outer.addWidget(top)
+
+        # ── Scroll con secciones ─────────────────────────────────────────
+        scroll = QScrollArea()
+        scroll.setObjectName("settings_scroll")
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.viewport().setObjectName("settings_scroll_vp")
+
+        content = QWidget()
+        content.setObjectName("settings_content")
+        content.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        cl = QVBoxLayout(content)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(18)
+
+        def section(name: str) -> QVBoxLayout:
+            card = QWidget()
+            card.setObjectName("settings_card")
+            card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            box = QVBoxLayout(card)
+            box.setContentsMargins(16, 14, 16, 16)
+            box.setSpacing(10)
+            head = QLabel(name)
+            head.setObjectName("settings_section")
+            box.addWidget(head)
+            cl.addWidget(card)
+            return box
+
+        # ── AUDIO ─────────────────────────────────────────────────────────
+        audio_box = section("AUDIO")
+        dev_label = QLabel("Dispositivo de salida")
+        dev_label.setObjectName("settings_label")
+        audio_box.addWidget(dev_label)
+        self._device_combo = QComboBox()
+        self._device_combo.setObjectName("settings_combo")
+        self._refresh_audio_devices()
+        self._device_combo.currentIndexChanged.connect(self._on_device_changed)
+        audio_box.addWidget(self._device_combo)
+
+        # ── REPRODUCCIÓN ───────────────────────────────────────────────────
+        play_box = section("REPRODUCCIÓN")
+        self._auto_advance_chk = QCheckBox("Auto-avance al siguiente track al terminar")
+        self._auto_advance_chk.setObjectName("settings_check")
+        self._auto_advance_chk.setChecked(self._auto_advance)
+        self._auto_advance_chk.toggled.connect(self._on_auto_advance_toggled)
+        play_box.addWidget(self._auto_advance_chk)
+        self._spectro_chk = QCheckBox("Espectrograma de fondo en el banner")
+        self._spectro_chk.setObjectName("settings_check")
+        self._spectro_chk.setChecked(self._spectro_enabled)
+        self._spectro_chk.toggled.connect(self._on_spectro_toggled)
+        play_box.addWidget(self._spectro_chk)
+
+        # ── LIBRERÍAS ──────────────────────────────────────────────────────
+        lib_box = section("LIBRERÍAS")
+        helper = QLabel(
+            "Normalmente se detectan solas. Configurá la ruta solo si tu librería "
+            "está en una ubicación no estándar (disco externo, varias versiones, etc.)."
+        )
+        helper.setObjectName("settings_helper")
+        helper.setWordWrap(True)
+        lib_box.addWidget(helper)
+
+        self._rb_path_edit = self._add_path_row(
+            lib_box, "Rekordbox · master.db", self._rb_db_path,
+            self._browse_rb_path, self._clear_rb_path,
+        )
+        self._tk_path_edit = self._add_path_row(
+            lib_box, "Traktor · collection.nml", self._tk_collection_path,
+            self._browse_tk_path, self._clear_tk_path,
+        )
+
+        cl.addStretch(1)
+        scroll.setWidget(content)
+        outer.addWidget(scroll, 1)
+        return page
+
+    def _add_path_row(self, box, label_text, value, on_browse, on_clear) -> QLineEdit:
+        lbl = QLabel(label_text)
+        lbl.setObjectName("settings_label")
+        box.addWidget(lbl)
+        row = QWidget()
+        row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        rl = QHBoxLayout(row)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(8)
+        edit = QLineEdit(value or "(automático)")
+        edit.setObjectName("settings_path")
+        edit.setReadOnly(True)
+        rl.addWidget(edit, 1)
+        browse = QPushButton("Elegir…")
+        browse.setObjectName("settings_path_btn")
+        browse.clicked.connect(on_browse)
+        rl.addWidget(browse)
+        auto = QPushButton("Auto")
+        auto.setObjectName("settings_path_btn")
+        auto.clicked.connect(on_clear)
+        rl.addWidget(auto)
+        box.addWidget(row)
+        return edit
+
+    def _toggle_settings(self, show: bool | None = None) -> None:
+        if show is None:
+            show = self._stack.currentIndex() == 0
+        self._stack.setCurrentIndex(1 if show else 0)
+        self._settings_btn.setChecked(show)
+
+    # ── Audio device ──────────────────────────────────────────────────────
+
+    def _refresh_audio_devices(self) -> None:
+        if not hasattr(self, "_device_combo"):
+            return
+        self._devices = QMediaDevices.audioOutputs()
+        combo = self._device_combo
+        combo.blockSignals(True)
+        combo.clear()
+        for d in self._devices:
+            label = d.description()
+            if d.isDefault():
+                label += "  ·  predeterminado"
+            combo.addItem(label)
+        sel = 0
+        for i, d in enumerate(self._devices):
+            if self._saved_device_id and bytes(d.id()).hex() == self._saved_device_id:
+                sel = i
+                break
+        if self._devices:
+            combo.setCurrentIndex(sel)
+        combo.blockSignals(False)
+
+    def _apply_saved_audio_device(self) -> None:
+        if not self._saved_device_id:
+            return
+        for d in QMediaDevices.audioOutputs():
+            if bytes(d.id()).hex() == self._saved_device_id:
+                self._audio.set_output_device(d)
+                return
+
+    def _on_device_changed(self, idx: int) -> None:
+        if idx < 0 or idx >= len(self._devices):
+            return
+        d = self._devices[idx]
+        self._audio.set_output_device(d)
+        self._saved_device_id = bytes(d.id()).hex()
+        self.settings.setValue("audio_device_id", self._saved_device_id)
+
+    # ── Toggles ─────────────────────────────────────────────────────────────
+
+    def _on_auto_advance_toggled(self, checked: bool) -> None:
+        self._auto_advance = checked
+        self.settings.setValue("auto_advance", checked)
+
+    def _on_spectro_toggled(self, checked: bool) -> None:
+        self._spectro_enabled = checked
+        self.settings.setValue("spectrogram_enabled", checked)
+        if not checked:
+            self._cancel_spectro()
+            self._rack_head.set_spectrogram(None)
+        elif self._audio.current_path():
+            self._start_spectrogram(self._audio.current_path())
+
+    # ── Library paths ───────────────────────────────────────────────────────
+
+    def _browse_rb_path(self) -> None:
+        f, _ = QFileDialog.getOpenFileName(
+            self, "Elegí el master.db de Rekordbox", "",
+            "Rekordbox DB (master.db *.db);;Todos los archivos (*)",
+        )
+        if f:
+            self._rb_db_path = f
+            self.settings.setValue("rb_db_path", f)
+            self._rb_path_edit.setText(f)
+            if self._source == "rekordbox":
+                self._reload_after_path_change()
+
+    def _clear_rb_path(self) -> None:
+        self._rb_db_path = ""
+        self.settings.setValue("rb_db_path", "")
+        self._rb_path_edit.setText("(automático)")
+        if self._source == "rekordbox":
+            self._reload_after_path_change()
+
+    def _browse_tk_path(self) -> None:
+        f, _ = QFileDialog.getOpenFileName(
+            self, "Elegí el collection.nml de Traktor", "",
+            "Traktor collection (collection.nml *.nml);;Todos los archivos (*)",
+        )
+        if f:
+            self._tk_collection_path = f
+            self.settings.setValue("tk_collection_path", f)
+            self._tk_path_edit.setText(f)
+            if self._source == "traktor":
+                self._reload_after_path_change()
+
+    def _clear_tk_path(self) -> None:
+        self._tk_collection_path = ""
+        self.settings.setValue("tk_collection_path", "")
+        self._tk_path_edit.setText("(automático)")
+        if self._source == "traktor":
+            self._reload_after_path_change()
+
+    def _reload_after_path_change(self) -> None:
+        self._track_meta_cache.clear()
+        self._exists_cache.clear()
+        self._load_playlists()
+
     # ──────────────────────────────────────── Load playlists ─────────────
 
     def _load_playlists(self) -> None:
@@ -746,11 +1006,12 @@ class MainWindow(QMainWindow):
                     get_playlist_tree,
                     playlist_song_count,
                 )
-                col = open_collection()
+                tk_path = Path(self._tk_collection_path) if self._tk_collection_path else None
+                col = open_collection(tk_path)
                 tree = get_playlist_tree(col)
                 self._db = col
             else:
-                tree = rb_get_playlist_tree(rb_open_database())
+                tree = rb_get_playlist_tree(rb_open_database(self._rb_db_path or None))
                 playlist_song_count = rb_song_count
         except RuntimeError as e:
             self._show_not_installed(str(e))
@@ -1302,7 +1563,7 @@ class MainWindow(QMainWindow):
 
     def _on_track_finished(self) -> None:
         """Reproduce el siguiente track existente de la cola, si lo hay."""
-        if not self._play_order:
+        if not self._auto_advance or not self._play_order:
             return
         idx = next(
             (i for i, (rp, _) in enumerate(self._play_order)
@@ -1343,6 +1604,9 @@ class MainWindow(QMainWindow):
             self._spectro_worker.cancel()
 
     def _start_spectrogram(self, resolved_path: str) -> None:
+        if not self._spectro_enabled:
+            self._rack_head.set_spectrogram(None)
+            return
         if resolved_path in self._spectro_cache:
             self._rack_head.set_spectrogram(self._spectro_cache[resolved_path])
             return
@@ -1381,6 +1645,7 @@ class MainWindow(QMainWindow):
         if text.strip():
             display = text if len(text) <= 52 else "…" + text[-50:]
             self.output_path_label.setText(display)
+            self.settings.setValue("last_dest_folder", text.strip())
         else:
             self.output_path_label.setText("Sin carpeta seleccionada")
 

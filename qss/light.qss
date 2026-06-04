@@ -279,3 +279,57 @@ QPushButton#close_dialog_btn:hover { background: @{line2}; }
 
 /* ── Seek bar ── */
 QLabel#seek_time { font-family: "SF Mono","Menlo",monospace; font-size: 10px; color: @{faint}; background: transparent; }
+
+/* ── Settings ── */
+QPushButton#settings_btn {
+    background: transparent; border: 1px solid @{line2}; border-radius: 7px;
+    color: @{muted}; font-size: 14px; min-width: 28px; min-height: 26px; padding: 0;
+}
+QPushButton#settings_btn:hover { background: @{surface2}; color: @{text}; }
+QPushButton#settings_btn:checked { background: @{accent_soft}; border-color: @{accent}; color: @{accent}; }
+
+QWidget#settings_page { background: @{bg}; }
+QWidget#settings_scroll_vp { background: transparent; }
+QPushButton#settings_back {
+    background: @{surface2}; border: 1.5px solid @{line}; border-radius: 7px;
+    color: @{text}; font-size: 12px; font-weight: 600; padding: 5px 13px;
+}
+QPushButton#settings_back:hover { background: @{line2}; }
+QLabel#settings_title { font-size: 17px; font-weight: 700; color: @{text}; background: transparent; }
+
+QWidget#settings_card { background: @{surface}; border: 1.5px solid @{line2}; border-radius: 12px; }
+QLabel#settings_section {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.4px; color: @{accent}; background: transparent;
+}
+QLabel#settings_label { font-size: 12.5px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#settings_helper { font-size: 11px; color: @{muted}; background: transparent; }
+
+QComboBox#settings_combo {
+    background: @{inset}; border: 1.5px solid @{line}; border-radius: 8px;
+    color: @{text}; font-size: 12px; padding: 7px 11px;
+}
+QComboBox#settings_combo:hover { border-color: @{accent}; }
+QComboBox#settings_combo::drop-down { border: none; width: 22px; }
+QComboBox#settings_combo QAbstractItemView {
+    background: @{surface2}; border: 1.5px solid @{line}; border-radius: 8px;
+    color: @{text}; selection-background-color: @{accent_soft}; outline: none;
+}
+
+QCheckBox#settings_check { font-size: 12.5px; color: @{text}; background: transparent; spacing: 9px; }
+QCheckBox#settings_check::indicator {
+    width: 18px; height: 18px; border-radius: 5px;
+    border: 1.5px solid @{line}; background: @{inset};
+}
+QCheckBox#settings_check::indicator:checked {
+    background: @{accent}; border-color: @{accent2}; image: none;
+}
+
+QLineEdit#settings_path {
+    background: @{inset}; border: 1.5px solid @{line}; border-radius: 8px;
+    color: @{muted}; font-family: "SF Mono","Menlo",monospace; font-size: 10.5px; padding: 7px 11px;
+}
+QPushButton#settings_path_btn {
+    background: @{surface2}; border: 1.5px solid @{line}; border-radius: 7px;
+    color: @{text}; font-size: 11.5px; font-weight: 600; padding: 6px 12px;
+}
+QPushButton#settings_path_btn:hover { background: @{line2}; }

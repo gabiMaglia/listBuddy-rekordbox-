@@ -73,6 +73,10 @@ class AudioPlayer(QObject):
     def set_volume(self, value: float) -> None:
         self._output.setVolume(max(0.0, min(1.0, value)))
 
+    def set_output_device(self, device) -> None:
+        """Cambia el dispositivo de salida (QAudioDevice). No corta la reproducción."""
+        self._output.setDevice(device)
+
     def current_path(self) -> str:
         return self._current
 
