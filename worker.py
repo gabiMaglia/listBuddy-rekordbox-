@@ -2,7 +2,6 @@
 worker.py
 ---------
 QThread que ejecuta la exportación sin congelar la UI.
-Incluye manejo robusto de edge cases (Fase 3 del plan).
 """
 from __future__ import annotations
 
@@ -26,19 +25,14 @@ def _get_songs(pl):
     return _rb_get_songs(pl)
 
 
-def get_songs(pl):  # keep public name used by _try_count and callers
+def get_songs(pl):
     return _get_songs(pl)
 
-# Límite conservador del stem del filename para no superar MAX_PATH de Windows (260).
+
 _MAX_STEM = 200
 
 
 def _safe_filename(prefix: str, artist: str, title: str, suffix: str) -> str:
-    """
-    Construye el nombre de archivo final.
-    Trunca title (y artist si es necesario) para no pasar _MAX_STEM chars en el stem.
-    Nunca trunca prefix ni suffix.
-    """
     parts = [prefix]
     if artist:
         parts.append(artist)
@@ -48,14 +42,12 @@ def _safe_filename(prefix: str, artist: str, title: str, suffix: str) -> str:
     if len(stem) <= _MAX_STEM:
         return stem + suffix
 
-    # Calcular cuánto espacio queda para el título
     fixed = len(prefix) + (len(" - ") + len(artist) if artist else 0) + len(" - ")
     budget = _MAX_STEM - fixed
 
     if budget >= 8:
         title = title[: budget - 1] + "…"
     else:
-        # Ni siquiera el artista entra — truncar ambos
         half = (_MAX_STEM - len(prefix) - len(" - ") * 2) // 2
         artist = artist[: max(4, half - 1)] + "…"
         title = title[: max(4, half - 1)] + "…"
@@ -68,9 +60,10 @@ def _safe_filename(prefix: str, artist: str, title: str, suffix: str) -> str:
 
 
 class ExportWorker(QThread):
-    log = pyqtSignal(str)            # línea de log
-    progress = pyqtSignal(int, int)  # (hechas, total)
-    finished_ok = pyqtSignal(int, int)  # (copiadas, no_encontradas)
+    log         = pyqtSignal(str)
+    progress    = pyqtSignal(int, int)        # (hechas, total)
+    finished_ok = pyqtSignal(int, int, int, str)  # (copiadas, faltantes, saltadas, status)
+    # status: "ok" | "cancelled" | "error"
 
     def __init__(self, playlists: list, output_root: Path) -> None:
         super().__init__()
@@ -78,81 +71,142 @@ class ExportWorker(QThread):
         self._output_root = output_root
 
     def run(self) -> None:
-        copied_total = missing_total = 0
+        copied_total = missing_total = skipped_total = 0
         missing_tracks: list[str] = []
 
-        # Contar total de canciones para la barra de progreso.
-        total_songs = sum(
-            len(get_songs(pl)) for pl in self._playlists
-            if self._try_count(pl) is not None
-        )
-        done = 0
+        # ── Pre-build: una sola query lazy por playlist ───────────────────
+        playlist_songs: list[tuple] = []
+        for pl in self._playlists:
+            songs = _get_songs_list(pl)
+            if songs:
+                playlist_songs.append((pl, songs))
+
+        total_songs = sum(len(s) for _, s in playlist_songs)
         self.progress.emit(0, max(total_songs, 1))
 
-        for pl in self._playlists:
+        # ── Chequeo de espacio en disco ───────────────────────────────────
+        try:
+            total_bytes = _estimate_size(playlist_songs)
+            if total_bytes > 0:
+                dest_check = (
+                    self._output_root
+                    if self._output_root.exists()
+                    else _nearest_existing(self._output_root)
+                )
+                free = shutil.disk_usage(str(dest_check)).free
+                if total_bytes > free:
+                    needed = total_bytes / 1_073_741_824
+                    avail  = free / 1_073_741_824
+                    self.log.emit(
+                        f"✗  Espacio insuficiente: necesitás ~{needed:.1f} GB, "
+                        f"disponible: {avail:.1f} GB.\n"
+                        "   Liberá espacio e intentá de nuevo."
+                    )
+                    self.finished_ok.emit(0, 0, 0, "error")
+                    return
+        except Exception:
+            pass  # si el chequeo falla, seguimos igual
+
+        # ── Loop principal ────────────────────────────────────────────────
+        done = 0
+        for pl, songs in playlist_songs:
             self.log.emit(f"▶  {pl.Name}")
             dest_dir = self._output_root / sanitize(pl.Name)
 
-            # Orden estable: por TrackNo (None → 0), desempate por posición original.
-            raw_songs = get_songs(pl)
-            songs = [s for _, s in sorted(
-                enumerate(raw_songs),
+            sorted_songs = [s for _, s in sorted(
+                enumerate(songs),
                 key=lambda i_s: (i_s[1].TrackNo or 0, i_s[0])
             )]
 
-            if not songs:
-                self.log.emit("   [vacía, se omite]")
-                continue
-
             dest_dir.mkdir(parents=True, exist_ok=True)
-            pad = len(str(len(songs)))
+            pad = len(str(len(sorted_songs)))
 
-            for idx, song in enumerate(songs, start=1):
-                content = get_content(song)
+            for idx, song in enumerate(sorted_songs, start=1):
+                if self.isInterruptionRequested():
+                    self.log.emit("\n⏹  Exportación cancelada.")
+                    self.finished_ok.emit(copied_total, missing_total, skipped_total, "cancelled")
+                    return
+
+                content  = get_content(song)
                 raw_path = getattr(content, "FolderPath", None) if content else None
-                src = resolve_path(raw_path)
+                src      = resolve_path(raw_path)
 
                 done += 1
                 self.progress.emit(done, max(total_songs, 1))
 
                 if src is None:
-                    track_label = (
-                        getattr(content, "Title", None) or raw_path or "desconocido"
-                    )
-                    self.log.emit(f"   ⚠  No se encontró: {track_label}")
-                    missing_tracks.append(f"{pl.Name} → {track_label}")
+                    label = getattr(content, "Title", None) or raw_path or "desconocido"
+                    self.log.emit(f"   ⚠  No se encontró: {label}")
+                    missing_tracks.append(f"{pl.Name} → {label}")
                     missing_total += 1
                     continue
 
-                prefix = str(idx).zfill(pad)
-                artist = sanitize(get_artist(content))
-                title = sanitize(getattr(content, "Title", None) or "Sin título")
+                prefix   = str(idx).zfill(pad)
+                artist   = sanitize(get_artist(content))
+                title    = sanitize(getattr(content, "Title", None) or "Sin título")
                 filename = _safe_filename(prefix, artist, title, src.suffix)
-                dest = dest_dir / filename
+                dest     = dest_dir / filename
 
                 if dest.exists():
                     self.log.emit(f"   ⏭  Ya existe: {dest.name}")
+                    skipped_total += 1
                 else:
                     try:
                         shutil.copy2(src, dest)
                         self.log.emit(f"   ✓  {dest.name}")
+                        copied_total += 1
+                    except OSError as e:
+                        if e.errno == 28:  # ENOSPC — disco lleno
+                            self.log.emit(f"   ✗  Disco lleno al copiar {dest.name}")
+                            self.log.emit("      Liberá espacio e intentá de nuevo.")
+                            self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
+                            return
+                        self.log.emit(f"   ✗  Error copiando {dest.name}: {e}")
+                        missing_tracks.append(f"{pl.Name} → {dest.name} (error de copia)")
+                        missing_total += 1
                     except Exception as e:
                         self.log.emit(f"   ✗  Error copiando {dest.name}: {e}")
                         missing_tracks.append(f"{pl.Name} → {dest.name} (error de copia)")
                         missing_total += 1
-                        continue
-                copied_total += 1
 
         if missing_tracks:
             self.log.emit("\n─── Tracks no encontradas ───")
             for t in missing_tracks:
                 self.log.emit(f"  ✗  {t}")
 
-        self.finished_ok.emit(copied_total, missing_total)
+        self.finished_ok.emit(copied_total, missing_total, skipped_total, "ok")
 
-    @staticmethod
-    def _try_count(pl) -> int | None:
-        try:
-            return len(get_songs(pl))
-        except Exception:
-            return None
+
+# ── Helpers ───────────────────────────────────────────────────────────────
+
+def _get_songs_list(pl) -> list:
+    try:
+        return list(get_songs(pl))
+    except Exception:
+        return []
+
+
+def _estimate_size(playlist_songs: list[tuple]) -> int:
+    """Suma los tamaños de los archivos fuente que existen en disco."""
+    total = 0
+    for _, songs in playlist_songs:
+        for song in songs:
+            content = get_content(song)
+            raw = getattr(content, "FolderPath", None) if content else None
+            src = resolve_path(raw)
+            if src:
+                try:
+                    total += src.stat().st_size
+                except OSError:
+                    pass
+    return total
+
+
+def _nearest_existing(path: Path) -> Path:
+    """Sube por los padres hasta encontrar un directorio que exista."""
+    p = path
+    while p != p.parent:
+        p = p.parent
+        if p.exists():
+            return p
+    return Path("/")

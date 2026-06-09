@@ -336,8 +336,11 @@ def playlist_song_count(playlist: TraktorPlaylist) -> int:
 
 
 def get_songs(playlist: TraktorPlaylist) -> list[TraktorTrack]:
-    """Return tracks as a list; assigns TrackNo for worker.py sort."""
-    tracks = playlist.tracks
-    for i, t in enumerate(tracks):
-        t.TrackNo = i + 1
-    return tracks
+    """Return a copy of the track list with TrackNo set for sort order."""
+    from copy import copy
+    result = []
+    for i, t in enumerate(playlist.tracks):
+        t2 = copy(t)
+        t2.TrackNo = i + 1
+        result.append(t2)
+    return result

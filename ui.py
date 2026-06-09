@@ -381,24 +381,11 @@ class MainWindow(QMainWindow):
         bl.addWidget(title_lbl)
         lo.addWidget(brand)
 
-        # ── Centro: now-playing ──────────────────────────────────────────
-        now = QWidget()
-        now.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        nl = QVBoxLayout(now)
-        nl.setContentsMargins(0, 0, 0, 0)
-        nl.setSpacing(1)
-
+        # Atributos dummy para _update_now_playing (no se agregan al layout)
         self._header_artist = QLabel("")
-        self._header_artist.setObjectName("header_np_artist")
-        self._header_artist.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
         self._header_track = QLabel("")
-        self._header_track.setObjectName("header_np_track")
-        self._header_track.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        nl.addWidget(self._header_artist)
-        nl.addWidget(self._header_track)
-        lo.addWidget(now, 1)
+        lo.addStretch(1)
 
         # ── Derecha: controles ───────────────────────────────────────────
         self._settings_btn = QPushButton("⚙")
@@ -485,9 +472,20 @@ class MainWindow(QMainWindow):
         bl = QVBoxLayout(brand_block)
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(0)
-        name_lbl = QLabel("listBuddy")
-        name_lbl.setObjectName("brand_name")
-        bl.addWidget(name_lbl)
+        self._brand_name_lbl = QLabel("listBuddy")
+        self._brand_name_lbl.setObjectName("brand_name")
+        bl.addWidget(self._brand_name_lbl)
+
+        self._rack_np_title = QLabel("")
+        self._rack_np_title.setObjectName("rack_np_title")
+        self._rack_np_title.setVisible(False)
+        bl.addWidget(self._rack_np_title)
+
+        self._rack_np_artist = QLabel("")
+        self._rack_np_artist.setObjectName("rack_np_artist")
+        self._rack_np_artist.setVisible(False)
+        bl.addWidget(self._rack_np_artist)
+
         lo.addWidget(brand_block, 1)
 
         self._vu_bars = VuBars()
@@ -579,8 +577,13 @@ class MainWindow(QMainWindow):
         pr.setContentsMargins(12, 0, 8, 0)
         pr.setSpacing(8)
 
-        fi = QLabel("▭")
+        fi = QLabel()
         fi.setObjectName("path_folder_icon")
+        fi.setPixmap(
+            self.style().standardIcon(
+                self.style().StandardPixmap.SP_DirIcon
+            ).pixmap(16, 16)
+        )
         pr.addWidget(fi)
 
         self.folder_edit = QLineEdit()
@@ -657,13 +660,18 @@ class MainWindow(QMainWindow):
         label_row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         lr = QHBoxLayout(label_row)
         lr.setContentsMargins(0, 0, 0, 0)
-        lr.setSpacing(0)
+        lr.setSpacing(6)
         self.prog_label = QLabel("Copiando y numerando…")
         self.prog_label.setObjectName("prog_label")
         self.prog_pct = QLabel("0%")
         self.prog_pct.setObjectName("prog_pct")
-        lr.addWidget(self.prog_label)
-        lr.addStretch(1)
+
+        self._finder_btn = QPushButton("Abrir en Finder")
+        self._finder_btn.setObjectName("finder_btn")
+        self._finder_btn.setVisible(False)
+
+        lr.addWidget(self.prog_label, 1)
+        lr.addWidget(self._finder_btn)
         lr.addWidget(self.prog_pct)
         pl.addWidget(label_row)
 
@@ -723,8 +731,13 @@ class MainWindow(QMainWindow):
         oh = QHBoxLayout(self.output_head)
         oh.setContentsMargins(14, 10, 14, 10)
         oh.setSpacing(8)
-        fi = QLabel("▭")
+        fi = QLabel()
         fi.setObjectName("output_folder_icon")
+        fi.setPixmap(
+            self.style().standardIcon(
+                self.style().StandardPixmap.SP_DirIcon
+            ).pixmap(15, 15)
+        )
         self.output_path_label = QLabel("Sin carpeta seleccionada")
         self.output_path_label.setObjectName("output_path_label")
         self.output_path_label.setSizePolicy(
@@ -1074,7 +1087,7 @@ class MainWindow(QMainWindow):
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(icon)
 
-        title = QLabel(f"{app_name} no encontrado")
+        title = QLabel(f"{app_name} no disponible")
         title.setObjectName("not_installed_title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(title)
@@ -1395,8 +1408,13 @@ class MainWindow(QMainWindow):
         badge.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         hl.addWidget(badge)
 
-        folder_ic = QLabel("▭")
+        folder_ic = QLabel()
         folder_ic.setObjectName("output_grp_folder_icon")
+        folder_ic.setPixmap(
+            self.style().standardIcon(
+                self.style().StandardPixmap.SP_DirIcon
+            ).pixmap(14, 14)
+        )
         hl.addWidget(folder_ic)
 
         fname_lbl = QLabel(f"{data.name} /")
@@ -1545,6 +1563,12 @@ class MainWindow(QMainWindow):
                 pass
         self._header_track.setText(title)
         self._header_artist.setText(artist)
+        playing = bool(title)
+        self._brand_name_lbl.setVisible(not playing)
+        self._rack_np_title.setText(title)
+        self._rack_np_artist.setText(artist)
+        self._rack_np_title.setVisible(playing)
+        self._rack_np_artist.setVisible(playing and bool(artist))
 
     def _on_playing_changed(self, playing: bool) -> None:
         if playing:
@@ -1632,6 +1656,10 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         self._audio.stop()
         self._cancel_spectro()
+        self._cancel_preview_worker()
+        if self._worker and self._worker.isRunning():
+            self._worker.requestInterruption()
+            self._worker.wait(4000)
         super().closeEvent(event)
 
     # ──────────────────────────────────────── Actions ────────────────────
@@ -1669,18 +1697,23 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Sin selección", "Marcá al menos una playlist.")
             return
 
-        self.export_btn.setEnabled(False)
-        self.export_btn.set_label("Exportando…")
+        # Cambiar botón a modo Cancelar
+        self.export_btn.set_label("✕  Cancelar")
+        self.export_btn.clicked.disconnect()
+        self.export_btn.clicked.connect(self._cancel_export)
+
         self.progress_section.setVisible(True)
         self.progress.setValue(0)
         self.prog_label.setText("Copiando y numerando…")
         self.prog_pct.setText("0%")
+        self._finder_btn.setVisible(False)
         self.output_status.setText("exportando…")
+        self._set_status_style("active")
         self._vu_bars.set_live(True)
         self.preview_scroll.setVisible(False)
         self.log_view.setVisible(True)
         self.log_view.clear()
-        self._log(f"▭ Destino: {output}")
+        self._log(f"→ Destino: {output}")
 
         self._worker = ExportWorker(selected, Path(output))
         self._worker.log.connect(self._log)
@@ -1688,31 +1721,119 @@ class MainWindow(QMainWindow):
         self._worker.finished_ok.connect(self._on_finished)
         self._worker.start()
 
+    def _cancel_export(self) -> None:
+        if self._worker and self._worker.isRunning():
+            self.export_btn.set_label("Cancelando…")
+            self.export_btn.setEnabled(False)
+            self._worker.requestInterruption()
+
     def _on_progress(self, done: int, total: int) -> None:
         self.progress.setMaximum(total)
         self.progress.setValue(done)
         pct = int(done / total * 100) if total > 0 else 0
         self.prog_pct.setText(f"{pct}%")
 
-    def _on_finished(self, copied: int, missing: int) -> None:
-        self.export_btn.setEnabled(True)
+    def _on_finished(self, copied: int, missing: int, skipped: int, status: str) -> None:
+        # ── Resetear botón ────────────────────────────────────────────────
         self.export_btn.set_label("Exportar en orden")
-        self.prog_label.setText("Exportación completa")
-        self.prog_pct.setText("100%")
-        self.output_status.setText("exportado ✓")
+        try:
+            self.export_btn.clicked.disconnect()
+        except TypeError:
+            pass
+        self.export_btn.clicked.connect(self._start_export)
+        self.export_btn.setEnabled(True)
+
         self._vu_bars.set_live(False)
-        self._log(f"\n✓ Listo. {copied} copiadas, {missing} no encontradas.")
+
+        # ── Resumen ───────────────────────────────────────────────────────
+        parts: list[str] = []
+        if copied:
+            parts.append(f"{copied} copiada{'s' if copied != 1 else ''}")
+        if skipped:
+            parts.append(f"{skipped} saltada{'s' if skipped != 1 else ''}")
+        if missing:
+            parts.append(f"{missing} no encontrada{'s' if missing != 1 else ''}")
+        summary = " · ".join(parts) if parts else "Nada que copiar"
+
+        if status == "cancelled":
+            self.prog_label.setText(f"Cancelado — {summary}")
+            self.prog_pct.setText("⏹")
+            self.output_status.setText("cancelado")
+            self._set_status_style("warn")
+        elif status == "error":
+            self.prog_label.setText(summary or "Error durante la exportación")
+            self.prog_pct.setText("✗")
+            self.output_status.setText("error ✗")
+            self._set_status_style("error")
+        elif missing > 0 and copied == 0:
+            self.prog_label.setText(summary)
+            self.prog_pct.setText("⚠")
+            self.output_status.setText("sin copias ⚠")
+            self._set_status_style("warn")
+        elif missing > 0:
+            self.prog_label.setText(summary)
+            self.prog_pct.setText("⚠")
+            self.output_status.setText("parcial ⚠")
+            self._set_status_style("warn")
+        else:
+            self.prog_label.setText(summary)
+            self.prog_pct.setText("✓")
+            self.output_status.setText("exportado ✓")
+            self._set_status_style("ok")
+
+        self._log(f"\n{'⏹' if status == 'cancelled' else '✓'}  {summary}")
+
+        # ── Botón "Abrir en Finder" ───────────────────────────────────────
+        output_path = Path(self.folder_edit.text().strip())
+        if copied > 0 and output_path.exists():
+            self._finder_btn.setVisible(True)
+            try:
+                self._finder_btn.clicked.disconnect()
+            except TypeError:
+                pass
+            self._finder_btn.clicked.connect(
+                lambda: QDesktopServices.openUrl(
+                    QUrl.fromLocalFile(str(output_path))
+                )
+            )
+
         self.log_view.setVisible(False)
         self.preview_scroll.setVisible(True)
-        self._exists_cache.clear()   # archivos copiados → rutas destino cambiaron
-        # Mantener el cartel de progreso 5 s y luego ocultarlo
-        QTimer.singleShot(5000, self._hide_progress_section)
+        self._exists_cache.clear()
+        QTimer.singleShot(8000, self._hide_progress_section)
+
+    def _set_status_style(self, variant: str) -> None:
+        """Colorea el tag output_status según el resultado (ok/warn/error/active)."""
+        dark = self._theme == "dark"
+        styles: dict[str, str] = {
+            "ok": (
+                "color: #ce7de6; border-color: rgba(206,125,230,0.3);" if dark
+                else "color: #8c38bf; border-color: rgba(140,56,191,0.3);"
+            ),
+            "warn": (
+                "color: #e6a93a; border-color: rgba(230,169,58,0.3);" if dark
+                else "color: #a06000; border-color: rgba(160,96,0,0.3);"
+            ),
+            "error": (
+                "color: #e65a5a; border-color: rgba(230,90,90,0.3);" if dark
+                else "color: #c03030; border-color: rgba(192,48,48,0.3);"
+            ),
+            "active": "",
+        }
+        base = (
+            "font-family: 'SF Mono','Menlo',monospace; font-size: 10px;"
+            " border: 1px solid; border-radius: 4px; padding: 2px 7px; background: transparent;"
+        )
+        extra = styles.get(variant, "")
+        self.output_status.setStyleSheet(base + extra if extra else "")
 
     def _hide_progress_section(self) -> None:
         self.progress_section.setVisible(False)
+        self._finder_btn.setVisible(False)
         self.progress.setValue(0)
         self.prog_label.setText("Copiando y numerando…")
         self.prog_pct.setText("0%")
+        self.output_status.setStyleSheet("")
 
     def _log(self, text: str) -> None:
         self.log_view.appendPlainText(text)
