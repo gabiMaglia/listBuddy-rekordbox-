@@ -1,13 +1,18 @@
 """styles.py — listBuddy design tokens + QSS loader."""
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Dict
 
 from PyQt6.QtWidgets import QApplication
 
 
-ROOT = Path(__file__).parent
+# En modo frozen (PyInstaller) los recursos quedan en sys._MEIPASS
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    ROOT = Path(sys._MEIPASS)
+else:
+    ROOT = Path(__file__).parent
 
 # Design tokens translated from listBuddy CSS (oklch → hex approximations)
 THEMES: Dict[str, Dict[str, str]] = {

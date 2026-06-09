@@ -76,6 +76,8 @@ QLabel#brand_logo_text {
 }
 QLabel#brand_logo_text:hover { background: @{accent2}; }
 QLabel#brand_name { font-size: 14px; font-weight: 700; color: @{text}; background: transparent; }
+QLabel#rack_np_title { font-size: 11px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#rack_np_artist { font-size: 9px; color: @{faint}; background: transparent; }
 QLabel#brand_sub {
     font-family: "SF Mono","Menlo",monospace; font-size: 9px;
     letter-spacing: 1px; color: @{faint}; background: transparent;
@@ -279,6 +281,13 @@ QPushButton#close_dialog_btn:hover { background: @{line2}; }
 
 /* ── Seek bar ── */
 QLabel#seek_time { font-family: "SF Mono","Menlo",monospace; font-size: 10px; color: @{faint}; background: transparent; }
+
+/* ── Finder button ── */
+QPushButton#finder_btn {
+    background: transparent; border: 1px solid @{line2}; border-radius: 5px;
+    color: @{accent}; font-size: 10px; padding: 1px 8px;
+}
+QPushButton#finder_btn:hover { background: @{accent_soft}; }
 
 /* ── Settings ── */
 QPushButton#settings_btn {
