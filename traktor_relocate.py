@@ -15,7 +15,10 @@ Decisiones (ver ADR-001 en engram/02_architecture.md, no rediseñar):
      serializa UNA sola vez a .tmp + fsync + os.replace.
   3. Matching: nombre de archivo exacto (case-insensitive) vía un índice
      basename -> [paths] construido una sola vez. >1 candidato => decisión
-     del usuario (modal); el fuzzy score NUNCA autoelige.
+     del usuario (modal) por default; el fuzzy score NUNCA autoelige salvo
+     que el usuario tilde el checkbox opt-in "auto_resolve" (Addendum
+     ADR-001, 2026-07-24 / T-003), en cuyo caso se aplica candidates[0]
+     (ya ordenado por score) sin modal.
   4. Sync: índice inverso old_key -> [PRIMARYKEY elements], reescritos todos
      los que matcheen al reparar una ENTRY.
   5. R-03: Traktor debe estar cerrado (is_traktor_running()).
@@ -336,10 +339,13 @@ class RelocateWorker(QThread):
     finished_ok = pyqtSignal(int, int, int, str)  # (reparadas, salteadas, sin_match, status)
     # status: "ok" | "cancelled" | "error"
 
-    def __init__(self, nml_path: Path, search_root: Path) -> None:
+    def __init__(
+        self, nml_path: Path, search_root: Path, auto_resolve: bool = False,
+    ) -> None:
         super().__init__()
         self._nml_path = nml_path
         self._search_root = search_root
+        self._auto_resolve = auto_resolve
         self._answer_event = threading.Event()
         self._answer: Path | None = None
 
@@ -410,8 +416,16 @@ class RelocateWorker(QThread):
                 self.log.emit(f"   ✗  Sin coincidencias: {label}")
                 continue
 
+            auto_resolved = False
             if len(candidates) == 1:
                 chosen: Path | None = candidates[0].path
+            elif self._auto_resolve:
+                # Addendum ADR-001 (2026-07-24): opt-in, checkbox OFF por
+                # default no pasa por acá. candidates[0] ya viene ordenado
+                # por _fuzzy_score descendente (find_candidates) — no es
+                # orden de carpeta al azar. Sin modal, sin ask_user_event.
+                chosen = candidates[0].path
+                auto_resolved = True
             else:
                 self._answer_event.clear()
                 self.ask_user.emit(RelocateRequest(broken=broken_track, candidates=candidates))
@@ -425,7 +439,10 @@ class RelocateWorker(QThread):
 
             apply_relocation(entry, chosen, key_index)
             repaired += 1
-            self.log.emit(f"   ✓  Reparado: {label} → {chosen}")
+            if auto_resolved:
+                self.log.emit(f"   ✓  Reparado (auto): {label} → {chosen}")
+            else:
+                self.log.emit(f"   ✓  Reparado: {label} → {chosen}")
 
         if repaired == 0:
             self.log.emit("\nSin cambios para escribir (0 reparaciones aplicadas).")
