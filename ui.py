@@ -66,6 +66,7 @@ from preview_worker import PreviewWorker, GroupData, TrackRow
 from audio_player import AudioPlayer
 from spectro_worker import SpectrogramWorker
 from traktor_relocate import RelocateWorker
+from rekordbox_relocate import RekordboxRelocateWorker
 
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
 _APP_VERSION = "1.0"
@@ -257,7 +258,8 @@ class MainWindow(QMainWindow):
         self._all_cards: list[PlaylistCard] = []
         self._source: str = "rekordbox"  # "rekordbox" | "traktor"
         self._preview_worker: PreviewWorker | None = None
-        self._relocate_worker: RelocateWorker | None = None
+        self._relocate_worker: RelocateWorker | RekordboxRelocateWorker | None = None
+        self._relocate_source: str = "rekordbox"  # fuente activa al arrancar el relocate en curso
 
         # ── Audio playback ───────────────────────────────────────────────
         self._audio = AudioPlayer(self)
@@ -544,7 +546,11 @@ class MainWindow(QMainWindow):
         return wrap
 
     def _build_relocate_row(self) -> QWidget:
-        """F-07 (ADR-001): botón de relocate, solo visible con fuente Traktor."""
+        """
+        F-07/F-08 (ADR-001/ADR-002): botón de relocate, visible con
+        cualquier fuente activa (Traktor o Rekordbox — ver ADR-002 punto 5,
+        reusa el mismo botón/checkbox en vez de duplicar UI por motor).
+        """
         row = QWidget()
         row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         rl = QHBoxLayout(row)
@@ -553,10 +559,6 @@ class MainWindow(QMainWindow):
 
         self.relocate_btn = QPushButton("🔧  Reparar enlaces rotos…")
         self.relocate_btn.setObjectName("relocate_btn")
-        self.relocate_btn.setToolTip(
-            "Busca los archivos con link roto en una carpeta/disco y repara\n"
-            "la colección de Traktor (collection.nml)."
-        )
         self.relocate_btn.clicked.connect(self._start_relocate)
         rl.addWidget(self.relocate_btn)
 
@@ -573,9 +575,23 @@ class MainWindow(QMainWindow):
         )
         rl.addWidget(self.relocate_auto_chk)
 
-        row.setVisible(self._source == "traktor")
         self._relocate_row = row
+        self._update_relocate_tooltip()
         return row
+
+    def _update_relocate_tooltip(self) -> None:
+        """Tooltip del botón de relocate según la fuente activa (Traktor/Rekordbox)."""
+        if self._source == "traktor":
+            self.relocate_btn.setToolTip(
+                "Busca los archivos con link roto en una carpeta/disco y repara\n"
+                "la colección de Traktor (collection.nml)."
+            )
+        else:
+            self.relocate_btn.setToolTip(
+                "Busca los archivos con link roto en una carpeta/disco y repara\n"
+                "la librería de Rekordbox 6 (master.db). Rekordbox debe estar\n"
+                "cerrado — se hace backup automático antes de escribir."
+            )
 
     def _switch_source(self, source: str) -> None:
         if source == self._source:
@@ -589,7 +605,7 @@ class MainWindow(QMainWindow):
         for btn in (self._src_rb_btn, self._src_tk_btn):
             btn.style().unpolish(btn)
             btn.style().polish(btn)
-        self._relocate_row.setVisible(source == "traktor")
+        self._update_relocate_tooltip()
         self._load_playlists()
 
     def _build_dest_section(self) -> QWidget:
@@ -1890,12 +1906,10 @@ class MainWindow(QMainWindow):
     def _log(self, text: str) -> None:
         self.log_view.appendPlainText(text)
 
-    # ──────────────────────────────────────── Relocate (F-07, ADR-001) ───
+    # ──────────────────────────────── Relocate (F-07 ADR-001 / F-08 ADR-002) ───
 
     def _start_relocate(self) -> None:
-        if self._source != "traktor":
-            return
-        if self._db is None:
+        if self._source == "traktor" and self._db is None:
             QMessageBox.warning(
                 self, "Sin librería", "Cargá la librería de Traktor primero."
             )
@@ -1909,10 +1923,11 @@ class MainWindow(QMainWindow):
         if self._relocate_worker and self._relocate_worker.isRunning():
             return
 
-        # R-03 (Traktor debe estar cerrado durante el relocate) se chequea
-        # dentro de RelocateWorker.run(), no acá: subprocess.run() no es
-        # trabajo garantizadamente liviano y nunca debe correr en el hilo
-        # de UI. Ver _on_relocate_finished para el status "blocked".
+        # R-03 (Traktor) / R-01 (Rekordbox) — "cerrá la app antes de reparar
+        # enlaces" — se chequea DENTRO del worker (run()), no acá: ambos
+        # chequeos (subprocess.run / get_rekordbox_pid) no son garantizadamente
+        # livianos y nunca deben correr en el hilo de UI. Ver
+        # _on_relocate_finished para el status "blocked".
 
         search_root = QFileDialog.getExistingDirectory(
             self, "Elegí la carpeta o disco donde buscar los archivos"
@@ -1935,13 +1950,27 @@ class MainWindow(QMainWindow):
         self.preview_scroll.setVisible(False)
         self.log_view.setVisible(True)
         self.log_view.clear()
-        self._log(f"→ NML: {self._db.path}")
         self._log(f"→ Buscando en: {search_root}")
 
-        self._relocate_worker = RelocateWorker(
-            self._db.path, Path(search_root),
-            auto_resolve=self.relocate_auto_chk.isChecked(),
-        )
+        # Se fija la fuente activa al arrancar (no self._source en vivo):
+        # el usuario no puede tocar el selector de fuente mientras hay un
+        # relocate corriendo, pero el mensaje de "blocked" al terminar debe
+        # referirse a la app que efectivamente se chequeó, no a la que esté
+        # seleccionada en ese momento.
+        self._relocate_source = self._source
+        auto_resolve = self.relocate_auto_chk.isChecked()
+
+        if self._source == "traktor":
+            self._log(f"→ NML: {self._db.path}")
+            self._relocate_worker = RelocateWorker(
+                self._db.path, Path(search_root), auto_resolve=auto_resolve,
+            )
+        else:
+            self._log("→ Librería: Rekordbox 6 (master.db)")
+            self._relocate_worker = RekordboxRelocateWorker(
+                Path(self._rb_db_path) if self._rb_db_path else None,
+                Path(search_root), auto_resolve=auto_resolve,
+            )
         self._relocate_worker.log.connect(self._log)
         self._relocate_worker.progress.connect(self._on_progress)
         self._relocate_worker.ask_user.connect(self._on_relocate_ask)
@@ -1988,19 +2017,29 @@ class MainWindow(QMainWindow):
         summary = " · ".join(parts) if parts else "Sin enlaces rotos"
 
         if status == "blocked":
-            self.prog_label.setText("Bloqueado — Traktor está abierto")
+            is_traktor = self._relocate_source == "traktor"
+            app_name = "Traktor" if is_traktor else "Rekordbox"
+            self.prog_label.setText(f"Bloqueado — {app_name} está abierto")
             self.prog_pct.setText("⚠")
             self.output_status.setText("bloqueado ⚠")
             self._set_status_style("warn")
             self.log_view.setVisible(False)
             self.preview_scroll.setVisible(True)
-            QMessageBox.warning(
-                self, "Traktor está abierto",
-                "Cerrá Traktor antes de reparar enlaces.\n\n"
-                "Traktor reescribe collection.nml entero al salir o guardar "
-                "(no bloquea el archivo a nivel de OS como Rekordbox), así "
-                "que si queda abierto pisaría las reparaciones.",
-            )
+            if is_traktor:
+                QMessageBox.warning(
+                    self, "Traktor está abierto",
+                    "Cerrá Traktor antes de reparar enlaces.\n\n"
+                    "Traktor reescribe collection.nml entero al salir o guardar "
+                    "(no bloquea el archivo a nivel de OS como Rekordbox), así "
+                    "que si queda abierto pisaría las reparaciones.",
+                )
+            else:
+                QMessageBox.warning(
+                    self, "Rekordbox está abierto",
+                    "Cerrá Rekordbox antes de reparar enlaces.\n\n"
+                    "La base de datos (master.db) queda bloqueada a nivel de "
+                    "sistema operativo mientras el programa está corriendo.",
+                )
             QTimer.singleShot(8000, self._hide_progress_section)
             return
         elif status == "cancelled":
