@@ -45,6 +45,7 @@ no rediseñar):
 """
 from __future__ import annotations
 
+import logging
 import shutil
 import threading
 from dataclasses import dataclass
@@ -67,6 +68,11 @@ from traktor_relocate import (
 
 _BACKUP_DIR_NAME = "listBuddy_backups"
 _BACKUP_RETENTION = 5  # ADR-002: PO aprobó N=5 (menor al N=10 de Traktor)
+
+# Logger al archivo rotativo (app_logging.py): los self.log.emit() van al panel
+# de la UI que se oculta al terminar; el log de archivo es lo único que queda
+# para diagnosticar un relocate fallido sobre el master.db en producción.
+_log = logging.getLogger("listBuddy")
 
 
 # ─────────────────────────────────────────────── Data classes ────────────
@@ -224,12 +230,15 @@ class RekordboxRelocateWorker(QThread):
     def run(self) -> None:
         # R-01: chequeo de proceso en el hilo del worker, no en el de UI —
         # get_rekordbox_pid() no es garantizadamente liviano.
+        _log.info("Relocate Rekordbox: inicio · db=%s · search_root=%s · auto=%s",
+                  self._db_path or "(autodetect)", self._search_root, self._auto_resolve)
         if is_rekordbox_running():
             self.log.emit(
                 "✗  Rekordbox está abierto. Cerralo antes de reparar enlaces: "
                 "la base de datos queda bloqueada a nivel de sistema operativo "
                 "mientras el programa está corriendo."
             )
+            _log.warning("Relocate Rekordbox: bloqueado — Rekordbox está abierto (R-01).")
             self.finished_ok.emit(0, 0, 0, "blocked")
             return
 
@@ -242,6 +251,8 @@ class RekordboxRelocateWorker(QThread):
             self.log.emit(
                 f"✗  No se pudo abrir la base de datos de Rekordbox.\n   Detalle: {e}"
             )
+            _log.error("Relocate Rekordbox: no se pudo abrir master.db (%s): %s",
+                       self._db_path or "(autodetect)", e, exc_info=True)
             self.finished_ok.emit(0, 0, 0, "error")
             return
 
@@ -356,10 +367,13 @@ class RekordboxRelocateWorker(QThread):
             try:
                 backup_path = backup_master_db(master_db_path)
                 self.log.emit(f"💾  Backup creado: {backup_path}")
+                _log.info("Relocate Rekordbox: backup creado en %s", backup_path)
             except OSError as e:
                 self.log.emit(
                     f"✗  No se pudo crear el backup — abortando sin escribir.\n   Detalle: {e}"
                 )
+                _log.error("Relocate Rekordbox: backup FALLÓ (%s) — rollback, sin escribir: %s",
+                           master_db_path, e, exc_info=True)
                 db.rollback()
                 self.finished_ok.emit(0, 0, 0, "error")
                 return
@@ -375,6 +389,8 @@ class RekordboxRelocateWorker(QThread):
                 self.log.emit(
                     f"✗  Error al escribir la base de datos — rollback aplicado.\n   Detalle: {e}"
                 )
+                _log.error("Relocate Rekordbox: commit FALLÓ — rollback aplicado: %s",
+                           e, exc_info=True)
                 self.finished_ok.emit(0, 0, 0, "error")
                 return
 
@@ -382,6 +398,8 @@ class RekordboxRelocateWorker(QThread):
                 f"\n✓  {repaired} reparada(s) · {skipped} salteada(s) · "
                 f"{unresolved} sin coincidencias."
             )
+            _log.info("Relocate Rekordbox: OK · %d reparadas · %d salteadas · %d sin coincidencias",
+                      repaired, skipped, unresolved)
             self.finished_ok.emit(repaired, skipped, unresolved, "ok")
         finally:
             try:
