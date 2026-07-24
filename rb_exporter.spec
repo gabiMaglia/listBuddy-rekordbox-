@@ -25,11 +25,22 @@ a = Analysis(
     pathex=['.'],
     binaries=collect_dynamic_libs('sqlcipher3'),
     datas=pyrekordbox_datas + [('qss', 'qss')],
+    # Nota: los módulos locales del relocate (traktor_relocate, rekordbox_relocate,
+    # traktor_db, worker, preview_worker, etc.) NO van acá — se importan de forma
+    # estática desde main.py → ui.py (`from traktor_relocate import ...`), así que
+    # el análisis de PyInstaller los sigue solo. hiddenimports es únicamente para
+    # lo que el grafo estático NO puede ver (extensiones nativas, imports diferidos).
     hiddenimports=[
         'pyrekordbox',
         'pyrekordbox.db6',
         'pyrekordbox.db6.tables',
         'pyrekordbox.db6.registry',
+        # F-08 (relocate Rekordbox) ahora ESCRIBE: update_content_path(save=True)
+        # ejercita el subsistema ANLZ y get_rekordbox_pid (utils). Antes la app
+        # era solo-lectura y nunca tocaba estos paths — se declaran explícitos
+        # como seguro para que el bundle no falle en runtime al reparar enlaces.
+        'pyrekordbox.anlz',
+        'pyrekordbox.utils',
         'sqlcipher3',
         'sqlalchemy',
         'sqlalchemy.dialects.sqlite',
@@ -93,8 +104,8 @@ if is_mac:
             'NSAppleScriptEnabled': False,
             'CFBundleName': 'listBuddy',
             'CFBundleDisplayName': 'listBuddy',
-            'CFBundleShortVersionString': '1.0',
-            'CFBundleVersion': '1.0.0',
+            'CFBundleShortVersionString': '1.1',
+            'CFBundleVersion': '1.1.0',
             'NSHighResolutionCapable': True,
             'LSMinimumSystemVersion': '10.14',
             'NSHumanReadableCopyright': '© 2024 Gabriel Maglia. GPL v3.',
