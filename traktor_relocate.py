@@ -30,6 +30,7 @@ import platform
 import shutil
 import subprocess
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
@@ -145,22 +146,49 @@ def find_broken_entries(collection_el: ET.Element) -> list[tuple[ET.Element, Bro
 
 # ─────────────────────────────────────────────── Disk index ──────────────
 
-def build_basename_index(search_root: Path) -> dict[str, list[Path]]:
+_INDEX_PROGRESS_EVERY = 250  # T-007: cada cuántos archivos se reporta avance
+
+
+def build_basename_index(
+    search_root: Path,
+    should_stop: Callable[[], bool] | None = None,
+    on_progress: Callable[[int], None] | None = None,
+    progress_every: int = _INDEX_PROGRESS_EVERY,
+) -> dict[str, list[Path]]:
     """
     Índice {basename.lower(): [paths]} construido UNA sola vez por corrida
     (evita re-escanear disco por pista; un scan completo es caro en
     discos USB/red). Salta la carpeta de backups propia para no ofrecerla
     como candidato.
+
+    T-007: el `os.walk` puede ser la fase más larga de un relocate (disco/
+    carpeta con muchos archivos) y antes no era cancelable ni mostraba
+    avance durante el recorrido. `should_stop` (ej. `worker.isInterruptionRequested`)
+    se chequea por carpeta visitada y cada `progress_every` archivos, para
+    cortar pronto sin esperar a que termine todo el walk. `on_progress` (ej.
+    `worker.progress.emit`) se invoca con la cantidad de archivos indexados
+    hasta el momento, cada `progress_every` archivos. Queda desacoplado de
+    QThread a propósito (recibe callables, no una referencia al worker) para
+    seguir siendo testeable sin Qt.
     """
     index: dict[str, list[Path]] = {}
 
     def _on_error(_exc: OSError) -> None:
         pass  # directorios sin permiso: se ignoran, no abortan el índice
 
+    count = 0
     for root, dirs, files in os.walk(search_root, onerror=_on_error):
+        if should_stop is not None and should_stop():
+            break
         dirs[:] = [d for d in dirs if d != _BACKUP_DIR_NAME]
         for name in files:
             index.setdefault(name.lower(), []).append(Path(root) / name)
+            count += 1
+            if count % progress_every == 0:
+                if on_progress is not None:
+                    on_progress(count)
+                if should_stop is not None and should_stop():
+                    return index
     return index
 
 
@@ -394,7 +422,18 @@ class RelocateWorker(QThread):
             return
 
         self.log.emit(f"📂  Indexando archivos en: {self._search_root}")
-        index = build_basename_index(self._search_root)
+        index = build_basename_index(
+            self._search_root,
+            should_stop=self.isInterruptionRequested,
+            # T-007: sin total conocido de antemano (recién se sabe al
+            # terminar el walk) — total=0 pone la barra de progreso en modo
+            # indeterminado (Qt: min==max) en vez de mostrar un % falso.
+            on_progress=lambda n: self.progress.emit(n, 0),
+        )
+        if self.isInterruptionRequested():
+            self.log.emit("\n⏹  Relocate cancelado — NML intacto, nada se escribió.")
+            self.finished_ok.emit(0, 0, 0, "cancelled")
+            return
         indexed_count = sum(len(v) for v in index.values())
         self.log.emit(f"   {indexed_count} archivo(s) indexado(s).")
 

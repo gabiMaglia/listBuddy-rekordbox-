@@ -1734,6 +1734,12 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────── Export ─────────────────────
 
     def _start_export(self) -> None:
+        if self._relocate_worker and self._relocate_worker.isRunning():
+            QMessageBox.warning(
+                self, "Relocate en curso",
+                "Esperá a que termine la reparación de enlaces antes de exportar.",
+            )
+            return
         output = self.folder_edit.text().strip()
         if not output:
             QMessageBox.warning(self, "Falta carpeta", "Elegí primero una carpeta de destino.")
@@ -1914,7 +1920,11 @@ class MainWindow(QMainWindow):
         if not search_root:
             return
 
-        self.relocate_btn.setEnabled(False)
+        # T-007: cambiar botón a modo Cancelar (mismo patrón que export_btn).
+        self.relocate_btn.setText("✕  Cancelar")
+        self.relocate_btn.clicked.disconnect()
+        self.relocate_btn.clicked.connect(self._cancel_relocate)
+
         self.progress_section.setVisible(True)
         self.progress.setValue(0)
         self.prog_label.setText("Buscando enlaces rotos…")
@@ -1950,9 +1960,22 @@ class MainWindow(QMainWindow):
         if self._relocate_worker:
             self._relocate_worker.provide_answer(dlg.chosen_path)
 
+    def _cancel_relocate(self) -> None:
+        if self._relocate_worker and self._relocate_worker.isRunning():
+            self.relocate_btn.setText("Cancelando…")
+            self.relocate_btn.setEnabled(False)
+            self._relocate_worker.requestInterruption()
+
     def _on_relocate_finished(
         self, repaired: int, skipped: int, unresolved: int, status: str
     ) -> None:
+        # ── Resetear botón (mismo patrón que _on_finished/export_btn) ──────
+        self.relocate_btn.setText("🔧  Reparar enlaces rotos…")
+        try:
+            self.relocate_btn.clicked.disconnect()
+        except TypeError:
+            pass
+        self.relocate_btn.clicked.connect(self._start_relocate)
         self.relocate_btn.setEnabled(True)
 
         parts: list[str] = []
