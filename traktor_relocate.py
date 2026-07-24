@@ -25,6 +25,7 @@ Decisiones (ver ADR-001 en engram/02_architecture.md, no rediseñar):
 """
 from __future__ import annotations
 
+import logging
 import os
 import platform
 import shutil
@@ -43,6 +44,11 @@ from traktor_db import _location_to_key, _location_to_path, path_to_location
 
 _BACKUP_DIR_NAME = "listBuddy_backups"
 _BACKUP_RETENTION = 10
+
+# Logger al archivo rotativo (app_logging.py). Los self.log.emit() van al panel
+# de la UI, que se oculta al terminar el relocate; el log de archivo es lo único
+# que sobrevive para diagnosticar un relocate fallido en producción.
+_log = logging.getLogger("listBuddy")
 
 
 # ─────────────────────────────────────────────── Data classes ────────────
@@ -390,12 +396,15 @@ class RelocateWorker(QThread):
         # R-03: chequeo de proceso en el hilo del worker, no en el de UI —
         # subprocess.run() (tasklist/pgrep) no es trabajo garantizadamente
         # liviano; nunca debe correr en el hilo de eventos de Qt.
+        _log.info("Relocate Traktor: inicio · nml=%s · search_root=%s · auto=%s",
+                  self._nml_path, self._search_root, self._auto_resolve)
         if is_traktor_running():
             self.log.emit(
                 "✗  Traktor está abierto. Cerralo antes de reparar enlaces: "
                 "reescribe collection.nml entero al salir/guardar y pisaría "
                 "las reparaciones (last-writer-wins)."
             )
+            _log.warning("Relocate Traktor: bloqueado — Traktor está abierto (R-03).")
             self.finished_ok.emit(0, 0, 0, "blocked")
             return
 
@@ -403,6 +412,7 @@ class RelocateWorker(QThread):
             tree = ET.parse(str(self._nml_path))
         except ET.ParseError as e:
             self.log.emit(f"✗  No se pudo leer la librería de Traktor.\n   Detalle: {e}")
+            _log.error("Relocate Traktor: NML ilegible (%s): %s", self._nml_path, e)
             self.finished_ok.emit(0, 0, 0, "error")
             return
 
@@ -411,6 +421,7 @@ class RelocateWorker(QThread):
         playlists_el = root.find("PLAYLISTS")
         if collection_el is None:
             self.log.emit("✗  El NML no tiene sección COLLECTION.")
+            _log.error("Relocate Traktor: NML sin sección COLLECTION (%s).", self._nml_path)
             self.finished_ok.emit(0, 0, 0, "error")
             return
 
@@ -491,10 +502,13 @@ class RelocateWorker(QThread):
         try:
             backup_path = backup_collection(self._nml_path)
             self.log.emit(f"💾  Backup creado: {backup_path}")
+            _log.info("Relocate Traktor: backup creado en %s", backup_path)
         except OSError as e:
             self.log.emit(
                 f"✗  No se pudo crear el backup — abortando sin escribir.\n   Detalle: {e}"
             )
+            _log.error("Relocate Traktor: backup FALLÓ (%s) — abortado sin escribir: %s",
+                       self._nml_path, e, exc_info=True)
             self.finished_ok.emit(0, 0, 0, "error")
             return
 
@@ -502,10 +516,14 @@ class RelocateWorker(QThread):
             write_atomic(tree, self._nml_path)
         except OSError as e:
             self.log.emit(f"✗  Error al escribir la colección.\n   Detalle: {e}")
+            _log.error("Relocate Traktor: escritura del NML FALLÓ (%s): %s",
+                       self._nml_path, e, exc_info=True)
             self.finished_ok.emit(0, 0, 0, "error")
             return
 
         self.log.emit(
             f"\n✓  {repaired} reparada(s) · {skipped} salteada(s) · {unresolved} sin coincidencias."
         )
+        _log.info("Relocate Traktor: OK · %d reparadas · %d salteadas · %d sin coincidencias",
+                  repaired, skipped, unresolved)
         self.finished_ok.emit(repaired, skipped, unresolved, "ok")

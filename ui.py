@@ -71,7 +71,7 @@ from traktor_relocate import RelocateWorker
 from rekordbox_relocate import RekordboxRelocateWorker
 
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
-_APP_VERSION = "1.0"
+_APP_VERSION = "1.1.0"
 
 # ── T-010: ventana frameless + resize por bordes (Windows-only) ───────────
 # WM_NCHITTEST manual: sin esto, FramelessWindowHint mata el resize nativo
@@ -2187,6 +2187,24 @@ class MainWindow(QMainWindow):
             self.prog_pct.setText("✗")
             self.output_status.setText("error ✗")
             self._set_status_style("error")
+            # El relocate ESCRIBE sobre la librería del usuario: un fallo de
+            # backup/escritura/DB no puede quedar solo en un label chico que
+            # se oculta al terminar (el log_view se esconde abajo). Modal claro
+            # + puntero al log rotativo, donde el worker dejó el detalle.
+            try:
+                from app_logging import log_dir
+                log_path = log_dir() / "listBuddy.log"
+            except Exception:
+                log_path = None
+            app_name = "Traktor" if self._relocate_source == "traktor" else "Rekordbox"
+            detail = (
+                "La reparación de enlaces falló y no se escribió nada sobre tu "
+                f"librería de {app_name} (el backup y la escritura son atómicos: "
+                "o se aplica todo, o queda intacto)."
+            )
+            if log_path is not None:
+                detail += f"\n\nRevisá el detalle del error en el log:\n{log_path}"
+            QMessageBox.critical(self, f"Error al reparar enlaces — {app_name}", detail)
         elif unresolved > 0:
             self.prog_label.setText(summary)
             self.prog_pct.setText("⚠")
