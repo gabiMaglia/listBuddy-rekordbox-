@@ -38,6 +38,7 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 - 📊 **Espectrograma de fondo** — se dibuja tenue detrás del banner mientras suena la pista (calculado en background, nunca bloquea).
 - ⏯ **Controles** — play/pausa desde la nota ♪ o con la **barra espaciadora**, barra de progreso con seek, y auto-avance al siguiente track.
 - ⚠️ **Detección de archivos faltantes** — las pistas cuyo archivo no está en disco se marcan en rojo y no se pueden reproducir.
+- 🔧 **Reparar enlaces rotos (relocate)** — si moviste tu música de carpeta o disco, listBuddy busca cada archivo faltante por nombre en la ubicación que le indiques y **repara el enlace en tu propia librería** (Rekordbox `master.db` o Traktor `collection.nml`). Siempre hace un **backup automático** antes de escribir, y ante varios candidatos te pregunta cuál es (con un checkbox opcional para resolver todo automáticamente por mejor coincidencia).
 - ⚙️ **Configuración** — selector de dispositivo de salida de audio, toggles de auto-avance y espectrograma, y override de la ruta de la librería.
 - 🌗 **Tema claro / oscuro** estilo macOS.
 - ⚡ **Sin congelamientos** — las operaciones pesadas (existencia de archivos, decodificación, copia) corren en hilos separados.
@@ -87,6 +88,28 @@ python main.py
 
 Las pistas ya existentes en el destino se saltan, así que podés re-exportar sin duplicar.
 
+### Reparar enlaces rotos (relocate)
+
+Si moviste tu música y en la vista previa aparecen pistas **en rojo** (archivo no
+encontrado), podés reparar los enlaces sin salir de listBuddy:
+
+1. Asegurate de que **Rekordbox / Traktor estén cerrados** (la librería se escribe,
+   no solo se lee).
+2. Hacé click en **🔧 Reparar enlaces rotos…** y elegí la carpeta o disco donde
+   está ahora tu música.
+3. listBuddy indexa esa ubicación y, por cada pista rota, busca el archivo por
+   nombre:
+   - **1 coincidencia** → la aplica.
+   - **varias** → te muestra un modal para que elijas (o tildá *Resolver
+     automáticamente* para que tome la mejor coincidencia sin preguntar).
+   - **0** → la deja sin tocar y la lista en el log.
+4. Antes de escribir, se crea un **backup** de tu librería en una subcarpeta
+   `listBuddy_backups/` junto al archivo original. Si algo falla, no se escribe
+   nada: tu librería queda intacta.
+
+> La escritura es atómica y con backup previo, pero **es tu librería real**:
+> revisá el resumen y tené el backup a mano por las dudas.
+
 ### Reproducir
 
 - Clickeá cualquier pista del panel de vista previa para escucharla.
@@ -133,6 +156,21 @@ Si algo falla, listBuddy escribe un log rotativo que podés adjuntar para diagno
 | Windows | `%LOCALAPPDATA%\listBuddy\logs\listBuddy.log` |
 | Linux | `~/.local/state/listBuddy/listBuddy.log` |
 
+## Tests
+
+listBuddy tiene tests de correctitud para las piezas que **escriben sobre tu
+librería** (el encoder/decoder de rutas de Traktor, el matching de candidatos, el
+backup + poda, la escritura atómica y la sincronización COLLECTION↔PLAYLISTS).
+Son la red de seguridad contra corromper datos al reparar enlaces.
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+> Cobertura acotada a lógica pura (sin UI Qt ni DB real). La rama macOS del
+> encoder queda sin verificar contra un NML real de macOS (deuda conocida).
+
 ## Estructura del proyecto
 
 ```
@@ -140,6 +178,8 @@ main.py              # entry point + logging/excepthook
 ui.py                # MainWindow (PyQt6): layout, reproducción, exportación, settings
 ui_components.py     # widgets custom (cards, seek bar, file rows, rack head)
 worker.py            # ExportWorker (QThread): copia y numera los archivos
+traktor_relocate.py  # RelocateWorker (QThread): repara enlaces rotos del NML de Traktor
+rekordbox_relocate.py# RekordboxRelocateWorker (QThread): repara enlaces del master.db
 preview_worker.py    # PreviewWorker (QThread): chequeo de existencia en background
 audio_player.py      # AudioPlayer (QMediaPlayer + FFmpeg)
 spectro_worker.py    # SpectrogramWorker (QThread): decodifica + STFT con numpy
@@ -150,6 +190,7 @@ app_logging.py       # logging a archivo + manejo global de excepciones
 styles.py + qss/     # design system (tokens + hojas QSS dark/light)
 rb_exporter.spec     # spec de PyInstaller
 scripts/make_icon.py # generador del ícono
+tests/               # tests de correctitud (rutas, matching, backup, sync)
 ```
 
 ## Tecnología
