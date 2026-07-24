@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  entitlements.plist — listBuddy (macOS, hardened runtime)
+
+  Necesario SOLO si se firma el .app con hardened runtime (Developer ID +
+  notarización). PyInstaller + PyQt6 cargan código generado/JIT en memoria, que
+  el hardened runtime bloquea por defecto → sin este entitlement el .app firmado
+  crashea al arrancar. Ver CLAUDE.md, sección "Empaquetado — macOS", punto 7.
+
+  Uso (NO ejecutar acá sin el ok del PO — requiere una Mac + certificado real):
+    codesign --force --deep --options runtime \
+      --entitlements entitlements.plist \
+      --sign "Developer ID Application: <Nombre> (<TEAMID>)" \
+      "dist/listBuddy.app"
+
+  Para firma ad-hoc (uso propio, sin Developer ID) el hardened runtime no aplica
+  y este archivo no hace falta:
+    codesign --force --deep --sign - "dist/listBuddy.app"
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>
