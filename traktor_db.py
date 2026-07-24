@@ -154,6 +154,75 @@ def _location_to_path(dir_attr: str, file_attr: str) -> Path:
     return Path(dir_attr.replace("/:", "/")) / file_attr
 
 
+def path_to_location(path: Path) -> tuple[str, str, str]:
+    """
+    Encoder: filesystem Path -> Traktor's (VOLUME, DIR, FILE) LOCATION
+    attributes. Inverse of the decoders above — this is the correctness-
+    critical piece of F-07 (relocate): a wrong encoding either fails to
+    resolve in Traktor or, worse, silently resolves to the wrong file.
+
+    Confirmed format (real-world Windows Traktor NML samples; KEY is the
+    literal concatenation VOLUME + DIR + FILE, see `_location_to_key`):
+        "C:/:Users/:dj/:Music/:Track01.mp3"
+        -> VOLUME="C:", DIR="/:Users/:dj/:Music/:", FILE="Track01.mp3"
+
+    DIR wraps every parent segment in its own "/:" pair (leading AND a
+    final trailing "/:"), which is exactly what `_location_to_path` above
+    undoes via `.replace("/:", "/")`.
+
+    macOS branch (below) is UNVERIFIED — this machine is Windows and there
+    is no real macOS Traktor collection.nml to test against. See the
+    inline comment; flagged as a caveat for QA on macOS (ADR-001,
+    Consecuencias: "requiere tests con NML real de Windows y macOS").
+    """
+    if not path.is_absolute():
+        raise ValueError(f"path_to_location requiere un path absoluto: {path}")
+
+    file_attr = path.name
+    if not file_attr:
+        raise ValueError(f"path sin nombre de archivo: {path}")
+
+    if path.drive:
+        # Windows: PureWindowsPath("D:\\Music\\dj\\t.mp3").drive == "D:";
+        # .parts == ('D:\\', 'Music', 'dj', 't.mp3') → strip drive + filename.
+        if path.drive.startswith("\\\\"):
+            # UNC / network share (\\server\share\...) — format unverified,
+            # fail loud instead of writing a guessed/likely-wrong LOCATION.
+            raise NotImplementedError(
+                f"Rutas de red (UNC) no soportadas por el encoder todavía: {path}"
+            )
+        volume = path.drive  # e.g. "D:"
+        dir_parts = path.parts[1:-1]
+    else:
+        # POSIX (macOS/Linux). UNVERIFIED on a real macOS Traktor NML:
+        #   - External volume mounted at /Volumes/<Name>/... → VOLUME=<Name>,
+        #     DIR excludes the /Volumes/<Name> prefix (matches how macOS
+        #     itself and Traktor address external disks).
+        #   - Anything else (e.g. boot volume path like /Users/...) → real
+        #     Traktor NML stores the boot volume's *display name* (e.g.
+        #     "Macintosh HD") in VOLUME even though that name never appears
+        #     in the path itself (it's a disk label, not a path component).
+        #     We cannot derive that name from the path alone, so this falls
+        #     back to a hardcoded placeholder. TODO(macOS QA): confirm via
+        #     `diskutil info /` (or similar) whether this placeholder is
+        #     safe to assume, or whether it must be a user-provided setting.
+        parts = path.parts  # ('/', 'Volumes', 'Name', ...) or ('/', 'Users', ...)
+        if len(parts) > 2 and parts[1] == "Volumes":
+            volume = parts[2]
+            dir_parts = parts[3:-1]
+        else:
+            volume = "Macintosh HD"  # best-effort placeholder — UNVERIFIED, see above
+            dir_parts = parts[1:-1]
+
+    dir_attr = "".join(f"/:{segment}" for segment in dir_parts) + "/:"
+    return volume, dir_attr, file_attr
+
+
+def path_to_key(path: Path) -> str:
+    """Convenience: path -> new KEY string, ready for PRIMARYKEY@KEY."""
+    return _location_to_key(*path_to_location(path))
+
+
 # ─────────────────────────────────────────────── Discovery ───────────────
 
 def find_collection_path() -> Path | None:
