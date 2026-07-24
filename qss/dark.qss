@@ -65,6 +65,16 @@ QPushButton#theme_sun[active="true"], QPushButton#theme_moon[active="true"] {
     background: rgba(255,255,255,0.15); color: @{accent};
 }
 
+/* ── Window controls (T-010, Windows-only frameless chrome) ── */
+QWidget#winctl_group { background: transparent; }
+QPushButton#winctl_min, QPushButton#winctl_max, QPushButton#winctl_close {
+    background: transparent; border: none; border-radius: 6px;
+    color: @{muted}; font-size: 12px;
+    min-width: 34px; max-width: 34px; min-height: 30px; max-height: 30px; padding: 0;
+}
+QPushButton#winctl_min:hover, QPushButton#winctl_max:hover { background: @{surface2}; color: @{text}; }
+QPushButton#winctl_close:hover { background: #e65a5a; color: #ffffff; }
+
 /* ── Body ── */
 QWidget#body_widget { background: @{bg}; }
 

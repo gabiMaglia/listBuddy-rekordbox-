@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import ClassVar, List
 
-from PyQt6.QtCore import QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPixmap
+from PyQt6.QtCore import QPoint, QRectF, Qt, pyqtSignal
+from PyQt6.QtGui import QColor, QMouseEvent, QPainter, QPainterPath, QPixmap
 from PyQt6.QtWidgets import (
     QGraphicsOpacityEffect,
     QHBoxLayout,
@@ -51,6 +51,56 @@ _CARD_STYLES: dict[str, dict[str, str]] = {
         ),
     },
 }
+
+
+# ───────────────────────── Custom title bar (T-010, Windows-only chrome) ──
+
+class TitleBar(QWidget):
+    """
+    Barra usada como chrome de ventana en `MainWindow._build_header()`
+    (reemplaza el frame nativo de Windows — ventana frameless, ver
+    `MainWindow.__init__`). Agrega drag-to-move y doble click para
+    maximizar/restaurar sobre el fondo de la barra; los botones propios de
+    minimizar/maximizar/cerrar son hijos normales y consumen su propio click,
+    así que nunca disparan un arrastre.
+
+    El resize por los bordes NO se maneja acá — se resuelve en
+    `MainWindow.nativeEvent()` vía hit-test nativo de Windows (WM_NCHITTEST),
+    que es independiente de esta barra.
+
+    Windows-only por ahora: en otras plataformas la ventana conserva el
+    frame nativo (`MainWindow` no aplica `FramelessWindowHint` fuera de
+    win32), así que esta clase igual se instancia pero el drag/doble-click
+    quedan sin efecto práctico porque el SO ya mueve/maximiza la ventana con
+    su propio frame.
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._drag_offset: QPoint | None = None
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            win = self.window()
+            self._drag_offset = event.globalPosition().toPoint() - win.frameGeometry().topLeft()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self._drag_offset is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            win = self.window()
+            if not win.isMaximized():
+                win.move(event.globalPosition().toPoint() - self._drag_offset)
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        self._drag_offset = None
+        super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            win = self.window()
+            win.showNormal() if win.isMaximized() else win.showMaximized()
+        super().mouseDoubleClickEvent(event)
 
 
 # ──────────────────────────────────────── Clickable note (♪) ─────────────
