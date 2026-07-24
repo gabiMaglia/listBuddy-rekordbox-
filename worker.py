@@ -73,6 +73,11 @@ class ExportWorker(QThread):
     def run(self) -> None:
         copied_total = missing_total = skipped_total = 0
         missing_tracks: list[str] = []
+        # T-008: agrupadas por carpeta de destino además de la lista plana de
+        # arriba (que se mantiene igual para el log de la UI), para poder
+        # escribir un "_no_exportados.txt" por playlist con las fallas de
+        # esa playlist únicamente.
+        missing_by_dest: dict[Path, list[str]] = {}
 
         # ── Pre-build: una sola query lazy por playlist ───────────────────
         playlist_songs: list[tuple] = []
@@ -138,6 +143,9 @@ class ExportWorker(QThread):
                     label = getattr(content, "Title", None) or raw_path or "desconocido"
                     self.log.emit(f"   ⚠  No se encontró: {label}")
                     missing_tracks.append(f"{pl.Name} → {label}")
+                    missing_by_dest.setdefault(dest_dir, []).append(
+                        f"{label} — no encontrado en disco (ruta original: {raw_path or 'desconocida'})"
+                    )
                     missing_total += 1
                     continue
 
@@ -163,16 +171,34 @@ class ExportWorker(QThread):
                             return
                         self.log.emit(f"   ✗  Error copiando {dest.name}: {e}")
                         missing_tracks.append(f"{pl.Name} → {dest.name} (error de copia)")
+                        missing_by_dest.setdefault(dest_dir, []).append(
+                            f"{dest.name} — error de copia: {e}"
+                        )
                         missing_total += 1
                     except Exception as e:
                         self.log.emit(f"   ✗  Error copiando {dest.name}: {e}")
                         missing_tracks.append(f"{pl.Name} → {dest.name} (error de copia)")
+                        missing_by_dest.setdefault(dest_dir, []).append(
+                            f"{dest.name} — error de copia: {e}"
+                        )
                         missing_total += 1
 
         if missing_tracks:
             self.log.emit("\n─── Tracks no encontradas ───")
             for t in missing_tracks:
                 self.log.emit(f"  ✗  {t}")
+
+        # T-008: un "_no_exportados.txt" por playlist con fallas, dentro de
+        # su propia dest_dir. Guion bajo a propósito para no mezclarse con
+        # el naming numerado de los tracks ("001 - Artist - Title.mp3").
+        # Solo se crea si esa playlist tuvo >=1 falla — no ensuciar carpetas
+        # limpias. No afecta copied_total/missing_total/skipped_total.
+        for dest_dir, lines in missing_by_dest.items():
+            try:
+                report_path = dest_dir / "_no_exportados.txt"
+                report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            except OSError as e:
+                self.log.emit(f"   ⚠  No se pudo escribir _no_exportados.txt en {dest_dir}: {e}")
 
         self.finished_ok.emit(copied_total, missing_total, skipped_total, "ok")
 
