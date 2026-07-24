@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import itertools
 import math
+import sys
 from io import BytesIO
 from pathlib import Path
 
 from PyQt6.QtCore import (
-    Qt, QTimer, QUrl, QSettings, pyqtSignal,
+    Qt, QEvent, QPoint, QTimer, QUrl, QSettings, pyqtSignal,
     QPropertyAnimation, QEasingCurve,
 )
 from PyQt6.QtGui import (
@@ -61,6 +62,7 @@ from ui_components import (
     RackHead,
     RelocateDialog,
     SeekBar,
+    TitleBar,
 )
 from preview_worker import PreviewWorker, GroupData, TrackRow
 from audio_player import AudioPlayer
@@ -70,6 +72,33 @@ from rekordbox_relocate import RekordboxRelocateWorker
 
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
 _APP_VERSION = "1.0"
+
+# ── T-010: ventana frameless + resize por bordes (Windows-only) ───────────
+# WM_NCHITTEST manual: sin esto, FramelessWindowHint mata el resize nativo
+# del SO. Se implementa vía nativeEvent (ver MainWindow.nativeEvent) en vez
+# de reimplementar el drag de bordes a mano con mousePress/mouseMove, porque
+# devolver los códigos HT* nativos deja que Windows haga el resize con sus
+# propios cursores y snapping — más robusto que reinventarlo en Python.
+# CAVEAT macOS: esto es un mensaje nativo de Win32 (WM_NCHITTEST); no existe
+# en macOS. La app en Mac sigue con el frame nativo del SO (ver guard
+# `sys.platform == "win32"` en MainWindow.__init__) hasta que haya un ADR
+# que decida el mecanismo frameless para esa plataforma (candidato: Cocoa/
+# pyobjc, o QWindow.startSystemResize() si el plugin de plataforma lo soporta).
+_IS_WINDOWS = sys.platform == "win32"
+if _IS_WINDOWS:
+    import ctypes
+    from ctypes import wintypes
+
+_WM_NCHITTEST = 0x0084
+_HTLEFT = 10
+_HTRIGHT = 11
+_HTTOP = 12
+_HTTOPLEFT = 13
+_HTTOPRIGHT = 14
+_HTBOTTOM = 15
+_HTBOTTOMLEFT = 16
+_HTBOTTOMRIGHT = 17
+_RESIZE_BORDER = 6  # px — margen de hit-test para agarrar el borde y resizear
 
 
 # ─────────────────────────────────────────── VU bars (decorative) ────────
@@ -249,6 +278,11 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("listBuddy")
+        if _IS_WINDOWS:
+            # T-010: frame nativo reemplazado por la barra propia en
+            # _build_header() (TitleBar + botones min/max/cerrar). Solo en
+            # Windows — ver el CAVEAT macOS junto a las constantes HT* arriba.
+            self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
         self.resize(980, 700)
         self.setMinimumSize(820, 560)
         self.setObjectName("rb_main")
@@ -363,8 +397,14 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────── Widget builders ────────────
 
     def _build_header(self) -> QWidget:
-        """Title bar: listBuddy + EXPORT ENGINE eyebrow · now-playing center · controls right."""
-        bar = QWidget()
+        """
+        Title bar: listBuddy + EXPORT ENGINE eyebrow · now-playing center ·
+        controls right. T-010: además de la UI de la app, esta barra ES el
+        chrome de ventana en Windows (frameless) — TitleBar agrega
+        drag-to-move + doble click maximiza/restaura, y se le suman los
+        botones propios de minimizar/maximizar/cerrar al final de la fila.
+        """
+        bar = TitleBar()
         bar.setObjectName("header_bar")
         bar.setFixedHeight(46)
         bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -420,7 +460,102 @@ class MainWindow(QMainWindow):
         t_lo.addWidget(self._moon_btn)
         lo.addWidget(toggle)
 
+        # ── Controles de ventana (T-010) — reemplazan min/max/cerrar nativos ──
+        winctl = QWidget()
+        winctl.setObjectName("winctl_group")
+        wl = QHBoxLayout(winctl)
+        wl.setContentsMargins(8, 0, 0, 0)
+        wl.setSpacing(2)
+
+        self._min_btn = QPushButton("─")
+        self._min_btn.setObjectName("winctl_min")
+        self._min_btn.setToolTip("Minimizar")
+        self._min_btn.clicked.connect(self.showMinimized)
+        wl.addWidget(self._min_btn)
+
+        self._max_btn = QPushButton("☐")
+        self._max_btn.setObjectName("winctl_max")
+        self._max_btn.setToolTip("Maximizar")
+        self._max_btn.clicked.connect(self._toggle_maximize_restore)
+        wl.addWidget(self._max_btn)
+
+        self._close_btn = QPushButton("✕")
+        self._close_btn.setObjectName("winctl_close")
+        self._close_btn.setToolTip("Cerrar")
+        self._close_btn.clicked.connect(self.close)
+        wl.addWidget(self._close_btn)
+
+        lo.addWidget(winctl)
+
         return bar
+
+    def _toggle_maximize_restore(self) -> None:
+        """Toggle conectado al botón ☐/❐ propio (T-010, reemplaza el nativo)."""
+        self.showNormal() if self.isMaximized() else self.showMaximized()
+
+    def changeEvent(self, event) -> None:  # noqa: D401 — override de QWidget
+        """Sincroniza el ícono ☐/❐ del botón de maximizar con el estado real
+        de la ventana (incluye maximizar por doble click en la TitleBar o
+        por atajos de teclado del SO, no solo por el botón propio)."""
+        if event.type() == QEvent.Type.WindowStateChange and hasattr(self, "_max_btn"):
+            self._max_btn.setText("❐" if self.isMaximized() else "☐")
+            self._max_btn.setToolTip("Restaurar" if self.isMaximized() else "Maximizar")
+        super().changeEvent(event)
+
+    if _IS_WINDOWS:
+        def nativeEvent(self, eventType, message):  # type: ignore[override]
+            """
+            WM_NCHITTEST manual (T-010, Windows-only): con FramelessWindowHint
+            se pierde el resize nativo por los bordes. Acá se hace hit-test del
+            margen (_RESIZE_BORDER) y se devuelve el código HT* que corresponde
+            para que sea EL SISTEMA OPERATIVO quien resizee la ventana (cursores
+            correctos, límites de minimumSize/maximumSize respetados vía
+            WM_GETMINMAXINFO de Qt) — no una reimplementación manual a mano, que
+            sería más frágil. Fuera del margen se devuelve (False, 0) para que
+            Qt siga procesando el evento normalmente (así el drag-to-move manual
+            de TitleBar sigue funcionando sobre el resto de la barra).
+            """
+            if eventType == b"windows_generic_MSG" and not self.isMaximized():
+                msg = wintypes.MSG.from_address(int(message))
+                if msg.message == _WM_NCHITTEST:
+                    hit = self._hit_test_border(msg.lParam)
+                    if hit is not None:
+                        return True, hit
+            return super().nativeEvent(eventType, message)
+
+        def _hit_test_border(self, lparam: int) -> int | None:
+            """Devuelve el código HT* si el punto (coords de pantalla, en
+            `lparam`) cae en el margen de resize; None si es zona cliente.
+            CAVEAT: en monitores con escalado de Windows != 100% el margen de
+            _RESIZE_BORDER px puede sentirse más angosto/ancho de lo esperado
+            (lparam llega en píxeles físicos) — no verificado en HiDPI."""
+            x = ctypes.c_short(lparam & 0xFFFF).value
+            y = ctypes.c_short((lparam >> 16) & 0xFFFF).value
+            pt = self.mapFromGlobal(QPoint(x, y))
+            w, h, b = self.width(), self.height(), _RESIZE_BORDER
+
+            left = pt.x() <= b
+            right = pt.x() >= w - b
+            top = pt.y() <= b
+            bottom = pt.y() >= h - b
+
+            if left and top:
+                return _HTTOPLEFT
+            if right and top:
+                return _HTTOPRIGHT
+            if left and bottom:
+                return _HTBOTTOMLEFT
+            if right and bottom:
+                return _HTBOTTOMRIGHT
+            if left:
+                return _HTLEFT
+            if right:
+                return _HTRIGHT
+            if top:
+                return _HTTOP
+            if bottom:
+                return _HTBOTTOM
+            return None
 
     def _build_body(self) -> QWidget:
         body = QWidget()
