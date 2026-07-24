@@ -560,6 +560,19 @@ class MainWindow(QMainWindow):
         self.relocate_btn.clicked.connect(self._start_relocate)
         rl.addWidget(self.relocate_btn)
 
+        self.relocate_auto_chk = QCheckBox(
+            "Resolver automáticamente con la mejor coincidencia (sin preguntar)"
+        )
+        self.relocate_auto_chk.setObjectName("relocate_auto_chk")
+        self.relocate_auto_chk.setChecked(False)
+        self.relocate_auto_chk.setToolTip(
+            "Con >1 candidato, aplica directo el de mejor score sin mostrar\n"
+            "el modal de desambiguación. El log marca cada uno como '(auto)'.\n"
+            "Riesgo: un nombre de archivo idéntico para canciones distintas\n"
+            "podría auto-resolver al candidato equivocado (backup reversible)."
+        )
+        rl.addWidget(self.relocate_auto_chk)
+
         row.setVisible(self._source == "traktor")
         self._relocate_row = row
         return row
@@ -1915,7 +1928,10 @@ class MainWindow(QMainWindow):
         self._log(f"→ NML: {self._db.path}")
         self._log(f"→ Buscando en: {search_root}")
 
-        self._relocate_worker = RelocateWorker(self._db.path, Path(search_root))
+        self._relocate_worker = RelocateWorker(
+            self._db.path, Path(search_root),
+            auto_resolve=self.relocate_auto_chk.isChecked(),
+        )
         self._relocate_worker.log.connect(self._log)
         self._relocate_worker.progress.connect(self._on_progress)
         self._relocate_worker.ask_user.connect(self._on_relocate_ask)
