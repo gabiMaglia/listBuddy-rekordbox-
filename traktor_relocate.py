@@ -111,9 +111,10 @@ def find_broken_entries(collection_el: ET.Element) -> list[tuple[ET.Element, Bro
     """
     Recorre <COLLECTION><ENTRY> y devuelve los que no resuelven a un archivo
     existente. Reutiliza el mismo criterio "en rojo" que preview_worker.py
-    (Path(...).exists()) — ver caveat de Windows/VOLUME en el handoff: esta
-    misma función hereda esa limitación por diseño (ADR pide reusar, no
-    rediseñar el chequeo de existencia).
+    (Path(...).exists()). Usa `_location_to_path(volume, dir_attr, file_attr)`
+    (T-004: honra VOLUME en Windows) — antes de ese fix esta función heredaba
+    el bug de detectar como "roto" cualquier archivo en un disco distinto al
+    de la unidad del proceso; ya corregido, no rediseñar el chequeo en sí.
     """
     broken: list[tuple[ET.Element, BrokenTrack]] = []
     for entry in collection_el.findall("ENTRY"):
@@ -123,7 +124,7 @@ def find_broken_entries(collection_el: ET.Element) -> list[tuple[ET.Element, Bro
         volume = loc.get("VOLUME", "")
         dir_attr = loc.get("DIR", "")
         file_attr = loc.get("FILE", "")
-        file_path = _location_to_path(dir_attr, file_attr)
+        file_path = _location_to_path(volume, dir_attr, file_attr)
         if file_path.exists():
             continue
         original_key = _location_to_key(volume, dir_attr, file_attr)
