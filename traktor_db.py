@@ -45,6 +45,7 @@ Conversión de rutas:
 from __future__ import annotations
 
 import glob
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -149,9 +150,28 @@ def _location_to_key(volume: str, dir_attr: str, file_attr: str) -> str:
     return volume + dir_attr + file_attr
 
 
-def _location_to_path(dir_attr: str, file_attr: str) -> Path:
-    """Convert LOCATION DIR+FILE to filesystem path."""
-    return Path(dir_attr.replace("/:", "/")) / file_attr
+_WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:$")
+
+
+def _location_to_path(volume: str, dir_attr: str, file_attr: str) -> Path:
+    """
+    Convert LOCATION VOLUME+DIR+FILE to filesystem path.
+
+    On Windows, VOLUME is a drive letter like "I:" and MUST be prepended —
+    otherwise DIR+FILE resolves as a drive-relative path against whatever
+    drive the current process happens to be running from, not the drive
+    the track actually lives on (T-004: bug confirmed in production with a
+    real NML — tracks on I: showed as broken when the app ran from C:).
+
+    macOS/POSIX VOLUME is a disk label ("Macintosh HD", or an external
+    volume name), which is not a path prefix Python can resolve directly.
+    We leave that path unprefixed, matching prior (pre-fix) behavior —
+    this fix is scoped to the confirmed Windows regression only.
+    """
+    rel = Path(dir_attr.replace("/:", "/")) / file_attr
+    if volume and _WINDOWS_DRIVE_RE.match(volume):
+        return Path(volume + dir_attr.replace("/:", "/")) / file_attr
+    return rel
 
 
 def path_to_location(path: Path) -> tuple[str, str, str]:
@@ -297,7 +317,7 @@ def _build_track_index(root: ET.Element) -> dict[str, TraktorTrack]:
         file_attr = loc.get("FILE", "")
 
         key = _location_to_key(volume, dir_attr, file_attr)
-        file_path = _location_to_path(dir_attr, file_attr)
+        file_path = _location_to_path(volume, dir_attr, file_attr)
 
         title = entry.get("TITLE", "") or file_attr
         artist = entry.get("ARTIST", "") or ""
