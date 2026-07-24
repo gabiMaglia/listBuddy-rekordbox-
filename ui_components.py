@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import ClassVar, List
 
 from PyQt6.QtCore import QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPixmap
 from PyQt6.QtWidgets import (
+    QDialog,
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -397,3 +402,110 @@ class PlaylistGroup(QWidget):
             if isinstance(w, PlaylistCard):
                 out.append(w)
         return out
+
+
+# ──────────────────────────── Modal de desambiguación (relocate) ─────────
+
+def _fmt_size(num_bytes: int) -> str:
+    size = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} {unit}"
+        size /= 1024
+    return f"{size:.1f} GB"
+
+
+class RelocateDialog(QDialog):
+    """
+    Modal de desambiguación (ADR-001, punto 3 y contrato del modal).
+    Entrada: RelocateRequest (broken + candidates), inyectado por
+    RelocateWorker.ask_user desde el hilo del worker (queued connection).
+    Salida: `chosen_path` — Path elegido, o None si el usuario saltea la
+    pista o cierra el modal sin elegir (sin default silencioso).
+    El modal NO escribe nada; solo devuelve la decisión.
+    """
+
+    def __init__(self, request, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._request = request
+        self.chosen_path: Path | None = None
+
+        broken = request.broken
+        self.setObjectName("relocate_dialog")
+        self.setWindowTitle("Elegí el archivo correcto")
+        self.setMinimumWidth(480)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(22, 20, 22, 18)
+        layout.setSpacing(12)
+
+        title = QLabel(f"Se encontraron {len(request.candidates)} coincidencias")
+        title.setObjectName("relocate_title")
+        title.setWordWrap(True)
+        layout.addWidget(title)
+
+        sub_text = broken.title or broken.original_path.name
+        if broken.artist:
+            sub_text = f"{broken.artist} — {sub_text}"
+        sub = QLabel(f"Pista rota: {sub_text}")
+        sub.setObjectName("relocate_sub")
+        sub.setWordWrap(True)
+        layout.addWidget(sub)
+
+        orig = QLabel(f"Ruta original: {broken.original_path}")
+        orig.setObjectName("relocate_orig")
+        orig.setWordWrap(True)
+        layout.addWidget(orig)
+
+        self._list = QListWidget()
+        self._list.setObjectName("relocate_list")
+        for cand in request.candidates:
+            hint_parts = []
+            if cand.matched_artist or cand.matched_title:
+                hint_parts.append(
+                    " - ".join(p for p in (cand.matched_artist, cand.matched_title) if p)
+                )
+            hint = f"  ·  {hint_parts[0]}" if hint_parts else ""
+            item = QListWidgetItem(
+                f"{cand.path}\n{_fmt_size(cand.size)}  ·  score {cand.score:.2f}{hint}"
+            )
+            item.setData(Qt.ItemDataRole.UserRole, cand.path)
+            self._list.addItem(item)
+        if self._list.count():
+            self._list.setCurrentRow(0)
+        self._list.itemDoubleClicked.connect(lambda _item: self._accept_selected())
+        layout.addWidget(self._list, 1)
+
+        btn_row = QWidget()
+        bl = QHBoxLayout(btn_row)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(8)
+
+        skip_btn = QPushButton("Saltar (dejar sin reparar)")
+        skip_btn.setObjectName("relocate_skip_btn")
+        skip_btn.clicked.connect(self._reject_as_skip)
+        bl.addWidget(skip_btn)
+        bl.addStretch(1)
+
+        use_btn = QPushButton("Usar este archivo")
+        use_btn.setObjectName("relocate_use_btn")
+        use_btn.clicked.connect(self._accept_selected)
+        bl.addWidget(use_btn)
+
+        layout.addWidget(btn_row)
+
+    def _accept_selected(self) -> None:
+        item = self._list.currentItem()
+        if item is not None:
+            self.chosen_path = item.data(Qt.ItemDataRole.UserRole)
+        self.accept()
+
+    def _reject_as_skip(self) -> None:
+        self.chosen_path = None
+        self.reject()
+
+    def reject(self) -> None:  # type: ignore[override]
+        # Cerrar el modal (X, Esc, o "Saltar") sin elegir = SKIP, nunca un
+        # default silencioso (ADR-001, contrato del modal).
+        self.chosen_path = None
+        super().reject()

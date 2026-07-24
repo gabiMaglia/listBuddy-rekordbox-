@@ -59,11 +59,13 @@ from ui_components import (
     PlaylistCard,
     PlaylistGroup,
     RackHead,
+    RelocateDialog,
     SeekBar,
 )
 from preview_worker import PreviewWorker, GroupData, TrackRow
 from audio_player import AudioPlayer
 from spectro_worker import SpectrogramWorker
+from traktor_relocate import RelocateWorker
 
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
 _APP_VERSION = "1.0"
@@ -255,6 +257,7 @@ class MainWindow(QMainWindow):
         self._all_cards: list[PlaylistCard] = []
         self._source: str = "rekordbox"  # "rekordbox" | "traktor"
         self._preview_worker: PreviewWorker | None = None
+        self._relocate_worker: RelocateWorker | None = None
 
         # ── Audio playback ───────────────────────────────────────────────
         self._audio = AudioPlayer(self)
@@ -441,6 +444,7 @@ class MainWindow(QMainWindow):
         lo.addWidget(self._build_rack_head())
         lo.addWidget(self._build_seek_row())
         lo.addWidget(self._build_source_switcher())
+        lo.addWidget(self._build_relocate_row())
         lo.addWidget(self._build_dest_section())
         lo.addWidget(self._build_playlists_header())
         lo.addWidget(self._build_playlist_scroll(), 1)
@@ -539,6 +543,27 @@ class MainWindow(QMainWindow):
         lo.addWidget(self._src_tk_btn, 1)
         return wrap
 
+    def _build_relocate_row(self) -> QWidget:
+        """F-07 (ADR-001): botón de relocate, solo visible con fuente Traktor."""
+        row = QWidget()
+        row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        rl = QHBoxLayout(row)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(8)
+
+        self.relocate_btn = QPushButton("🔧  Reparar enlaces rotos…")
+        self.relocate_btn.setObjectName("relocate_btn")
+        self.relocate_btn.setToolTip(
+            "Busca los archivos con link roto en una carpeta/disco y repara\n"
+            "la colección de Traktor (collection.nml)."
+        )
+        self.relocate_btn.clicked.connect(self._start_relocate)
+        rl.addWidget(self.relocate_btn)
+
+        row.setVisible(self._source == "traktor")
+        self._relocate_row = row
+        return row
+
     def _switch_source(self, source: str) -> None:
         if source == self._source:
             return
@@ -551,6 +576,7 @@ class MainWindow(QMainWindow):
         for btn in (self._src_rb_btn, self._src_tk_btn):
             btn.style().unpolish(btn)
             btn.style().polish(btn)
+        self._relocate_row.setVisible(source == "traktor")
         self._load_playlists()
 
     def _build_dest_section(self) -> QWidget:
@@ -1660,6 +1686,13 @@ class MainWindow(QMainWindow):
         if self._worker and self._worker.isRunning():
             self._worker.requestInterruption()
             self._worker.wait(4000)
+        if self._relocate_worker and self._relocate_worker.isRunning():
+            self._relocate_worker.requestInterruption()
+            # Si está bloqueado esperando el modal de desambiguación, nadie
+            # va a llamar provide_answer(): liberarlo como SKIP para que la
+            # app pueda cerrar sin quedar colgada.
+            self._relocate_worker.provide_answer(None)
+            self._relocate_worker.wait(4000)
         super().closeEvent(event)
 
     # ──────────────────────────────────────── Actions ────────────────────
@@ -1837,6 +1870,136 @@ class MainWindow(QMainWindow):
 
     def _log(self, text: str) -> None:
         self.log_view.appendPlainText(text)
+
+    # ──────────────────────────────────────── Relocate (F-07, ADR-001) ───
+
+    def _start_relocate(self) -> None:
+        if self._source != "traktor":
+            return
+        if self._db is None:
+            QMessageBox.warning(
+                self, "Sin librería", "Cargá la librería de Traktor primero."
+            )
+            return
+        if self._worker and self._worker.isRunning():
+            QMessageBox.warning(
+                self, "Exportación en curso",
+                "Esperá a que termine la exportación actual antes de reparar enlaces.",
+            )
+            return
+        if self._relocate_worker and self._relocate_worker.isRunning():
+            return
+
+        # R-03 (Traktor debe estar cerrado durante el relocate) se chequea
+        # dentro de RelocateWorker.run(), no acá: subprocess.run() no es
+        # trabajo garantizadamente liviano y nunca debe correr en el hilo
+        # de UI. Ver _on_relocate_finished para el status "blocked".
+
+        search_root = QFileDialog.getExistingDirectory(
+            self, "Elegí la carpeta o disco donde buscar los archivos"
+        )
+        if not search_root:
+            return
+
+        self.relocate_btn.setEnabled(False)
+        self.progress_section.setVisible(True)
+        self.progress.setValue(0)
+        self.prog_label.setText("Buscando enlaces rotos…")
+        self.prog_pct.setText("0%")
+        self._finder_btn.setVisible(False)
+        self.output_status.setText("reparando…")
+        self._set_status_style("active")
+        self.preview_scroll.setVisible(False)
+        self.log_view.setVisible(True)
+        self.log_view.clear()
+        self._log(f"→ NML: {self._db.path}")
+        self._log(f"→ Buscando en: {search_root}")
+
+        self._relocate_worker = RelocateWorker(self._db.path, Path(search_root))
+        self._relocate_worker.log.connect(self._log)
+        self._relocate_worker.progress.connect(self._on_progress)
+        self._relocate_worker.ask_user.connect(self._on_relocate_ask)
+        self._relocate_worker.finished_ok.connect(self._on_relocate_finished)
+        self._relocate_worker.start()
+
+    def _on_relocate_ask(self, request) -> None:
+        """
+        Slot conectado a RelocateWorker.ask_user (auto-queued: el worker
+        emite desde su propio hilo, este slot corre en el hilo de UI). El
+        worker queda bloqueado en threading.Event.wait() hasta que
+        provide_answer() le llegue — nunca toca widgets desde su hilo.
+        """
+        dlg = RelocateDialog(request, self)
+        dlg.exec()
+        if self._relocate_worker:
+            self._relocate_worker.provide_answer(dlg.chosen_path)
+
+    def _on_relocate_finished(
+        self, repaired: int, skipped: int, unresolved: int, status: str
+    ) -> None:
+        self.relocate_btn.setEnabled(True)
+
+        parts: list[str] = []
+        if repaired:
+            parts.append(f"{repaired} reparada{'s' if repaired != 1 else ''}")
+        if skipped:
+            parts.append(f"{skipped} salteada{'s' if skipped != 1 else ''}")
+        if unresolved:
+            parts.append(f"{unresolved} sin coincidencias")
+        summary = " · ".join(parts) if parts else "Sin enlaces rotos"
+
+        if status == "blocked":
+            self.prog_label.setText("Bloqueado — Traktor está abierto")
+            self.prog_pct.setText("⚠")
+            self.output_status.setText("bloqueado ⚠")
+            self._set_status_style("warn")
+            self.log_view.setVisible(False)
+            self.preview_scroll.setVisible(True)
+            QMessageBox.warning(
+                self, "Traktor está abierto",
+                "Cerrá Traktor antes de reparar enlaces.\n\n"
+                "Traktor reescribe collection.nml entero al salir o guardar "
+                "(no bloquea el archivo a nivel de OS como Rekordbox), así "
+                "que si queda abierto pisaría las reparaciones.",
+            )
+            QTimer.singleShot(8000, self._hide_progress_section)
+            return
+        elif status == "cancelled":
+            self.prog_label.setText(f"Cancelado — {summary}")
+            self.prog_pct.setText("⏹")
+            self.output_status.setText("cancelado")
+            self._set_status_style("warn")
+        elif status == "error":
+            self.prog_label.setText(summary or "Error durante el relocate")
+            self.prog_pct.setText("✗")
+            self.output_status.setText("error ✗")
+            self._set_status_style("error")
+        elif unresolved > 0:
+            self.prog_label.setText(summary)
+            self.prog_pct.setText("⚠")
+            self.output_status.setText("parcial ⚠")
+            self._set_status_style("warn")
+        else:
+            self.prog_label.setText(summary)
+            self.prog_pct.setText("✓")
+            self.output_status.setText("reparado ✓")
+            self._set_status_style("ok")
+
+        self._log(f"\n{'⏹' if status == 'cancelled' else '✓'}  {summary}")
+
+        self.log_view.setVisible(False)
+        self.preview_scroll.setVisible(True)
+
+        if status == "ok" and repaired > 0:
+            # El NML cambió: invalidar caches y recargar el árbol para que
+            # el preview refleje los paths reparados (las pistas que ya no
+            # están rotas dejan de figurar "en rojo").
+            self._track_meta_cache.clear()
+            self._exists_cache.clear()
+            self._log("↻  Recargando playlists con los enlaces reparados…")
+            self._load_playlists()
+
+        QTimer.singleShot(8000, self._hide_progress_section)
 
     # ──────────────────────────────────────── Theme ───────────────────────
 
