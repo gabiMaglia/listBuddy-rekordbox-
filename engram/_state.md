@@ -1,8 +1,8 @@
-# STATE — listBuddy · actualizado: 2026-07-24
+# STATE — listBuddy · actualizado: 2026-07-26
 
 **Sprint:** 0 — Alta del proyecto + definición de sprint 1
-**Rama activa:** integration/relocate-all → target: main (NO mergeada — sin push/merge sin ok del PO)
-**En curso:** QA completo de T-001 a T-010 sobre `integration/relocate-all` (py_compile OK). **10/10 APROBADOS**, marcados "Done" en 03_backlog.md. Deuda técnica nueva: D-03 (txt de fallas no flushea en cancelación/disco lleno a mitad, baja prioridad) y D-04 (sin suite de tests automatizados en todo el proyecto, preexistente). Rama en condiciones de proponerse para merge a main — decisión de merge queda en manos del PO.
-**Bloqueos:** ninguno técnico.
-**Próximo paso sugerido:** PO revisa el resumen de QA y decide si mergea `integration/relocate-all` a `main`; opcionalmente evaluar D-03/D-04 como tickets de deuda antes o después del merge.
+**Rama activa:** chore/prod-hardening → target: main (sobre integration/relocate-all; NADA pusheado ni mergeado)
+**En curso:** T-001 a T-009 Done (QA), confirmados funcionando. **T-010 (header custom) revertido 2026-07-26**: crasheaba la app entera al arrancar (`nativeEvent`/ctypes leyendo un MSG nativo de Windows — access violation, QA no lo agarró porque solo corrió `py_compile`, no lanzó la app). Aislado y arreglado por el Orquestador (commit `3daed1e`): vuelve al frame nativo de Windows. App verificada corriendo de nuevo + 46 tests pytest verdes tras el fix.
+**Bloqueos:** ninguno.
+**Próximo paso sugerido:** (1) decidir merge de `chore/prod-hardening` → main (ya sin T-010, o rehacerlo seguro más adelante vía `startSystemResize()`, ver D-06), (2) probar el .exe empaquetado real antes de distribuir (clave SQLCipher en escritura, sin verificar), (3) D-02/D-05/D-06 quedan como deuda, sin apuro.
 **Preguntas abiertas al PO:** 0
