@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### 2026-07-26 nerv-orquestador (hotfix directo, sin sub-agente) · T-010 revertido
+- PO reportó "no logro levantar la app". Bisección con `python -c` aisló la causa: `MainWindow.nativeEvent()` (T-010) hacía `ctypes.wintypes.MSG.from_address(int(message))` sobre un puntero nativo — access violation al primer `show()`, mata el proceso entero sin excepción Python atrapable ni log.
+- Arreglado directamente (no delegado, por urgencia): removidos `nativeEvent`/`_hit_test_border`/`FramelessWindowHint`/botones min-max-cerrar propios; vuelve al frame nativo de Windows. Commit `3daed1e` sobre `chore/prod-hardening`. Verificado: app abre y queda viva, 46 tests siguen verdes.
+- D-06 registrada para rehacerlo seguro más adelante (candidato: `startSystemResize()`). Backlog: T-010 pasa de Done a Revertido.
+
 ### 2026-07-24 nerv-desktop → nerv-orquestador T-009 + T-010 · Niv S / A
 - Retorno T-009: rama feature/relocate-rekordbox (sobre fix/relocate-export-concurrency, trae todo T-002 a T-008), commit f259ecf. rekordbox_relocate.py nuevo, reusa matching de traktor_relocate.py. Validado con NML... digo, con master.db real SOLO LECTURA (329/1043 rotos detectados) + escritura sintética contra DB de prueba (backup+retención N=5, USN incrementando, rollback ok, ANLZ con try/except).
 - Retorno T-010: rama feature/custom-titlebar (desde main directo, NO tiene el relocate todavía), commit e84c3b5. Frameless Windows-only + resize nativo vía WM_NCHITTEST. No verificado interactivamente (agente no interactivo); caveat de DPI scaling sin confirmar.
