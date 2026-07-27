@@ -150,6 +150,16 @@ Review de arquitecto senior sobre `integration/relocate-all` (post-QA 10/10) + e
 
 **Deuda dejada explícita:** D-05 (loop `run()` duplicado entre ambos workers — refactor pendiente CON tests primero), D-02 (encoder macOS sin verificar), D-04 (sin tests de UI/DB real). Riesgo residual clave de la clave SQLCipher en el bundle (ADR-002, riesgo 3) sigue siendo checklist de empaquetado, no resoluble sin buildear el bundle real (fuera de alcance sin ok del PO).
 
+## Auditoría de production-readiness — 2026-07-27 (`main` @ c07f1d3)
+
+Auditoría completa pedida por el PO tras el merge a `main`. **Vive en `engram/07_production_readiness.md`** (no acá:
+es un reporte de estado, no una decisión de arquitectura). No introduce ADRs. Resumen de lo bloqueante:
+B-1 el `.exe`/`.app` nunca se buildeó · B-2 no hay confirmación antes de escribir sobre la librería (incumple ADR-001
+punto 3) · B-3 un backup interrumpido por disco lleno queda como punto de restauración válido · B-4 el backup es
+inalcanzable desde la UI · B-5/B-6 macOS: `VOLUME` hardcodeado a "Macintosh HD" y `pgrep -ix Traktor` que no matchea
+· B-7 sin firma ni notarización. D-02 sube a bloqueante-macOS; D-05 conviene atacarla ANTES de la próxima tanda de
+fixes (I-1/I-2/I-4 se aplican dos veces por la duplicación).
+
 ## Notas
 - El agente `nerv-desktop` está pensado por default para PySide6, pero este proyecto usa PyQt6 real. Se asigna igual a `nerv-desktop` (stack Python desktop multiplataforma), documentando la diferencia acá para que no se asuma PySide6 en implementaciones futuras.
 - F-07 (relocate) sería la primera funcionalidad que ESCRIBE sobre un archivo fuente del usuario (collection.nml). Hasta ahora la app es solo lectura + copia a destino. Evaluar si amerita ADR-001 antes de implementar (backup, escritura atómica, criterio de matching, UI de desambiguación).
