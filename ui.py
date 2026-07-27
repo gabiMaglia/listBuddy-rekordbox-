@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import itertools
 import math
+import os
 import sys
 from io import BytesIO
 from pathlib import Path
@@ -2168,11 +2169,21 @@ class MainWindow(QMainWindow):
             return "collection.nml", path
         if self._rb_db_path:
             return "master.db", Path(self._rb_db_path)
-        try:
-            from pyrekordbox.config import get_config
-            return "master.db", Path(get_config("rekordbox6", "db_path"))
-        except Exception:
+        # `pyrekordbox.config.get_config("rekordbox6", "db_path")` devuelve
+        # `{}` en instalaciones donde el config cache de pyrekordbox nunca se
+        # pobló (confirmado: no se popula ni abriendo Rekordbox6Database()) —
+        # no es una API confiable para esto. Mismo patrón que ya usa
+        # rekordbox_relocate.py (`db.db_directory / "master.db"`) pero sin
+        # abrir la DB SQLCipher solo para mostrar una ruta: se resuelve la
+        # ubicación estándar documentada en CLAUDE.md directamente.
+        if sys.platform.startswith("win"):
+            base = Path(os.environ.get("APPDATA", "")) / "Pioneer" / "rekordbox"
+        elif sys.platform == "darwin":
+            base = Path.home() / "Library" / "Pioneer" / "rekordbox"
+        else:
             return "master.db", None
+        candidate = base / "master.db"
+        return "master.db", candidate if candidate.exists() else None
 
     def _confirm_relocate_start(self, search_root: str, auto_resolve: bool) -> bool:
         """
