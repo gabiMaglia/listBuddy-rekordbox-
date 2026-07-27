@@ -45,6 +45,7 @@ import shutil
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
@@ -61,7 +62,9 @@ _log = logging.getLogger("listBuddy")
 
 # ─────────────────────────────────────────────── Backup (B-3, T-018) ─────
 
-def check_disk_space_for_backup(src: Path) -> None:
+def check_disk_space_for_backup(
+    src: Path, write_dir: Path | None = None, action: str = "el backup",
+) -> None:
     """
     Chequeo de espacio libre ANTES de intentar copiar el backup — mismo
     patrón que `worker.py` ya usa para el export (`shutil.disk_usage`,
@@ -69,24 +72,33 @@ def check_disk_space_for_backup(src: Path) -> None:
     write path sobre la librería del usuario (NML/master.db) es MÁS
     riesgoso que copiar mp3s del export y hasta T-018 no tenía esta
     protección (B-3). Compara el tamaño de `src` contra el espacio libre
-    en `src.parent` (misma carpeta donde vive `listBuddy_backups/`, mismo
-    filesystem). Lanza `OSError` — el llamador la trata igual que
-    cualquier otro fallo de backup (abortar sin escribir, ver
-    `backup_collection`/`backup_master_db`).
+    en `write_dir` (por default `src.parent`: misma carpeta donde vive
+    `listBuddy_backups/`, mismo filesystem). Lanza `OSError` — el llamador
+    la trata igual que cualquier otro fallo de backup (abortar sin
+    escribir, ver `backup_collection`/`backup_master_db`).
 
     Si no se puede ni siquiera `stat()` el origen, no aborta acá: deja que
     el intento de copia real falle con su propio error específico.
+
+    T-019: `write_dir`/`action` generalizan este chequeo para reusarlo en
+    sentido inverso — restaurar un backup SOBRE el archivo real
+    (`restore_backup`, B-4) escribe en la carpeta del archivo real, no en
+    la del backup, y el mensaje debe hablar de "la restauración", no "el
+    backup". Los llamados existentes (`backup_collection`/
+    `backup_master_db`) no pasan estos parámetros y mantienen el
+    comportamiento exacto de antes.
     """
     try:
         size = src.stat().st_size
     except OSError:
         return
-    free = shutil.disk_usage(str(src.parent)).free
+    check_dir = write_dir if write_dir is not None else src.parent
+    free = shutil.disk_usage(str(check_dir)).free
     if size > free:
         needed_gb = size / 1_073_741_824
         avail_gb = free / 1_073_741_824
         raise OSError(
-            f"Espacio insuficiente para el backup: necesitás ~{needed_gb:.2f} GB "
+            f"Espacio insuficiente para {action}: necesitás ~{needed_gb:.2f} GB "
             f"y hay {avail_gb:.2f} GB disponibles. Liberá espacio e intentá de nuevo."
         )
 
@@ -123,6 +135,152 @@ class ResolutionResult:
     repaired: int
     skipped: int
     unresolved: int
+
+
+# ─────────────────────────────────────────── Restaurar backup (B-4, T-019) ─
+#
+# Todo lo de acá abajo es un flujo NUEVO y separado del backup-al-escribir
+# (`backup_collection`/`backup_master_db`, que siguen viviendo en cada motor
+# concreto): esto es para cuando el USUARIO quiere volver atrás, no para
+# cuando la app escribe. No se duplica el formato de nombre de archivo — se
+# reusa tal cual (`collection.YYYYMMDD-HHMMSS.nml` / `master.YYYYMMDD-HHMMSS.db`,
+# mismo `_BACKUP_DIR_NAME`), así que un backup creado por cualquiera de los
+# dos motores aparece acá sin adaptar nada.
+
+@dataclass
+class BackupInfo:
+    """Un backup listo para mostrarse/restaurarse (B-4). `timestamp` es la
+    fecha/hora parseada del NOMBRE del archivo (no el mtime del filesystem,
+    que `shutil.copy2` preserva del original y sería engañoso acá) — `None`
+    si el nombre no matchea el formato esperado (algo ajeno colado en
+    `listBuddy_backups/`, no debería pasar en uso normal pero no debe
+    romper el listado)."""
+    path: Path
+    timestamp: datetime | None
+    size: int
+
+
+_BACKUP_TS_FORMAT = "%Y%m%d-%H%M%S"
+
+
+def _parse_backup_timestamp(filename: str) -> datetime | None:
+    """
+    Los nombres son `{prefijo}.{timestamp}.{ext}` (`collection.<ts>.nml`,
+    `master.<ts>.db`) — exactamente 3 partes separadas por '.' porque el
+    timestamp usa '-' como separador interno, no '.'. Si no matchea ese
+    shape o el timestamp no parsea, devuelve None en vez de lanzar: un
+    archivo con nombre inesperado no debe romper el listado completo.
+    """
+    parts = filename.split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        return datetime.strptime(parts[1], _BACKUP_TS_FORMAT)
+    except ValueError:
+        return None
+
+
+def list_backups(target_path: Path, glob_pattern: str) -> list[BackupInfo]:
+    """
+    Lista los backups disponibles para `target_path` (el archivo real que la
+    app repara: `collection.nml` o `master.db`), buscando en
+    `<carpeta-de-target_path>/listBuddy_backups/` con el mismo patrón de
+    nombre que ya usa `_prune_backups` en cada motor (`"collection.*.nml"` /
+    `"master.*.db"`). Orden: más reciente primero (por timestamp parseado
+    del nombre; los que no parsean van al final). Devuelve lista vacía si
+    la carpeta de backups no existe todavía — es responsabilidad del
+    llamador (UI) mostrar "no hay copias de seguridad" en ese caso, no de
+    esta función lanzar o inventar un mensaje.
+    """
+    backups_dir = target_path.parent / _BACKUP_DIR_NAME
+    if not backups_dir.is_dir():
+        return []
+    items: list[BackupInfo] = []
+    for p in backups_dir.glob(glob_pattern):
+        try:
+            size = p.stat().st_size
+        except OSError:
+            continue
+        items.append(BackupInfo(path=p, timestamp=_parse_backup_timestamp(p.name), size=size))
+    items.sort(key=lambda b: b.timestamp or datetime.min, reverse=True)
+    return items
+
+
+def restore_backup(backup_path: Path, target_path: Path) -> None:
+    """
+    Restaura `backup_path` SOBRE `target_path` (B-4) — la dirección opuesta
+    a `backup_collection`/`backup_master_db` (que copian el archivo real
+    HACIA el backup). Mismas garantías de atomicidad que el resto del write
+    path (ADR-001 punto 2, `write_atomic`): se copia a un `.tmp` en la
+    MISMA carpeta que `target_path`, `flush + fsync`, y recién entonces
+    `os.replace(tmp, target_path)`. Si la copia falla a mitad (disco lleno,
+    permisos), el `.tmp` se descarta y `target_path` NO se toca — nunca hay
+    un sobrescrito in-place que pueda dejar el archivo real a medio
+    escribir.
+
+    Decisión explícita: NO se crea un backup adicional de `target_path`
+    antes de restaurar. Sobrescribir con un backup elegido YA ES el
+    rollback que el usuario pidió, confirmado explícitamente en la UI antes
+    de llegar acá (ver `ui.py::_confirm_restore_backup`); encadenar otro
+    backup automático solo agregaría ruido a `listBuddy_backups/` sin red
+    de seguridad real — si el usuario restauró la copia equivocada, el
+    resto de los backups (N=10/N=5 según motor) siguen ahí para volver a
+    intentar.
+
+    Propaga `OSError` ante cualquier fallo (incluido espacio insuficiente,
+    chequeado antes de copiar vía `check_disk_space_for_backup`) — el
+    llamador (UI) debe mostrarlo, nunca asumir que restauró en silencio.
+    """
+    check_disk_space_for_backup(
+        backup_path, write_dir=target_path.parent, action="la restauración",
+    )
+    tmp_path = target_path.parent / (target_path.name + ".restoretmp")
+    try:
+        with open(backup_path, "rb") as src, open(tmp_path, "wb") as dst:
+            shutil.copyfileobj(src, dst)
+            dst.flush()
+            os.fsync(dst.fileno())
+        os.replace(tmp_path, target_path)
+    except OSError:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
+class RestoreBackupWorker(QThread):
+    """
+    QThread mínimo para B-4: `restore_backup` copia un archivo binario
+    completo (hasta cientos de MB para `master.db`, ver I-7) — igual que el
+    resto de la app (ExportWorker, RelocateWorker/RekordboxRelocateWorker),
+    nunca corre en el hilo de UI para no congelar la ventana durante la
+    copia. Sin progreso incremental a propósito: es una copia de UN
+    archivo (no un `os.walk` de una librería entera), la barra indeterminada
+    que ya usa `progress_section` alcanza.
+    """
+
+    finished_ok = pyqtSignal(bool, str)  # (ok, mensaje_de_error_si_fallo)
+
+    def __init__(self, backup_path: Path, target_path: Path) -> None:
+        super().__init__()
+        self._backup_path = backup_path
+        self._target_path = target_path
+
+    def run(self) -> None:
+        try:
+            restore_backup(self._backup_path, self._target_path)
+        except OSError as exc:
+            _log.error(
+                "Restore de backup falló: %s -> %s (%s)",
+                self._backup_path, self._target_path, exc,
+            )
+            self.finished_ok.emit(False, str(exc))
+            return
+        _log.info(
+            "Restore de backup OK: %s -> %s", self._backup_path, self._target_path,
+        )
+        self.finished_ok.emit(True, "")
 
 
 # ─────────────────────────────────────────────── Disk index ──────────────

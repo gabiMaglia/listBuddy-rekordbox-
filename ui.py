@@ -61,14 +61,16 @@ from ui_components import (
     PlaylistGroup,
     RackHead,
     RelocateDialog,
+    RestoreBackupDialog,
     SeekBar,
     TitleBar,
 )
 from preview_worker import PreviewWorker, GroupData, TrackRow
 from audio_player import AudioPlayer
 from spectro_worker import SpectrogramWorker
-from traktor_relocate import RelocateWorker
-from rekordbox_relocate import RekordboxRelocateWorker
+from relocate_core import BackupInfo, RestoreBackupWorker, list_backups
+from traktor_relocate import RelocateWorker, is_traktor_running
+from rekordbox_relocate import RekordboxRelocateWorker, is_rekordbox_running
 from update_checker import UpdateCheckWorker, UpdateInfo
 
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
@@ -316,6 +318,10 @@ class MainWindow(QMainWindow):
         # antes de cancelar/cerrar (¿hay trabajo ya hecho que se perdería?).
         self._relocate_progress_done: int = 0
         self._relocate_progress_total: int = 0
+
+        # B-4 (T-019): worker de restauración de backup — un solo campo,
+        # igual patrón que _relocate_worker (nunca dos restores a la vez).
+        self._restore_worker: RestoreBackupWorker | None = None
 
         # T-021 (I-8): chequeo de actualización, aviso discreto (nunca modal).
         self._update_worker: UpdateCheckWorker | None = None
@@ -728,6 +734,15 @@ class MainWindow(QMainWindow):
         self.relocate_btn.setObjectName("relocate_btn")
         self.relocate_btn.clicked.connect(self._start_relocate)
         rl.addWidget(self.relocate_btn)
+
+        # B-4 (T-019): el backup existe (retención N=10/N=5) pero vive en una
+        # carpeta oculta del sistema — sin este botón, restaurarlo a mano es
+        # inviable para un usuario no técnico. Botón secundario, más chico,
+        # al lado del de reparar (mismo criterio visual que browse_btn).
+        self.restore_backup_btn = QPushButton("↩  Restaurar copia de seguridad…")
+        self.restore_backup_btn.setObjectName("restore_backup_btn")
+        self.restore_backup_btn.clicked.connect(self._open_restore_backup_dialog)
+        rl.addWidget(self.restore_backup_btn)
 
         self.relocate_auto_chk = QCheckBox(
             "Resolver automáticamente con la mejor coincidencia (sin preguntar)"
@@ -2445,6 +2460,132 @@ class MainWindow(QMainWindow):
             self._load_playlists()
 
         QTimer.singleShot(8000, self._hide_progress_section)
+
+    # ──────────────────────────────────────── Restore backup (B-4, T-019) ─
+    #
+    # Flujo NUEVO y separado del relocate normal (T-002/T-003/T-009/T-018):
+    # esto es para cuando el USUARIO quiere volver atrás, no para cuando la
+    # app escribe. Reusa `_relocate_target_info()` (B-2) para saber dónde
+    # vive el archivo real de la fuente activa, y las mismas protecciones de
+    # seguridad que el resto del write path: app de origen cerrada, confirmación
+    # explícita, escritura atómica (relocate_core.restore_backup).
+
+    def _open_restore_backup_dialog(self) -> None:
+        """Entrypoint del botón "↩ Restaurar copia de seguridad…"."""
+        if self._worker and self._worker.isRunning():
+            QMessageBox.warning(
+                self, "Exportación en curso",
+                "Esperá a que termine la exportación actual antes de "
+                "restaurar un backup.",
+            )
+            return
+        if self._relocate_worker and self._relocate_worker.isRunning():
+            QMessageBox.warning(
+                self, "Reparación en curso",
+                "Esperá a que termine la reparación de enlaces antes de "
+                "restaurar un backup.",
+            )
+            return
+        if self._restore_worker and self._restore_worker.isRunning():
+            return
+
+        target_name, target_path = self._relocate_target_info()
+        if target_path is None:
+            app_name = "Traktor" if self._source == "traktor" else "Rekordbox"
+            QMessageBox.warning(
+                self, "Sin ubicación conocida",
+                f"No se pudo determinar dónde vive tu {target_name} de "
+                f"{app_name} — no hay carpeta de backups para mostrar.",
+            )
+            return
+
+        glob_pattern = "collection.*.nml" if self._source == "traktor" else "master.*.db"
+        backups = list_backups(target_path, glob_pattern)
+
+        dlg = RestoreBackupDialog(backups, target_name, self)
+        dlg.exec()
+        if dlg.chosen_backup is None:
+            return
+
+        self._start_restore_backup(dlg.chosen_backup, target_name, target_path)
+
+    def _start_restore_backup(
+        self, backup: BackupInfo, target_name: str, target_path: Path,
+    ) -> None:
+        """
+        `backup` es un `relocate_core.BackupInfo`. Mismas protecciones que
+        el resto del write path: (a) app de origen cerrada — reusa
+        `is_traktor_running`/`is_rekordbox_running`, ya existentes, no se
+        duplica el chequeo; (b) confirmación explícita con la fecha del
+        backup elegido; (c) escritura atómica en un QThread (no congelar la
+        UI copiando un master.db de cientos de MB).
+        """
+        app_name = "Traktor" if self._source == "traktor" else "Rekordbox"
+        is_running = (
+            is_traktor_running() if self._source == "traktor"
+            else is_rekordbox_running()
+        )
+        if is_running:
+            QMessageBox.warning(
+                self, f"{app_name} está abierto",
+                f"Cerrá {app_name} antes de restaurar un backup — la "
+                "restauración reemplaza el archivo real y una app abierta "
+                "podría estar leyéndolo, o pisarlo de nuevo al cerrar.",
+            )
+            return
+
+        when = (
+            backup.timestamp.strftime("%d/%m/%Y %H:%M:%S")
+            if backup.timestamp is not None else backup.path.name
+        )
+        resp = QMessageBox.question(
+            self, f"Restaurar copia de seguridad — {app_name}",
+            f"Esto va a reemplazar tu {target_name} actual con la copia "
+            f"del {when} — ¿seguro?\n\n"
+            f"Archivo que se sobrescribe:\n{target_path}\n\n"
+            "Tus otros backups no se tocan y siguen disponibles si te "
+            "equivocás de copia.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if resp != QMessageBox.StandardButton.Yes:
+            return
+
+        self.restore_backup_btn.setEnabled(False)
+        self.relocate_btn.setEnabled(False)
+        self.output_status.setText("restaurando…")
+        self._set_status_style("active")
+
+        self._restore_worker = RestoreBackupWorker(backup.path, target_path)
+        self._restore_worker.finished_ok.connect(
+            lambda ok, err: self._on_restore_backup_finished(ok, err, target_name)
+        )
+        self._restore_worker.start()
+
+    def _on_restore_backup_finished(self, ok: bool, error_msg: str, target_name: str) -> None:
+        app_name = "Traktor" if self._source == "traktor" else "Rekordbox"
+        self.restore_backup_btn.setEnabled(True)
+        self.relocate_btn.setEnabled(True)
+
+        if ok:
+            self.output_status.setText("restaurado ✓")
+            self._set_status_style("ok")
+            QMessageBox.information(
+                self, "Backup restaurado",
+                f"Tu {target_name} de {app_name} fue reemplazado por la "
+                f"copia elegida.\n\nAbrí {app_name} para confirmar que todo "
+                "esté como esperás.",
+            )
+        else:
+            self.output_status.setText("error ✗")
+            self._set_status_style("error")
+            QMessageBox.critical(
+                self, "No se pudo restaurar el backup",
+                f"Algo falló al restaurar sobre tu {target_name}:\n\n"
+                f"{error_msg}\n\n"
+                "El archivo original no se tocó (la restauración escribe a "
+                "un archivo temporal primero; si falla, no reemplaza nada).",
+            )
 
     # ──────────────────────────────────────── Theme ───────────────────────
 

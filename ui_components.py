@@ -634,3 +634,120 @@ class RelocateDialog(QDialog):
         # default silencioso (ADR-001, contrato del modal).
         self.chosen_path = None
         super().reject()
+
+
+# ──────────────────────────── Modal de restauración de backup (B-4, T-019) ─
+
+class RestoreBackupDialog(QDialog):
+    """
+    Modal de B-4: lista los backups disponibles de la fuente activa
+    (Traktor o Rekordbox, cada una con su propia carpeta `listBuddy_backups`)
+    con fecha/hora legible y tamaño (`_fmt_size`, la misma función que ya usa
+    `RelocateDialog` para los candidatos). Si no hay backups, lo dice
+    explícito en vez de mostrar una lista vacía confusa.
+
+    Salida: `chosen_backup` — el `relocate_core.BackupInfo` elegido (con
+    `.path`/`.timestamp`/`.size` ya resueltos, para que `ui.py` arme el
+    texto de confirmación sin volver a parsear el nombre de archivo), o
+    `None` si el usuario cancela/cierra sin elegir. Igual que
+    `RelocateDialog`, este modal NO restaura nada — solo devuelve la
+    decisión; `ui.py` hace el chequeo de la app de origen cerrada, la
+    confirmación explícita ("esto va a reemplazar tu librería actual...")
+    y la llamada real a `relocate_core.restore_backup` en background.
+    """
+
+    def __init__(
+        self,
+        backups: list,  # list[relocate_core.BackupInfo]
+        target_name: str,  # "collection.nml" | "master.db"
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.chosen_backup = None  # relocate_core.BackupInfo | None
+
+        self.setObjectName("restore_backup_dialog")
+        self.setWindowTitle(f"Restaurar copia de seguridad — {target_name}")
+        self.setMinimumWidth(480)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(22, 20, 22, 18)
+        layout.setSpacing(12)
+
+        title = QLabel(f"Copias de seguridad de {target_name}")
+        title.setObjectName("relocate_title")
+        title.setWordWrap(True)
+        layout.addWidget(title)
+
+        if not backups:
+            empty = QLabel(
+                "Todavía no hay copias de seguridad para esta librería.\n\n"
+                "Se crea una automáticamente la primera vez que uses "
+                "\"Reparar enlaces rotos…\" sobre ella."
+            )
+            empty.setObjectName("relocate_sub")
+            empty.setWordWrap(True)
+            layout.addWidget(empty)
+
+            btn_row = QWidget()
+            bl = QHBoxLayout(btn_row)
+            bl.setContentsMargins(0, 0, 0, 0)
+            bl.addStretch(1)
+            close_btn = QPushButton("Cerrar")
+            close_btn.setObjectName("relocate_skip_btn")
+            close_btn.clicked.connect(self.reject)
+            bl.addWidget(close_btn)
+            layout.addWidget(btn_row)
+            return
+
+        # I-7: el informe señala que los backups pueden sumar hasta ~2.5GB
+        # de Rekordbox sin que el usuario se entere nunca — mostrar el total
+        # acá es el bonus de bajo costo pedido por el ticket.
+        total_size = sum(b.size for b in backups)
+        total_label = QLabel(
+            f"{len(backups)} copia(s) · {_fmt_size(total_size)} ocupados en disco"
+        )
+        total_label.setObjectName("relocate_orig")
+        total_label.setWordWrap(True)
+        layout.addWidget(total_label)
+
+        self._list = QListWidget()
+        self._list.setObjectName("relocate_list")
+        for b in backups:
+            when = (
+                b.timestamp.strftime("%d/%m/%Y %H:%M:%S")
+                if b.timestamp is not None else b.path.name
+            )
+            item = QListWidgetItem(f"{when}\n{_fmt_size(b.size)}")
+            item.setData(Qt.ItemDataRole.UserRole, b)
+            self._list.addItem(item)
+        self._list.setCurrentRow(0)
+        self._list.itemDoubleClicked.connect(lambda _item: self._accept_selected())
+        layout.addWidget(self._list, 1)
+
+        btn_row = QWidget()
+        bl = QHBoxLayout(btn_row)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(8)
+
+        cancel_btn = QPushButton("Cancelar")
+        cancel_btn.setObjectName("relocate_skip_btn")
+        cancel_btn.clicked.connect(self.reject)
+        bl.addWidget(cancel_btn)
+        bl.addStretch(1)
+
+        restore_btn = QPushButton("Restaurar esta copia…")
+        restore_btn.setObjectName("relocate_use_btn")
+        restore_btn.clicked.connect(self._accept_selected)
+        bl.addWidget(restore_btn)
+
+        layout.addWidget(btn_row)
+
+    def _accept_selected(self) -> None:
+        item = self._list.currentItem()
+        if item is not None:
+            self.chosen_backup = item.data(Qt.ItemDataRole.UserRole)
+        self.accept()
+
+    def reject(self) -> None:  # type: ignore[override]
+        self.chosen_backup = None
+        super().reject()
