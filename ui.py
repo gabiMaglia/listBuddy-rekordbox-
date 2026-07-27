@@ -725,16 +725,27 @@ class MainWindow(QMainWindow):
         cualquier fuente activa (Traktor o Rekordbox — ver ADR-002 punto 5,
         reusa el mismo botón/checkbox en vez de duplicar UI por motor).
         """
+        # D-08 (verificación en vivo de T-019): con relocate_btn +
+        # restore_backup_btn + el checkbox los tres en una sola fila
+        # horizontal, el ancho fijo de 344px de la columna corta el texto de
+        # todo. Se apilan en dos filas: botones lado a lado arriba, checkbox
+        # (con su texto largo) en su propia fila abajo con todo el ancho.
         row = QWidget()
         row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        rl = QHBoxLayout(row)
+        outer = QVBoxLayout(row)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
+
+        btn_row = QWidget()
+        btn_row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        rl = QHBoxLayout(btn_row)
         rl.setContentsMargins(0, 0, 0, 0)
         rl.setSpacing(8)
 
         self.relocate_btn = QPushButton("🔧  Reparar enlaces rotos…")
         self.relocate_btn.setObjectName("relocate_btn")
         self.relocate_btn.clicked.connect(self._start_relocate)
-        rl.addWidget(self.relocate_btn)
+        rl.addWidget(self.relocate_btn, 1)
 
         # B-4 (T-019): el backup existe (retención N=10/N=5) pero vive en una
         # carpeta oculta del sistema — sin este botón, restaurarlo a mano es
@@ -743,7 +754,9 @@ class MainWindow(QMainWindow):
         self.restore_backup_btn = QPushButton("↩  Restaurar copia de seguridad…")
         self.restore_backup_btn.setObjectName("restore_backup_btn")
         self.restore_backup_btn.clicked.connect(self._open_restore_backup_dialog)
-        rl.addWidget(self.restore_backup_btn)
+        rl.addWidget(self.restore_backup_btn, 1)
+
+        outer.addWidget(btn_row)
 
         self.relocate_auto_chk = QCheckBox(
             "Resolver automáticamente con la mejor coincidencia (sin preguntar)"
@@ -756,7 +769,7 @@ class MainWindow(QMainWindow):
             "Riesgo: un nombre de archivo idéntico para canciones distintas\n"
             "podría auto-resolver al candidato equivocado (backup reversible)."
         )
-        rl.addWidget(self.relocate_auto_chk)
+        outer.addWidget(self.relocate_auto_chk)
 
         self._relocate_row = row
         self._update_relocate_tooltip()
