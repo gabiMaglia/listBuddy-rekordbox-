@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import ClassVar, List
 
 from PyQt6.QtCore import QPoint, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QMouseEvent, QPainter, QPainterPath, QPixmap
+from PyQt6.QtGui import QColor, QMouseEvent, QPainter, QPainterPath, QPalette, QPixmap
 from PyQt6.QtWidgets import (
     QDialog,
     QGraphicsOpacityEffect,
@@ -113,18 +113,55 @@ class TitleBar(QWidget):
 # ──────────────────────────────────────── Clickable note (♪) ─────────────
 
 class ClickableLabel(QLabel):
-    """QLabel que emite `clicked`. Usado para la nota ♪ del rack-head."""
+    """QLabel que emite `clicked`. Usado para el ícono play/pausa/nota del rack-head."""
 
     clicked: pyqtSignal = pyqtSignal()
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._draw_pause_bars = False
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
         super().mousePressEvent(event)
+
+    def set_pause_icon(self, active: bool) -> None:
+        """
+        T-015: el glyph Unicode de pausa (⏸, U+23F8) no existe en la fuente
+        base de UI de Windows — el fallback de fuente cae a Segoe UI Emoji,
+        que pinta el ícono con sus propios colores (celeste), ignorando el
+        `color: @{on_accent}` del QSS. Ni siquiera el variation selector
+        U+FE0E (fuerza presentación de texto) lo evita en Qt. Con `active`
+        se dibuja la pausa a mano en paintEvent, con el color de paleta que
+        el QSS ya resolvió para este QLabel — sin fuente de por medio, así
+        que no puede volver a pintarse "a color" en ninguna plataforma.
+        """
+        self._draw_pause_bars = active
+        if active:
+            self.setText("")
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        if not self._draw_pause_bars:
+            super().paintEvent(event)
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        color = self.palette().color(QPalette.ColorRole.WindowText)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(color)
+        w, h = self.width(), self.height()
+        bar_w = max(3, round(w * 0.13))
+        bar_h = round(h * 0.36)
+        gap = max(3, round(w * 0.11))
+        total_w = bar_w * 2 + gap
+        x0 = (w - total_w) // 2
+        y0 = (h - bar_h) // 2
+        radius = bar_w * 0.35
+        painter.drawRoundedRect(x0, y0, bar_w, bar_h, radius, radius)
+        painter.drawRoundedRect(x0 + bar_w + gap, y0, bar_w, bar_h, radius, radius)
 
 
 # ──────────────────────────── Rack-head con espectrograma de fondo ────────
@@ -315,13 +352,16 @@ class PlaylistCard(QWidget):
         )
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 9, 13, 9)
-        layout.setSpacing(12)
+        # T-015: densidad — reducido de (12,9,13,9)/spacing 12 para que entren
+        # más playlists sin scroll en la mayoría de los casos (con ~35 igual
+        # puede hacer falta scrollear, ver nota en el handoff de T-015).
+        layout.setContentsMargins(11, 6, 12, 6)
+        layout.setSpacing(10)
 
         # Large mono order number
         self._order_label = QLabel(str(index + 1).zfill(2))
         self._order_label.setObjectName("card_order")
-        self._order_label.setFixedWidth(34)
+        self._order_label.setFixedWidth(30)
         self._order_label.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
@@ -332,7 +372,7 @@ class PlaylistCard(QWidget):
         info.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         info_layout = QVBoxLayout(info)
         info_layout.setContentsMargins(0, 0, 0, 0)
-        info_layout.setSpacing(4)
+        info_layout.setSpacing(2)
 
         self._name_label = QLabel(str(playlist.Name))
         self._name_label.setObjectName("card_name")
@@ -357,7 +397,7 @@ class PlaylistCard(QWidget):
         self._check = QLabel()
         self._check.setObjectName("card_check")
         self._check.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._check.setFixedSize(21, 21)
+        self._check.setFixedSize(19, 19)
         layout.addWidget(self._check)
 
         if self._empty:

@@ -160,7 +160,7 @@ QWidget#playlist_card {
 }
 QLabel#card_order {
     font-family: "SF Mono","Menlo",monospace;
-    font-size: 21px; font-weight: 700; color: @{line2}; background: transparent;
+    font-size: 18px; font-weight: 700; color: @{line2}; background: transparent;
 }
 QLabel#card_name { font-size: 13.5px; font-weight: 600; color: @{text}; background: transparent; }
 QLabel#card_tag {
@@ -244,6 +244,23 @@ QLabel#output_grp_badge_warn {
 QLabel#output_grp_folder_icon { color: @{accent}; font-size: 13px; background: transparent; }
 QLabel#output_grp_fname { font-size: 13px; font-weight: 600; color: @{text}; background: transparent; }
 QLabel#output_grp_cnt   { font-family: "SF Mono","Menlo",monospace; font-size: 10.5px; color: @{muted}; background: transparent; }
+
+/* T-015: cerrar un grupo individual (destilda el checkbox real) */
+QPushButton#output_grp_close_btn {
+    background: transparent; border: none; border-radius: 5px;
+    color: @{faint}; font-size: 11px; font-weight: 700;
+    min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px;
+    padding: 0px;
+}
+QPushButton#output_grp_close_btn:hover { background: @{line2}; color: @{text}; }
+
+/* T-015: cerrar (destildar) todas las playlists de la cola */
+QPushButton#close_all_btn {
+    background: transparent; border: 1.5px solid @{line}; border-radius: 7px;
+    color: @{muted}; font-size: 11px; font-weight: 600;
+    padding: 2px 10px; min-height: 24px; max-height: 24px;
+}
+QPushButton#close_all_btn:hover { background: @{surface2}; color: @{text}; }
 
 /* Inner scroll */
 QScrollArea#grp_inner_scroll { background: @{surface}; border: none; }
