@@ -125,7 +125,10 @@ else:
         debug=False,
         bootloader_ignore_signals=False,
         strip=False,
-        upx=True,
+        upx=False,  # B-7 (audit 2026-07-27): one-file + UPX es un patrón que
+                    # varios AV marcan heurísticamente sin firma de código;
+                    # desactivarlo reduce falsos positivos gratis, a costa
+                    # de tamaño del binario.
         upx_exclude=[],
         runtime_tmpdir=None,
         console=False,
