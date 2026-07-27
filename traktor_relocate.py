@@ -54,6 +54,7 @@ from relocate_core import (
     Candidate,
     RelocateRequest,
     build_basename_index,
+    check_disk_space_for_backup,
     find_candidates,
 )
 from traktor_db import _location_to_key, _location_to_path, path_to_location
@@ -220,12 +221,23 @@ def backup_collection(nml_path: Path) -> Path:
     antes del primer write de la sesión. Retiene las últimas N=10 y poda el
     resto. Si falla (permisos, disco lleno) propaga OSError — el llamador
     debe abortar sin escribir (ADR-001, punto 1).
+
+    B-3 (T-018): chequea espacio libre ANTES de copiar
+    (`check_disk_space_for_backup`) y, si `shutil.copy2` falla a mitad de
+    camino (ej. `ENOSPC`), borra el destino parcial antes de re-lanzar — un
+    backup truncado NO puede quedar en `listBuddy_backups/` haciéndose
+    pasar por el más reciente (`_prune_backups` lo contaría como válido).
     """
+    check_disk_space_for_backup(nml_path)
     backups_dir = nml_path.parent / _BACKUP_DIR_NAME
     backups_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     dest = backups_dir / f"collection.{ts}.nml"
-    shutil.copy2(nml_path, dest)
+    try:
+        shutil.copy2(nml_path, dest)
+    except OSError:
+        dest.unlink(missing_ok=True)
+        raise
     _prune_backups(backups_dir)
     return dest
 
@@ -318,7 +330,14 @@ class RelocateWorker(BaseRelocateWorker):
         try:
             tree = ET.parse(str(self._nml_path))
         except ET.ParseError as e:
-            self.log.emit(f"✗  No se pudo leer la librería de Traktor.\n   Detalle: {e}")
+            # I-6: nada de texto crudo de excepción en pantalla (acá iba un
+            # ET.ParseError tipo "not well-formed (invalid token): line 4212,
+            # column 33" — ilegible para un usuario no técnico). El detalle
+            # técnico completo queda en el log de archivo (_log.error abajo).
+            self.log.emit(
+                "✗  No se pudo leer la librería de Traktor — el archivo puede "
+                "estar dañado o en un formato inesperado."
+            )
             _log.error("Relocate Traktor: NML ilegible (%s): %s", self._nml_path, e)
             self.finished_ok.emit(0, 0, 0, "error")
             return
@@ -347,13 +366,39 @@ class RelocateWorker(BaseRelocateWorker):
             self.finished_ok.emit(repaired, skipped, unresolved, "ok")
             return
 
+        # I-4: re-chequear que Traktor siga cerrado JUSTO ANTES de escribir.
+        # El chequeo de arriba corrió al principio de run() — entre eso y
+        # este punto puede haber pasado el indexado de disco entero más
+        # minutos/horas de modales de desambiguación (auto_resolve=False es
+        # el default). Si el usuario abrió Traktor mientras tanto, escribir
+        # ahora sería exactamente el escenario que R-03 quiere evitar
+        # (last-writer-wins al cerrar Traktor). Mismo mensaje/status
+        # "blocked" que el chequeo inicial — se aborta SIN escribir.
+        if is_traktor_running():
+            self.log.emit(
+                "✗  Traktor está abierto. Cerralo antes de reparar enlaces: "
+                "reescribe collection.nml entero al salir/guardar y pisaría "
+                "las reparaciones (last-writer-wins)."
+            )
+            _log.warning(
+                "Relocate Traktor: bloqueado en el re-chequeo previo a "
+                "escribir (R-03) — %d reparación(es) en memoria descartada(s).",
+                repaired,
+            )
+            self.finished_ok.emit(0, 0, 0, "blocked")
+            return
+
         try:
             backup_path = backup_collection(self._nml_path)
             self.log.emit(f"💾  Backup creado: {backup_path}")
             _log.info("Relocate Traktor: backup creado en %s", backup_path)
         except OSError as e:
+            # I-6: sin texto crudo de excepción en pantalla — puede ser un
+            # OSError de disco lleno tipo "[Errno 28] No space left on
+            # device: ...". El detalle completo queda en el log de archivo.
             self.log.emit(
-                f"✗  No se pudo crear el backup — abortando sin escribir.\n   Detalle: {e}"
+                "✗  No se pudo crear el backup — abortando sin escribir. "
+                "Puede ser falta de espacio en disco o de permisos sobre la carpeta."
             )
             _log.error("Relocate Traktor: backup FALLÓ (%s) — abortado sin escribir: %s",
                        self._nml_path, e, exc_info=True)
@@ -363,7 +408,13 @@ class RelocateWorker(BaseRelocateWorker):
         try:
             write_atomic(tree, self._nml_path)
         except OSError as e:
-            self.log.emit(f"✗  Error al escribir la colección.\n   Detalle: {e}")
+            # I-6: mensaje genérico en pantalla; write_atomic ya garantiza que
+            # el original queda intacto ante cualquier fallo (escribe a .tmp
+            # + os.replace, nunca in-place — ADR-001 punto 2).
+            self.log.emit(
+                "✗  No se pudo escribir la colección — puede ser falta de "
+                "espacio en disco o de permisos. El archivo original no se modificó."
+            )
             _log.error("Relocate Traktor: escritura del NML FALLÓ (%s): %s",
                        self._nml_path, e, exc_info=True)
             self.finished_ok.emit(0, 0, 0, "error")

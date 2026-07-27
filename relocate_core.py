@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -56,6 +57,38 @@ _BACKUP_DIR_NAME = "listBuddy_backups"
 # de la UI, que se oculta al terminar el relocate; el log de archivo es lo
 # único que sobrevive para diagnosticar un relocate fallido en producción.
 _log = logging.getLogger("listBuddy")
+
+
+# ─────────────────────────────────────────────── Backup (B-3, T-018) ─────
+
+def check_disk_space_for_backup(src: Path) -> None:
+    """
+    Chequeo de espacio libre ANTES de intentar copiar el backup — mismo
+    patrón que `worker.py` ya usa para el export (`shutil.disk_usage`,
+    comparar contra el tamaño estimado, abortar con mensaje en GB). El
+    write path sobre la librería del usuario (NML/master.db) es MÁS
+    riesgoso que copiar mp3s del export y hasta T-018 no tenía esta
+    protección (B-3). Compara el tamaño de `src` contra el espacio libre
+    en `src.parent` (misma carpeta donde vive `listBuddy_backups/`, mismo
+    filesystem). Lanza `OSError` — el llamador la trata igual que
+    cualquier otro fallo de backup (abortar sin escribir, ver
+    `backup_collection`/`backup_master_db`).
+
+    Si no se puede ni siquiera `stat()` el origen, no aborta acá: deja que
+    el intento de copia real falle con su propio error específico.
+    """
+    try:
+        size = src.stat().st_size
+    except OSError:
+        return
+    free = shutil.disk_usage(str(src.parent)).free
+    if size > free:
+        needed_gb = size / 1_073_741_824
+        avail_gb = free / 1_073_741_824
+        raise OSError(
+            f"Espacio insuficiente para el backup: necesitás ~{needed_gb:.2f} GB "
+            f"y hay {avail_gb:.2f} GB disponibles. Liberá espacio e intentá de nuevo."
+        )
 
 
 # ─────────────────────────────────────────────── Data classes ────────────
@@ -362,11 +395,28 @@ class BaseRelocateWorker(QThread):
 
         return ResolutionResult(repaired=repaired, skipped=skipped, unresolved=unresolved)
 
+    def _cancel_extra_note(self, repaired: int) -> str:
+        """
+        Nota opcional agregada al log de cancelación cuando el motor
+        concreto ya escribió algo a disco pese a que `_write_target_name()`
+        sigue intacto (I-6): el mensaje base dice "nada se escribió", cierto
+        para Traktor (todo vive en el `ElementTree` en memoria hasta
+        `write_atomic`), pero FALSO para Rekordbox si `repaired > 0` — los
+        ANLZ de las pistas ya procesadas se escriben a disco por pista,
+        antes del commit final de `master.db` (ADR-002 punto 3). Vacío por
+        default; Rekordbox lo overridea.
+        """
+        return ""
+
     def _emit_cancelled(self, repaired: int, skipped: int, unresolved: int) -> None:
-        self.log.emit(
+        msg = (
             f"\n⏹  Relocate cancelado — {self._write_target_name()} intacto, "
             "nada se escribió."
         )
+        note = self._cancel_extra_note(repaired)
+        if note:
+            msg += f"\n   {note}"
+        self.log.emit(msg)
         self.finished_ok.emit(repaired, skipped, unresolved, "cancelled")
 
     def _log_final_success(self, repaired: int, skipped: int, unresolved: int) -> None:
