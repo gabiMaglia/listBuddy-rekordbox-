@@ -69,6 +69,7 @@ from audio_player import AudioPlayer
 from spectro_worker import SpectrogramWorker
 from traktor_relocate import RelocateWorker
 from rekordbox_relocate import RekordboxRelocateWorker
+from update_checker import UpdateCheckWorker, UpdateInfo
 
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
 _APP_VERSION = "1.1.0"
@@ -311,6 +312,10 @@ class MainWindow(QMainWindow):
         self._relocate_worker: RelocateWorker | RekordboxRelocateWorker | None = None
         self._relocate_source: str = "rekordbox"  # fuente activa al arrancar el relocate en curso
 
+        # T-021 (I-8): chequeo de actualización, aviso discreto (nunca modal).
+        self._update_worker: UpdateCheckWorker | None = None
+        self._update_url: str = ""
+
         # ── Audio playback ───────────────────────────────────────────────
         self._audio = AudioPlayer(self)
         self._audio.playing_changed.connect(self._on_playing_changed)
@@ -412,6 +417,8 @@ class MainWindow(QMainWindow):
         self._space_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Space), self)
         self._space_shortcut.activated.connect(self._on_space)
 
+        self._start_update_check()
+
     # ──────────────────────────────────────── Widget builders ────────────
 
     def _build_header(self) -> QWidget:
@@ -445,6 +452,16 @@ class MainWindow(QMainWindow):
         bl.addWidget(engine_lbl)
         bl.addWidget(title_lbl)
         lo.addWidget(brand)
+
+        # T-021 (I-8): aviso discreto de actualización disponible — oculto por
+        # default, solo se muestra si UpdateCheckWorker confirma una versión
+        # más nueva en GitHub. Clickeable, abre la página del release.
+        self._update_banner = ClickableLabel("")
+        self._update_banner.setObjectName("update_banner")
+        self._update_banner.setToolTip("Ver la nueva versión en GitHub")
+        self._update_banner.setVisible(False)
+        self._update_banner.clicked.connect(self._open_update_link)
+        lo.addWidget(self._update_banner)
 
         # Atributos dummy para _update_now_playing (no se agregan al layout)
         self._header_artist = QLabel("")
@@ -1906,6 +1923,12 @@ class MainWindow(QMainWindow):
             # app pueda cerrar sin quedar colgada.
             self._relocate_worker.provide_answer(None)
             self._relocate_worker.wait(4000)
+        if self._update_worker and self._update_worker.isRunning():
+            # No hay forma de interrumpir un urlopen() en curso a mitad de
+            # request; el timeout corto (4s) ya acota cuánto puede tardar.
+            # Esperamos un instante corto para no demorar el cierre — si
+            # sigue vivo, el proceso termina igual al salir del intérprete.
+            self._update_worker.wait(200)
         super().closeEvent(event)
 
     # ──────────────────────────────────────── Actions ────────────────────
@@ -2331,3 +2354,24 @@ class MainWindow(QMainWindow):
 
     def _show_donation(self) -> None:
         DonationDialog(self).exec()
+
+    # ── T-021 (I-8): chequeo de actualización ───────────────────────────────
+
+    def _start_update_check(self) -> None:
+        """
+        Lanza el chequeo en background. Se llama una sola vez al final de
+        __init__, después de que la ventana ya está armada — el resultado
+        (si llega) solo agrega un label discreto, nunca bloquea el arranque.
+        """
+        self._update_worker = UpdateCheckWorker(_APP_VERSION)
+        self._update_worker.update_available.connect(self._on_update_available)
+        self._update_worker.start()
+
+    def _on_update_available(self, info: UpdateInfo) -> None:
+        self._update_url = info.url
+        self._update_banner.setText(f"🔔  Nueva versión {info.version} disponible")
+        self._update_banner.setVisible(True)
+
+    def _open_update_link(self) -> None:
+        if self._update_url:
+            QDesktopServices.openUrl(QUrl(self._update_url))
