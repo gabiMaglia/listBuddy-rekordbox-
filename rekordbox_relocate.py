@@ -59,6 +59,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -130,7 +131,15 @@ def is_rekordbox_running() -> bool:
 
 # ─────────────────────────────────────────────── Broken tracks ───────────
 
-def find_broken_content(db: Rekordbox6Database) -> list[tuple[Any, BrokenTrack]]:
+_DETECT_PROGRESS_EVERY = 250  # T-020: mismo throttle que build_basename_index (T-007)
+
+
+def find_broken_content(
+    db: Rekordbox6Database,
+    should_stop: Callable[[], bool] | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
+    progress_every: int = _DETECT_PROGRESS_EVERY,
+) -> list[tuple[Any, BrokenTrack]]:
     """
     Recorre `db.get_content()` y devuelve los DjmdContent cuyo FolderPath
     no resuelve a un archivo existente. Reusa `resolve_path` de
@@ -141,25 +150,43 @@ def find_broken_content(db: Rekordbox6Database) -> list[tuple[Any, BrokenTrack]]
     normalizado (exista o no) para mostrarlo en el modal/log, así que se
     replica solo la normalización pura de esa función (sin el gate de
     existencia, que sigue siendo resolve_path quien lo decide).
+
+    T-020 (I-2/I-3): ver el docstring de `find_broken_entries`
+    (traktor_relocate.py) para el razonamiento completo del patrón — mismo
+    problema (un `.exists()` por track puede tardar decenas de segundos con
+    un disco de red o USB desconectado), mismo fix. `should_stop` se
+    chequea antes de cada track (no cada `progress_every`, que dejaría la
+    cancelación esperando demasiado con cientos de rutas muertas
+    encadenadas); `on_progress` sí se throttlea cada `progress_every` para
+    no saturar la UI.
+
+    `db.get_content()` sin filtros devuelve el `Query` de SQLAlchemy
+    entero (ver `pyrekordbox.db6.database._parse_query_result`); se
+    materializa en una lista antes del loop para conocer `total` de
+    antemano sin un roundtrip extra (iterar el Query ya ejecuta la consulta
+    completa; materializarlo antes no agrega una segunda consulta).
     """
     broken: list[tuple[Any, BrokenTrack]] = []
-    for content in db.get_content():
+    contents = list(db.get_content())
+    total = len(contents)
+    for i, content in enumerate(contents, start=1):
+        if should_stop is not None and should_stop():
+            break
         raw = getattr(content, "FolderPath", None)
-        if not raw:
-            continue
-        if resolve_path(raw) is not None:
-            continue  # existe — mismo criterio que preview_worker, no roto
-        path = _normalize_folder_path(raw)
-        title = getattr(content, "Title", None) or path.name
-        artist = get_artist(content)
-        content_id = str(getattr(content, "ID", ""))
-        broken.append((
-            content,
-            BrokenTrack(
-                title=title, artist=artist,
-                content_id=content_id, original_path=path,
-            ),
-        ))
+        if raw and resolve_path(raw) is None:  # None = vacío o no existe
+            path = _normalize_folder_path(raw)
+            title = getattr(content, "Title", None) or path.name
+            artist = get_artist(content)
+            content_id = str(getattr(content, "ID", ""))
+            broken.append((
+                content,
+                BrokenTrack(
+                    title=title, artist=artist,
+                    content_id=content_id, original_path=path,
+                ),
+            ))
+        if on_progress is not None and i % progress_every == 0:
+            on_progress(i, total)
     return broken
 
 
@@ -337,7 +364,20 @@ class RekordboxRelocateWorker(BaseRelocateWorker):
 
         self._db = db
         try:
-            broken = find_broken_content(db)
+            # T-020 (I-2/I-3): fase de detección cancelable + con progreso.
+            # Mensaje a propósito distinto de "Indexando archivos en
+            # disco…" (esa es la fase siguiente, dentro de
+            # _run_resolution) para que quede claro en qué paso está la app
+            # si tarda.
+            self.log.emit("🔎  Detectando enlaces rotos…")
+            broken = find_broken_content(
+                db,
+                should_stop=self.isInterruptionRequested,
+                on_progress=lambda done, total: self.progress.emit(done, total),
+            )
+            if self.isInterruptionRequested():
+                self._emit_cancelled(0, 0, 0)
+                return
 
             result = self._run_resolution(broken)
             if result is None:
