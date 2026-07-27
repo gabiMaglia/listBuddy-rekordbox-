@@ -40,6 +40,14 @@ class GroupData:
     order: int
     total_count: int
     tracks: list[TrackRow] = field(default_factory=list)
+    # T-015: referencia a la PlaylistCard del árbol izquierdo que originó este
+    # grupo — permite que el botón "✕" del header (ui.py._render_group_header)
+    # destilde el checkbox real en vez de reimplementar la lógica de selección.
+    # Tipado como `object` (no PlaylistCard) para no importar PyQt6 acá:
+    # preview_worker.py corre en el QThread y no debe acoplarse a widgets Qt,
+    # solo transporta la referencia sin tocarla (el worker jamás llama métodos
+    # de `card`, ver PreviewWorker.run() más abajo).
+    card: object = None
 
     @property
     def missing_count(self) -> int:

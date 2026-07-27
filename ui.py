@@ -726,8 +726,10 @@ class MainWindow(QMainWindow):
         self.playlist_container = QWidget()
         self.playlist_container.setObjectName("scroll_content")
         self.playlist_container_layout = QVBoxLayout(self.playlist_container)
-        self.playlist_container_layout.setContentsMargins(6, 6, 6, 6)
-        self.playlist_container_layout.setSpacing(5)
+        self.playlist_container_layout.setContentsMargins(6, 5, 6, 5)
+        # T-015: densidad — de 5 a 4 (junto con el padding/spacing reducido de
+        # PlaylistCard) para que entren más playlists sin scroll.
+        self.playlist_container_layout.setSpacing(4)
         self.playlist_container_layout.addStretch(1)
 
         scroll.setWidget(self.playlist_container)
@@ -799,6 +801,17 @@ class MainWindow(QMainWindow):
         self.output_status.setObjectName("output_status_tag")
         hl.addWidget(self.output_status)
         hl.addStretch(1)
+
+        # T-015: "cerrar todas" — reusa _set_all(False), el mismo handler que
+        # ya usa el botón "Ninguna" del árbol izquierdo (ui.py _build_playlists_header).
+        self.close_all_btn = QPushButton("Cerrar todas")
+        self.close_all_btn.setObjectName("close_all_btn")
+        self.close_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.close_all_btn.setToolTip("Destildar todas las playlists de la cola")
+        self.close_all_btn.clicked.connect(lambda: self._set_all(False))
+        self.close_all_btn.setVisible(False)
+        hl.addWidget(self.close_all_btn)
+
         lo.addWidget(head_row)
 
         # Output panel
@@ -1221,6 +1234,7 @@ class MainWindow(QMainWindow):
             self.output_status.setText(
                 f"{n} carpeta{'s' if n != 1 else ''} · numeración independiente"
             )
+        self.close_all_btn.setVisible(n > 0)
 
         if hasattr(self, "preview_scroll") and self.preview_scroll.isVisible():
             self._preview_debounce.start()
@@ -1365,6 +1379,7 @@ class MainWindow(QMainWindow):
                 order       = idx + 1,
                 total_count = card._track_count,
                 tracks      = tracks,
+                card        = card,
             ))
         return groups
 
@@ -1509,6 +1524,22 @@ class MainWindow(QMainWindow):
         cnt_lbl = QLabel(f"{data.total_count} archivos")
         cnt_lbl.setObjectName("output_grp_cnt")
         hl.addWidget(cnt_lbl)
+
+        # T-015: atajo al mismo checkbox del árbol izquierdo — no es una
+        # lógica de "cerrado" nueva, solo destilda `data.card` (poblado en
+        # _extract_preview_data). setChecked() por sí solo NO emite `toggled`
+        # (confirmado en PlaylistCard.setChecked — solo _refresh()), por eso
+        # _close_group_card llama _update_order_numbers() a mano, igual que
+        # ya hace _set_all() para el mismo caso.
+        if data.card is not None:
+            close_btn = QPushButton("✕")
+            close_btn.setObjectName("output_grp_close_btn")
+            close_btn.setToolTip("Sacar esta playlist de la cola (destilda en la lista)")
+            close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            close_btn.clicked.connect(
+                lambda _checked=False, card=data.card: self._close_group_card(card)
+            )
+            hl.addWidget(close_btn)
 
         gl.addWidget(head)
 
@@ -1656,9 +1687,16 @@ class MainWindow(QMainWindow):
         self._rack_np_artist.setVisible(playing and bool(artist))
 
     def _on_playing_changed(self, playing: bool) -> None:
+        # T-015: ⏸ (U+23F8) no tiene glyph en la fuente base de UI de Windows;
+        # el fallback cae a Segoe UI Emoji, que pinta el ícono a color (celeste)
+        # ignorando el `color:` del QSS — se probó con variation selector U+FE0E
+        # (fuerza presentación de texto) y Qt lo ignora igual, así que se dibuja
+        # a mano con QPainter (ver ClickableLabel.set_pause_icon). ▶/♪ sí
+        # respetan el color del QSS como texto normal, no hace falta tocarlos.
         if playing:
-            self._play_toggle.setText("⏸")
+            self._play_toggle.set_pause_icon(True)
         else:
+            self._play_toggle.set_pause_icon(False)
             self._play_toggle.setText("▶" if self._playing_path else "♪")
         self._vu_bars.set_live(playing)
 
@@ -1696,6 +1734,7 @@ class MainWindow(QMainWindow):
 
     def _on_audio_error(self, msg: str) -> None:
         self._playing_path = ""
+        self._play_toggle.set_pause_icon(False)
         self._play_toggle.setText("♪")
         self._set_row_playing(self._playing_row, False)
         self._playing_row = None
@@ -1772,6 +1811,13 @@ class MainWindow(QMainWindow):
     def _set_all(self, checked: bool) -> None:
         for card in self._all_cards:
             card.setChecked(checked)
+        self._update_order_numbers()
+
+    def _close_group_card(self, card: PlaylistCard) -> None:
+        """T-015: botón '✕' del header de un grupo en el preview — destilda
+        el checkbox real de esa playlist en el árbol izquierdo (mismo efecto
+        que destildarla ahí a mano)."""
+        card.setChecked(False)
         self._update_order_numbers()
 
     def _selected_playlists(self) -> list:
