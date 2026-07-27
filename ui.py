@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import itertools
 import math
+import sys
 from io import BytesIO
 from pathlib import Path
 
@@ -72,12 +73,45 @@ from rekordbox_relocate import RekordboxRelocateWorker
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
 _APP_VERSION = "1.1.0"
 
-# T-010 (ventana frameless + resize por WM_NCHITTEST vía ctypes) revertido:
-# ver D-06 en engram/03_backlog.md. Crasheaba el proceso entero (access
-# violation leyendo el MSG nativo) en el primer show(), sin excepción de
-# Python atrapable. Queda pendiente rehacerlo con un mecanismo seguro
-# (candidato: windowHandle().startSystemResize() desde mousePressEvent, sin
-# parsear structs nativos a mano).
+# T-016: header/frameless custom, retoma T-010 (revertido, ver D-06 en
+# engram/03_backlog.md) con un mecanismo seguro. T-010 crasheaba el proceso
+# entero porque nativeEvent() leía un MSG nativo de Windows a mano con
+# ctypes.wintypes.MSG.from_address() (access violation en el primer show(),
+# sin excepción de Python atrapable). Esta vez el resize por bordes usa
+# EXCLUSIVAMENTE self.windowHandle().startSystemResize(edge) — API de alto
+# nivel de Qt6 que delega el resize al SO — disparado desde grips de resize
+# en Python puro (_ResizeGrip más abajo). Prohibido: ctypes, ctypes.wintypes,
+# nativeEvent(), MSG.from_address() o cualquier lectura de puntero/struct
+# nativo de Windows.
+_IS_WINDOWS = sys.platform == "win32"
+_RESIZE_MARGIN = 7  # px de margen sensible a resize en los bordes de la ventana frameless
+
+
+class _ResizeGrip(QWidget):
+    """
+    Grip invisible (sin pintar nada propio) usado en los bordes/esquinas de
+    la ventana frameless en Windows para permitir resize manual. Al hacer
+    click, delega el resize entero al sistema operativo vía
+    `QWindow.startSystemResize()` — no hay lectura de memoria ni structs
+    nativos de ningún tipo, es la API pública de Qt6 para este caso (T-016,
+    reemplaza el `nativeEvent()`+ctypes de T-010 revertido, ver D-06).
+    """
+
+    def __init__(self, edges: Qt.Edge, cursor: Qt.CursorShape, parent: QWidget) -> None:
+        super().__init__(parent)
+        self._edges = edges
+        self.setCursor(cursor)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            win = self.window()
+            handle = win.windowHandle() if win is not None else None
+            if handle is not None and not win.isMaximized():
+                handle.startSystemResize(self._edges)
+                event.accept()
+                return
+        super().mousePressEvent(event)
 
 
 # ─────────────────────────────────────────── VU bars (decorative) ────────
@@ -257,16 +291,17 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("listBuddy")
-        # T-010 (frameless + resize por WM_NCHITTEST vía ctypes) revertido:
-        # crasheaba el proceso entero al primer show() con un access violation
-        # al leer el MSG nativo (sin excepción de Python posible de atrapar,
-        # ver engram/03_backlog.md D-06). Vuelve al frame nativo de Windows
-        # hasta que se rehaga con un mecanismo seguro (candidato:
-        # windowHandle().startSystemResize() disparado desde mousePressEvent,
-        # sin parsear structs nativos a mano).
+        # T-016: frameless + chrome propio, solo Windows. macOS conserva el
+        # frame nativo (sin tocar) — ver nota de compatibilidad en
+        # TitleBar/_build_header. Resize por bordes vía _ResizeGrip
+        # (startSystemResize(), sin ctypes — ver comentario de módulo y D-06).
+        if _IS_WINDOWS:
+            self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
         self.resize(980, 700)
         self.setMinimumSize(820, 560)
         self.setObjectName("rb_main")
+
+        self._grips: list[_ResizeGrip] = []
 
         self._db = None
         self._worker: ExportWorker | None = None
@@ -340,6 +375,8 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self._stack, 1)
 
         self.setCentralWidget(central)
+        if _IS_WINDOWS:
+            self._create_resize_grips()
 
         # Minimal menu
         view_menu = self.menuBar().addMenu("Ver")
@@ -380,10 +417,12 @@ class MainWindow(QMainWindow):
     def _build_header(self) -> QWidget:
         """
         Title bar: listBuddy + EXPORT ENGINE eyebrow · now-playing center ·
-        controls right. T-010: además de la UI de la app, esta barra ES el
-        chrome de ventana en Windows (frameless) — TitleBar agrega
+        controls right. T-016: en Windows, además de la UI de la app, esta
+        barra ES el chrome de ventana (frameless) — TitleBar agrega
         drag-to-move + doble click maximiza/restaura, y se le suman los
         botones propios de minimizar/maximizar/cerrar al final de la fila.
+        En macOS la ventana conserva el frame nativo (no se agregan los
+        botones winctl_*) — ver `_IS_WINDOWS`.
         """
         bar = TitleBar()
         bar.setObjectName("header_bar")
@@ -440,17 +479,93 @@ class MainWindow(QMainWindow):
         t_lo.addWidget(self._sun_btn)
         t_lo.addWidget(self._moon_btn)
         lo.addWidget(toggle)
-        # T-010: botones propios de minimizar/maximizar/cerrar revertidos
-        # junto con el frameless (ver nota en __init__) — el frame nativo de
-        # Windows ya provee esos controles, tenerlos duplicados sería peor.
+
+        # T-016: botones propios de minimizar/maximizar/cerrar — solo en
+        # Windows, donde la ventana es frameless y el frame nativo (que
+        # traía estos controles) fue reemplazado. QSS ya define
+        # winctl_group/winctl_min/winctl_max/winctl_close (qss/dark.qss,
+        # qss/light.qss) desde T-010, quedaron sin usar tras el revert.
+        if _IS_WINDOWS:
+            winctl = QWidget()
+            winctl.setObjectName("winctl_group")
+            w_lo = QHBoxLayout(winctl)
+            w_lo.setContentsMargins(0, 0, 0, 0)
+            w_lo.setSpacing(0)
+            self._min_btn = QPushButton("─")
+            self._min_btn.setObjectName("winctl_min")
+            self._min_btn.setToolTip("Minimizar")
+            self._min_btn.setCursor(Qt.CursorShape.ArrowCursor)
+            self._min_btn.clicked.connect(self.showMinimized)
+            self._max_btn = QPushButton("□")
+            self._max_btn.setObjectName("winctl_max")
+            self._max_btn.setToolTip("Maximizar/restaurar")
+            self._max_btn.setCursor(Qt.CursorShape.ArrowCursor)
+            self._max_btn.clicked.connect(self._toggle_maximize_restore)
+            self._close_btn = QPushButton("✕")
+            self._close_btn.setObjectName("winctl_close")
+            self._close_btn.setToolTip("Cerrar")
+            self._close_btn.setCursor(Qt.CursorShape.ArrowCursor)
+            self._close_btn.clicked.connect(self.close)
+            w_lo.addWidget(self._min_btn)
+            w_lo.addWidget(self._max_btn)
+            w_lo.addWidget(self._close_btn)
+            lo.addWidget(winctl)
 
         return bar
 
-    # T-010: _toggle_maximize_restore/changeEvent/nativeEvent/_hit_test_border
-    # revertidos junto con el frameless — ver nota en __init__ y D-06 en
-    # engram/03_backlog.md. nativeEvent hacía ctypes.wintypes.MSG.from_address()
-    # sobre un puntero nativo de Windows y crasheaba el proceso entero (access
-    # violation) en el primer show(), sin excepción de Python atrapable.
+    def _toggle_maximize_restore(self) -> None:
+        """Conectado a winctl_max (T-016) y reusado por TitleBar.mouseDoubleClickEvent."""
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+
+    # ── Resize por bordes (T-016, sin ctypes — ver D-06) ───────────────────
+    # `_ResizeGrip` (definido a nivel de módulo) es la única pieza nueva:
+    # widgets finitos superpuestos en los bordes/esquinas que, al click,
+    # llaman self.windowHandle().startSystemResize(edge). Nada de esto lee
+    # memoria ni structs nativos — es la API pública de QWindow.
+
+    def _create_resize_grips(self) -> None:
+        specs = [
+            (Qt.Edge.TopEdge | Qt.Edge.LeftEdge, Qt.CursorShape.SizeFDiagCursor),
+            (Qt.Edge.TopEdge | Qt.Edge.RightEdge, Qt.CursorShape.SizeBDiagCursor),
+            (Qt.Edge.BottomEdge | Qt.Edge.LeftEdge, Qt.CursorShape.SizeBDiagCursor),
+            (Qt.Edge.BottomEdge | Qt.Edge.RightEdge, Qt.CursorShape.SizeFDiagCursor),
+            (Qt.Edge.TopEdge, Qt.CursorShape.SizeVerCursor),
+            (Qt.Edge.BottomEdge, Qt.CursorShape.SizeVerCursor),
+            (Qt.Edge.LeftEdge, Qt.CursorShape.SizeHorCursor),
+            (Qt.Edge.RightEdge, Qt.CursorShape.SizeHorCursor),
+        ]
+        central = self.centralWidget()
+        self._grips = [_ResizeGrip(edges, cursor, central) for edges, cursor in specs]
+        self._reposition_grips()
+        for grip in self._grips:
+            grip.show()
+            grip.raise_()
+
+    def _reposition_grips(self) -> None:
+        if not self._grips:
+            return
+        central = self.centralWidget()
+        m = _RESIZE_MARGIN
+        w, h = central.width(), central.height()
+        tl, tr, bl, br, top, bottom, left, right = self._grips
+        tl.setGeometry(0, 0, m, m)
+        tr.setGeometry(max(0, w - m), 0, m, m)
+        bl.setGeometry(0, max(0, h - m), m, m)
+        br.setGeometry(max(0, w - m), max(0, h - m), m, m)
+        top.setGeometry(m, 0, max(0, w - 2 * m), m)
+        bottom.setGeometry(m, max(0, h - m), max(0, w - 2 * m), m)
+        left.setGeometry(0, m, m, max(0, h - 2 * m))
+        right.setGeometry(max(0, w - m), m, m, max(0, h - 2 * m))
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if self._grips:
+            self._reposition_grips()
+            for grip in self._grips:
+                grip.raise_()
 
     def _build_body(self) -> QWidget:
         body = QWidget()
