@@ -28,6 +28,7 @@ from traktor_relocate import (
     backup_collection,
     build_basename_index,
     build_reverse_key_index,
+    find_broken_entries,
     find_candidates,
     write_atomic,
 )
@@ -81,6 +82,78 @@ class TestBuildBasenameIndex:
         # Corta ni bien empieza: el índice queda vacío o parcial, nunca completo.
         index = build_basename_index(tmp_path, should_stop=lambda: True)
         assert len(index) == 0
+
+
+# ─────────────────────────── detección de rotos (T-020, I-2/I-3) ──────────
+
+def _collection_with_broken_entries(n: int) -> ET.Element:
+    """
+    COLLECTION con `n` ENTRY, todas apuntando a un LOCATION inexistente
+    (volumen "Z:" que no existe en el runner). Suficiente para testear
+    detección + cancelación sin depender de archivos reales en disco: el
+    criterio de "roto" es simplemente que `Path.exists()` dé False.
+    """
+    entries_xml = "".join(
+        f'<ENTRY TITLE="t{i}" ARTIST="a{i}">'
+        f'<LOCATION VOLUME="Z:" DIR="/:nope/:" FILE="f{i}.mp3"/>'
+        "</ENTRY>"
+        for i in range(n)
+    )
+    return ET.fromstring(f'<COLLECTION ENTRIES="{n}">{entries_xml}</COLLECTION>')
+
+
+class TestFindBrokenEntries:
+    def test_detects_all_broken_when_not_interrupted(self):
+        collection = _collection_with_broken_entries(5)
+        broken = find_broken_entries(collection)
+        assert len(broken) == 5
+
+    def test_should_stop_aborts_before_finishing(self):
+        # T-020: la fase de detección no era cancelable (I-2/I-3) — con un
+        # disco de red o USB desconectado, cada `.exists()` puede tardar
+        # decenas de segundos y esto dejaba la app colgada varios minutos
+        # sin que "Cancelar" hiciera nada. Este test fija que `should_stop`
+        # corta el loop ANTES de procesar todas las entries, no solo al
+        # final.
+        collection = _collection_with_broken_entries(10)
+        seen: list[int] = []
+        broken = find_broken_entries(
+            collection,
+            should_stop=lambda: len(seen) >= 3,
+            on_progress=lambda done, total: seen.append(done),
+            progress_every=1,
+        )
+        assert len(broken) == 3  # cortó a mitad de camino, no llegó a 10
+        assert len(seen) == 3
+
+    def test_progress_reports_known_total_upfront(self):
+        # A diferencia de build_basename_index (total desconocido hasta
+        # terminar el walk), acá el total de ENTRY se conoce de entrada.
+        collection = _collection_with_broken_entries(6)
+        seen: list[tuple[int, int]] = []
+        find_broken_entries(
+            collection,
+            on_progress=lambda done, total: seen.append((done, total)),
+            progress_every=2,
+        )
+        assert seen  # se reportó avance al menos una vez
+        assert all(total == 6 for _, total in seen)
+
+    def test_non_broken_entry_is_excluded(self, tmp_path):
+        # Un ENTRY cuyo archivo SÍ existe no debe aparecer como roto —
+        # el fix de cancelación/progreso no puede cambiar QUÉ detecta.
+        real_file = tmp_path / "real.mp3"
+        real_file.write_text("x")
+        drive = real_file.drive  # ej. "C:"
+        parent_dir = "/:" + "/:".join(real_file.parent.parts[1:]) + "/:"
+        xml = (
+            f'<COLLECTION ENTRIES="1">'
+            f'<ENTRY TITLE="ok" ARTIST="a">'
+            f'<LOCATION VOLUME="{drive}" DIR="{parent_dir}" FILE="real.mp3"/>'
+            f"</ENTRY></COLLECTION>"
+        )
+        broken = find_broken_entries(ET.fromstring(xml))
+        assert broken == []
 
 
 # ─────────────────────────── matching ─────────────────────────────────────
