@@ -44,6 +44,7 @@ import os
 import platform
 import shutil
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -132,7 +133,15 @@ def is_traktor_running() -> bool:
 
 # ─────────────────────────────────────────────── Broken tracks ───────────
 
-def find_broken_entries(collection_el: ET.Element) -> list[tuple[ET.Element, BrokenTrack]]:
+_DETECT_PROGRESS_EVERY = 250  # T-020: mismo throttle que build_basename_index (T-007)
+
+
+def find_broken_entries(
+    collection_el: ET.Element,
+    should_stop: Callable[[], bool] | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
+    progress_every: int = _DETECT_PROGRESS_EVERY,
+) -> list[tuple[ET.Element, BrokenTrack]]:
     """
     Recorre <COLLECTION><ENTRY> y devuelve los que no resuelven a un archivo
     existente. Reutiliza el mismo criterio "en rojo" que preview_worker.py
@@ -140,28 +149,50 @@ def find_broken_entries(collection_el: ET.Element) -> list[tuple[ET.Element, Bro
     (T-004: honra VOLUME en Windows) — antes de ese fix esta función heredaba
     el bug de detectar como "roto" cualquier archivo en un disco distinto al
     de la unidad del proceso; ya corregido, no rediseñar el chequeo en sí.
+
+    T-020 (I-2/I-3, engram/07_production_readiness.md): T-007 hizo cancelable
+    e incremental al walk de disco (`build_basename_index`), pero esta fase
+    -anterior en el flujo- había quedado afuera. Acá lo caro NO es recorrer
+    la lista de ENTRY (ya está en memoria, es barata) sino el `.exists()` por
+    track: si LOCATION apunta a un disco de red o USB desconectado, cada
+    `.exists()` puede tardar decenas de segundos (timeout del SO). Por eso
+    `should_stop` se chequea ANTES de cada `.exists()` (cada ENTRY, no cada
+    `progress_every`) — es el equivalente acá a lo que build_basename_index
+    hace por carpeta visitada: chequear justo antes de la unidad de trabajo
+    cara, no después de acumular un lote. Chequear cada `progress_every`
+    tracks dejaría la cancelación esperando potencialmente horas si hay
+    cientos de rutas muertas encadenadas, que es exactamente el escenario que
+    este ticket ataca. `on_progress` sí se throttlea cada `progress_every`
+    (mismo valor por default que build_basename_index) para no saturar la UI
+    con señales — a diferencia del walk, acá el total SÍ se conoce de
+    entrada (cantidad de ENTRY), así que se reporta como (hechos, total) en
+    vez de un conteo indeterminado.
     """
     broken: list[tuple[ET.Element, BrokenTrack]] = []
-    for entry in collection_el.findall("ENTRY"):
+    entries = collection_el.findall("ENTRY")
+    total = len(entries)
+    for i, entry in enumerate(entries, start=1):
+        if should_stop is not None and should_stop():
+            break
         loc = entry.find("LOCATION")
-        if loc is None:
-            continue
-        volume = loc.get("VOLUME", "")
-        dir_attr = loc.get("DIR", "")
-        file_attr = loc.get("FILE", "")
-        file_path = _location_to_path(volume, dir_attr, file_attr)
-        if file_path.exists():
-            continue
-        original_key = _location_to_key(volume, dir_attr, file_attr)
-        title = entry.get("TITLE", "") or file_attr
-        artist = entry.get("ARTIST", "") or ""
-        broken.append((
-            entry,
-            BrokenTrack(
-                title=title, artist=artist,
-                original_key=original_key, original_path=file_path,
-            ),
-        ))
+        if loc is not None:
+            volume = loc.get("VOLUME", "")
+            dir_attr = loc.get("DIR", "")
+            file_attr = loc.get("FILE", "")
+            file_path = _location_to_path(volume, dir_attr, file_attr)
+            if not file_path.exists():
+                original_key = _location_to_key(volume, dir_attr, file_attr)
+                title = entry.get("TITLE", "") or file_attr
+                artist = entry.get("ARTIST", "") or ""
+                broken.append((
+                    entry,
+                    BrokenTrack(
+                        title=title, artist=artist,
+                        original_key=original_key, original_path=file_path,
+                    ),
+                ))
+        if on_progress is not None and i % progress_every == 0:
+            on_progress(i, total)
     return broken
 
 
@@ -351,7 +382,22 @@ class RelocateWorker(BaseRelocateWorker):
             self.finished_ok.emit(0, 0, 0, "error")
             return
 
-        broken = find_broken_entries(collection_el)
+        # T-020 (I-2/I-3): fase de detección cancelable + con progreso. El
+        # log de "N enlace(s) roto(s)" que sigue lo emite _run_resolution
+        # apenas arranca — este mensaje previo es a propósito distinto
+        # ("Detectando" vs "Indexando archivos en disco…", que es la fase
+        # siguiente dentro de _run_resolution) para que quede claro en qué
+        # paso está la app si tarda.
+        self.log.emit("🔎  Detectando enlaces rotos…")
+        broken = find_broken_entries(
+            collection_el,
+            should_stop=self.isInterruptionRequested,
+            on_progress=lambda done, total: self.progress.emit(done, total),
+        )
+        if self.isInterruptionRequested():
+            self._emit_cancelled(0, 0, 0)
+            return
+
         self._key_index = (
             build_reverse_key_index(playlists_el) if playlists_el is not None else {}
         )
