@@ -4,7 +4,15 @@ from pathlib import Path
 from typing import ClassVar, List
 
 from PyQt6.QtCore import QPoint, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QMouseEvent, QPainter, QPainterPath, QPalette, QPixmap
+from PyQt6.QtGui import (
+    QColor,
+    QFontMetrics,
+    QMouseEvent,
+    QPainter,
+    QPainterPath,
+    QPalette,
+    QPixmap,
+)
 from PyQt6.QtWidgets import (
     QDialog,
     QGraphicsOpacityEffect,
@@ -13,6 +21,7 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -374,8 +383,17 @@ class PlaylistCard(QWidget):
         info_layout.setContentsMargins(0, 0, 0, 0)
         info_layout.setSpacing(2)
 
-        self._name_label = QLabel(str(playlist.Name))
+        # Nombre completo guardado aparte: el label muestra una versión
+        # recortada con "…" según el ancho real disponible (recalculada en
+        # resizeEvent), para que un nombre largo nunca fuerce el contenedor
+        # a ser más ancho que la columna — sin esto, el QScrollArea de la
+        # lista queda desplazable horizontalmente (sin barra visible, porque
+        # el policy la oculta, pero el desplazamiento sigue existiendo).
+        self._full_name = str(playlist.Name)
+        self._name_label = QLabel(self._full_name)
         self._name_label.setObjectName("card_name")
+        self._name_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self._name_label.setToolTip(self._full_name)
         info_layout.addWidget(self._name_label)
 
         meta_row = QWidget()
@@ -404,6 +422,21 @@ class PlaylistCard(QWidget):
             effect = QGraphicsOpacityEffect(self)
             effect.setOpacity(0.38)
             self.setGraphicsEffect(effect)
+
+    def resizeEvent(self, event) -> None:
+        self._elide_name()
+        super().resizeEvent(event)
+
+    def _elide_name(self) -> None:
+        """Recorta `_full_name` con '…' al ancho real del label — sin esto,
+        un nombre largo fuerza el layout a ser más ancho que la columna y
+        el QScrollArea de la lista queda desplazable horizontalmente."""
+        width = self._name_label.width()
+        if width <= 0:
+            return
+        fm = QFontMetrics(self._name_label.font())
+        elided = fm.elidedText(self._full_name, Qt.TextElideMode.ElideRight, width)
+        self._name_label.setText(elided)
 
     # ── Refresh without unpolish/polish cascade ───────────────────────────
 
