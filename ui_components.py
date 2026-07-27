@@ -69,9 +69,11 @@ class TitleBar(QWidget):
     minimizar/maximizar/cerrar son hijos normales y consumen su propio click,
     así que nunca disparan un arrastre.
 
-    El resize por los bordes NO se maneja acá — se resuelve en
-    `MainWindow.nativeEvent()` vía hit-test nativo de Windows (WM_NCHITTEST),
-    que es independiente de esta barra.
+    El resize por los bordes NO se maneja acá (T-016) — se resuelve con
+    `_ResizeGrip` (ui.py), widgets finitos en los bordes/esquinas que llaman
+    `self.windowHandle().startSystemResize(edge)` — API alto nivel de Qt6,
+    sin ctypes ni lectura de structs nativos (ver D-06 en
+    engram/03_backlog.md sobre el intento anterior con `nativeEvent()`).
 
     Windows-only por ahora: en otras plataformas la ventana conserva el
     frame nativo (`MainWindow` no aplica `FramelessWindowHint` fuera de
