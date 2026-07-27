@@ -22,6 +22,20 @@ Decisiones (ver ADR-001 en engram/02_architecture.md, no rediseñar):
   4. Sync: índice inverso old_key -> [PRIMARYKEY elements], reescritos todos
      los que matcheen al reparar una ENTRY.
   5. R-03: Traktor debe estar cerrado (is_traktor_running()).
+
+T-017 (D-05): el orquestador del loop de resolución (indexar disco, decidir
+0/1/N candidatos, ask_user + espera, cancelación, progreso, log) vivía acá
+duplicado con rekordbox_relocate.py — se extrajo a
+`relocate_core.BaseRelocateWorker` (refactor puro, sin cambio de
+comportamiento observable). `RelocateWorker` ahora solo implementa lo
+específico de Traktor: chequeo R-03, parseo/escritura del NML, encontrar
+los rotos y aplicar UNA reparación (mutar el ElementTree + sync de
+PLAYLISTS). `Candidate`/`RelocateRequest`/`build_basename_index`/
+`find_candidates` también se movieron a relocate_core.py (evita el import
+circular que resultaría de dejarlos acá mientras este módulo pasa a heredar
+de esa base) y se re-exportan acá tal cual, sin cambio de lógica, para no
+romper imports existentes (tests/test_traktor_relocate.py,
+rekordbox_relocate.py).
 """
 from __future__ import annotations
 
@@ -30,17 +44,34 @@ import os
 import platform
 import shutil
 import subprocess
-import threading
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from difflib import SequenceMatcher
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from PyQt6.QtCore import QThread, pyqtSignal
-
+from relocate_core import (
+    BaseRelocateWorker,
+    Candidate,
+    RelocateRequest,
+    build_basename_index,
+    find_candidates,
+)
 from traktor_db import _location_to_key, _location_to_path, path_to_location
+
+__all__ = [
+    "BrokenTrack",
+    "Candidate",
+    "RelocateRequest",
+    "RelocateWorker",
+    "apply_relocation",
+    "backup_collection",
+    "build_basename_index",
+    "build_reverse_key_index",
+    "find_broken_entries",
+    "find_candidates",
+    "is_traktor_running",
+    "write_atomic",
+]
 
 _BACKUP_DIR_NAME = "listBuddy_backups"
 _BACKUP_RETENTION = 10
@@ -60,23 +91,6 @@ class BrokenTrack:
     artist: str
     original_key: str
     original_path: Path
-
-
-@dataclass
-class Candidate:
-    """Un archivo candidato para reparar un BrokenTrack."""
-    path: Path
-    size: int
-    matched_title: str | None
-    matched_artist: str | None
-    score: float
-
-
-@dataclass
-class RelocateRequest:
-    """Payload de RelocateWorker.ask_user — contrato del modal (ADR-001)."""
-    broken: BrokenTrack
-    candidates: list[Candidate] = field(default_factory=list)
 
 
 # ─────────────────────────────────────────────── R-03: proceso ───────────
@@ -148,117 +162,6 @@ def find_broken_entries(collection_el: ET.Element) -> list[tuple[ET.Element, Bro
             ),
         ))
     return broken
-
-
-# ─────────────────────────────────────────────── Disk index ──────────────
-
-_INDEX_PROGRESS_EVERY = 250  # T-007: cada cuántos archivos se reporta avance
-
-
-def build_basename_index(
-    search_root: Path,
-    should_stop: Callable[[], bool] | None = None,
-    on_progress: Callable[[int], None] | None = None,
-    progress_every: int = _INDEX_PROGRESS_EVERY,
-) -> dict[str, list[Path]]:
-    """
-    Índice {basename.lower(): [paths]} construido UNA sola vez por corrida
-    (evita re-escanear disco por pista; un scan completo es caro en
-    discos USB/red). Salta la carpeta de backups propia para no ofrecerla
-    como candidato.
-
-    T-007: el `os.walk` puede ser la fase más larga de un relocate (disco/
-    carpeta con muchos archivos) y antes no era cancelable ni mostraba
-    avance durante el recorrido. `should_stop` (ej. `worker.isInterruptionRequested`)
-    se chequea por carpeta visitada y cada `progress_every` archivos, para
-    cortar pronto sin esperar a que termine todo el walk. `on_progress` (ej.
-    `worker.progress.emit`) se invoca con la cantidad de archivos indexados
-    hasta el momento, cada `progress_every` archivos. Queda desacoplado de
-    QThread a propósito (recibe callables, no una referencia al worker) para
-    seguir siendo testeable sin Qt.
-    """
-    index: dict[str, list[Path]] = {}
-
-    def _on_error(_exc: OSError) -> None:
-        pass  # directorios sin permiso: se ignoran, no abortan el índice
-
-    count = 0
-    for root, dirs, files in os.walk(search_root, onerror=_on_error):
-        if should_stop is not None and should_stop():
-            break
-        dirs[:] = [d for d in dirs if d != _BACKUP_DIR_NAME]
-        for name in files:
-            index.setdefault(name.lower(), []).append(Path(root) / name)
-            count += 1
-            if count % progress_every == 0:
-                if on_progress is not None:
-                    on_progress(count)
-                if should_stop is not None and should_stop():
-                    return index
-    return index
-
-
-# ─────────────────────────────────────────────── Matching ────────────────
-
-def _guess_title_artist(stem: str) -> tuple[str | None, str | None]:
-    """
-    Best-effort: intenta partir 'Artist - Title' (convención de nombre que
-    esta misma app usa al exportar, ver worker.py::_safe_filename). Solo se
-    usa para anotar/rankear candidatos en el modal — nunca decide sola.
-    """
-    parts = stem.split(" - ", 1)
-    if len(parts) == 2:
-        return parts[1].strip() or None, parts[0].strip() or None
-    return None, None
-
-
-def _sim(a: str | None, b: str | None) -> float:
-    if not a or not b:
-        return 0.0
-    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
-
-
-def _fuzzy_score(
-    track: BrokenTrack,
-    path: Path,
-    matched_title: str | None,
-    matched_artist: str | None,
-) -> float:
-    expected = f"{track.artist} - {track.title}".strip(" -")
-    scores = [_sim(path.stem, expected)]
-    if matched_title:
-        scores.append(_sim(matched_title, track.title))
-    if matched_artist:
-        scores.append(_sim(matched_artist, track.artist))
-    return max(scores) if scores else 0.0
-
-
-def find_candidates(
-    track: BrokenTrack,
-    index: dict[str, list[Path]],
-) -> list[Candidate]:
-    """
-    Matching primario: nombre de archivo EXACTO (case-insensitive), contra
-    el índice ya construido. El fuzzy por título/artista NO decide — solo
-    rankea los candidatos que ya matchearon por nombre exacto (ADR-001,
-    punto 3): 0 matches = sin resolver, 1 = se aplica, >1 = modal.
-    """
-    key = track.original_path.name.lower()
-    paths = index.get(key, [])
-    candidates: list[Candidate] = []
-    for p in paths:
-        try:
-            size = p.stat().st_size
-        except OSError:
-            size = 0
-        m_title, m_artist = _guess_title_artist(p.stem)
-        score = _fuzzy_score(track, p, m_title, m_artist)
-        candidates.append(Candidate(
-            path=p, size=size,
-            matched_title=m_title, matched_artist=m_artist, score=score,
-        ))
-    candidates.sort(key=lambda c: c.score, reverse=True)
-    return candidates
 
 
 # ─────────────────────────────────────────────── Sync PLAYLISTS ──────────
@@ -366,31 +269,35 @@ def write_atomic(tree: ET.ElementTree, nml_path: Path) -> None:
 
 # ─────────────────────────────────────────────── QThread worker ──────────
 
-class RelocateWorker(QThread):
-    log         = pyqtSignal(str)
-    progress    = pyqtSignal(int, int)          # (hechas, total)
-    ask_user    = pyqtSignal(object)            # RelocateRequest — bloquea el worker
-    finished_ok = pyqtSignal(int, int, int, str)  # (reparadas, salteadas, sin_match, status)
-    # status: "ok" | "cancelled" | "error"
-
+class RelocateWorker(BaseRelocateWorker):
     def __init__(
         self, nml_path: Path, search_root: Path, auto_resolve: bool = False,
     ) -> None:
-        super().__init__()
+        super().__init__(search_root, auto_resolve=auto_resolve)
         self._nml_path = nml_path
-        self._search_root = search_root
-        self._auto_resolve = auto_resolve
-        self._answer_event = threading.Event()
-        self._answer: Path | None = None
+        self._key_index: dict[str, list[ET.Element]] = {}
 
-    def provide_answer(self, choice: Path | None) -> None:
-        """
-        Slot llamado desde el hilo de UI con la decisión del modal.
-        `choice` es un Path elegido, o None = SKIP (ADR-001, contrato del
-        modal: sin default silencioso; cerrar el modal sin elegir = SKIP).
-        """
-        self._answer = choice
-        self._answer_event.set()
+    # ── Hooks de relocate_core.BaseRelocateWorker ──────────────────────
+
+    def _broken_scope_noun(self) -> str:
+        return "colección"
+
+    def _write_target_name(self) -> str:
+        return "NML"
+
+    def _engine_name(self) -> str:
+        return "Traktor"
+
+    def _label_for(self, broken_track: BrokenTrack) -> str:
+        return broken_track.title or broken_track.original_path.name
+
+    def _apply_one(
+        self, raw_entry: ET.Element, broken_track: BrokenTrack, chosen: Path,
+    ) -> bool:
+        # Sync de PLAYLISTS (Fase B, ADR-001 punto 4) — específico de
+        # Traktor, no tiene equivalente en Rekordbox (liga por Content.ID).
+        apply_relocation(raw_entry, chosen, self._key_index)
+        return True
 
     def run(self) -> None:
         # R-03: chequeo de proceso en el hilo del worker, no en el de UI —
@@ -426,73 +333,14 @@ class RelocateWorker(QThread):
             return
 
         broken = find_broken_entries(collection_el)
-        total = len(broken)
-        self.log.emit(f"🔍  {total} enlace(s) roto(s) en la colección.")
-        if total == 0:
-            self.finished_ok.emit(0, 0, 0, "ok")
-            return
-
-        self.log.emit(f"📂  Indexando archivos en: {self._search_root}")
-        index = build_basename_index(
-            self._search_root,
-            should_stop=self.isInterruptionRequested,
-            # T-007: sin total conocido de antemano (recién se sabe al
-            # terminar el walk) — total=0 pone la barra de progreso en modo
-            # indeterminado (Qt: min==max) en vez de mostrar un % falso.
-            on_progress=lambda n: self.progress.emit(n, 0),
+        self._key_index = (
+            build_reverse_key_index(playlists_el) if playlists_el is not None else {}
         )
-        if self.isInterruptionRequested():
-            self.log.emit("\n⏹  Relocate cancelado — NML intacto, nada se escribió.")
-            self.finished_ok.emit(0, 0, 0, "cancelled")
+
+        result = self._run_resolution(broken)
+        if result is None:
             return
-        indexed_count = sum(len(v) for v in index.values())
-        self.log.emit(f"   {indexed_count} archivo(s) indexado(s).")
-
-        key_index = build_reverse_key_index(playlists_el) if playlists_el is not None else {}
-
-        repaired = skipped = unresolved = 0
-        for i, (entry, broken_track) in enumerate(broken, start=1):
-            if self.isInterruptionRequested():
-                self.log.emit("\n⏹  Relocate cancelado — NML intacto, nada se escribió.")
-                self.finished_ok.emit(repaired, skipped, unresolved, "cancelled")
-                return
-
-            self.progress.emit(i, total)
-            label = broken_track.title or broken_track.original_path.name
-
-            candidates = find_candidates(broken_track, index)
-            if not candidates:
-                unresolved += 1
-                self.log.emit(f"   ✗  Sin coincidencias: {label}")
-                continue
-
-            auto_resolved = False
-            if len(candidates) == 1:
-                chosen: Path | None = candidates[0].path
-            elif self._auto_resolve:
-                # Addendum ADR-001 (2026-07-24): opt-in, checkbox OFF por
-                # default no pasa por acá. candidates[0] ya viene ordenado
-                # por _fuzzy_score descendente (find_candidates) — no es
-                # orden de carpeta al azar. Sin modal, sin ask_user_event.
-                chosen = candidates[0].path
-                auto_resolved = True
-            else:
-                self._answer_event.clear()
-                self.ask_user.emit(RelocateRequest(broken=broken_track, candidates=candidates))
-                self._answer_event.wait()
-                chosen = self._answer
-
-            if chosen is None:
-                skipped += 1
-                self.log.emit(f"   ⏭  Salteado: {label}")
-                continue
-
-            apply_relocation(entry, chosen, key_index)
-            repaired += 1
-            if auto_resolved:
-                self.log.emit(f"   ✓  Reparado (auto): {label} → {chosen}")
-            else:
-                self.log.emit(f"   ✓  Reparado: {label} → {chosen}")
+        repaired, skipped, unresolved = result.repaired, result.skipped, result.unresolved
 
         if repaired == 0:
             self.log.emit("\nSin cambios para escribir (0 reparaciones aplicadas).")
@@ -521,9 +369,4 @@ class RelocateWorker(QThread):
             self.finished_ok.emit(0, 0, 0, "error")
             return
 
-        self.log.emit(
-            f"\n✓  {repaired} reparada(s) · {skipped} salteada(s) · {unresolved} sin coincidencias."
-        )
-        _log.info("Relocate Traktor: OK · %d reparadas · %d salteadas · %d sin coincidencias",
-                  repaired, skipped, unresolved)
-        self.finished_ok.emit(repaired, skipped, unresolved, "ok")
+        self._log_final_success(repaired, skipped, unresolved)

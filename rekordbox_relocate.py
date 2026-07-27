@@ -33,33 +33,43 @@ no rediseñar):
      loguea como no resuelto y el lote sigue.
   6. Matching + modal: se reusa **tal cual** el motor de ADR-001
      (`Candidate`, `RelocateRequest`, `build_basename_index`,
-     `find_candidates` importados de traktor_relocate.py) — decisión
-     explícita de ADR-002 punto 5, no una necesidad accidental. Ambos
-     dataclasses son duck-typed (solo tocan `title`/`artist`/
-     `original_path`/`path`/`size`/`matched_title`/`matched_artist`/
-     `score`), así que el `BrokenTrack` propio de este módulo (con
-     `content_id` en vez de `original_key`) encaja sin adaptar nada.
-     Riesgo de este acoplamiento: un cambio futuro en traktor_relocate.py
-     afecta también a Rekordbox — aceptable mientras el contrato de
-     matching siga siendo el mismo (si diverge, extraer a un módulo común).
+     `find_candidates`) — decisión explícita de ADR-002 punto 5, no una
+     necesidad accidental. Ambos dataclasses son duck-typed (solo tocan
+     `title`/`artist`/`original_path`/`path`/`size`/`matched_title`/
+     `matched_artist`/`score`), así que el `BrokenTrack` propio de este
+     módulo (con `content_id` en vez de `original_key`) encaja sin adaptar
+     nada.
+
+T-017 (D-05): el orquestador del loop de resolución (indexar disco, decidir
+0/1/N candidatos, ask_user + espera, cancelación, progreso, log) vivía acá
+duplicado con traktor_relocate.py — se extrajo a
+`relocate_core.BaseRelocateWorker` (refactor puro, sin cambio de
+comportamiento observable). `RekordboxRelocateWorker` ahora solo implementa
+lo específico de Rekordbox: chequeo R-01, abrir la DB, encontrar los rotos
+y aplicar UNA reparación (`update_content_path` + guard de existencia +
+try/except de ANLZ). `Candidate`/`RelocateRequest`/`build_basename_index`/
+`find_candidates` se importan ahora de `relocate_core` (módulo neutral)
+en vez de `traktor_relocate` — resuelve el acoplamiento por nombre de
+archivo que señalaba la auditoría (engram/07_production_readiness.md,
+"Otras observaciones de arquitectura"): antes este módulo dependía de
+traktor_relocate.py por dónde vivían esas piezas, no porque fueran
+conceptualmente de Traktor.
 """
 from __future__ import annotations
 
 import logging
 import shutil
-import threading
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import QThread, pyqtSignal
-
 from pyrekordbox import Rekordbox6Database
 from pyrekordbox.utils import get_rekordbox_pid
 
 from rekordbox_export import get_artist, resolve_path
-from traktor_relocate import (
+from relocate_core import (
+    BaseRelocateWorker,
     Candidate,
     RelocateRequest,
     build_basename_index,
@@ -85,7 +95,7 @@ class BrokenTrack:
     Rekordbox) en vez de `original_key` (Rekordbox no liga playlists por
     path, así que no hay "key" que recomputar). Duck-type compatible con
     RelocateDialog (ui_components.py) y con find_candidates/RelocateRequest
-    de traktor_relocate.py: solo se leen title/artist/original_path.
+    de relocate_core.py: solo se leen title/artist/original_path.
     """
     title: str
     artist: str
@@ -201,31 +211,53 @@ def _prune_backups(backups_dir: Path, keep: int = _BACKUP_RETENTION) -> None:
 
 # ─────────────────────────────────────────────── QThread worker ──────────
 
-class RekordboxRelocateWorker(QThread):
-    log         = pyqtSignal(str)
-    progress    = pyqtSignal(int, int)          # (hechas, total)
-    ask_user    = pyqtSignal(object)            # RelocateRequest — bloquea el worker
-    finished_ok = pyqtSignal(int, int, int, str)  # (reparadas, salteadas, sin_match, status)
-    # status: "ok" | "cancelled" | "error" | "blocked"
-
+class RekordboxRelocateWorker(BaseRelocateWorker):
     def __init__(
         self, db_path: Path | None, search_root: Path, auto_resolve: bool = False,
     ) -> None:
-        super().__init__()
+        super().__init__(search_root, auto_resolve=auto_resolve)
         self._db_path = db_path
-        self._search_root = search_root
-        self._auto_resolve = auto_resolve
-        self._answer_event = threading.Event()
-        self._answer: Path | None = None
+        self._db: Rekordbox6Database | None = None
 
-    def provide_answer(self, choice: Path | None) -> None:
-        """
-        Slot llamado desde el hilo de UI con la decisión del modal.
-        `choice` es un Path elegido, o None = SKIP (mismo contrato que
-        RelocateWorker de Traktor: sin default silencioso).
-        """
-        self._answer = choice
-        self._answer_event.set()
+    # ── Hooks de relocate_core.BaseRelocateWorker ──────────────────────
+
+    def _broken_scope_noun(self) -> str:
+        return "librería"
+
+    def _write_target_name(self) -> str:
+        return "master.db"
+
+    def _engine_name(self) -> str:
+        return "Rekordbox"
+
+    def _label_for(self, broken_track: BrokenTrack) -> str:
+        return (
+            f"{broken_track.artist} - {broken_track.title}".strip(" -")
+            or broken_track.original_path.name
+        )
+
+    def _apply_one(self, content: Any, broken_track: BrokenTrack, chosen: Path) -> bool:
+        label = self._label_for(broken_track)
+
+        # ADR-002: no confiar en el `assert path.exists()` interno de
+        # check_path=True (se strippea bajo `python -O`) — guard de
+        # existencia propio antes de tocar la DB/ANLZ.
+        if not chosen.exists():
+            self.log.emit(f"   ✗  El archivo elegido ya no existe: {label} → {chosen}")
+            return False
+
+        # Por pista: try/except (ADR-002 punto 6) — ANLZ inexistente o
+        # AnalysisDataPath=None no debe abortar el lote entero.
+        assert self._db is not None
+        try:
+            self._db.update_content_path(
+                content, chosen, save=True, check_path=True, commit=False,
+            )
+        except (AttributeError, FileNotFoundError, AssertionError, OSError) as e:
+            self.log.emit(f"   ✗  Error al reparar ({type(e).__name__}): {label} → {e}")
+            return False
+
+        return True
 
     def run(self) -> None:
         # R-01: chequeo de proceso en el hilo del worker, no en el de UI —
@@ -256,99 +288,16 @@ class RekordboxRelocateWorker(QThread):
             self.finished_ok.emit(0, 0, 0, "error")
             return
 
+        self._db = db
         try:
             broken = find_broken_content(db)
-            total = len(broken)
-            self.log.emit(f"🔍  {total} enlace(s) roto(s) en la librería.")
-            if total == 0:
-                self.finished_ok.emit(0, 0, 0, "ok")
-                return
 
-            self.log.emit(f"📂  Indexando archivos en: {self._search_root}")
-            index = build_basename_index(
-                self._search_root,
-                should_stop=self.isInterruptionRequested,
-                on_progress=lambda n: self.progress.emit(n, 0),
+            result = self._run_resolution(broken)
+            if result is None:
+                return
+            repaired, skipped, unresolved = (
+                result.repaired, result.skipped, result.unresolved,
             )
-            if self.isInterruptionRequested():
-                self.log.emit(
-                    "\n⏹  Relocate cancelado — master.db intacto, nada se escribió."
-                )
-                self.finished_ok.emit(0, 0, 0, "cancelled")
-                return
-            indexed_count = sum(len(v) for v in index.values())
-            self.log.emit(f"   {indexed_count} archivo(s) indexado(s).")
-
-            repaired = skipped = unresolved = 0
-            for i, (content, broken_track) in enumerate(broken, start=1):
-                if self.isInterruptionRequested():
-                    self.log.emit(
-                        "\n⏹  Relocate cancelado — master.db intacto, nada se escribió."
-                    )
-                    self.finished_ok.emit(repaired, skipped, unresolved, "cancelled")
-                    return
-
-                self.progress.emit(i, total)
-                label = (
-                    f"{broken_track.artist} - {broken_track.title}".strip(" -")
-                    or broken_track.original_path.name
-                )
-
-                candidates = find_candidates(broken_track, index)
-                if not candidates:
-                    unresolved += 1
-                    self.log.emit(f"   ✗  Sin coincidencias: {label}")
-                    continue
-
-                auto_resolved = False
-                if len(candidates) == 1:
-                    chosen: Path | None = candidates[0].path
-                elif self._auto_resolve:
-                    # Igual que Traktor: candidates[0] ya viene ordenado por
-                    # score descendente (find_candidates) — no es azar.
-                    chosen = candidates[0].path
-                    auto_resolved = True
-                else:
-                    self._answer_event.clear()
-                    self.ask_user.emit(
-                        RelocateRequest(broken=broken_track, candidates=candidates)
-                    )
-                    self._answer_event.wait()
-                    chosen = self._answer
-
-                if chosen is None:
-                    skipped += 1
-                    self.log.emit(f"   ⏭  Salteado: {label}")
-                    continue
-
-                # ADR-002: no confiar en el `assert path.exists()` interno de
-                # check_path=True (se strippea bajo `python -O`) — guard de
-                # existencia propio antes de tocar la DB/ANLZ.
-                if not chosen.exists():
-                    unresolved += 1
-                    self.log.emit(
-                        f"   ✗  El archivo elegido ya no existe: {label} → {chosen}"
-                    )
-                    continue
-
-                # Por pista: try/except (ADR-002 punto 6) — ANLZ inexistente
-                # o AnalysisDataPath=None no debe abortar el lote entero.
-                try:
-                    db.update_content_path(
-                        content, chosen, save=True, check_path=True, commit=False,
-                    )
-                except (AttributeError, FileNotFoundError, AssertionError, OSError) as e:
-                    unresolved += 1
-                    self.log.emit(
-                        f"   ✗  Error al reparar ({type(e).__name__}): {label} → {e}"
-                    )
-                    continue
-
-                repaired += 1
-                if auto_resolved:
-                    self.log.emit(f"   ✓  Reparado (auto): {label} → {chosen}")
-                else:
-                    self.log.emit(f"   ✓  Reparado: {label} → {chosen}")
 
             if repaired == 0:
                 self.log.emit("\nSin cambios para escribir (0 reparaciones aplicadas).")
@@ -394,13 +343,7 @@ class RekordboxRelocateWorker(QThread):
                 self.finished_ok.emit(0, 0, 0, "error")
                 return
 
-            self.log.emit(
-                f"\n✓  {repaired} reparada(s) · {skipped} salteada(s) · "
-                f"{unresolved} sin coincidencias."
-            )
-            _log.info("Relocate Rekordbox: OK · %d reparadas · %d salteadas · %d sin coincidencias",
-                      repaired, skipped, unresolved)
-            self.finished_ok.emit(repaired, skipped, unresolved, "ok")
+            self._log_final_success(repaired, skipped, unresolved)
         finally:
             try:
                 db.close()
