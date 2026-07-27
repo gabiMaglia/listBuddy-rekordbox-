@@ -15,11 +15,14 @@ No se importa ni abre Rekordbox6Database (no hay clave ni DB en el runner).
 """
 from __future__ import annotations
 
+import errno
 import os
 from pathlib import Path, PureWindowsPath
 
+import pytest
+
 import rekordbox_relocate as rr
-from rekordbox_relocate import _normalize_folder_path
+from rekordbox_relocate import _normalize_folder_path, backup_master_db
 
 
 class TestNormalizeFolderPath:
@@ -70,3 +73,50 @@ class TestPruneBackups:
         rr._prune_backups(backups)
         assert not files[0].exists()   # más viejo, borrado
         assert files[-1].exists()      # más nuevo, sobrevive
+
+
+class TestBackupInterruptedByOSError:
+    """
+    B-3 (T-018): un `OSError` a mitad de `shutil.copy2` (ej. ENOSPC — un
+    master.db real pesa decenas a cientos de MB) dejaba antes un
+    `master.TIMESTAMP.db` PARCIAL en `listBuddy_backups/`, que
+    `_prune_backups` contaba como el backup más reciente — el que el
+    usuario elegiría restaurar, perdiendo la librería entera si lo hacía.
+    """
+
+    def test_partial_backup_removed_on_copy_failure(self, tmp_path, monkeypatch):
+        db = tmp_path / "master.db"
+        original = b"FAKE-SQLCIPHER-DB" + b"\x00" * 500
+        db.write_bytes(original)
+
+        def fake_copy2(_src, dst):
+            # Simula una copia real interrumpida a mitad de camino: el
+            # archivo destino existe (parcial, truncado) al fallar.
+            Path(dst).write_bytes(b"PARTIAL-GARBAGE")
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+        monkeypatch.setattr(rr.shutil, "copy2", fake_copy2)
+
+        with pytest.raises(OSError):
+            backup_master_db(db)
+
+        backups_dir = tmp_path / rr._BACKUP_DIR_NAME
+        # (b) ningún backup parcial sobrevive en el directorio.
+        assert list(backups_dir.glob("master.*.db")) == []
+        # (a) el master.db original no se tocó.
+        assert db.read_bytes() == original
+
+    def test_insufficient_disk_space_aborts_before_copying(self, tmp_path, monkeypatch):
+        db = tmp_path / "master.db"
+        db.write_bytes(b"x" * 1000)
+
+        class _Usage:
+            free = 0
+
+        monkeypatch.setattr(rr.shutil, "disk_usage", lambda _p: _Usage())
+
+        with pytest.raises(OSError):
+            backup_master_db(db)
+
+        backups_dir = tmp_path / rr._BACKUP_DIR_NAME
+        assert not backups_dir.exists() or list(backups_dir.glob("master.*.db")) == []

@@ -15,6 +15,7 @@ sin event loop de Qt.
 """
 from __future__ import annotations
 
+import errno
 from pathlib import Path, PureWindowsPath
 from xml.etree import ElementTree as ET
 
@@ -169,6 +170,54 @@ class TestBackup:
         assert not files[0].exists()
         assert not files[1].exists()
         assert files[-1].exists()  # el más nuevo sobrevive
+
+
+class TestBackupInterruptedByOSError:
+    """
+    B-3 (T-018): un `OSError` a mitad de `shutil.copy2` (ej. ENOSPC por
+    disco lleno) dejaba antes un archivo destino PARCIAL en
+    `listBuddy_backups/`, que `_prune_backups` contaba como el backup más
+    nuevo — exactamente el que el usuario elegiría restaurar. Ahora
+    `backup_collection` borra ese destino parcial antes de re-lanzar.
+    """
+
+    def test_partial_backup_removed_on_copy_failure(self, tmp_path, monkeypatch):
+        nml = tmp_path / "collection.nml"
+        original = "<NML>" + "x" * 500 + "</NML>"
+        nml.write_text(original)
+
+        def fake_copy2(_src, dst):
+            # Simula una copia real interrumpida a mitad de camino: el
+            # archivo destino existe (parcial) en el momento de fallar.
+            Path(dst).write_text("PARTIAL-GARBAGE")
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+        monkeypatch.setattr(tr.shutil, "copy2", fake_copy2)
+
+        with pytest.raises(OSError):
+            backup_collection(nml)
+
+        backups_dir = tmp_path / tr._BACKUP_DIR_NAME
+        # (b) ningún backup parcial sobrevive en el directorio.
+        assert list(backups_dir.glob("collection.*.nml")) == []
+        # (a) la librería original no se tocó.
+        assert nml.read_text() == original
+
+    def test_insufficient_disk_space_aborts_before_copying(self, tmp_path, monkeypatch):
+        nml = tmp_path / "collection.nml"
+        nml.write_text("<NML/>")
+
+        class _Usage:
+            free = 0
+
+        monkeypatch.setattr(tr.shutil, "disk_usage", lambda _p: _Usage())
+
+        with pytest.raises(OSError):
+            backup_collection(nml)
+
+        # El chequeo de espacio debe abortar ANTES de intentar copiar nada.
+        backups_dir = tmp_path / tr._BACKUP_DIR_NAME
+        assert not backups_dir.exists() or list(backups_dir.glob("collection.*.nml")) == []
 
 
 # ─────────────────────────── escritura atómica ────────────────────────────

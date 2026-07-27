@@ -311,6 +311,11 @@ class MainWindow(QMainWindow):
         self._preview_worker: PreviewWorker | None = None
         self._relocate_worker: RelocateWorker | RekordboxRelocateWorker | None = None
         self._relocate_source: str = "rekordbox"  # fuente activa al arrancar el relocate en curso
+        # I-1: progreso conocido del relocate en curso (último valor de la
+        # signal `progress`) — usado para decidir si hace falta confirmar
+        # antes de cancelar/cerrar (¿hay trabajo ya hecho que se perdería?).
+        self._relocate_progress_done: int = 0
+        self._relocate_progress_total: int = 0
 
         # T-021 (I-8): chequeo de actualización, aviso discreto (nunca modal).
         self._update_worker: UpdateCheckWorker | None = None
@@ -1910,6 +1915,16 @@ class MainWindow(QMainWindow):
         self._rack_head.set_spectrogram(px)
 
     def closeEvent(self, event) -> None:
+        # I-1: cerrar la ventana con un relocate corriendo cancelaba sin
+        # avisar nada — mismo aviso que "Cancelar" si ya hay trabajo hecho
+        # que se perdería (nada se escribe hasta el final, ADR-001 punto 2).
+        if self._relocate_worker and self._relocate_worker.isRunning():
+            if self._relocate_progress_done > 0 and not self._confirm_relocate_interrupt(
+                "Cerrar la app"
+            ):
+                event.ignore()
+                return
+
         self._audio.stop()
         self._cancel_spectro()
         self._cancel_preview_worker()
@@ -2122,6 +2137,100 @@ class MainWindow(QMainWindow):
 
     # ──────────────────────────────── Relocate (F-07 ADR-001 / F-08 ADR-002) ───
 
+    def _relocate_target_info(self) -> tuple[str, Path | None]:
+        """
+        B-2: qué archivo se va a modificar, para mostrarlo completo en el
+        diálogo de confirmación previo. Traktor siempre lo sabe (`self._db`
+        ya está cargado — se valida arriba en `_start_relocate`). Rekordbox
+        puede estar en modo autodetección (`self._rb_db_path` vacío): se
+        intenta resolver la ruta por defecto vía `pyrekordbox.config`
+        (lectura liviana de `options.json`, no abre la DB SQLCipher) solo
+        para mostrarla; si falla, se muestra un texto descriptivo en vez de
+        una ruta. Devuelve (nombre_de_archivo, ruta_o_None).
+        """
+        if self._source == "traktor":
+            path = Path(self._db.path) if self._db is not None else None
+            return "collection.nml", path
+        if self._rb_db_path:
+            return "master.db", Path(self._rb_db_path)
+        try:
+            from pyrekordbox.config import get_config
+            return "master.db", Path(get_config("rekordbox6", "db_path"))
+        except Exception:
+            return "master.db", None
+
+    def _confirm_relocate_start(self, search_root: str, auto_resolve: bool) -> bool:
+        """
+        B-2: diálogo de confirmación previo a arrancar el relocate — hoy el
+        flujo iba directo de "elegir carpeta" a "arrancar y escribe" (cero
+        confirmaciones en toda la app, incumple ADR-001 punto 3). Informa
+        (a) qué archivo se va a modificar, (b) que hay backup automático y
+        dónde queda, (c) que hay que tener la app de origen cerrada.
+        I-5: si "Resolver automáticamente" está tildado, suma una línea de
+        advertencia específica — un click de distancia de miles de
+        reescrituras silenciosas merece su propia confirmación explícita.
+        """
+        app_name = "Traktor" if self._source == "traktor" else "Rekordbox"
+        target_name, target_path = self._relocate_target_info()
+        target_display = str(target_path) if target_path else (
+            f"{target_name} (ubicación autodetectada de {app_name})"
+        )
+        backups_display = (
+            str(target_path.parent / "listBuddy_backups") if target_path
+            else f"la carpeta 'listBuddy_backups' junto a tu {target_name}"
+        )
+
+        lines = [
+            f"Esto va a modificar el archivo de tu librería de {app_name}:",
+            target_display,
+            "",
+            "Se crea un backup automático antes de escribir, en:",
+            backups_display,
+            "",
+            f"Cerrá {app_name} antes de continuar — si sigue abierto, la "
+            "reparación se cancela sin escribir nada.",
+        ]
+        if auto_resolve:
+            lines += [
+                "",
+                "⚠ Tenés activado \"Resolver automáticamente…\": vas a aplicar "
+                "la mejor coincidencia en todas las pistas con más de un "
+                "candidato, sin preguntar una por una.",
+            ]
+        lines += ["", "¿Continuar?"]
+
+        resp = QMessageBox.question(
+            self, f"Reparar enlaces rotos — {app_name}",
+            "\n".join(lines),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return resp == QMessageBox.StandardButton.Yes
+
+    def _confirm_relocate_interrupt(self, action_label: str) -> bool:
+        """
+        I-1: confirma antes de perder trabajo ya hecho en un relocate en
+        curso. Diseño actual (ADR-001 punto 2): nada se escribe hasta el
+        final — correcto para atomicidad, pero con auto-resolución OFF (el
+        default) y muchos links rotos el usuario puede pasar mucho tiempo
+        respondiendo modales de desambiguación antes de tocar "Cancelar" o
+        cerrar la ventana, y hoy eso tiraba todo sin avisar. Se llama solo
+        cuando ya hay progreso (`_relocate_progress_done > 0`) — cancelar
+        antes de que arranque nada no necesita confirmación.
+        """
+        done = self._relocate_progress_done
+        total = self._relocate_progress_total
+        resp = QMessageBox.question(
+            self, "¿Perder el trabajo hecho?",
+            f"Ya se revisaron {done} de {total or done} enlace(s) roto(s) "
+            "en esta sesión. Nada se guarda hasta el final: si continuás, "
+            "se pierden todas las decisiones ya tomadas y vas a tener que "
+            f"volver a repasarlas.\n\n{action_label} de todos modos?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return resp == QMessageBox.StandardButton.Yes
+
     def _start_relocate(self) -> None:
         if self._source == "traktor" and self._db is None:
             QMessageBox.warning(
@@ -2149,6 +2258,10 @@ class MainWindow(QMainWindow):
         if not search_root:
             return
 
+        auto_resolve = self.relocate_auto_chk.isChecked()
+        if not self._confirm_relocate_start(search_root, auto_resolve):
+            return
+
         # T-007: cambiar botón a modo Cancelar (mismo patrón que export_btn).
         self.relocate_btn.setText("✕  Cancelar")
         self.relocate_btn.clicked.disconnect()
@@ -2172,7 +2285,8 @@ class MainWindow(QMainWindow):
         # referirse a la app que efectivamente se chequeó, no a la que esté
         # seleccionada en ese momento.
         self._relocate_source = self._source
-        auto_resolve = self.relocate_auto_chk.isChecked()
+        self._relocate_progress_done = 0
+        self._relocate_progress_total = 0
 
         if self._source == "traktor":
             self._log(f"→ NML: {self._db.path}")
@@ -2187,9 +2301,17 @@ class MainWindow(QMainWindow):
             )
         self._relocate_worker.log.connect(self._log)
         self._relocate_worker.progress.connect(self._on_progress)
+        self._relocate_worker.progress.connect(self._on_relocate_progress_track)
         self._relocate_worker.ask_user.connect(self._on_relocate_ask)
         self._relocate_worker.finished_ok.connect(self._on_relocate_finished)
         self._relocate_worker.start()
+
+    def _on_relocate_progress_track(self, done: int, total: int) -> None:
+        """I-1: registra el último progreso conocido del relocate en curso
+        (independiente de `_on_progress`, que solo actualiza la barra) para
+        poder avisar antes de tirarlo si el usuario cancela o cierra."""
+        self._relocate_progress_done = done
+        self._relocate_progress_total = total
 
     def _on_relocate_ask(self, request) -> None:
         """
@@ -2204,14 +2326,27 @@ class MainWindow(QMainWindow):
             self._relocate_worker.provide_answer(dlg.chosen_path)
 
     def _cancel_relocate(self) -> None:
-        if self._relocate_worker and self._relocate_worker.isRunning():
-            self.relocate_btn.setText("Cancelando…")
-            self.relocate_btn.setEnabled(False)
-            self._relocate_worker.requestInterruption()
+        if not (self._relocate_worker and self._relocate_worker.isRunning()):
+            return
+        # I-1: avisar antes de tirar el trabajo ya hecho — solo si ya hay
+        # progreso (cancelar apenas arrancó, sin nada que perder, no necesita
+        # confirmación).
+        if self._relocate_progress_done > 0 and not self._confirm_relocate_interrupt(
+            "Cancelar la reparación"
+        ):
+            return
+        self.relocate_btn.setText("Cancelando…")
+        self.relocate_btn.setEnabled(False)
+        self._relocate_worker.requestInterruption()
 
     def _on_relocate_finished(
         self, repaired: int, skipped: int, unresolved: int, status: str
     ) -> None:
+        # I-1: ya terminó (ok/cancelled/error/blocked) — no queda nada que
+        # perder, resetear el tracker de progreso para la próxima corrida.
+        self._relocate_progress_done = 0
+        self._relocate_progress_total = 0
+
         # ── Resetear botón (mismo patrón que _on_finished/export_btn) ──────
         self.relocate_btn.setText("🔧  Reparar enlaces rotos…")
         try:

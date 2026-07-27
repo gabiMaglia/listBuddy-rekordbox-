@@ -73,6 +73,7 @@ from relocate_core import (
     Candidate,
     RelocateRequest,
     build_basename_index,
+    check_disk_space_for_backup,
     find_candidates,
 )
 
@@ -186,12 +187,25 @@ def backup_master_db(master_db_path: Path) -> Path:
     porque el .db cifrado pesa mucho más que un NML) y poda el resto. Si
     falla (permisos, disco lleno) propaga OSError — el llamador debe
     abortar sin escribir.
+
+    B-3 (T-018): chequea espacio libre ANTES de copiar
+    (`check_disk_space_for_backup`) y, si `shutil.copy2` falla a mitad de
+    camino (ej. `ENOSPC` con un master.db de cientos de MB), borra el
+    destino parcial antes de re-lanzar — un backup truncado NO puede
+    quedar en `listBuddy_backups/` haciéndose pasar por el más reciente
+    (`_prune_backups` lo contaría como válido, y sería el que el usuario
+    elegiría para restaurar).
     """
+    check_disk_space_for_backup(master_db_path)
     backups_dir = master_db_path.parent / _BACKUP_DIR_NAME
     backups_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     dest = backups_dir / f"master.{ts}.db"
-    shutil.copy2(master_db_path, dest)
+    try:
+        shutil.copy2(master_db_path, dest)
+    except OSError:
+        dest.unlink(missing_ok=True)
+        raise
     _prune_backups(backups_dir)
     return dest
 
@@ -236,6 +250,23 @@ class RekordboxRelocateWorker(BaseRelocateWorker):
             or broken_track.original_path.name
         )
 
+    def _cancel_extra_note(self, repaired: int) -> str:
+        # I-6: "master.db intacto, nada se escribió" (mensaje base heredado
+        # de relocate_core.BaseRelocateWorker) es cierto para la DB — pero
+        # NO para todo lo que toca esta sesión. `update_content_path(...,
+        # save=True)` ya escribió a disco los ANLZ de cada pista reparada
+        # ANTES del commit final (ADR-002 punto 3), y el commit nunca llega
+        # a correr si se cancela. El texto no puede prometer más de lo que
+        # es cierto.
+        if repaired == 0:
+            return ""
+        return (
+            f"Ojo: los archivos de análisis (ANLZ) de {repaired} pista(s) ya "
+            "procesada(s) antes de cancelar SÍ se escribieron a disco (no "
+            "afecta tus playlists ni el resto de tu librería; Rekordbox "
+            "puede regenerarlos re-analizando esas pistas)."
+        )
+
     def _apply_one(self, content: Any, broken_track: BrokenTrack, chosen: Path) -> bool:
         label = self._label_for(broken_track)
 
@@ -254,7 +285,18 @@ class RekordboxRelocateWorker(BaseRelocateWorker):
                 content, chosen, save=True, check_path=True, commit=False,
             )
         except (AttributeError, FileNotFoundError, AssertionError, OSError) as e:
-            self.log.emit(f"   ✗  Error al reparar ({type(e).__name__}): {label} → {e}")
+            # I-6: nada de nombre de clase de excepción de Python ni texto
+            # crudo en pantalla (acá salía literal "AttributeError: 'NoneType'
+            # object has no attribute 'strip'"). El detalle completo, con el
+            # content_id para poder correlacionar, va SOLO al log de archivo.
+            self.log.emit(
+                f"   ✗  No se pudo reparar (archivo de análisis inaccesible "
+                f"o pista nunca analizada): {label}"
+            )
+            _log.error(
+                "Relocate Rekordbox: fallo al reparar content_id=%s (%s): %s",
+                broken_track.content_id, type(e).__name__, e, exc_info=True,
+            )
             return False
 
         return True
@@ -280,8 +322,13 @@ class RekordboxRelocateWorker(BaseRelocateWorker):
                 if self._db_path else Rekordbox6Database()
             )
         except Exception as e:
+            # I-6: mensaje genérico en pantalla; el detalle técnico completo
+            # (puede ser cualquier excepción de pyrekordbox/SQLCipher) va
+            # solo al log de archivo.
             self.log.emit(
-                f"✗  No se pudo abrir la base de datos de Rekordbox.\n   Detalle: {e}"
+                "✗  No se pudo abrir la base de datos de Rekordbox — puede "
+                "estar dañada, en un formato inesperado, o la clave de "
+                "desencriptado no está disponible."
             )
             _log.error("Relocate Rekordbox: no se pudo abrir master.db (%s): %s",
                        self._db_path or "(autodetect)", e, exc_info=True)
@@ -304,6 +351,30 @@ class RekordboxRelocateWorker(BaseRelocateWorker):
                 self.finished_ok.emit(repaired, skipped, unresolved, "ok")
                 return
 
+            # I-4: re-chequear que Rekordbox siga cerrado JUSTO ANTES de
+            # escribir. El chequeo de arriba corrió al principio de run() —
+            # entre eso y este punto puede haber pasado el indexado de disco
+            # entero más minutos/horas de modales de desambiguación
+            # (auto_resolve=False es el default). `db.commit()` ya repite
+            # este chequeo (backstop, R-01), pero recién en el commit final,
+            # DESPUÉS de que los ANLZ de este lote ya se escribieron a disco
+            # — re-chequear acá, antes del backup, es la primera línea de
+            # defensa real. Mismo mensaje/status "blocked" que el chequeo
+            # inicial — se aborta SIN backupear ni comitear.
+            if is_rekordbox_running():
+                self.log.emit(
+                    "✗  Rekordbox está abierto. Cerralo antes de reparar enlaces: "
+                    "la base de datos queda bloqueada a nivel de sistema operativo "
+                    "mientras el programa está corriendo."
+                )
+                _log.warning(
+                    "Relocate Rekordbox: bloqueado en el re-chequeo previo a "
+                    "escribir (R-01) — %d reparación(es) sin comitear.", repaired,
+                )
+                db.rollback()
+                self.finished_ok.emit(0, 0, 0, "blocked")
+                return
+
             # Backup ANTES del único commit de la sesión (ADR-002 punto 1).
             # `update_content_path(commit=False)` no toca master.db en disco
             # todavía — el archivo solo cambia en el `db.commit()` de abajo,
@@ -318,8 +389,11 @@ class RekordboxRelocateWorker(BaseRelocateWorker):
                 self.log.emit(f"💾  Backup creado: {backup_path}")
                 _log.info("Relocate Rekordbox: backup creado en %s", backup_path)
             except OSError as e:
+                # I-6: mensaje genérico en pantalla; puede ser un OSError de
+                # disco lleno tipo "[Errno 28] No space left on device: ...".
                 self.log.emit(
-                    f"✗  No se pudo crear el backup — abortando sin escribir.\n   Detalle: {e}"
+                    "✗  No se pudo crear el backup — abortando sin escribir. "
+                    "Puede ser falta de espacio en disco o de permisos sobre la carpeta."
                 )
                 _log.error("Relocate Rekordbox: backup FALLÓ (%s) — rollback, sin escribir: %s",
                            master_db_path, e, exc_info=True)
@@ -335,8 +409,13 @@ class RekordboxRelocateWorker(BaseRelocateWorker):
                 db.commit()
             except Exception as e:
                 db.rollback()
+                # I-6: mensaje genérico en pantalla; el rollback ya garantiza
+                # que la base de datos no quedó modificada (los ANLZ de este
+                # lote sí se escribieron antes del commit — riesgo residual
+                # 1 de ADR-002, ya aceptado, no se promete su reversión acá).
                 self.log.emit(
-                    f"✗  Error al escribir la base de datos — rollback aplicado.\n   Detalle: {e}"
+                    "✗  No se pudo escribir la base de datos — se revirtieron "
+                    "los cambios (rollback). master.db no quedó modificado."
                 )
                 _log.error("Relocate Rekordbox: commit FALLÓ — rollback aplicado: %s",
                            e, exc_info=True)
