@@ -397,3 +397,108 @@ class TestApplyRelocationSync:
         entry = ET.fromstring('<ENTRY TITLE="x"/>')
         with pytest.raises(ValueError):
             apply_relocation(entry, PureWindowsPath(r"D:\a\b.mp3"), {})
+
+
+# ─────── aliasing del índice inverso (T-022, hallazgo adversarial #6 ──────
+#
+# engram/07_production_readiness.md: "build_reverse_key_index se construye
+# UNA vez antes del loop y apply_relocation nunca lo actualiza. Si la pista
+# A se repara hacia la ubicación que la pista B ocupa hoy, y B se procesa
+# después, los PRIMARYKEY que A acaba de reescribir vuelven a reescribirse
+# al reparar B — dejando huérfanas las referencias de A."
+#
+# Investigación (antes de escribir el test): ¿cuándo puede pasar esto en la
+# práctica? `key_index` mapea old_key (string) -> [PRIMARYKEY elements],
+# construido una sola vez. `apply_relocation` recomputa `old_key` EN VIVO
+# desde el LOCATION actual de cada ENTRY al momento de llamarla (no reusa
+# un valor cacheado), así que dos ENTRY con old_key *distinto* nunca pisan
+# el bucket del otro — cada string vive en su propio bucket para siempre.
+# La lectura literal del reporte ("A se repara hacia la ubicación que B
+# ocupa hoy") sería imposible si B estuviera genuinamente roto: para que el
+# candidato de A coincida con la ruta de B, esa ruta tendría que EXISTIR en
+# disco (build_basename_index solo indexa archivos reales) — pero si existe,
+# `find_broken_entries` no habría marcado a B como roto en primer lugar
+# (`Path.exists()` daría True). Ese caso literal se autocontradice.
+#
+# El escenario EQUIVALENTE real (mencionado explícitamente como alternativa
+# válida en el ticket) sí es alcanzable: DOS ENTRY de COLLECTION con el
+# MISMO LOCATION original (mismo old_key) — nada en el NML ni en nuestro
+# parser lo impide, y colecciones de Traktor fusionadas/duplicadas por
+# import repetido son conocidas por tener ENTRY duplicadas apuntando al
+# mismo archivo (que luego se rompe para ambas a la vez si ese archivo se
+# borra/mueve). En ese caso, `key_index[old_key]` es UN SOLO bucket
+# compartido por PRIMARYKEY de ambas pistas — indistinguibles entre sí,
+# porque PRIMARYKEY solo guarda un KEY, no un ID de ENTRY. Confirmado con
+# el test de abajo: SIN el fix, procesar A y después B sobre ese bucket
+# compartido reescribe DOS VECES los mismos PRIMARYKEY, y la segunda
+# reescritura (la de B) pisa la de A — las referencias de playlist que A
+# acababa de arreglar terminan apuntando al archivo de B, no al de A.
+# CONFIRMADO: es un bug real, no solo teórico (ver test_reproduces_bug_*).
+class TestApplyRelocationAliasing:
+    _NML_SHARED_KEY = """<?xml version="1.0" encoding="UTF-8"?>
+<NML>
+  <COLLECTION ENTRIES="2">
+    <ENTRY TITLE="Song A" ARTIST="Artist A">
+      <LOCATION VOLUME="I:" DIR="/:old/:" FILE="dup.mp3"/>
+    </ENTRY>
+    <ENTRY TITLE="Song B" ARTIST="Artist B">
+      <LOCATION VOLUME="I:" DIR="/:old/:" FILE="dup.mp3"/>
+    </ENTRY>
+  </COLLECTION>
+  <PLAYLISTS>
+    <NODE TYPE="FOLDER" NAME="$ROOT">
+      <SUBNODES>
+        <NODE TYPE="PLAYLIST" NAME="Set A">
+          <PLAYLIST ENTRIES="1">
+            <ENTRY><PRIMARYKEY TYPE="TRACK" KEY="I:/:old/:dup.mp3"/></ENTRY>
+          </PLAYLIST>
+        </NODE>
+        <NODE TYPE="PLAYLIST" NAME="Set B">
+          <PLAYLIST ENTRIES="1">
+            <ENTRY><PRIMARYKEY TYPE="TRACK" KEY="I:/:old/:dup.mp3"/></ENTRY>
+          </PLAYLIST>
+        </NODE>
+      </SUBNODES>
+    </NODE>
+  </PLAYLISTS>
+</NML>
+"""
+
+    def _tree(self):
+        return ET.ElementTree(ET.fromstring(self._NML_SHARED_KEY))
+
+    def test_two_entries_sharing_original_key_do_not_clobber_each_other(self):
+        tree = self._tree()
+        root = tree.getroot()
+        entry_a, entry_b = root.find("COLLECTION").findall("ENTRY")
+        key_index = build_reverse_key_index(root.find("PLAYLISTS"))
+
+        # A se procesa primero (orden del loop en _run_resolution), B
+        # después — igual que el escenario del reporte.
+        new_key_a = apply_relocation(entry_a, PureWindowsPath(r"D:\fixed\songA.mp3"), key_index)
+        new_key_b = apply_relocation(entry_b, PureWindowsPath(r"E:\fixed\songB.mp3"), key_index)
+
+        assert new_key_a != new_key_b  # sanity: cada una fue a un archivo distinto
+
+        keys_after = [pk.get("KEY") for pk in root.find("PLAYLISTS").iter("PRIMARYKEY")]
+
+        # Invariante que el fix garantiza: una vez que un bucket de
+        # key_index fue consumido (las PRIMARYKEY que tenía se reescribieron
+        # a un new_key válido), procesar una ENTRY DISTINTA que comparte el
+        # mismo old_key original NO debe volver a tocar esas mismas
+        # PRIMARYKEY — si no, se pierde el trabajo que A ya hizo bien.
+        # Sin el fix (key_index.get sin consumir el bucket), ambas
+        # PRIMARYKEY terminan con new_key_b (la reescritura de A queda
+        # pisada) — huérfano exacto que describe el reporte.
+        assert keys_after == [new_key_a, new_key_a]
+        assert new_key_b not in keys_after  # ninguna referencia de B sobrevive huérfana de A
+
+        # La propia ENTRY de B en COLLECTION sí quedó reparada (su LOCATION
+        # apunta al archivo correcto) aunque ninguna playlist la referencie
+        # ya — es la limitación inherente de una librería con dos ENTRY
+        # duplicadas que comparten LOCATION: PRIMARYKEY no puede distinguir
+        # cuál de las dos "es" cada referencia, así que como máximo UNA de
+        # las dos puede quedarse con las referencias de playlist correctas.
+        # Lo que el fix garantiza es que sea determinístico (la primera
+        # procesada gana) y que no haya doble reescritura silenciosa.
+        assert entry_b.find("LOCATION").get("FILE") == "songB.mp3"

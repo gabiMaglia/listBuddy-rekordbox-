@@ -203,6 +203,18 @@ def build_reverse_key_index(playlists_el: ET.Element) -> dict[str, list[ET.Eleme
     Índice inverso old_key -> [elementos PRIMARYKEY], construido UNA sola
     vez antes de aplicar el lote (ADR-001, punto 4): una pista puede estar
     en varias playlists, cada reparación se vuelve O(1) sobre sus refs.
+
+    T-022 (hallazgo adversarial, engram/07_production_readiness.md): este
+    dict se queda desactualizado a mitad del loop si dos ENTRY DISTINTAS de
+    COLLECTION comparten el mismo LOCATION original (mismo old_key) — pasa
+    en librerías fusionadas/duplicadas por reimportación. `apply_relocation`
+    CONSUME (`dict.pop`) el bucket de cada old_key al usarlo en vez de solo
+    leerlo (`dict.get`), así que si una segunda ENTRY con el mismo old_key
+    se procesa después, encuentra el bucket ya vacío en vez de volver a
+    reescribir (y pisar) las PRIMARYKEY que la primera ENTRY ya dejó
+    apuntando a su archivo correcto. Confirmado con un test que el bug era
+    real antes de este fix — ver
+    tests/test_traktor_relocate.py::TestApplyRelocationAliasing.
     """
     index: dict[str, list[ET.Element]] = {}
     for pk in playlists_el.iter("PRIMARYKEY"):
@@ -224,6 +236,12 @@ def apply_relocation(
                           old_key (FILE puede cambiar de basename; new_key
                           se recomputa entero, no se asume estable).
     Devuelve el new_key aplicado.
+
+    T-022: `key_index.pop(old_key, [])` en vez de `.get` — CONSUME el
+    bucket al usarlo (ver docstring de `build_reverse_key_index`). Evita que
+    una segunda ENTRY que comparta el mismo old_key (LOCATION original
+    duplicado entre dos pistas) vuelva a reescribir las mismas PRIMARYKEY
+    y pise la reparación que la primera ENTRY ya aplicó correctamente.
     """
     loc = entry.find("LOCATION")
     if loc is None:
@@ -238,7 +256,7 @@ def apply_relocation(
     loc.set("FILE", file_attr)
     new_key = _location_to_key(volume, dir_attr, file_attr)
 
-    for pk in key_index.get(old_key, []):
+    for pk in key_index.pop(old_key, []):
         pk.set("KEY", new_key)
 
     return new_key
