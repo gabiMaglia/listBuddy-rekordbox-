@@ -167,15 +167,29 @@ def _location_to_path(volume: str, dir_attr: str, file_attr: str) -> Path:
     the track actually lives on (T-004: bug confirmed in production with a
     real NML — tracks on I: showed as broken when the app ran from C:).
 
-    macOS/POSIX VOLUME is a disk label ("Macintosh HD", or an external
-    volume name), which is not a path prefix Python can resolve directly.
-    We leave that path unprefixed, matching prior (pre-fix) behavior —
-    this fix is scoped to the confirmed Windows regression only.
+    macOS/POSIX VOLUME is a disk label, and it matters in exactly one case:
+    an EXTERNAL disk, which macOS mounts at `/Volumes/<Name>`. Traktor
+    stores DIR relative to that mountpoint (see `path_to_location`'s POSIX
+    branch), so dropping VOLUME resolves the track against the boot disk's
+    root instead — the file is never found and a perfectly healthy track is
+    reported as broken, before AND after a successful relocate (T-027:
+    confirmed with the PO's live NML — `/Volumes/MUSIC/quilombo/...` was
+    decoded as `/quilombo/...`). This is the macOS twin of the Windows
+    drive-letter bug in T-004; the original fix was scoped to Windows only.
+
+    The boot volume is deliberately NOT prefixed: its DIR is already
+    absolute from `/`, and its label is not a path component.
     """
-    rel = Path(dir_attr.replace("/:", "/")) / file_attr
+    rel_dir = dir_attr.replace("/:", "/")
     if volume and _WINDOWS_DRIVE_RE.match(volume):
-        return Path(volume + dir_attr.replace("/:", "/")) / file_attr
-    return rel
+        return Path(volume + rel_dir) / file_attr
+    if (
+        volume
+        and platform.system() == "Darwin"
+        and volume != _boot_volume_name()
+    ):
+        return Path("/Volumes") / volume / rel_dir.lstrip("/") / file_attr
+    return Path(rel_dir) / file_attr
 
 
 @functools.lru_cache(maxsize=1)
