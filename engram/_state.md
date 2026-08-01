@@ -1,11 +1,14 @@
-# STATE — listBuddy · actualizado: 2026-07-27 (noche)
+# STATE — listBuddy · actualizado: 2026-08-01
 
 **Sprint:** 0 — Alta del proyecto + producción
-**Rama activa:** main (todo mergeado y pusheado a origin/main, commit 450c902)
-**En curso:** Auditoría de production-readiness (engram/07_production_readiness.md) ejecutada casi por completo en Windows: T-017 (refactor D-05, base compartida `relocate_core.py`), T-018 (confirmación previa a escribir + backup a prueba de disco lleno + re-chequeos de seguridad + mensajes de error legibles), T-019 (botón restaurar backup), T-020 (cancelación/progreso en detección de rotos), T-021 (chequeo de actualización), D-08 (layout de botones), y T-022 (aliasing en el índice inverso de Traktor — confirmado como bug real y arreglado). Todo verificado en vivo con clicks reales por el Orquestador, no solo tests. 90 tests pytest OK.
-**Bloqueos:** ninguno.
+**Rama activa:** `feature/T-023-traktor-volume` (pusheada a origin, 4 commits sobre main @fdbd42f). **PR NO abierto: `gh` no está autenticado en la Mac.**
+**En curso:** Primera sesión en la Mac del PO → se atacaron los tickets "SOLO EN MAC". **T-023 y T-024 Done (QA Strong APROBADO)**: ambos confirmados como bugs REALES en vivo antes de codear, no hipótesis. T-023 — el NML real usa 3 volúmenes (`Macintosh HD` 3965, `MUSIC` 1763 externo, `NO NAME` 36) y el hardcode hacía del relocate un no-op silencioso para las 1763 de `MUSIC`; ahora el volumen se deriva vía `diskutil` + ruta. T-024 — `pgrep -ix Traktor` daba exit 1 con Traktor Pro 4 abierto (PID 26702), el guard nunca disparaba en macOS y Traktor pisaba las reparaciones al cerrar; ahora el patrón cubre Pro 3 y 4. Tests 90 → 111, verdes.
+**Bloqueos:** T-026 Bloqueado (el PO va a sacar la cuenta de Apple Developer, 99 USD/año; se desbloquea con la aprobación de Apple). `gh auth login` pendiente para PRs.
 **Próximo paso sugerido:**
-1. Pendiente menor: T-022 parte 3 (tests de unicode en nombres de archivo — prioridad baja).
-2. **⚠️ CUANDO EL PO HAGA PULL EN SU MAC: hay 4 tickets marcados "SOLO EN MAC" (T-023 a T-026)** que no se pueden resolver ni verificar desde Windows — arrancar por ahí. Resumen: T-023 (volumen hardcodeado "Macintosh HD" en el encoder de Traktor), T-024 (detección de proceso Traktor probablemente no matchea "Traktor Pro 3"), T-025 (buildear y probar el .app real — incluye el icon.icns nunca abierto en Mac, y el punto B-1 más importante: probar que el bundle escribe bien sobre Rekordbox), T-026 (firma + notarización).
-3. B-1 (Windows): buildear el `.exe` real con PyInstaller y correr el checklist de 8 pasos de engram/07_production_readiness.md — nadie lo hizo todavía, sigue siendo el único ítem que puede invalidar todo lo demás.
-**Preguntas abiertas al PO:** 0
+1. **Decisión del PO pendiente: mergear `feature/T-023-traktor-volume` a main** (P-8.4 — nadie mergea sin orden explícita). Requiere `gh auth login` para PR, o merge local.
+2. **T-027 (NUEVO, prioridad alta, Niv S)** — falso positivo de "roto" en volúmenes externos en macOS: `_location_to_path` (traktor_db.py:160-177) no antepone `/Volumes/<VOL>`, así que TODA pista en disco externo aparece rota aunque esté sana. Verificado con archivo real y existente en `/Volumes/MUSIC/LISTAS2026/...`. Con el auto-resolver de T-003 encendido, reescribiría entradas sanas. Es el complemento de detección de T-023 (que arregla la escritura) — conviene cerrarlo antes de T-025.
+3. T-025 (buildear/probar el .app real + icon.icns + que el bundle escriba sobre Rekordbox). Ojo con el punto que levantó QA: verificar que `diskutil` siga disponible desde el bundle firmado/sandboxeado.
+4. T-026 cuando llegue la cuenta de Apple. Mientras tanto T-025 cierra con firma ad-hoc (`codesign --sign -`), válida solo en la Mac del PO.
+5. B-1 (Windows): buildear el `.exe` real y correr el checklist de 8 pasos de engram/07_production_readiness.md — sigue sin hacerse.
+6. Menor: T-022 parte 3 (tests de unicode en nombres de archivo).
+**Preguntas abiertas al PO:** 1 → ¿mergeo T-023/T-024 a main?
