@@ -44,8 +44,12 @@ Conversión de rutas:
 """
 from __future__ import annotations
 
+import functools
 import glob
+import platform
+import plistlib
 import re
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -174,6 +178,53 @@ def _location_to_path(volume: str, dir_attr: str, file_attr: str) -> Path:
     return rel
 
 
+@functools.lru_cache(maxsize=1)
+def _boot_volume_name() -> str:
+    """
+    Real display name of the boot volume ("/"), queried via
+    `diskutil info -plist /` -> key "VolumeName".
+
+    T-023/B-5: replaces the previous hardcoded "Macintosh HD" placeholder
+    in `path_to_location`'s POSIX branch. Confirmed a real bug against the
+    PO's live macOS Traktor NML (2026-08-01): the hardcode only "worked"
+    because this particular Mac's boot disk happens to be named
+    "Macintosh HD" (Apple's default) — any user who renamed their boot
+    volume, or a Mac with a non-default factory name, would get every
+    boot-volume track written with a WRONG VOLUME on relocate, a silent
+    no-op reported as success (never resolves in Traktor afterwards).
+
+    Cached for the process lifetime (`functools.lru_cache`): the boot
+    volume cannot change without a reboot, and this can run once per
+    relocated track (`path_to_location` is called from
+    `apply_relocation`'s per-track loop, itself driven by
+    `relocate_core.BaseRelocateWorker._run_resolution`) — the PO's real
+    library has ~2090 broken links, so spawning `diskutil` per track would
+    be needlessly slow. Call `_boot_volume_name.cache_clear()` in tests
+    that need to force a re-query.
+
+    Falls back to the historical "Macintosh HD" placeholder if the query
+    fails (non-macOS, `diskutil` missing/renamed, unexpected/malformed
+    plist output) rather than raising: a failure here must not block
+    relocating tracks that live on `/Volumes/<X>` external disks, which
+    never reach this function at all (see `path_to_location` below) — an
+    unrelated tool failure shouldn't abort the whole relocate.
+    """
+    if platform.system() != "Darwin":
+        return "Macintosh HD"
+    try:
+        out = subprocess.run(
+            ["diskutil", "info", "-plist", "/"],
+            capture_output=True, timeout=5, check=True,
+        )
+        data = plistlib.loads(out.stdout)
+        name = data.get("VolumeName")
+        if isinstance(name, str) and name:
+            return name
+    except (OSError, subprocess.SubprocessError, ValueError, LookupError):
+        pass
+    return "Macintosh HD"
+
+
 def path_to_location(path: Path) -> tuple[str, str, str]:
     """
     Encoder: filesystem Path -> Traktor's (VOLUME, DIR, FILE) LOCATION
@@ -190,10 +241,12 @@ def path_to_location(path: Path) -> tuple[str, str, str]:
     final trailing "/:"), which is exactly what `_location_to_path` above
     undoes via `.replace("/:", "/")`.
 
-    macOS branch (below) is UNVERIFIED — this machine is Windows and there
-    is no real macOS Traktor collection.nml to test against. See the
-    inline comment; flagged as a caveat for QA on macOS (ADR-001,
-    Consecuencias: "requiere tests con NML real de Windows y macOS").
+    macOS branch (below) is VERIFIED as of T-023/B-5 (2026-08-01) against
+    the PO's real macOS Traktor NML (`~/Documents/Native Instruments/
+    Traktor 4.4.1/collection.nml`, read-only inspection): 5764 ENTRY
+    across exactly 3 volumes — "Macintosh HD" (boot, 3965 tracks),
+    "MUSIC" (external USB, 1763 tracks), "NO NAME" (external, 36 tracks).
+    Resolves D-02.
     """
     if not path.is_absolute():
         raise ValueError(f"path_to_location requiere un path absoluto: {path}")
@@ -214,24 +267,27 @@ def path_to_location(path: Path) -> tuple[str, str, str]:
         volume = path.drive  # e.g. "D:"
         dir_parts = path.parts[1:-1]
     else:
-        # POSIX (macOS/Linux). UNVERIFIED on a real macOS Traktor NML:
+        # POSIX (macOS/Linux). Verified against the PO's real macOS NML
+        # (T-023/B-5, see module docstring above):
         #   - External volume mounted at /Volumes/<Name>/... → VOLUME=<Name>,
         #     DIR excludes the /Volumes/<Name> prefix (matches how macOS
-        #     itself and Traktor address external disks).
+        #     itself and Traktor address external disks; confirmed with the
+        #     real "MUSIC" and "NO NAME" entries).
         #   - Anything else (e.g. boot volume path like /Users/...) → real
-        #     Traktor NML stores the boot volume's *display name* (e.g.
-        #     "Macintosh HD") in VOLUME even though that name never appears
-        #     in the path itself (it's a disk label, not a path component).
-        #     We cannot derive that name from the path alone, so this falls
-        #     back to a hardcoded placeholder. TODO(macOS QA): confirm via
-        #     `diskutil info /` (or similar) whether this placeholder is
-        #     safe to assume, or whether it must be a user-provided setting.
+        #     Traktor NML stores the boot volume's *display name* in VOLUME
+        #     even though that name never appears in the path itself (it's
+        #     a disk label, not a path component). Previously hardcoded to
+        #     the literal "Macintosh HD" — only correct by coincidence for
+        #     THIS Mac's default-named boot disk (B-5, confirmed real bug:
+        #     any renamed/non-default boot volume silently wrote the wrong
+        #     VOLUME). Now derived from the actual running system via
+        #     `_boot_volume_name()` (queries `diskutil info -plist /`).
         parts = path.parts  # ('/', 'Volumes', 'Name', ...) or ('/', 'Users', ...)
         if len(parts) > 2 and parts[1] == "Volumes":
             volume = parts[2]
             dir_parts = parts[3:-1]
         else:
-            volume = "Macintosh HD"  # best-effort placeholder — UNVERIFIED, see above
+            volume = _boot_volume_name()
             dir_parts = parts[1:-1]
 
     dir_attr = "".join(f"/:{segment}" for segment in dir_parts) + "/:"

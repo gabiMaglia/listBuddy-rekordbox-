@@ -16,7 +16,8 @@ sin event loop de Qt.
 from __future__ import annotations
 
 import errno
-from pathlib import Path, PureWindowsPath
+import re
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from xml.etree import ElementTree as ET
 
 import pytest
@@ -30,6 +31,7 @@ from traktor_relocate import (
     build_reverse_key_index,
     find_broken_entries,
     find_candidates,
+    is_traktor_running,
     write_atomic,
 )
 
@@ -399,6 +401,44 @@ class TestApplyRelocationSync:
             apply_relocation(entry, PureWindowsPath(r"D:\a\b.mp3"), {})
 
 
+class TestApplyRelocationVolumeId:
+    """
+    T-023 (B-5, criterio 2): el NML real del PO confirma VOLUMEID == VOLUME
+    en las 5764 ENTRY existentes de los 3 volúmenes. `apply_relocation`
+    debe mantenerlos sincronizados para rutas macOS — y NO tocar VOLUMEID
+    en absoluto para rutas Windows (letra de unidad), donde no hay NML real
+    disponible para confirmar qué representa ese atributo ahí (P-3, cero
+    asunciones); ese write path ya está validado en producción sin tocarlo.
+    """
+
+    def _tree(self):
+        return ET.ElementTree(ET.fromstring(_NML_SAMPLE))
+
+    def test_macos_relocation_syncs_volumeid_with_volume(self):
+        tree = self._tree()
+        root = tree.getroot()
+        entry = root.find("COLLECTION").find("ENTRY")
+        key_index = build_reverse_key_index(root.find("PLAYLISTS"))
+
+        apply_relocation(entry, PurePosixPath("/Volumes/MUSIC/new/song.mp3"), key_index)
+
+        loc = entry.find("LOCATION")
+        assert loc.get("VOLUME") == "MUSIC"
+        assert loc.get("VOLUMEID") == "MUSIC"
+
+    def test_windows_relocation_does_not_set_volumeid(self):
+        tree = self._tree()
+        root = tree.getroot()
+        entry = root.find("COLLECTION").find("ENTRY")
+        key_index = build_reverse_key_index(root.find("PLAYLISTS"))
+
+        apply_relocation(entry, PureWindowsPath(r"D:\new\song.mp3"), key_index)
+
+        loc = entry.find("LOCATION")
+        assert loc.get("VOLUME") == "D:"
+        assert loc.get("VOLUMEID") is None
+
+
 # ─────── aliasing del índice inverso (T-022, hallazgo adversarial #6 ──────
 #
 # engram/07_production_readiness.md: "build_reverse_key_index se construye
@@ -502,3 +542,86 @@ class TestApplyRelocationAliasing:
         # Lo que el fix garantiza es que sea determinístico (la primera
         # procesada gana) y que no haya doble reescritura silenciosa.
         assert entry_b.find("LOCATION").get("FILE") == "songB.mp3"
+
+
+# ─────────────── R-03: detección de proceso en macOS (T-024/B-6) ──────────
+#
+# Confirmado en vivo 2026-08-01 (Mac del PO, Traktor Pro 4 abierto, PID
+# 26702): `pgrep -ix Traktor` (matcher viejo) → exit 1, NUNCA matchea.
+# `pgrep -ix "Traktor Pro 4"` → matchea. El proceso real se llama
+# "Traktor Pro N", no "Traktor" a secas — el guard R-03 era un no-op
+# silencioso en macOS antes de este fix.
+
+class TestDarwinProcessPattern:
+    """
+    Verifica el REGEX en sí (`_DARWIN_PROCESS_PATTERN`), no la plumbing de
+    subprocess — es la propiedad de seguridad central del ticket: cubrir
+    Traktor Pro 3 y 4 (y variantes de nombre) sin dar falso positivo con
+    procesos no relacionados, en particular `crashpad_handler` (subproceso
+    real de Traktor confirmado corriendo en la misma sesión, PID 26705 —
+    su propio nombre de proceso NUNCA contiene "traktor", solo sus
+    argumentos, que `pgrep -ix` sin `-f` no mira).
+    """
+
+    @pytest.mark.parametrize("name", [
+        "Traktor",
+        "traktor",
+        "TRAKTOR",
+        "Traktor Pro 3",
+        "Traktor Pro 4",
+        "traktor pro 4",  # -ix es case-insensitive
+        "Traktor Pro 5",  # a prueba de futuro
+    ])
+    def test_matches_traktor_process_names(self, name):
+        assert re.fullmatch(tr._DARWIN_PROCESS_PATTERN, name, re.IGNORECASE)
+
+    @pytest.mark.parametrize("name", [
+        "crashpad_handler",  # subproceso real de Traktor — confirmado en vivo, PID 26705
+        "Contraktor",  # "traktor" como substring de otra palabra — pgrep -x lo excluye por estar anclado
+        "TraktorHelper",  # sin espacio antes de "Helper" — no matchea el patrón anclado
+        "Traktor Pro",  # sin número de versión — no matchea (el grupo pide dígitos)
+        "Traktor Pro X",  # versión no numérica
+        "sleep",
+        "rekordbox",
+    ])
+    def test_does_not_match_unrelated_process_names(self, name):
+        assert not re.fullmatch(tr._DARWIN_PROCESS_PATTERN, name, re.IGNORECASE)
+
+
+class TestIsTraktorRunningDarwin:
+    """
+    `subprocess.run` mockeado — determinista, no depende de qué esté
+    corriendo en la máquina que ejecuta pytest (a diferencia de la
+    verificación en vivo hecha para el handoff de T-024, PID 26702 real).
+    """
+
+    def _mock_darwin(self, monkeypatch, returncode: int, stdout: str):
+        import subprocess as sp
+
+        def fake_run(cmd, **kwargs):
+            assert cmd[0] == "pgrep"
+            assert cmd[-1] == tr._DARWIN_PROCESS_PATTERN
+            return sp.CompletedProcess(cmd, returncode, stdout=stdout, stderr="")
+
+        monkeypatch.setattr(tr.platform, "system", lambda: "Darwin")
+        monkeypatch.setattr(tr.subprocess, "run", fake_run)
+
+    def test_true_when_pgrep_matches(self, monkeypatch):
+        self._mock_darwin(monkeypatch, returncode=0, stdout="26702\n")
+        assert is_traktor_running() is True
+
+    def test_false_when_pgrep_finds_nothing(self, monkeypatch):
+        # Traktor cerrado (o solo crashpad_handler corriendo, que no matchea
+        # por nombre) — pgrep sale con status 1 y stdout vacío.
+        self._mock_darwin(monkeypatch, returncode=1, stdout="")
+        assert is_traktor_running() is False
+
+    def test_false_when_subprocess_unavailable(self, monkeypatch):
+        import subprocess as sp
+
+        def fake_run(cmd, **kwargs):
+            raise sp.SubprocessError("pgrep no encontrado")
+
+        monkeypatch.setattr(tr.platform, "system", lambda: "Darwin")
+        monkeypatch.setattr(tr.subprocess, "run", fake_run)
+        assert is_traktor_running() is False  # fallback conservador de UX, no bloquea el flujo
