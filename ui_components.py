@@ -591,8 +591,19 @@ class RelocateDialog(QDialog):
                     " - ".join(p for p in (cand.matched_artist, cand.matched_title) if p)
                 )
             hint = f"  ·  {hint_parts[0]}" if hint_parts else ""
+            # T-028 (criterio 3): un candidato que solo matcheó por clave
+            # normalizada (sin prefijo NN- y/o sin extensión exacta) se
+            # marca explícito — no es el mismo nivel de certeza que un
+            # nombre de archivo idéntico, y acá SIEMPRE requiere que el
+            # usuario elija (nunca se auto-resuelve, ver relocate_core.py
+            # `_run_resolution`).
+            match_note = (
+                "  ·  ⚠ coincidencia aproximada (nombre normalizado, no exacto)"
+                if getattr(cand, "match_type", "exact") == "normalized"
+                else ""
+            )
             item = QListWidgetItem(
-                f"{cand.path}\n{_fmt_size(cand.size)}  ·  score {cand.score:.2f}{hint}"
+                f"{cand.path}\n{_fmt_size(cand.size)}  ·  score {cand.score:.2f}{hint}{match_note}"
             )
             item.setData(Qt.ItemDataRole.UserRole, cand.path)
             self._list.addItem(item)
