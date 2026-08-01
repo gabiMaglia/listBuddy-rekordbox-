@@ -58,7 +58,12 @@ from relocate_core import (
     check_disk_space_for_backup,
     find_candidates,
 )
-from traktor_db import _location_to_key, _location_to_path, path_to_location
+from traktor_db import (
+    _WINDOWS_DRIVE_RE,
+    _location_to_key,
+    _location_to_path,
+    path_to_location,
+)
 
 __all__ = [
     "BrokenTrack",
@@ -77,6 +82,18 @@ __all__ = [
 
 _BACKUP_DIR_NAME = "listBuddy_backups"
 _BACKUP_RETENTION = 10
+
+# T-024/B-6: nombres reales de proceso confirmados en vivo (2026-08-01, Mac
+# del PO, Traktor Pro 4 corriendo, PID 26702) — "Traktor Pro 4", exacto
+# (case-insensitive). Ni "pgrep -ix Traktor" (exact-match contra el nombre
+# viejo, nunca matchea "Traktor Pro N") ni un "pgrep -i traktor" a secas
+# (substring, sin anclar — más ruidoso de lo necesario) son correctos; este
+# patrón cubre Traktor Pro 3 y 4 (y una futura Pro 5) anclado al string
+# completo del proceso, sin matchear "crashpad_handler" (subproceso real de
+# Traktor, confirmado en la misma corrida — su propio nombre de proceso no
+# contiene "traktor", solo sus argumentos, que este patrón nunca mira: no
+# se usa `-f`).
+_DARWIN_PROCESS_PATTERN = r"Traktor( Pro [0-9]+)?"
 
 # Logger al archivo rotativo (app_logging.py). Los self.log.emit() van al panel
 # de la UI, que se oculta al terminar el relocate; el log de archivo es lo único
@@ -108,6 +125,13 @@ def is_traktor_running() -> bool:
     es un fallback conservador de UX, no de seguridad de datos — el riesgo
     real (last-writer-wins) solo se materializa si el usuario efectivamente
     tiene Traktor abierto y no lo cierra pese al aviso.
+
+    T-024/B-6 (confirmado en vivo 2026-08-01, Traktor Pro 4 abierto, PID
+    26702): el proceso real en macOS se llama "Traktor Pro 4" (o "Traktor
+    Pro 3" en esa versión) — NO "Traktor" a secas. `pgrep -ix Traktor`
+    (match exacto contra el nombre viejo) nunca matcheaba, dejando este
+    guard como no-op silencioso: se podía escribir el NML con Traktor
+    abierto sin ningún aviso. Ver `_DARWIN_PROCESS_PATTERN`.
     """
     system = platform.system()
     try:
@@ -121,7 +145,7 @@ def is_traktor_running() -> bool:
             return "traktor.exe" in out.stdout.lower()
         elif system == "Darwin":
             out = subprocess.run(
-                ["pgrep", "-ix", "Traktor"],
+                ["pgrep", "-ix", _DARWIN_PROCESS_PATTERN],
                 capture_output=True, text=True, timeout=5,
             )
             return out.returncode == 0 and bool(out.stdout.strip())
@@ -242,6 +266,17 @@ def apply_relocation(
     una segunda ENTRY que comparta el mismo old_key (LOCATION original
     duplicado entre dos pistas) vuelva a reescribir las mismas PRIMARYKEY
     y pise la reparación que la primera ENTRY ya aplicó correctamente.
+
+    T-023 (B-5, criterio 2): en macOS el NML real del PO confirma
+    VOLUMEID == VOLUME en las 5764 ENTRY existentes (Macintosh HD/MUSIC/
+    NO NAME, todas coincidentes) — se sincroniza VOLUMEID junto con VOLUME
+    para no dejar un VOLUMEID viejo apuntando al volumen anterior si la
+    reparación mueve la pista a un disco distinto del original. Solo se
+    toca para rutas macOS (VOLUME no es una letra de unidad estilo "D:"):
+    no hay NML real de Windows disponible para confirmar qué representa
+    VOLUMEID ahí (P-3, cero asunciones), y ese write path ya está validado
+    en producción (T-002/T-004) sin tocar este atributo — no introducir
+    comportamiento nuevo sin evidencia.
     """
     loc = entry.find("LOCATION")
     if loc is None:
@@ -254,6 +289,8 @@ def apply_relocation(
     loc.set("VOLUME", volume)
     loc.set("DIR", dir_attr)
     loc.set("FILE", file_attr)
+    if not _WINDOWS_DRIVE_RE.match(volume):
+        loc.set("VOLUMEID", volume)
     new_key = _location_to_key(volume, dir_attr, file_attr)
 
     for pk in key_index.pop(old_key, []):
