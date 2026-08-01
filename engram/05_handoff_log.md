@@ -3,6 +3,13 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### 2026-08-01 nerv-orquestador → nerv-desktop T-023 + T-024 · Niv S (ambos)
+- Sesión de arranque en la Mac del PO (los "SOLO EN MAC" por fin son ejecutables). Ambos bugs CONFIRMADOS en vivo por el Orquestador antes del handoff, con evidencia dura en el backlog: T-023 → el NML real tiene 3 volúmenes (`Macintosh HD` 3965, `MUSIC` 1763 externo, `NO NAME` 36), el hardcode rompe 1763 pistas en silencio; T-024 → `pgrep -ix Traktor` da exit 1 con Traktor Pro 4 abierto (PID 26702), el guard nunca dispara en macOS.
+- Entrega: rama `feature/T-023-traktor-volume` (ya creada desde main @fdbd42f), ambos tickets en la misma rama por ser el mismo módulo y ambos precondición de T-025. Commits separados por ticket (P-8.6).
+- Archivos a leer: `engram/03_backlog.md` (T-023, T-024 — criterios ya actualizados con la evidencia), `engram/02_architecture.md` (ADR-001, sección encoder/VOLUME), `traktor_db.py` (`path_to_location`), `traktor_relocate.py` (`is_traktor_running`), `relocate_core.py`. NML real de referencia: `~/Documents/Native Instruments/Traktor 4.4.1/collection.nml` (SOLO LECTURA — es la colección viva del PO, jamás escribir sobre ella; para pruebas de escritura, copiar a tmp).
+- Se espera (retorno estructurado P-1): estado · archivos tocados · riesgos/caveats · cómo probar. Obligatorio el round-trip contra los 3 volúmenes del NML real y la verificación en vivo de T-024 (no solo tests).
+- Bloqueado aparte: T-026 (notarización) — el PO va a sacar la cuenta de Apple Developer. T-025 seguirá con firma ad-hoc.
+
 ### 2026-07-26 nerv-orquestador (hotfix directo, sin sub-agente) · T-010 revertido
 - PO reportó "no logro levantar la app". Bisección con `python -c` aisló la causa: `MainWindow.nativeEvent()` (T-010) hacía `ctypes.wintypes.MSG.from_address(int(message))` sobre un puntero nativo — access violation al primer `show()`, mata el proceso entero sin excepción Python atrapable ni log.
 - Arreglado directamente (no delegado, por urgencia): removidos `nativeEvent`/`_hit_test_border`/`FramelessWindowHint`/botones min-max-cerrar propios; vuelve al frame nativo de Windows. Commit `3daed1e` sobre `chore/prod-hardening`. Verificado: app abre y queda viva, 46 tests siguen verdes.
