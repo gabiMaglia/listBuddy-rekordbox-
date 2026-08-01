@@ -96,16 +96,62 @@ class TestLocationToPathHonorsVolume:
         # El bug original resolvía contra el cwd → drive equivocado.
         assert PureWindowsPath(p).drive.upper() == "I:"
 
-    def test_macos_volume_label_not_treated_as_drive(self):
-        # "Macintosh HD" NO matchea ^[A-Za-z]:$ → no se antepone (comportamiento
-        # documentado; la resolución real en macOS es deuda D-02). El DIR de
-        # Traktor siempre arranca con "/:" → el decode queda anclado a "/".
+    def test_macos_boot_volume_label_not_prepended(self, monkeypatch):
+        # El label del disco de arranque NO es un componente de path: su DIR
+        # ya es absoluto desde "/". Se monkeypatchea el nombre para que el
+        # test no dependa de cómo se llame el disco de quien corre la suite.
+        monkeypatch.setattr(traktor_db.platform, "system", lambda: "Darwin")
+        monkeypatch.setattr(traktor_db, "_boot_volume_name", lambda: "Macintosh HD")
         p = _location_to_path("Macintosh HD", "/:Users/:u/:", "t.mp3")
         assert p == Path("/Users/u/t.mp3")
 
     def test_empty_volume_falls_back_to_relative(self):
         p = _location_to_path("", "/:Music/:", "t.mp3")
         assert p == Path("/Music/t.mp3")
+
+
+class TestLocationToPathExternalVolumeMacos:
+    """Regresión de T-027: el gemelo macOS del bug de T-004. Un disco externo
+    se monta en /Volumes/<Name> y Traktor guarda DIR relativo a ese punto de
+    montaje; ignorar VOLUME resolvía contra la raíz del disco de arranque y
+    marcaba como rota una pista sana, antes Y después de un relocate exitoso.
+    Confirmado con el NML real del PO: /Volumes/MUSIC/quilombo/... se decodeaba
+    como /quilombo/... (1592 pistas sanas en rojo)."""
+
+    @pytest.fixture(autouse=True)
+    def _as_macos(self, monkeypatch):
+        monkeypatch.setattr(traktor_db.platform, "system", lambda: "Darwin")
+        monkeypatch.setattr(traktor_db, "_boot_volume_name", lambda: "Macintosh HD")
+
+    def test_external_volume_is_prefixed_with_volumes(self):
+        p = _location_to_path("MUSIC", "/:quilombo/:Sets/:", "t.aiff")
+        assert p == Path("/Volumes/MUSIC/quilombo/Sets/t.aiff")
+
+    def test_external_volume_at_mountpoint_root(self):
+        p = _location_to_path("MUSIC", "/:", "t.wav")
+        assert p == Path("/Volumes/MUSIC/t.wav")
+
+    def test_volume_name_with_spaces(self):
+        # "NO NAME" es un volumen real en la colección del PO.
+        p = _location_to_path("NO NAME", "/:dj/:", "t.mp3")
+        assert p == Path("/Volumes/NO NAME/dj/t.mp3")
+
+    def test_round_trip_external_volume(self):
+        # Simetría con el encoder de T-023: decode → encode debe volver igual.
+        original = Path("/Volumes/MUSIC/quilombo/Sets/t.aiff")
+        vol, dir_attr, file_attr = traktor_db.path_to_location(original)
+        assert _location_to_path(vol, dir_attr, file_attr) == original
+
+    def test_round_trip_boot_volume(self):
+        original = Path("/Users/u/Music/t.mp3")
+        vol, dir_attr, file_attr = traktor_db.path_to_location(original)
+        assert _location_to_path(vol, dir_attr, file_attr) == original
+
+    def test_windows_drive_still_wins_over_volumes_prefix(self):
+        # No-regresión de T-004: una letra de unidad nunca debe pasar por la
+        # rama de /Volumes, ni siquiera corriendo en macOS.
+        p = _location_to_path("I:", "/:Music/:", "t.mp3")
+        assert p == Path("I:/Music/t.mp3")
 
 
 # ─────────────────────────── encoder: path → LOCATION ─────────────────────
