@@ -83,6 +83,18 @@ __all__ = [
 _BACKUP_DIR_NAME = "listBuddy_backups"
 _BACKUP_RETENTION = 10
 
+# T-024/B-6: nombres reales de proceso confirmados en vivo (2026-08-01, Mac
+# del PO, Traktor Pro 4 corriendo, PID 26702) — "Traktor Pro 4", exacto
+# (case-insensitive). Ni "pgrep -ix Traktor" (exact-match contra el nombre
+# viejo, nunca matchea "Traktor Pro N") ni un "pgrep -i traktor" a secas
+# (substring, sin anclar — más ruidoso de lo necesario) son correctos; este
+# patrón cubre Traktor Pro 3 y 4 (y una futura Pro 5) anclado al string
+# completo del proceso, sin matchear "crashpad_handler" (subproceso real de
+# Traktor, confirmado en la misma corrida — su propio nombre de proceso no
+# contiene "traktor", solo sus argumentos, que este patrón nunca mira: no
+# se usa `-f`).
+_DARWIN_PROCESS_PATTERN = r"Traktor( Pro [0-9]+)?"
+
 # Logger al archivo rotativo (app_logging.py). Los self.log.emit() van al panel
 # de la UI, que se oculta al terminar el relocate; el log de archivo es lo único
 # que sobrevive para diagnosticar un relocate fallido en producción.
@@ -113,6 +125,13 @@ def is_traktor_running() -> bool:
     es un fallback conservador de UX, no de seguridad de datos — el riesgo
     real (last-writer-wins) solo se materializa si el usuario efectivamente
     tiene Traktor abierto y no lo cierra pese al aviso.
+
+    T-024/B-6 (confirmado en vivo 2026-08-01, Traktor Pro 4 abierto, PID
+    26702): el proceso real en macOS se llama "Traktor Pro 4" (o "Traktor
+    Pro 3" en esa versión) — NO "Traktor" a secas. `pgrep -ix Traktor`
+    (match exacto contra el nombre viejo) nunca matcheaba, dejando este
+    guard como no-op silencioso: se podía escribir el NML con Traktor
+    abierto sin ningún aviso. Ver `_DARWIN_PROCESS_PATTERN`.
     """
     system = platform.system()
     try:
@@ -126,7 +145,7 @@ def is_traktor_running() -> bool:
             return "traktor.exe" in out.stdout.lower()
         elif system == "Darwin":
             out = subprocess.run(
-                ["pgrep", "-ix", "Traktor"],
+                ["pgrep", "-ix", _DARWIN_PROCESS_PATTERN],
                 capture_output=True, text=True, timeout=5,
             )
             return out.returncode == 0 and bool(out.stdout.strip())
