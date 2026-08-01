@@ -22,7 +22,12 @@ Qué VIVE acá (no depende del formato de la librería, NML vs SQLCipher):
   - Matching puro: `Candidate`, `RelocateRequest`, `build_basename_index`,
     `find_candidates` (movidos tal cual desde traktor_relocate.py, sin
     cambios de lógica — `traktor_relocate.py` los re-exporta para no romper
-    imports existentes, ver tests/test_traktor_relocate.py).
+    imports existentes, ver tests/test_traktor_relocate.py). T-028 agregó un
+    fallback tolerante (`build_normalized_index`/`_normalize_key`): si el
+    lookup exacto da 0, se reintenta por nombre sin prefijo numérico `NN - `
+    y sin extensión — nunca reemplaza el match exacto, y el resultado queda
+    marcado `Candidate.match_type="normalized"` para que ni la UI ni el
+    auto-resolve lo traten como una decisión automática (ADR-001 p.3).
   - `BaseRelocateWorker`: la clase base QThread con el loop de resolución
     (`_run_resolution`) — indexar disco, recorrer `broken`, decidir 0/1/N
     candidatos, esperar `ask_user`, chequear interrupción, progreso y log.
@@ -41,6 +46,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import threading
 from collections.abc import Callable
@@ -113,6 +119,13 @@ class Candidate:
     matched_title: str | None
     matched_artist: str | None
     score: float
+    # T-028: "exact" = matcheó por nombre de archivo completo (incluye
+    # extensión); "normalized" = matcheó solo por la clave tolerante
+    # (sin prefijo numérico `NN - ` y sin extensión, ver `_normalize_key`).
+    # Default "exact" para no romper otros call sites que construyan
+    # Candidate directamente (no los hay en el repo hoy, pero es la
+    # convención más segura para un dataclass público).
+    match_type: str = "exact"
 
 
 @dataclass
@@ -331,6 +344,47 @@ def build_basename_index(
     return index
 
 
+# T-028: prefijo numérico que la propia app antepone al exportar
+# (`worker.py::_safe_filename`, ej. `001 - Artist - Title.mp3`). 1 a 4
+# dígitos (zfill del padding de la playlist, nunca más de 4 en uso real),
+# espacios opcionales alrededor del guion.
+_NUMERIC_PREFIX_RE = re.compile(r"^\d{1,4}\s*-\s*")
+
+
+def _normalize_key(filename: str) -> str:
+    """
+    Clave tolerante (T-028) para el fallback de `find_candidates` cuando el
+    lookup exacto por nombre completo da 0 resultados: stem sin extensión
+    (tolera `X.aiff` en la DB vs `X.aif` truncado en disco por exFAT/
+    Windows) y sin el prefijo numérico `NN - ` que agrega esta misma app al
+    exportar, todo en minúsculas. Se aplica simétricamente al nombre del
+    archivo roto (`find_candidates`) y a cada archivo indexado
+    (`build_normalized_index`) para que ambos lados normalicen igual.
+    """
+    stem = Path(filename).stem
+    stem = _NUMERIC_PREFIX_RE.sub("", stem)
+    return stem.lower()
+
+
+def build_normalized_index(index: dict[str, list[Path]]) -> dict[str, list[Path]]:
+    """
+    Índice tolerante (T-028) derivado del índice exacto ya construido por
+    `build_basename_index` — NO vuelve a recorrer disco (el walk ya es la
+    fase más cara del relocate, ver `_INDEX_PROGRESS_EVERY`). Agrupa cada
+    Path ya indexado bajo su `_normalize_key`, así dos archivos con
+    distinto nombre crudo (`001 - Artist - Title.wav` y
+    `014 - Artist - Title.wav`, el caso real de un track exportado a
+    varias playlists) pueden colisionar bajo la misma clave normalizada —
+    intencional: es el escenario de colisión N-a-1 que `find_candidates`
+    debe devolver como múltiples candidatos, no descartar.
+    """
+    normalized: dict[str, list[Path]] = {}
+    for paths in index.values():
+        for p in paths:
+            normalized.setdefault(_normalize_key(p.name), []).append(p)
+    return normalized
+
+
 # ─────────────────────────────────────────────── Matching ────────────────
 
 def _guess_title_artist(stem: str) -> tuple[str | None, str | None]:
@@ -369,18 +423,34 @@ def _fuzzy_score(
 def find_candidates(
     track: Any,
     index: dict[str, list[Path]],
+    normalized_index: dict[str, list[Path]] | None = None,
 ) -> list[Candidate]:
     """
     Matching primario: nombre de archivo EXACTO (case-insensitive), contra
     el índice ya construido. El fuzzy por título/artista NO decide — solo
-    rankea los candidatos que ya matchearon por nombre exacto (ADR-001,
-    punto 3): 0 matches = sin resolver, 1 = se aplica, >1 = modal.
+    rankea los candidatos que ya matchearon (ADR-001, punto 3): 0 matches =
+    sin resolver, 1 = se aplica, >1 = modal.
+
+    T-028: si el lookup exacto da 0 resultados Y se pasó `normalized_index`
+    (construido una sola vez por corrida vía `build_normalized_index`), cae
+    a un segundo lookup por `_normalize_key` — tolera el prefijo numérico
+    `NN - ` que la propia app agrega al exportar y diferencias de extensión
+    (`.aiff` vs `.aif`). Los candidatos resultantes quedan marcados
+    `match_type="normalized"` para que la UI lo muestre (criterio 3) y para
+    que el loop de resolución nunca los auto-resuelva (criterio 4,
+    `BaseRelocateWorker._run_resolution`) — el matching laxo rankea, nunca
+    decide solo. `normalized_index=None` (default) preserva el
+    comportamiento exacto de antes tal cual, sin fallback.
 
     `track` es duck-typed (BrokenTrack de Traktor o de Rekordbox): solo se
     leen `original_path`/`title`/`artist`, comunes a ambos.
     """
     key = track.original_path.name.lower()
     paths = index.get(key, [])
+    match_type = "exact"
+    if not paths and normalized_index is not None:
+        paths = normalized_index.get(_normalize_key(track.original_path.name), [])
+        match_type = "normalized"
     candidates: list[Candidate] = []
     for p in paths:
         try:
@@ -392,6 +462,7 @@ def find_candidates(
         candidates.append(Candidate(
             path=p, size=size,
             matched_title=m_title, matched_artist=m_artist, score=score,
+            match_type=match_type,
         ))
     candidates.sort(key=lambda c: c.score, reverse=True)
     return candidates
@@ -505,6 +576,9 @@ class BaseRelocateWorker(QThread):
             return None
         indexed_count = sum(len(v) for v in index.values())
         self.log.emit(f"   {indexed_count} archivo(s) indexado(s).")
+        # T-028: derivado del índice exacto ya construido, sin re-caminar
+        # disco (ver build_normalized_index).
+        normalized_index = build_normalized_index(index)
 
         repaired = skipped = unresolved = 0
         for i, (raw_entry, broken_track) in enumerate(broken, start=1):
@@ -515,22 +589,42 @@ class BaseRelocateWorker(QThread):
             self.progress.emit(i, total)
             label = self._label_for(broken_track)
 
-            candidates = find_candidates(broken_track, index)
+            candidates = find_candidates(broken_track, index, normalized_index)
             if not candidates:
                 unresolved += 1
                 self.log.emit(f"   ✗  Sin coincidencias: {label}")
                 continue
 
+            # T-028 (criterio 4): un candidato que matcheó solo por clave
+            # normalizada (prefijo NN- y/o extensión tolerados) NUNCA
+            # auto-resuelve — ni por ser el único candidato (el atajo de
+            # "1 match = se aplica" de ADR-001 p.3 es solo para match
+            # EXACTO) ni con el checkbox de auto-resolución (T-003)
+            # activo. Es una ampliación de la garantía de ADR-001 p.3: el
+            # matching laxo rankea, nunca decide solo.
+            normalized_only = candidates[0].match_type == "normalized"
+
             auto_resolved = False
-            if len(candidates) == 1:
+            if len(candidates) == 1 and not normalized_only:
                 chosen: Path | None = candidates[0].path
-            elif self._auto_resolve:
+            elif self._auto_resolve and not normalized_only:
                 # Addendum ADR-001 (2026-07-24): opt-in, checkbox OFF por
                 # default no pasa por acá. candidates[0] ya viene ordenado
                 # por score descendente (find_candidates) — no es orden de
                 # carpeta al azar. Sin modal, sin ask_user_event.
                 chosen = candidates[0].path
                 auto_resolved = True
+            elif self._auto_resolve:  # auto_resolve ON + normalized_only
+                # Con el checkbox activo la app nunca pregunta (ese es su
+                # propósito) — así que acá no hay modal posible: se
+                # loguea sin resolver en vez de auto-aplicar un candidato
+                # que solo matcheó por tolerancia.
+                unresolved += 1
+                self.log.emit(
+                    f"   ✗  Requiere confirmación manual (coincidencia "
+                    f"tolerante, no exacta): {label}"
+                )
+                continue
             else:
                 self._answer_event.clear()
                 self.ask_user.emit(RelocateRequest(broken=broken_track, candidates=candidates))
