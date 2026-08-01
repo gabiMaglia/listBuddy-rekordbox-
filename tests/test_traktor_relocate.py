@@ -16,7 +16,7 @@ sin event loop de Qt.
 from __future__ import annotations
 
 import errno
-from pathlib import Path, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from xml.etree import ElementTree as ET
 
 import pytest
@@ -397,6 +397,44 @@ class TestApplyRelocationSync:
         entry = ET.fromstring('<ENTRY TITLE="x"/>')
         with pytest.raises(ValueError):
             apply_relocation(entry, PureWindowsPath(r"D:\a\b.mp3"), {})
+
+
+class TestApplyRelocationVolumeId:
+    """
+    T-023 (B-5, criterio 2): el NML real del PO confirma VOLUMEID == VOLUME
+    en las 5764 ENTRY existentes de los 3 volúmenes. `apply_relocation`
+    debe mantenerlos sincronizados para rutas macOS — y NO tocar VOLUMEID
+    en absoluto para rutas Windows (letra de unidad), donde no hay NML real
+    disponible para confirmar qué representa ese atributo ahí (P-3, cero
+    asunciones); ese write path ya está validado en producción sin tocarlo.
+    """
+
+    def _tree(self):
+        return ET.ElementTree(ET.fromstring(_NML_SAMPLE))
+
+    def test_macos_relocation_syncs_volumeid_with_volume(self):
+        tree = self._tree()
+        root = tree.getroot()
+        entry = root.find("COLLECTION").find("ENTRY")
+        key_index = build_reverse_key_index(root.find("PLAYLISTS"))
+
+        apply_relocation(entry, PurePosixPath("/Volumes/MUSIC/new/song.mp3"), key_index)
+
+        loc = entry.find("LOCATION")
+        assert loc.get("VOLUME") == "MUSIC"
+        assert loc.get("VOLUMEID") == "MUSIC"
+
+    def test_windows_relocation_does_not_set_volumeid(self):
+        tree = self._tree()
+        root = tree.getroot()
+        entry = root.find("COLLECTION").find("ENTRY")
+        key_index = build_reverse_key_index(root.find("PLAYLISTS"))
+
+        apply_relocation(entry, PureWindowsPath(r"D:\new\song.mp3"), key_index)
+
+        loc = entry.find("LOCATION")
+        assert loc.get("VOLUME") == "D:"
+        assert loc.get("VOLUMEID") is None
 
 
 # ─────── aliasing del índice inverso (T-022, hallazgo adversarial #6 ──────

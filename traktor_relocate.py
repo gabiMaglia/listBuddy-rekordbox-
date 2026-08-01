@@ -58,7 +58,12 @@ from relocate_core import (
     check_disk_space_for_backup,
     find_candidates,
 )
-from traktor_db import _location_to_key, _location_to_path, path_to_location
+from traktor_db import (
+    _WINDOWS_DRIVE_RE,
+    _location_to_key,
+    _location_to_path,
+    path_to_location,
+)
 
 __all__ = [
     "BrokenTrack",
@@ -242,6 +247,17 @@ def apply_relocation(
     una segunda ENTRY que comparta el mismo old_key (LOCATION original
     duplicado entre dos pistas) vuelva a reescribir las mismas PRIMARYKEY
     y pise la reparación que la primera ENTRY ya aplicó correctamente.
+
+    T-023 (B-5, criterio 2): en macOS el NML real del PO confirma
+    VOLUMEID == VOLUME en las 5764 ENTRY existentes (Macintosh HD/MUSIC/
+    NO NAME, todas coincidentes) — se sincroniza VOLUMEID junto con VOLUME
+    para no dejar un VOLUMEID viejo apuntando al volumen anterior si la
+    reparación mueve la pista a un disco distinto del original. Solo se
+    toca para rutas macOS (VOLUME no es una letra de unidad estilo "D:"):
+    no hay NML real de Windows disponible para confirmar qué representa
+    VOLUMEID ahí (P-3, cero asunciones), y ese write path ya está validado
+    en producción (T-002/T-004) sin tocar este atributo — no introducir
+    comportamiento nuevo sin evidencia.
     """
     loc = entry.find("LOCATION")
     if loc is None:
@@ -254,6 +270,8 @@ def apply_relocation(
     loc.set("VOLUME", volume)
     loc.set("DIR", dir_attr)
     loc.set("FILE", file_attr)
+    if not _WINDOWS_DRIVE_RE.match(volume):
+        loc.set("VOLUMEID", volume)
     new_key = _location_to_key(volume, dir_attr, file_attr)
 
     for pk in key_index.pop(old_key, []):
