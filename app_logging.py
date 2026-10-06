@@ -78,7 +78,7 @@ def install_excepthook() -> None:
         log.error("Excepción no capturada:\n%s", tb_text)
 
         try:
-            from PyQt6.QtWidgets import QApplication, QMessageBox
+            from PySide6.QtWidgets import QApplication, QMessageBox
             if QApplication.instance() is None:
                 return
             box = QMessageBox(QApplication.activeWindow())

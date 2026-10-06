@@ -8,7 +8,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 
 from rekordbox_export import get_songs as _rb_get_songs
 from rekordbox_export import get_content, get_artist, resolve_path, sanitize
@@ -60,9 +60,9 @@ def _safe_filename(prefix: str, artist: str, title: str, suffix: str) -> str:
 
 
 class ExportWorker(QThread):
-    log         = pyqtSignal(str)
-    progress    = pyqtSignal(int, int)        # (hechas, total)
-    finished_ok = pyqtSignal(int, int, int, str)  # (copiadas, faltantes, saltadas, status)
+    log         = Signal(str)
+    progress    = Signal(int, int)        # (hechas, total)
+    finished_ok = Signal(int, int, int, str)  # (copiadas, faltantes, saltadas, status)
     # status: "ok" | "cancelled" | "error"
 
     def __init__(self, playlists: list, output_root: Path) -> None:
