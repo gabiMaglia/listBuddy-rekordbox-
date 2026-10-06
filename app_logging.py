@@ -3,11 +3,12 @@ app_logging.py
 --------------
 Logging a archivo + excepthook global para listBuddy.
 
-Por qué existe: en producción una excepción no capturada dentro de un slot de Qt
-**aborta toda la app sin dejar rastro** (PyQt llama a sys.excepthook y, con el hook
-por defecto, hace qFatal → abort). Acá la interceptamos: la logueamos a un archivo
-rotativo y mostramos un diálogo amigable en vez de morir en silencio. Así, ante un
-edge case imprevisto, la app sobrevive y queda un log para diagnosticar.
+Por qué existe: PySide6 manda la excepción no capturada de un slot a
+sys.excepthook y sigue corriendo, pero el hook por defecto solo la imprime en una
+consola que el bundle no tiene: el usuario vería una acción que no hizo nada y
+no quedaría rastro. Acá la interceptamos: la logueamos a un archivo rotativo y
+mostramos un diálogo amigable. Así, ante un edge case imprevisto, la app sigue y
+queda un log para diagnosticar.
 """
 from __future__ import annotations
 
