@@ -51,10 +51,14 @@ def test_uint8_offset_is_removed() -> None:
 
 
 def test_unknown_format_returns_none() -> None:
+    # El mismo buffer con formato conocido SÍ decodifica: el None viene de la rama
+    # "formato desconocido", no de un lookup de enums roto que devuelva None siempre.
     out = _run("""
-    print(sw._buffer_to_mono(make(b"\\x00\\x00", SF.Unknown, 1)))
+    unknown = sw._buffer_to_mono(make(b"\\x00\\x00", SF.Unknown, 1))
+    known = sw._buffer_to_mono(make(b"\\x00\\x00", SF.Int16, 1))
+    print(unknown, known is not None)
     """)
-    assert out == "None"
+    assert out == "None True"
 
 
 def test_odd_length_buffer_is_trimmed() -> None:
