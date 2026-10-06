@@ -136,16 +136,20 @@ class TestLocationToPathExternalVolumeMacos:
         p = _location_to_path("NO NAME", "/:dj/:", "t.mp3")
         assert p == Path("/Volumes/NO NAME/dj/t.mp3")
 
+    # El encode usa PurePosixPath (T-059): en Windows, Path("/Volumes/...") es
+    # un WindowsPath sin drive → no "absoluto" → el encoder aborta. Así el
+    # round-trip corre igual en ambos SO; el decoder sigue devolviendo Path.
+
     def test_round_trip_external_volume(self):
         # Simetría con el encoder de T-023: decode → encode debe volver igual.
-        original = Path("/Volumes/MUSIC/quilombo/Sets/t.aiff")
-        vol, dir_attr, file_attr = traktor_db.path_to_location(original)
-        assert _location_to_path(vol, dir_attr, file_attr) == original
+        raw = "/Volumes/MUSIC/quilombo/Sets/t.aiff"
+        vol, dir_attr, file_attr = traktor_db.path_to_location(PurePosixPath(raw))
+        assert _location_to_path(vol, dir_attr, file_attr) == Path(raw)
 
     def test_round_trip_boot_volume(self):
-        original = Path("/Users/u/Music/t.mp3")
-        vol, dir_attr, file_attr = traktor_db.path_to_location(original)
-        assert _location_to_path(vol, dir_attr, file_attr) == original
+        raw = "/Users/u/Music/t.mp3"
+        vol, dir_attr, file_attr = traktor_db.path_to_location(PurePosixPath(raw))
+        assert _location_to_path(vol, dir_attr, file_attr) == Path(raw)
 
     def test_windows_drive_still_wins_over_volumes_prefix(self):
         # No-regresión de T-004: una letra de unidad nunca debe pasar por la
