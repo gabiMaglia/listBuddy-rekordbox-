@@ -4,7 +4,7 @@
   entitlements.plist — listBuddy (macOS, hardened runtime)
 
   Necesario SOLO si se firma el .app con hardened runtime (Developer ID +
-  notarización). PyInstaller + PyQt6 cargan código generado/JIT en memoria, que
+  notarización). PyInstaller + PySide6 cargan código generado/JIT en memoria, que
   el hardened runtime bloquea por defecto → sin este entitlement el .app firmado
   crashea al arrancar. Ver CLAUDE.md, sección "Empaquetado — macOS", punto 7.
 
