@@ -4,7 +4,7 @@
 # Uso: pyinstaller rb_exporter.spec
 #
 # macOS → dist/listBuddy.app  (one-dir dentro del .app, arranca rápido)
-# Windows → dist/listBuddy.exe  (one-file portátil)
+# Windows → dist/listBuddy/listBuddy.exe  (one-dir: Qt reemplazable, LGPL — ADR-003)
 #
 # Notas:
 # - sqlcipher3-wheels incluye el binario de SQLCipher que pyrekordbox necesita.
@@ -45,13 +45,14 @@ a = Analysis(
         'sqlalchemy',
         'sqlalchemy.dialects.sqlite',
         'sqlalchemy.orm',
-        'PyQt6.QtMultimedia',
+        'PySide6.QtMultimedia',
         'numpy',
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # Defensa si el venv de build todavía tuviera PyQt6: no debe colarse al bundle.
+    excludes=['PyQt6'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -71,7 +72,7 @@ if is_mac:
         debug=False,
         bootloader_ignore_signals=False,
         strip=False,
-        upx=True,
+        upx=False,
         upx_exclude=[],
         runtime_tmpdir=None,
         console=False,
@@ -89,7 +90,7 @@ if is_mac:
         a.zipfiles,
         a.datas,
         strip=False,
-        upx=True,
+        upx=False,
         upx_exclude=[],
         name='listBuddy',
     )
@@ -113,22 +114,17 @@ if is_mac:
     )
 
 else:
-    # ── Windows: one-file .exe ───────────────────────────────────────────────
+    # ── Windows: one-dir (LGPL: las DLL de Qt quedan sueltas y reemplazables) ──
     exe = EXE(
         pyz,
         a.scripts,
-        a.binaries,
-        a.zipfiles,
-        a.datas,
         [],
+        exclude_binaries=True,
         name='listBuddy',
         debug=False,
         bootloader_ignore_signals=False,
         strip=False,
-        upx=False,  # B-7 (audit 2026-07-27): one-file + UPX es un patrón que
-                    # varios AV marcan heurísticamente sin firma de código;
-                    # desactivarlo reduce falsos positivos gratis, a costa
-                    # de tamaño del binario.
+        upx=False,  # LGPL (ADR-003) y menos falsos positivos de AV sin firma (B-7)
         upx_exclude=[],
         runtime_tmpdir=None,
         console=False,
@@ -138,4 +134,15 @@ else:
         codesign_identity=None,
         entitlements_file=None,
         icon='icon.ico',    # convertir icon.icns con: sips -s format ico icon.icns --out icon.ico
+    )
+
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        strip=False,
+        upx=False,
+        upx_exclude=[],
+        name='listBuddy',
     )
