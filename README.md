@@ -175,7 +175,7 @@ pytest
 
 ```
 main.py              # entry point + logging/excepthook
-ui.py                # MainWindow (PyQt6): layout, reproducción, exportación, settings
+ui.py                # MainWindow (PySide6): layout, reproducción, exportación, settings
 ui_components.py     # widgets custom (cards, seek bar, file rows, rack head)
 worker.py            # ExportWorker (QThread): copia y numera los archivos
 traktor_relocate.py  # RelocateWorker (QThread): repara enlaces rotos del NML de Traktor
@@ -195,7 +195,7 @@ tests/               # tests de correctitud (rutas, matching, backup, sync)
 
 ## Tecnología
 
-Python · PyQt6 · pyrekordbox · sqlcipher3 · numpy · PyInstaller
+Python · PySide6 · pyrekordbox · sqlcipher3 · numpy · PyInstaller
 
 ## Donaciones
 
