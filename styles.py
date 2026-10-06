@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Dict
 
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 
 # En modo frozen (PyInstaller) los recursos quedan en sys._MEIPASS

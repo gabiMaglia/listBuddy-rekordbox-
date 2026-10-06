@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 
 _log = logging.getLogger("listBuddy")
 
@@ -78,7 +78,7 @@ class UpdateCheckWorker(QThread):
     propaga la excepción — ver docstring del módulo.
     """
 
-    update_available: pyqtSignal = pyqtSignal(object)  # UpdateInfo
+    update_available: Signal = Signal(object)  # UpdateInfo
 
     def __init__(self, current_version: str) -> None:
         super().__init__()

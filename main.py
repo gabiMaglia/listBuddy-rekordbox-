@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import sys
 
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 from app_logging import install_excepthook, setup_logging
 from ui import MainWindow, _APP_VERSION
