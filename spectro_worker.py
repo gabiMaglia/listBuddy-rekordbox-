@@ -17,9 +17,9 @@ Acotamiento de recursos:
 from __future__ import annotations
 
 import numpy as np
-from PyQt6.QtCore import QEventLoop, QThread, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QImage
-from PyQt6.QtMultimedia import QAudioDecoder, QAudioFormat
+from PySide6.QtCore import QEventLoop, QThread, QTimer, QUrl, Signal
+from PySide6.QtGui import QImage
+from PySide6.QtMultimedia import QAudioDecoder, QAudioFormat
 
 _TARGET_SR      = 11025
 _MAX_SECONDS    = 90
@@ -29,7 +29,7 @@ _DECODE_TIMEOUT = 25_000   # ms — corta si el decode se cuelga
 
 
 class SpectrogramWorker(QThread):
-    ready: pyqtSignal = pyqtSignal(QImage, int)   # (imagen, generation)
+    ready: Signal = Signal(QImage, int)   # (imagen, generation)
 
     def __init__(
         self,
@@ -95,8 +95,9 @@ class SpectrogramWorker(QThread):
 
         decoder.bufferReady.connect(on_buffer)
         decoder.finished.connect(loop.quit)
-        # QAudioDecoder.error es señal+getter (overload ambiguo en PyQt6); no la
-        # conectamos. finished + timeout cubren el caso de fallo de decode.
+        # QAudioDecoder.error es señal y getter a la vez (en PySide6, un
+        # SignalInstance invocable); no la conectamos. finished + timeout
+        # cubren el caso de fallo de decode.
         QTimer.singleShot(_DECODE_TIMEOUT, loop.quit)
 
         decoder.start()
@@ -173,9 +174,11 @@ def _buffer_to_mono(buf) -> np.ndarray | None:
         return None
     dtype, scale, offset = spec
 
-    data = buf.constData()
-    data.setsize(buf.byteCount())
-    arr = np.frombuffer(bytes(data), dtype=dtype).astype(np.float32)
+    # PySide6 entrega un memoryview ya dimensionado (no un sip.voidptr con setsize).
+    raw = buf.constData().tobytes()
+    itemsize = np.dtype(dtype).itemsize
+    usable = len(raw) - (len(raw) % itemsize)
+    arr = np.frombuffer(raw[:usable], dtype=dtype).astype(np.float32)
     if offset:
         arr = arr - offset
     arr = arr / scale

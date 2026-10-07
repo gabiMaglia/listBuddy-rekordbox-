@@ -8,7 +8,7 @@ Sos un experto en Python, empaquetado de apps de escritorio para macOS/Windows, 
 
 ## El proyecto
 
-**listBuddy** es una app de escritorio (PyQt6) que lee la librería de Rekordbox 6 o Traktor Pro 3/4 y copia las canciones de las playlists seleccionadas a carpetas organizadas con prefijo numérico de orden. También permite previsualizar y reproducir audio directamente desde la interfaz.
+**listBuddy** es una app de escritorio (PySide6) que lee la librería de Rekordbox 6 o Traktor Pro 3/4 y copia las canciones de las playlists seleccionadas a carpetas organizadas con prefijo numérico de orden. También permite previsualizar y reproducir audio directamente desde la interfaz.
 
 ### Flujo de usuario
 
@@ -23,7 +23,7 @@ Sos un experto en Python, empaquetado de apps de escritorio para macOS/Windows, 
 
 ```
 main.py              → entry point. Solo QApplication + MainWindow.show().
-ui.py                → MainWindow (PyQt6). Árbol de playlists, preview, reproducción, exportación.
+ui.py                → MainWindow (PySide6). Árbol de playlists, preview, reproducción, exportación.
 worker.py            → ExportWorker (QThread). Copia archivos; emite signals log/progress/finished_ok.
 db.py                → Capa de acceso a pyrekordbox. open_database(), list_playlists(), get_playlist_tree().
 rekordbox_export.py  → Lógica base validada. NO modificar sin causa mayor.
@@ -57,9 +57,10 @@ plans/               → Planes de implementación autocontenidos para ejecutar 
 
 ```
 Python       3.14.3  (CPython)
-PyQt6        6.11.0
-PyQt6-Qt6    6.11.1
-PyQt6_sip    13.11.1
+PySide6             6.11.1
+PySide6_Essentials  6.11.1
+PySide6_Addons      6.11.1
+shiboken6           6.11.1
 pyrekordbox  0.4.4
 sqlcipher3-wheels 0.5.7
 numpy        2.4.6
@@ -195,16 +196,22 @@ El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **
    ```
    Requiere que todas las dependencias nativas (SQLCipher .dylib) también sean universal. `sqlcipher3-wheels` puede no tener universal en todas sus versiones — verificar antes de intentarlo.
 
-8. **Audio (QtMultimedia + FFmpeg):** el spec declara `PyQt6.QtMultimedia` y `numpy`
+8. **Audio (QtMultimedia + FFmpeg):** el spec declara `PySide6.QtMultimedia` y `numpy`
    en `hiddenimports`. **PyInstaller 6.x recoge automáticamente** los plugins
    multimedia (`libffmpegmediaplugin.dylib`, `libdarwinmediaplugin.dylib`,
    `QtMultimedia.framework`, `libavcodec/format/util`) — no hace falta colectar
    manualmente. Verificar en runtime que aparezca:
    `qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version ...`
-   Si el audio no suena en el bundle, incluir manualmente con:
+   QtMultimedia y FFmpeg vienen en `PySide6_Addons`, no en Essentials. Layout
+   verificado en Windows: `PySide6/plugins/multimedia/ffmpegmediaplugin.dll` y
+   `avcodec/avformat/avutil/swresample/swscale-*.dll` en la raíz de `PySide6/`.
+   Layout en macOS: a verificar en T-055.
+   Si el audio no suena en el bundle, incluir manualmente con (rglob recursivo,
+   conserva la jerarquía del paquete):
    ```python
-   collect_dynamic_libs('PyQt6', subdir='Qt6/plugins/multimedia')
-   collect_dynamic_libs('PyQt6', subdir='Qt6/lib')  # libav*
+   binaries += collect_dynamic_libs(
+       'PySide6', search_patterns=['*mediaplugin*', 'av*', 'sw*', 'libav*', 'libsw*'],
+   )
    ```
 
 7. **Entitlements** (si se firma con hardened runtime):
@@ -216,7 +223,7 @@ El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **
      <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
    </dict></plist>
    ```
-   PyInstaller+PyQt6 puede requerir `cs.allow-unsigned-executable-memory`. Pasar con `--entitlements entitlements.plist` en codesign.
+   PyInstaller+PySide6 puede requerir `cs.allow-unsigned-executable-memory`. Pasar con `--entitlements entitlements.plist` en codesign.
 
 ### Alternativas a PyInstaller en macOS
 

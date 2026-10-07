@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 
 
 # ─────────────────────────────────── Data transfer objects ───────────────
@@ -43,7 +43,7 @@ class GroupData:
     # T-015: referencia a la PlaylistCard del árbol izquierdo que originó este
     # grupo — permite que el botón "✕" del header (ui.py._render_group_header)
     # destilde el checkbox real en vez de reimplementar la lógica de selección.
-    # Tipado como `object` (no PlaylistCard) para no importar PyQt6 acá:
+    # Tipado como `object` (no PlaylistCard) para no importar widgets acá:
     # preview_worker.py corre en el QThread y no debe acoplarse a widgets Qt,
     # solo transporta la referencia sin tocarla (el worker jamás llama métodos
     # de `card`, ver PreviewWorker.run() más abajo).
@@ -63,8 +63,8 @@ class PreviewWorker(QThread):
     archivo dos veces (crítico en discos USB/red donde cada stat puede tardar).
     """
 
-    group_ready: pyqtSignal = pyqtSignal(object)  # GroupData
-    finished: pyqtSignal    = pyqtSignal()
+    group_ready: Signal = Signal(object)  # GroupData
+    finished: Signal    = Signal()
 
     def __init__(
         self,

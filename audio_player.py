@@ -3,7 +3,7 @@ audio_player.py
 ---------------
 Reproducción de audio para el preview de listBuddy.
 
-Envuelve QMediaPlayer + QAudioOutput (PyQt6.QtMultimedia). PyQt6 6.11 trae el
+Envuelve QMediaPlayer + QAudioOutput (PySide6.QtMultimedia). PySide6 6.11 trae el
 backend multimedia de FFmpeg embebido, que decodifica mp3 / wav / aiff / mp4 /
 m4a / flac / wma de forma nativa (FLAC y WMA incluidos). QMediaPlayer es
 asíncrono por diseño: play() retorna al instante y el decode corre en el hilo
@@ -14,18 +14,18 @@ Si algún archivo puntual no se puede decodificar, se reporta vía la señal
 """
 from __future__ import annotations
 
-from PyQt6.QtCore import QObject, QUrl, pyqtSignal
-from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
+from PySide6.QtCore import QObject, QUrl, Signal
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 
 
 class AudioPlayer(QObject):
     """Player de un solo track reutilizable. Estado mínimo, todo por señales."""
 
-    playing_changed:  pyqtSignal = pyqtSignal(bool)       # True=reproduciendo
-    track_changed:    pyqtSignal = pyqtSignal(str)        # path actual
-    error:            pyqtSignal = pyqtSignal(str)        # mensaje legible
-    position_changed: pyqtSignal = pyqtSignal(int, int)  # (pos_ms, dur_ms)
-    track_finished:   pyqtSignal = pyqtSignal()          # llegó al final
+    playing_changed:  Signal = Signal(bool)       # True=reproduciendo
+    track_changed:    Signal = Signal(str)        # path actual
+    error:            Signal = Signal(str)        # mensaje legible
+    position_changed: Signal = Signal(int, int)  # (pos_ms, dur_ms)
+    track_finished:   Signal = Signal()          # llegó al final
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
