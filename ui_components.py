@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import ClassVar, List
 
-from PyQt6.QtCore import QPoint, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import (
+from PySide6.QtCore import QPoint, QRectF, Qt, Signal
+from PySide6.QtGui import (
     QColor,
     QFontMetrics,
     QMouseEvent,
@@ -13,7 +13,7 @@ from PyQt6.QtGui import (
     QPalette,
     QPixmap,
 )
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QDialog,
     QGraphicsOpacityEffect,
     QHBoxLayout,
@@ -124,7 +124,7 @@ class TitleBar(QWidget):
 class ClickableLabel(QLabel):
     """QLabel que emite `clicked`. Usado para el ícono play/pausa/nota del rack-head."""
 
-    clicked: pyqtSignal = pyqtSignal()
+    clicked: Signal = Signal()
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -220,7 +220,7 @@ class FileRow(QWidget):
     flicker en cascada documentado en este archivo.
     """
 
-    clicked: pyqtSignal = pyqtSignal(str)
+    clicked: Signal = Signal(str)
 
     def __init__(
         self,
@@ -263,7 +263,7 @@ class FileRow(QWidget):
 class SeekBar(QWidget):
     """Barra de progreso clickeable/arrastrable. Emite seek_requested(ms)."""
 
-    seek_requested: pyqtSignal = pyqtSignal(int)
+    seek_requested: Signal = Signal(int)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -331,7 +331,7 @@ class SeekBar(QWidget):
 
 
 class PlaylistCard(QWidget):
-    toggled: pyqtSignal = pyqtSignal(object)
+    toggled: Signal = Signal(object)
 
     _theme: ClassVar[str] = "dark"
 

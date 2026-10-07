@@ -56,7 +56,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 
 _BACKUP_DIR_NAME = "listBuddy_backups"
 
@@ -273,7 +273,7 @@ class RestoreBackupWorker(QThread):
     que ya usa `progress_section` alcanza.
     """
 
-    finished_ok = pyqtSignal(bool, str)  # (ok, mensaje_de_error_si_fallo)
+    finished_ok = Signal(bool, str)  # (ok, mensaje_de_error_si_fallo)
 
     def __init__(self, backup_path: Path, target_path: Path) -> None:
         super().__init__()
@@ -501,10 +501,10 @@ class BaseRelocateWorker(QThread):
     de forma "neutral", así que quedan fuera de esta base a propósito.
     """
 
-    log         = pyqtSignal(str)
-    progress    = pyqtSignal(int, int)          # (hechas, total)
-    ask_user    = pyqtSignal(object)            # RelocateRequest — bloquea el worker
-    finished_ok = pyqtSignal(int, int, int, str)  # (reparadas, salteadas, sin_match, status)
+    log         = Signal(str)
+    progress    = Signal(int, int)          # (hechas, total)
+    ask_user    = Signal(object)            # RelocateRequest — bloquea el worker
+    finished_ok = Signal(int, int, int, str)  # (reparadas, salteadas, sin_match, status)
     # status: "ok" | "cancelled" | "error" | "blocked"
 
     def __init__(self, search_root: Path, auto_resolve: bool = False) -> None:

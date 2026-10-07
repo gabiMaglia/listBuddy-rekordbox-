@@ -13,11 +13,12 @@ import sys
 from io import BytesIO
 from pathlib import Path
 
-from PyQt6.QtCore import (
-    Qt, QTimer, QUrl, QSettings, pyqtSignal,
+from PySide6.QtCore import (
+    Qt, QTimer, QUrl, QSettings, Signal,
     QPropertyAnimation, QEasingCurve,
 )
-from PyQt6.QtGui import (
+from PySide6.QtGui import (
+    QAction,
     QColor,
     QDesktopServices,
     QImage,
@@ -27,7 +28,7 @@ from PyQt6.QtGui import (
     QPixmap,
     QShortcut,
 )
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
@@ -48,8 +49,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PyQt6.QtGui import QAction
-from PyQt6.QtMultimedia import QMediaDevices
+from PySide6.QtMultimedia import QMediaDevices
 
 from db import get_playlist_tree as rb_get_playlist_tree
 from db import open_database as rb_open_database
@@ -173,7 +173,7 @@ class VuBars(QWidget):
 # ────────────────────────────────────── Export button with badge ──────────
 
 class ExportWidget(QWidget):
-    clicked = pyqtSignal()
+    clicked = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -1868,7 +1868,7 @@ class MainWindow(QMainWindow):
 
     def _on_space(self) -> None:
         # No robar la barra espaciadora cuando se está escribiendo o sobre un botón
-        from PyQt6.QtWidgets import QAbstractButton
+        from PySide6.QtWidgets import QAbstractButton
         fw = QApplication.focusWidget()
         if isinstance(fw, (QLineEdit, QPlainTextEdit, QAbstractButton)):
             return
