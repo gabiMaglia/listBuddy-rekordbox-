@@ -1,10 +1,12 @@
 """styles.py — listBuddy design tokens + QSS loader."""
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 from typing import Dict
 
+from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import QApplication
 
 
@@ -13,6 +15,9 @@ if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
     ROOT = Path(sys._MEIPASS)
 else:
     ROOT = Path(__file__).parent
+
+FONTS_DIR = ROOT / 'fonts'
+_log = logging.getLogger(__name__)
 
 # Tokens «Mezcla Cálida» (T-061): única fuente de colores de la app
 THEMES: Dict[str, Dict[str, str]] = {
@@ -59,6 +64,20 @@ THEMES: Dict[str, Dict[str, str]] = {
         'chip_text': '#4a443b',
     },
 }
+
+
+def register_fonts() -> list[str]:
+    """Registra las fuentes OFL bundleadas; sin ellas la app arranca con fallback."""
+    families: set[str] = set()
+    for path in sorted(FONTS_DIR.glob('*.ttf')):
+        font_id = QFontDatabase.addApplicationFont(str(path))
+        if font_id == -1:
+            _log.warning('No se pudo cargar la fuente %s', path.name)
+            continue
+        families.update(QFontDatabase.applicationFontFamilies(font_id))
+    if not families:
+        _log.warning('Sin fuentes bundleadas en %s; se usa el fallback del sistema', FONTS_DIR)
+    return sorted(families)
 
 
 def token(theme: str, name: str) -> str:

@@ -6,10 +6,11 @@ sys.path.insert(0, str(REPO))
 import os; os.chdir(REPO)
 from PySide6.QtWidgets import QApplication, QTreeWidget, QCheckBox
 from PySide6.QtCore import QTimer, Qt
-from styles import apply_theme
+from styles import apply_theme, register_fonts
 from ui import MainWindow
 
 app = QApplication(sys.argv)
+register_fonts()
 apply_theme(app, "dark")
 win = MainWindow()
 win.resize(1180, 780)
