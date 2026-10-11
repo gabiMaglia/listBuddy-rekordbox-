@@ -54,7 +54,7 @@ QLabel#update_banner {
 QLabel#update_banner:hover { background: @{surface2}; }
 
 /* ── Header controls (T-062) ── */
-QWidget#source_switcher { background: @{inset}; border: 1px solid @{line}; border-radius: 8px; padding: 2px; }
+QWidget#source_switcher { background: @{inset}; border: 1px solid @{line}; border-radius: 8px; }
 QPushButton#source_btn_rb, QPushButton#source_btn_tk {
     background: transparent; border: none; border-radius: 6px; color: @{muted};
     font-size: 13px; font-weight: 500; padding: 0 14px; min-height: 30px; max-height: 30px;
