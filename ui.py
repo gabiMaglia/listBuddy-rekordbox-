@@ -369,6 +369,7 @@ class MainWindow(QMainWindow):
 
         # Cola de grupos pendientes de render + generation counter
         self._render_queue: list[GroupData] = []
+        self._broken_total: int = 0
         self._render_gen: int = 0   # se incrementa al limpiar; invalida batches stale
 
         settings_path = settings_path or Path(__file__).parent / ".rbe_settings.ini"
@@ -1462,8 +1463,13 @@ class MainWindow(QMainWindow):
 
     # ─────────────────────────────────────────────────────────────────────
 
+    def _set_broken_total(self, n: int) -> None:
+        self._broken_total = n
+        self._maint_btn.set_broken(n)
+
     def _clear_preview_layout(self) -> None:
         self._render_gen += 1          # invalida cualquier batch en vuelo
+        self._set_broken_total(0)
         self._render_queue.clear()
         # Las filas se destruyen acá (deleteLater); soltar la ref al row sonando
         # para no tocar un objeto C++ borrado en el próximo click (→ abort de Qt).
@@ -1596,6 +1602,8 @@ class MainWindow(QMainWindow):
 
     def _queue_group(self, data: GroupData) -> None:
         """Recibe el grupo del worker y lo encola para render diferido."""
+        # Cuenta al llegar el grupo, no al renderizar las filas en lotes.
+        self._set_broken_total(self._broken_total + data.missing_count)
         self._render_queue.append(data)
         if len(self._render_queue) == 1:               # primer grupo: arrancar el pump
             QTimer.singleShot(0, self._pump_render_queue)
