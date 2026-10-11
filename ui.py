@@ -1419,9 +1419,39 @@ class MainWindow(QMainWindow):
         anim.setStartValue(0.0)
         anim.setEndValue(1.0)
         anim.setEasingCurve(QEasingCurve.Type.OutQuart)
+        # T-029: guardamos la anim en el propio widget para poder pararla y
+        # desconectarla ANTES de deleteLater() si el preview se re-renderiza
+        # mientras el fade sigue en vuelo. Sin esto, `finished` dispara
+        # 120-180ms después de start() sobre un widget cuyo objeto C++ ya
+        # fue destruido -> EXC_BAD_ACCESS nativo (no es un RuntimeError de
+        # Python atrapable — reproducido en local: PID crashea con
+        # SIGSEGV/139 en <5s de toggles rápidos de playlist, ver
+        # scratchpad/repro_t029_real_app.py). Mismo patrón de "soltar la ref
+        # antes de que Qt borre el objeto" que ya se usa para _playing_row
+        # más abajo.
+        widget._fade_anim = anim  # type: ignore[attr-defined]
         # Remover el efecto al terminar para no penalizar el paint
-        anim.finished.connect(lambda: widget.setGraphicsEffect(None))
+        anim.finished.connect(lambda: self._on_fade_finished(widget))
         anim.start()
+
+    def _on_fade_finished(self, widget: QWidget) -> None:
+        widget.setGraphicsEffect(None)
+        widget._fade_anim = None  # type: ignore[attr-defined]
+
+    def _stop_fade_anim(self, widget: QWidget) -> None:
+        """T-029: para y desconecta el fade-in en vuelo de `widget` (si lo
+        tiene) antes de deleteLater(). Debe llamarse en TODO call site que
+        pueda borrar un widget devuelto por `_animate_fade_in` mientras su
+        animación sigue corriendo — hoy: `loading` (línea ~1465, duration
+        120) y `grp` (línea ~1584, duration 180)."""
+        anim = getattr(widget, "_fade_anim", None)
+        if anim is not None:
+            anim.stop()
+            try:
+                anim.finished.disconnect()
+            except TypeError:
+                pass  # ya desconectada (p.ej. terminó justo antes de pararla)
+            widget._fade_anim = None  # type: ignore[attr-defined]
 
     # ─────────────────────────────────────────────────────────────────────
 
@@ -1437,6 +1467,7 @@ class MainWindow(QMainWindow):
             item = lo.takeAt(0)
             w = item.widget()
             if w:
+                self._stop_fade_anim(w)   # T-029: parar el fade ANTES de borrar
                 w.deleteLater()
 
     def _cancel_preview_worker(self) -> None:
@@ -1576,6 +1607,7 @@ class MainWindow(QMainWindow):
             if first and first.widget() and first.widget().objectName() == "preview_loading":
                 w = first.widget()
                 lo.removeWidget(w)
+                self._stop_fade_anim(w)   # T-029: idem _clear_preview_layout
                 w.deleteLater()
         # Quitar stretch final para insertar antes
         last = lo.itemAt(lo.count() - 1) if lo.count() else None
@@ -1623,6 +1655,7 @@ class MainWindow(QMainWindow):
             if item and item.widget() and item.widget().objectName() == "preview_loading":
                 w = item.widget()
                 lo.removeWidget(w)
+                self._stop_fade_anim(w)   # T-029: idem _clear_preview_layout
                 w.deleteLater()
                 break
 
