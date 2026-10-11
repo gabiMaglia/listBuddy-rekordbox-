@@ -8,6 +8,7 @@ from PySide6.QtSvg import QSvgRenderer
 ICON_NAMES: tuple[str, ...] = (
     "sun", "moon", "heart", "gear", "folder", "note",
     "play", "pause", "close", "chevron_right",
+    "wrench", "logo", "dot",
 )
 
 # Grilla 24x24; `{c}` se reemplaza por el color (también para los rellenos de play/pause).
@@ -39,6 +40,15 @@ _PATHS: dict[str, str] = {
     "pause": '<path fill="{c}" d="M7 5h3v14H7zM14 5h3v14h-3z"/>',
     "close": '<path d="M6 6l12 12M18 6L6 18"/>',
     "chevron_right": '<path d="M9 6l6 6-6 6"/>',
+    "wrench": '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
+    # Las 4 barras del logo (diseño, grilla 22 -> 24): rellenas, sin trazo.
+    "logo": (
+        '<rect x="3" y="10" width="3" height="10" rx="1" fill="{c}" stroke="none"/>'
+        '<rect x="8" y="5" width="3" height="15" rx="1" fill="{c}" stroke="none"/>'
+        '<rect x="13" y="8" width="3" height="12" rx="1" fill="{c}" stroke="none"/>'
+        '<rect x="18" y="13" width="3" height="7" rx="1" fill="{c}" stroke="none"/>'
+    ),
+    "dot": '<circle cx="12" cy="12" r="6" fill="{c}" stroke="none"/>',
 }
 
 _WRAP = (
