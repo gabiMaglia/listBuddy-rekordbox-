@@ -54,6 +54,7 @@ from PySide6.QtMultimedia import QMediaDevices
 from db import get_playlist_tree as rb_get_playlist_tree
 from db import open_database as rb_open_database
 from db import playlist_song_count as rb_song_count
+from styles import status_style, token
 from worker import ExportWorker
 from ui_components import (
     ClickableLabel,
@@ -127,7 +128,7 @@ class VuBars(QWidget):
         super().__init__(parent)
         self._phase = 0.0
         self._live = False
-        self._accent = QColor(206, 125, 230)
+        self._accent = QColor(token("dark", "accent"))
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self.setFixedSize(54, 26)
@@ -241,7 +242,7 @@ class DonationDialog(QDialog):
 
         title = QLabel("¿Te sirvió listBuddy?")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size:15px; font-weight:700;")
+        title.setObjectName("dialog_title")
         layout.addWidget(title)
 
         sub = QLabel("Podés invitarme un café en Ko-fi.\nContribución 100 % voluntaria.")
@@ -412,12 +413,8 @@ class MainWindow(QMainWindow):
         if app:
             app.setStyleSheet(load_qss(self._theme))
         self._sync_theme_toggle(self._theme)
-        self._vu_bars.set_accent(
-            "#ce7de6" if self._theme == "dark" else "#8c38bf"
-        )
-        self._seek_bar.set_accent(
-            "#ce7de6" if self._theme == "dark" else "#8c38bf"
-        )
+        self._vu_bars.set_accent(token(self._theme, "accent"))
+        self._seek_bar.set_accent(token(self._theme, "accent"))
 
         self._apply_saved_audio_device()
         last_dest = str(self.settings.value("last_dest_folder", "") or "")
@@ -2168,28 +2165,7 @@ class MainWindow(QMainWindow):
 
     def _set_status_style(self, variant: str) -> None:
         """Colorea el tag output_status según el resultado (ok/warn/error/active)."""
-        dark = self._theme == "dark"
-        styles: dict[str, str] = {
-            "ok": (
-                "color: #ce7de6; border-color: rgba(206,125,230,0.3);" if dark
-                else "color: #8c38bf; border-color: rgba(140,56,191,0.3);"
-            ),
-            "warn": (
-                "color: #e6a93a; border-color: rgba(230,169,58,0.3);" if dark
-                else "color: #a06000; border-color: rgba(160,96,0,0.3);"
-            ),
-            "error": (
-                "color: #e65a5a; border-color: rgba(230,90,90,0.3);" if dark
-                else "color: #c03030; border-color: rgba(192,48,48,0.3);"
-            ),
-            "active": "",
-        }
-        base = (
-            "font-family: 'SF Mono','Menlo',monospace; font-size: 10px;"
-            " border: 1px solid; border-radius: 4px; padding: 2px 7px; background: transparent;"
-        )
-        extra = styles.get(variant, "")
-        self.output_status.setStyleSheet(base + extra if extra else "")
+        self.output_status.setStyleSheet(status_style(self._theme, variant))
 
     def _hide_progress_section(self) -> None:
         self.progress_section.setVisible(False)
@@ -2665,10 +2641,8 @@ class MainWindow(QMainWindow):
             if card.isChecked():
                 card._refresh()
         self._sync_theme_toggle(theme)
-        self._vu_bars.set_accent(
-            "#ce7de6" if theme == "dark" else "#8c38bf"
-        )
-        self._seek_bar.set_accent("#ce7de6" if theme == "dark" else "#8c38bf")
+        self._vu_bars.set_accent(token(theme, "accent"))
+        self._seek_bar.set_accent(token(theme, "accent"))
         # Re-tint del highlight de la fila sonando con el accent del nuevo tema
         self._set_row_playing(self._playing_row, True)
         # El espectrograma cacheado está tintado con el accent viejo → recalcular

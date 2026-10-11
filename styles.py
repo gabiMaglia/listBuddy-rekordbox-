@@ -61,6 +61,34 @@ THEMES: Dict[str, Dict[str, str]] = {
 }
 
 
+def token(theme: str, name: str) -> str:
+    return THEMES.get(theme, THEMES['dark'])[name]
+
+
+def card_styles(theme: str) -> dict[str, str]:
+    """Estilos inline del estado «marcada» de PlaylistCard (evitan polish en cascada)."""
+    t = THEMES.get(theme, THEMES['dark'])
+    return {
+        'card_on': (
+            f"QWidget#playlist_card {{ background: {t['sel_bg']};"
+            f" border: 1.5px solid {t['accent']}; border-radius: 12px; }}"
+        ),
+        'order_on': f"color: {t['link']};",
+        'check_on': (
+            f"background: {t['accent']}; border: 1.5px solid {t['accent']};"
+            f" color: {t['on_accent']}; border-radius: 6px;"
+        ),
+    }
+
+
+def status_style(theme: str, variant: str) -> str:
+    key = {'ok': 'ok', 'warn': 'accent', 'error': 'danger'}.get(variant)
+    if key is None:
+        return ''
+    c = token(theme, key)
+    return f"color: {c}; border-color: {c};"
+
+
 def load_qss(name: str = 'dark') -> str:
     path = ROOT / 'qss' / 'app.qss'
     if not path.exists():

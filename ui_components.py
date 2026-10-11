@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import ClassVar, List
 
+import styles
+
 from PySide6.QtCore import QPoint, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
@@ -25,46 +27,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-
-# ──────────────────────── Theme-specific inline styles ───────────────────
-# Usamos setStyleSheet() inline en lugar de unpolish/polish para evitar que
-# Qt invalide el área de paint del parent y cause flicker en los siblings.
-
-_CARD_STYLES: dict[str, dict[str, str]] = {
-    "dark": {
-        "card_on":   (
-            "QWidget#playlist_card {"
-            " background: rgba(206,125,230,30);"
-            " border: 1.5px solid #b053d4;"
-            " border-radius: 9px;"
-            "}"
-        ),
-        "order_on":  "color: #ce7de6;",
-        "check_on":  (
-            "background: #ce7de6;"
-            " border: 1.5px solid #b053d4;"
-            " color: #1e0d29;"
-            " border-radius: 6px;"
-        ),
-    },
-    "light": {
-        "card_on":   (
-            "QWidget#playlist_card {"
-            " background: rgba(140,56,191,20);"
-            " border: 1.5px solid #7828ab;"
-            " border-radius: 9px;"
-            "}"
-        ),
-        "order_on":  "color: #8c38bf;",
-        "check_on":  (
-            "background: #8c38bf;"
-            " border: 1.5px solid #7828ab;"
-            " color: #fefefe;"
-            " border-radius: 6px;"
-        ),
-    },
-}
 
 
 # ───────────────────────── Custom title bar (T-010, Windows-only chrome) ──
@@ -245,11 +207,8 @@ class FileRow(QWidget):
     def set_playing(self, playing: bool) -> None:
         if playing:
             theme = PlaylistCard._theme
-            accent = "#ce7de6" if theme == "dark" else "#8c38bf"
-            soft = (
-                "rgba(206,125,230,28)" if theme == "dark"
-                else "rgba(140,56,191,22)"
-            )
+            accent = styles.token(theme, "accent")
+            soft = styles.token(theme, "sel_bg")
             self.setStyleSheet(
                 "QWidget#output_file_row {"
                 f" background: {soft};"
@@ -269,7 +228,7 @@ class SeekBar(QWidget):
         super().__init__(parent)
         self._pos = 0
         self._dur = 0
-        self._accent = QColor(206, 125, 230)
+        self._accent = QColor(styles.token("dark", "accent"))
         self.setFixedHeight(14)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -447,7 +406,7 @@ class PlaylistCard(QWidget):
         todos los siblings dentro del mismo QScrollArea.
         """
         on = self._checked
-        s  = _CARD_STYLES.get(self._theme, _CARD_STYLES["dark"])
+        s  = styles.card_styles(self._theme)
 
         if on:
             self.setStyleSheet(s["card_on"])
