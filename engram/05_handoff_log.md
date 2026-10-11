@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-11 22:20] nerv-orquestador → nerv-desktop T-063 (+T-068) · Niv S · fase CÓMO (P-19.2)
+- T-062 Done (QA Strong, 7521dac). PO pidió seguir con T-063 (footer de A). Se pliega T-068 (test de `_set_relocate_state("idle")` en `_on_relocate_finished`, mutación viva de QA T-062).
+- Entrega: SOLO el CÓMO de T-063 (+ tarea para T-068) con `superpowers:writing-plans`, como `## CÓMO — T-063` al final de `engram/plans/T-061.md`, estampado. Sin código. Decisiones para el PO como D1..Dn.
+- Archivos a leer: `engram/plans/T-061.md` (QUÉ §Estructura/Footer, §T-063, decisiones del PO de T-061/T-062) · `engram/03_backlog.md` (T-063, T-068) · `engram/plans/design/T-061-mezcla-calida.dc.html` (footer) · `ui.py` (rack head, `_build_seek_row`, `_build_dest_section`, `_build_progress_section`, `_build_export_widget`), `audio_player.py`, `spectro_worker.py`, `ui_components.py` (SeekBar) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · decisiones para el PO.
+
 ### [2026-10-11 21:45] nerv-orquestador → nerv-qa T-062 · Niv S
 - Gate P-12.1 PASS (Orquestador): tree limpio, diff 032b1aa..HEAD == declarados, suite verde, `.rbe_settings.ini` intacto. Capturas 820 px revisadas.
 - Notas del Orquestador para la auditoría: el badge «30 rotos» de las capturas está FORZADO por `capture_t062.py` (`_set_broken_total(30)`) → el criterio del conteo real se valida por tests, no por la foto. La barra «Ver/Ayuda» es preexistente (QMenuBar en offscreen). No bloqueante (→ T-066): la acción checkable «Resolver automáticamente…» no muestra indicador cuando está apagada.
