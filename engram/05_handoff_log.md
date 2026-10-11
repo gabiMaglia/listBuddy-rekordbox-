@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-11 18:56] nerv-orquestador → nerv-desktop T-061 · Niv S · fase CÓMO (P-19.2)
+- Entrega: SOLO el plan CÓMO de T-061 con `superpowers:writing-plans`, escrito en `engram/plans/T-061.md` (sección `## CÓMO — T-061`) y estampado (aprobado por · rol · fecha). **Sin código.** El paso de elección de ejecución vuelve al Orquestador (P-9).
+- Contexto: reskin «Mezcla Cálida» elegido por el PO sobre canvas renderizado (header+footer de A, cuerpo de F1, paleta cálida). Contraste de la paleta ya verificado por el Orquestador: mín. 6.24 dark / 5.24 light.
+- Archivos a leer: `engram/03_backlog.md` (T-061) · `engram/plans/T-061.md` (QUÉ + §T-061) · `engram/plans/design/T-061-mezcla-calida.dc.html` · `styles.py`, `qss/dark.qss`, `qss/light.qss`, `ui.py`, `ui_components.py`, `rb_exporter.spec` · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar.
+
 ### 2026-08-01 CIERRE (P-5) · nerv-qa → nerv-orquestador T-023 + T-024 · APROBADOS
 - QA Strong APROBÓ ambos. T-023: `_boot_volume_name()` (traktor_db.py:181-225) deriva el volumen vía `diskutil info -plist /`, cacheado con `lru_cache` (1 invocación por proceso, no por pista) y con fallback si falla; `VOLUMEID` se sincroniza solo dentro de la ENTRY reparada (traktor_relocate.py:281-297). T-024: `_DARWIN_PROCESS_PATTERN` (traktor_relocate.py:96) verificado en vivo con el patrón exacto del código → PID 26702, exit 0; `-x` es full-match, sin falso positivo con `crashpad_handler`.
 - Gate determinista P-12.1: PASS (declarados == `git diff --name-only`, tree limpio, 111/111 tests). Corrido por el Orquestador ANTES de gastar tokens de QA.
