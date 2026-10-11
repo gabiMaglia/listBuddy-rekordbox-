@@ -16,6 +16,7 @@ def _project_py_files() -> list[Path]:
     return [
         p for p in PROJECT_ROOT.rglob("*.py")
         if not _EXCLUDED_DIRS.intersection(p.relative_to(PROJECT_ROOT).parts)
+        and not p.relative_to(PROJECT_ROOT).parts[0].startswith(".venv")  # .venv-1 etc.: ruido del entorno
     ]
 
 
