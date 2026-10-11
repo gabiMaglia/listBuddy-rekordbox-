@@ -124,3 +124,82 @@ def test_left_column_no_longer_has_source_switcher() -> None:
         "print('ok')\n"
     )
     assert out.split()[-1] == "ok"
+
+
+MENU_TEXTS = [
+    "Reparar enlaces rotos…",
+    "Restaurar copia de seguridad…",
+    "Resolver automáticamente con la mejor coincidencia",
+]
+
+
+def test_maintenance_menu_has_the_three_actions_and_left_column_lost_relocate() -> None:
+    out = run(
+        "from PySide6.QtWidgets import QPushButton, QCheckBox\n"
+        "w, _ = make()\n"
+        "acts = [a.text() for a in w._maint_menu.actions() if not a.isSeparator()]\n"
+        "print('|'.join(acts))\n"
+        "assert w._act_auto.isCheckable() and not w._act_auto.isChecked()\n"
+        "left = w.findChild(ui.QWidget, 'left_col')\n"
+        "assert left.findChild(QPushButton, 'relocate_btn') is None\n"
+        "assert left.findChild(QPushButton, 'restore_backup_btn') is None\n"
+        "assert left.findChild(QCheckBox, 'relocate_auto_chk') is None\n"
+    )
+    assert out.strip().splitlines()[-1] == "|".join(MENU_TEXTS)
+
+
+def test_menu_actions_fire_the_same_flows_as_before() -> None:
+    out = run(
+        "calls = []\n"
+        "ui.MainWindow._start_relocate = lambda self: calls.append('relocate')\n"
+        "ui.MainWindow._open_restore_backup_dialog = lambda self: calls.append('restore')\n"
+        "w, _ = make()\n"
+        "w._act_relocate.trigger(); w._act_restore.trigger()\n"
+        "print(calls)\n"
+    )
+    assert out.strip().splitlines()[-1] == "['relocate', 'restore']"
+
+
+def test_relocate_action_becomes_cancel_while_running() -> None:
+    out = run(
+        "calls = []\n"
+        "ui.MainWindow._start_relocate = lambda self: calls.append('start')\n"
+        "ui.MainWindow._cancel_relocate = lambda self: calls.append('cancel')\n"
+        "w, _ = make()\n"
+        "w._set_relocate_state('running')\n"
+        "assert w._act_relocate.text() == 'Cancelar'\n"
+        "w._act_relocate.trigger()\n"
+        "w._set_relocate_state('cancelling')\n"
+        "assert w._act_relocate.text() == 'Cancelando…' and not w._act_relocate.isEnabled()\n"
+        "w._set_relocate_state('idle')\n"
+        "assert w._act_relocate.text() == 'Reparar enlaces rotos…' and w._act_relocate.isEnabled()\n"
+        "w._act_relocate.trigger()\n"
+        "print(calls)\n"
+    )
+    assert out.strip().splitlines()[-1] == "['cancel', 'start']"
+
+
+def test_auto_resolve_starts_off_and_is_not_persisted() -> None:
+    out = run(
+        "w, tmp = make()\n"
+        "assert w._auto_resolve_enabled() is False\n"
+        "w._act_auto.trigger(); w.settings.sync()\n"
+        "assert w._auto_resolve_enabled() is True\n"
+        "assert 'relocate_auto_resolve' not in tmp.read_text() if tmp.exists() else True\n"
+        "w2 = ui.MainWindow(settings_path=tmp)\n"
+        "assert w2._auto_resolve_enabled() is False and not w2._act_auto.isChecked()\n"
+        "print('ok')\n"
+    )
+    assert out.split()[-1] == "ok"
+
+
+def test_restore_in_flight_disables_both_maintenance_actions() -> None:
+    out = run(
+        "w, _ = make()\n"
+        "w._set_maintenance_enabled(False)\n"
+        "assert not w._act_relocate.isEnabled() and not w._act_restore.isEnabled()\n"
+        "w._set_maintenance_enabled(True)\n"
+        "assert w._act_relocate.isEnabled() and w._act_restore.isEnabled()\n"
+        "print('ok')\n"
+    )
+    assert out.split()[-1] == "ok"

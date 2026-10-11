@@ -105,24 +105,6 @@ QLabel#eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: 
 
 /* ── Source switcher ── */
 
-/* ── Relocate (F-07) ── */
-QPushButton#relocate_btn {
-    background: @{surface2}; border: 1.5px solid @{line}; border-radius: 8px;
-    color: @{text}; font-size: 12px; font-weight: 600;
-    padding: 5px 11px; min-height: 30px;
-}
-QPushButton#relocate_btn:hover { background: @{row_line}; border-color: @{accent}; }
-QPushButton#relocate_btn:disabled { color: @{muted}; border-color: @{row_line}; }
-
-/* ── Restore backup (B-4) — secundario, más chico, al lado del anterior ── */
-QPushButton#restore_backup_btn {
-    background: transparent; border: 1.5px solid @{line}; border-radius: 8px;
-    color: @{muted}; font-size: 12px; font-weight: 600;
-    padding: 4px 10px; min-height: 28px;
-}
-QPushButton#restore_backup_btn:hover { background: @{surface2}; color: @{text}; border-color: @{accent}; }
-QPushButton#restore_backup_btn:disabled { color: @{muted}; border-color: @{row_line}; }
-
 /* ── Destination ── */
 QWidget#path_row_widget {
     background: @{surface}; border: 1.5px solid @{line}; border-radius: 8px;
