@@ -30,3 +30,8 @@ def test_spec_windows_branch_is_onedir() -> None:
     windows = _SPEC.split("# ── Windows", 1)[1]
     assert "exclude_binaries=True" in windows
     assert "COLLECT(" in windows
+
+
+def test_spec_bundles_fonts_and_qtsvg() -> None:
+    assert "('fonts', 'fonts')" in _SPEC
+    assert "'PySide6.QtSvg'" in _SPEC

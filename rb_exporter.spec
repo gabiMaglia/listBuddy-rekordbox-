@@ -24,7 +24,7 @@ a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=collect_dynamic_libs('sqlcipher3'),
-    datas=pyrekordbox_datas + [('qss', 'qss')],
+    datas=pyrekordbox_datas + [('qss', 'qss'), ('fonts', 'fonts')],
     # Nota: los módulos locales del relocate (traktor_relocate, rekordbox_relocate,
     # traktor_db, worker, preview_worker, etc.) NO van acá — se importan de forma
     # estática desde main.py → ui.py (`from traktor_relocate import ...`), así que
@@ -46,6 +46,7 @@ a = Analysis(
         'sqlalchemy.dialects.sqlite',
         'sqlalchemy.orm',
         'PySide6.QtMultimedia',
+        'PySide6.QtSvg',
         'numpy',
     ],
     hookspath=[],
