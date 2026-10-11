@@ -46,6 +46,7 @@ QLabel#header_np_track {
 QLabel#header_np_artist {
     font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent;
 }
+QWidget#update_strip { background: @{bg}; border-bottom: 1px solid @{row_line}; }
 QLabel#update_banner {
     background: @{sel_bg}; border: 1px solid @{accent}; border-radius: 8px;
     color: @{accent}; font-size: 11px; font-weight: 600; padding: 3px 10px;

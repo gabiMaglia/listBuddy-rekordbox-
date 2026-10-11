@@ -243,3 +243,54 @@ def test_badge_singular() -> None:
         "print(w._maint_btn.findChild(QLabel, 'maint_badge').text())\n"
     )
     assert out.strip().splitlines()[-1] == "1 roto"
+
+
+FIT = (
+    "from PySide6.QtWidgets import QPushButton, QLabel\n"
+    "def clipped(w):\n"
+    "    bar = w.findChild(ui.QWidget, 'header_bar')\n"
+    "    bad = []\n"
+    "    for c in bar.findChildren(QPushButton) + bar.findChildren(QLabel):\n"
+    "        if not c.isVisible() or not (c.text() if hasattr(c, 'text') else ''):\n"
+    "            continue\n"
+    "        if c.width() < c.sizeHint().width():\n"
+    "            bad.append((c.objectName(), c.text(), c.width(), c.sizeHint().width()))\n"
+    "    over = bar.layout().sizeHint().width() > bar.width()\n"
+    "    return bad, over\n"
+)
+
+
+def test_header_fits_820_without_clipping_on_macos_layout() -> None:
+    out = run(FIT + "w, _ = make(); w._set_broken_total(30); app.processEvents()\n"
+              "print(clipped(w))\n")
+    assert out.strip().splitlines()[-1] == "([], False)"
+
+
+def test_header_fits_820_with_windows_chrome_using_compact_mode() -> None:
+    out = run(FIT + "ui._IS_WINDOWS = True\n"
+              "w, _ = make(); w._set_broken_total(30); app.processEvents()\n"
+              "print(clipped(w), w._donate_btn.text() == '', w._maint_btn.toolTip())\n")
+    assert out.strip().splitlines()[-1] == "([], False) True Mantenimiento"
+
+
+def test_compact_mode_is_not_used_when_there_is_room() -> None:
+    out = run("w, _ = make(); w.resize(1180, 700); app.processEvents()\n"
+              "print(w._donate_btn.text().strip(), w._maint_btn.toolTip() == '')\n")
+    assert out.strip().splitlines()[-1] == "Apoyar True"
+
+
+def test_update_notice_lives_in_its_own_strip_not_in_the_header() -> None:
+    out = run(
+        "w, _ = make()\n"
+        "strip = w.findChild(ui.QWidget, 'update_strip')\n"
+        "assert strip is not None and not strip.isVisible()\n"
+        "class Info:\n"
+        "    version = '9.9.9'\n"
+        "    url = 'https://example.invalid'\n"
+        "w._on_update_available(Info()); app.processEvents()\n"
+        "assert strip.isVisible() and strip.isAncestorOf(w._update_banner)\n"
+        "bar = w.findChild(ui.QWidget, 'header_bar')\n"
+        "assert not bar.isAncestorOf(w._update_banner)\n"
+        "print('ok')\n"
+    )
+    assert out.split()[-1] == "ok"
