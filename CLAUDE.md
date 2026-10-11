@@ -125,7 +125,7 @@ Las canciones de una playlist están en la relación `Songs` (o `songs` o `items
 | `Title` | str | Título de la pista |
 | `ArtistName` | str | Nombre del artista (puede ser `None`) |
 | `FolderPath` | str | Ruta al archivo en disco (puede ser `/C/Users/...` o `C:\Users\...`) |
-| `TrackNo` | int | Orden dentro de la playlist (puede ser `None` o duplicado) |
+| `TrackNo` | int | Número de pista del archivo (suele valer `0`). **NO es el orden de la playlist:** ese vive en `TrackNo` de la entrada playlist-canción (`DjmdSongPlaylist`, los items de `get_songs()`); ordenar siempre con `db.order_playlist_songs()` |
 | `BeatCount` | int | BPM×10 |
 | `ColorID` | int | Color de la pista en RB |
 
