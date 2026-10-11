@@ -6,7 +6,25 @@ Import chain: main → ui → worker / db → rekordbox_export (nunca al revés)
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import Any
+
 from rekordbox_export import get_all_playlists, get_songs
+
+
+def order_playlist_songs(songs: Iterable[Any]) -> list[Any]:
+    """
+    Ordena las canciones de una playlist por TrackNo de la entrada
+    playlist-canción (DjmdSongPlaylist).
+
+    pyrekordbox devuelve playlist.Songs sin orden garantizado; TrackNo es la
+    única fuente del orden real. None cuenta como 0 y los empates conservan el
+    orden de llegada, que es el criterio que el export usó siempre. Export y
+    vista previa comparten esta función para numerar igual.
+    """
+    indexed = list(enumerate(songs))
+    indexed.sort(key=lambda i_s: (getattr(i_s[1], "TrackNo", None) or 0, i_s[0]))
+    return [s for _, s in indexed]
 
 
 def open_database(path: str | None = None):

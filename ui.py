@@ -1497,7 +1497,12 @@ class MainWindow(QMainWindow):
         if is_traktor:
             from traktor_db import get_songs as _get_songs
         else:
-            from rekordbox_export import get_songs as _get_songs  # type: ignore[assignment]
+            from rekordbox_export import get_songs as _rb_get_songs
+            from db import order_playlist_songs
+
+            # pyrekordbox devuelve Songs desordenada: mismo orden que el export.
+            def _get_songs(pl):  # type: ignore[misc]
+                return order_playlist_songs(_rb_get_songs(pl))
 
         from rekordbox_export import get_content, get_artist, sanitize
 
