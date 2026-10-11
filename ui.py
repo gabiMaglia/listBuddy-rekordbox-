@@ -12,9 +12,10 @@ import os
 import sys
 from io import BytesIO
 from pathlib import Path
+from typing import Literal
 
 from PySide6.QtCore import (
-    QSize, Qt, QTimer, QUrl, QSettings, Signal,
+    QPoint, QSize, Qt, QTimer, QUrl, QSettings, Signal,
     QPropertyAnimation, QEasingCurve,
 )
 from PySide6.QtGui import (
@@ -40,6 +41,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPlainTextEdit,
     QProgressBar,
@@ -489,6 +491,7 @@ class MainWindow(QMainWindow):
         self._maint_btn = MaintenanceButton()
         self._tint_icon(self._maint_btn.icon_label(), "wrench", "text", 16)
         lo.addWidget(self._maint_btn)
+        self._build_maintenance_menu()
 
         self._settings_btn = QPushButton()
         self._tint_icon(self._settings_btn, "gear", "muted", 16)
@@ -625,7 +628,6 @@ class MainWindow(QMainWindow):
 
         lo.addWidget(self._build_rack_head())
         lo.addWidget(self._build_seek_row())
-        lo.addWidget(self._build_relocate_row())
         lo.addWidget(self._build_dest_section())
         lo.addWidget(self._build_playlists_header())
         lo.addWidget(self._build_playlist_scroll(), 1)
@@ -738,71 +740,69 @@ class MainWindow(QMainWindow):
             btn.style().unpolish(btn)
             btn.style().polish(btn)
 
-    def _build_relocate_row(self) -> QWidget:
-        """
-        F-07/F-08 (ADR-001/ADR-002): botón de relocate, visible con
-        cualquier fuente activa (Traktor o Rekordbox — ver ADR-002 punto 5,
-        reusa el mismo botón/checkbox en vez de duplicar UI por motor).
-        """
-        # D-08 (verificación en vivo de T-019): con relocate_btn +
-        # restore_backup_btn + el checkbox los tres en una sola fila
-        # horizontal, el ancho fijo de 344px de la columna corta el texto de
-        # todo. Se apilan en dos filas: botones lado a lado arriba, checkbox
-        # (con su texto largo) en su propia fila abajo con todo el ancho.
-        row = QWidget()
-        row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        outer = QVBoxLayout(row)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(8)
-
-        btn_row = QWidget()
-        btn_row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        rl = QHBoxLayout(btn_row)
-        rl.setContentsMargins(0, 0, 0, 0)
-        rl.setSpacing(8)
-
-        self.relocate_btn = QPushButton("🔧  Reparar enlaces rotos…")
-        self.relocate_btn.setObjectName("relocate_btn")
-        self.relocate_btn.clicked.connect(self._start_relocate)
-        rl.addWidget(self.relocate_btn, 1)
-
-        # B-4 (T-019): el backup existe (retención N=10/N=5) pero vive en una
-        # carpeta oculta del sistema — sin este botón, restaurarlo a mano es
-        # inviable para un usuario no técnico. Botón secundario, más chico,
-        # al lado del de reparar (mismo criterio visual que browse_btn).
-        self.restore_backup_btn = QPushButton("↩  Restaurar copia de seguridad…")
-        self.restore_backup_btn.setObjectName("restore_backup_btn")
-        self.restore_backup_btn.clicked.connect(self._open_restore_backup_dialog)
-        rl.addWidget(self.restore_backup_btn, 1)
-
-        outer.addWidget(btn_row)
-
-        self.relocate_auto_chk = QCheckBox(
-            "Resolver automáticamente con la mejor coincidencia (sin preguntar)"
+    def _build_maintenance_menu(self) -> None:
+        """Menú del botón Mantenimiento (D-08: sale de la columna de 344 px)."""
+        menu = QMenu(self)
+        menu.setToolTipsVisible(True)
+        self._act_relocate = menu.addAction("Reparar enlaces rotos…")
+        self._act_relocate.triggered.connect(self._on_relocate_action)
+        self._act_restore = menu.addAction("Restaurar copia de seguridad…")
+        self._act_restore.triggered.connect(self._open_restore_backup_dialog)
+        menu.addSeparator()
+        self._act_auto = menu.addAction(
+            "Resolver automáticamente con la mejor coincidencia"
         )
-        self.relocate_auto_chk.setObjectName("relocate_auto_chk")
-        self.relocate_auto_chk.setChecked(False)
-        self.relocate_auto_chk.setToolTip(
+        self._act_auto.setCheckable(True)
+        self._act_auto.setChecked(False)  # D4: siempre apagado al arrancar, no se persiste
+        self._act_auto.setToolTip(
             "Con >1 candidato, aplica directo el de mejor score sin mostrar\n"
             "el modal de desambiguación. El log marca cada uno como '(auto)'.\n"
             "Riesgo: un nombre de archivo idéntico para canciones distintas\n"
             "podría auto-resolver al candidato equivocado (backup reversible)."
         )
-        outer.addWidget(self.relocate_auto_chk)
-
-        self._relocate_row = row
+        self._maint_menu = menu
+        self._relocate_state: Literal["idle", "running", "cancelling"] = "idle"
+        # Popup propio y no setMenu: setMenu agrega un indicador que el diseño no tiene.
+        self._maint_btn.clicked.connect(self._show_maintenance_menu)
         self._update_relocate_tooltip()
-        return row
+
+    def _show_maintenance_menu(self) -> None:
+        self._maint_menu.popup(
+            self._maint_btn.mapToGlobal(QPoint(0, self._maint_btn.height() + 4))
+        )
+
+    def _on_relocate_action(self) -> None:
+        if self._relocate_state == "idle":
+            self._start_relocate()
+        elif self._relocate_state == "running":
+            self._cancel_relocate()
+
+    def _set_relocate_state(self, state: Literal["idle", "running", "cancelling"]) -> None:
+        self._relocate_state = state
+        text, enabled = {
+            "idle": ("Reparar enlaces rotos…", True),
+            "running": ("Cancelar", True),
+            "cancelling": ("Cancelando…", False),
+        }[state]
+        self._act_relocate.setText(text)
+        self._act_relocate.setEnabled(enabled)
+
+    def _set_maintenance_enabled(self, enabled: bool) -> None:
+        self._act_relocate.setEnabled(enabled)
+        self._act_restore.setEnabled(enabled)
+
+    def _auto_resolve_enabled(self) -> bool:
+        return self._act_auto.isChecked()
 
     def _update_relocate_tooltip(self) -> None:
         """Tooltip del botón de relocate según la fuente activa (Traktor/Rekordbox)."""
         if self._source == "traktor":
-            self.relocate_btn.setToolTip(
+            self._act_relocate.setToolTip(
                 "Busca los archivos con link roto en una carpeta/disco y repara\n"
                 "la colección de Traktor (collection.nml)."
             )
         else:
-            self.relocate_btn.setToolTip(
+            self._act_relocate.setToolTip(
                 "Busca los archivos con link roto en una carpeta/disco y repara\n"
                 "la librería de Rekordbox 6 (master.db). Rekordbox debe estar\n"
                 "cerrado — se hace backup automático antes de escribir."
@@ -2335,14 +2335,12 @@ class MainWindow(QMainWindow):
         if not search_root:
             return
 
-        auto_resolve = self.relocate_auto_chk.isChecked()
+        auto_resolve = self._auto_resolve_enabled()
         if not self._confirm_relocate_start(search_root, auto_resolve):
             return
 
         # T-007: cambiar botón a modo Cancelar (mismo patrón que export_btn).
-        self.relocate_btn.setText("Cancelar")
-        self.relocate_btn.clicked.disconnect()
-        self.relocate_btn.clicked.connect(self._cancel_relocate)
+        self._set_relocate_state("running")
 
         self.progress_section.setVisible(True)
         self.progress.setValue(0)
@@ -2412,8 +2410,7 @@ class MainWindow(QMainWindow):
             "Cancelar la reparación"
         ):
             return
-        self.relocate_btn.setText("Cancelando…")
-        self.relocate_btn.setEnabled(False)
+        self._set_relocate_state("cancelling")
         self._relocate_worker.requestInterruption()
 
     def _on_relocate_finished(
@@ -2425,13 +2422,7 @@ class MainWindow(QMainWindow):
         self._relocate_progress_total = 0
 
         # ── Resetear botón (mismo patrón que _on_finished/export_btn) ──────
-        self.relocate_btn.setText("🔧  Reparar enlaces rotos…")
-        try:
-            self.relocate_btn.clicked.disconnect()
-        except TypeError:
-            pass
-        self.relocate_btn.clicked.connect(self._start_relocate)
-        self.relocate_btn.setEnabled(True)
+        self._set_relocate_state("idle")
 
         parts: list[str] = []
         if repaired:
@@ -2613,8 +2604,7 @@ class MainWindow(QMainWindow):
         if resp != QMessageBox.StandardButton.Yes:
             return
 
-        self.restore_backup_btn.setEnabled(False)
-        self.relocate_btn.setEnabled(False)
+        self._set_maintenance_enabled(False)
         self.output_status.setText("restaurando…")
         self._set_status_style("active")
 
@@ -2626,8 +2616,7 @@ class MainWindow(QMainWindow):
 
     def _on_restore_backup_finished(self, ok: bool, error_msg: str, target_name: str) -> None:
         app_name = "Traktor" if self._source == "traktor" else "Rekordbox"
-        self.restore_backup_btn.setEnabled(True)
-        self.relocate_btn.setEnabled(True)
+        self._set_maintenance_enabled(True)
 
         if ok:
             self.output_status.setText("restaurado ✓")
