@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-11 21:45] nerv-orquestador → nerv-qa T-062 · Niv S
+- Gate P-12.1 PASS (Orquestador): tree limpio, diff 032b1aa..HEAD == declarados, suite verde, `.rbe_settings.ini` intacto. Capturas 820 px revisadas.
+- Notas del Orquestador para la auditoría: el badge «30 rotos» de las capturas está FORZADO por `capture_t062.py` (`_set_broken_total(30)`) → el criterio del conteo real se valida por tests, no por la foto. La barra «Ver/Ayuda» es preexistente (QMenuBar en offscreen). No bloqueante (→ T-066): la acción checkable «Resolver automáticamente…» no muestra indicador cuando está apagada.
+- Archivos a leer: `engram/plans/T-061.md` (§T-062 + decisiones del PO de T-062) · `engram/03_backlog.md` (T-062, D-08) · diff `032b1aa..HEAD` · `engram/plans/design/evidence/T-062_*`.
+- Se espera: veredicto con evidencia por criterio, defectos con archivo:línea.
+
 ### [2026-10-11 20:55] nerv-orquestador → nerv-desktop T-062 · Niv S · fase implementación
 - CÓMO estampado (ddcf551). PO: D1/D2/D3/D5 sí, **D4 NO** (auto-resolver no se persiste; Gherkin corregido). T1–T4 aprobadas por el Orquestador.
 - Entrega: primero ajustar el CÓMO quitando lo de D4 y re-estampar; después ejecutar Tasks 0–7 en `feat/reskin`, TDD, commits chicos, evidencia a 820 px dark+light. Dejar T-062 «En revisión QA».
