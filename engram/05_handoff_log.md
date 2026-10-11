@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-11 22:50] nerv-orquestador → nerv-desktop T-063 (+T-068) · Niv S · fase implementación
+- CÓMO estampado (9a2999d). PO: D1/D2/D3/D5/D6 sí; D4 sí con cambio (0 playlists → «Exportar playlists»). T1–T8 aprobadas. Excepción P-18 aceptada para T-068 (no-vacuidad por mutación, 8 rojos).
+- Entrega: ajustar el CÓMO por D4 y re-estampar; después Tasks 0–8 en `feat/reskin`, TDD, commits chicos, evidencia a 820 px dark+light, verificación manual de la onda con audio real si el test offscreen no corre. Dejar T-063 y T-068 «En revisión QA».
+- Archivos a leer: `engram/plans/T-061.md` (§T-063, CÓMO — T-063, decisiones del PO al final) · `engram/03_backlog.md` (T-063, T-068) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · rutas de capturas.
+
 ### [2026-10-11 22:20] nerv-orquestador → nerv-desktop T-063 (+T-068) · Niv S · fase CÓMO (P-19.2)
 - T-062 Done (QA Strong, 7521dac). PO pidió seguir con T-063 (footer de A). Se pliega T-068 (test de `_set_relocate_state("idle")` en `_on_relocate_finished`, mutación viva de QA T-062).
 - Entrega: SOLO el CÓMO de T-063 (+ tarea para T-068) con `superpowers:writing-plans`, como `## CÓMO — T-063` al final de `engram/plans/T-061.md`, estampado. Sin código. Decisiones para el PO como D1..Dn.
