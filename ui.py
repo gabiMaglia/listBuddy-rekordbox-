@@ -21,6 +21,7 @@ from PySide6.QtGui import (
     QAction,
     QColor,
     QDesktopServices,
+    QIcon,
     QImage,
     QKeySequence,
     QMouseEvent,
@@ -60,6 +61,7 @@ from worker import ExportWorker
 from ui_components import (
     ClickableLabel,
     FileRow,
+    MaintenanceButton,
     PlaylistCard,
     PlaylistGroup,
     RackHead,
@@ -417,6 +419,7 @@ class MainWindow(QMainWindow):
         if app:
             app.setStyleSheet(load_qss(self._theme))
         self._sync_theme_toggle(self._theme)
+        self._sync_source_buttons()
         self._vu_bars.set_accent(token(self._theme, "accent"))
         self._seek_bar.set_accent(token(self._theme, "accent"))
 
@@ -446,35 +449,35 @@ class MainWindow(QMainWindow):
         """
         bar = TitleBar()
         bar.setObjectName("header_bar")
-        bar.setFixedHeight(46)
+        bar.setFixedHeight(56)
         bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._header_bar = bar
         lo = QHBoxLayout(bar)
-        lo.setContentsMargins(14, 0, 12, 0)
-        lo.setSpacing(12)
+        lo.setContentsMargins(20, 0, 20, 0)
+        lo.setSpacing(12)  # T2: con 20 px el header no entra a 820 px
 
-        # ── Izquierda: nombre + eyebrow ──────────────────────────────────
+        # ── Izquierda: marca única + selector de fuente ──────────────────
         brand = QWidget()
         brand.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        bl = QVBoxLayout(brand)
+        bl = QHBoxLayout(brand)
         bl.setContentsMargins(0, 0, 0, 0)
-        bl.setSpacing(0)
-        engine_lbl = QLabel("EXPORT ENGINE")
-        engine_lbl.setObjectName("header_eyebrow")
+        bl.setSpacing(10)
+        logo = QLabel()
+        self._tint_icon(logo, "logo", "accent", 22)
         title_lbl = QLabel("listBuddy")
         title_lbl.setObjectName("header_title")
-        bl.addWidget(engine_lbl)
+        bl.addWidget(logo)
         bl.addWidget(title_lbl)
         lo.addWidget(brand)
+        lo.addWidget(self._build_source_switcher())
 
-        # T-021 (I-8): aviso discreto de actualización disponible — oculto por
-        # default, solo se muestra si UpdateCheckWorker confirma una versión
-        # más nueva en GitHub. Clickeable, abre la página del release.
-        self._update_banner = ClickableLabel("")
+        # T-021 (I-8): aviso de actualización. Oculto por default; la franja
+        # que lo aloja llega en Task 6 de T-062 (D2), por ahora sin layout.
+        self._update_banner = ClickableLabel("", bar)
         self._update_banner.setObjectName("update_banner")
         self._update_banner.setToolTip("Ver la nueva versión en GitHub")
         self._update_banner.setVisible(False)
         self._update_banner.clicked.connect(self._open_update_link)
-        lo.addWidget(self._update_banner)
 
         # Atributos dummy para _update_now_playing (no se agregan al layout)
         self._header_artist = QLabel("")
@@ -483,34 +486,33 @@ class MainWindow(QMainWindow):
         lo.addStretch(1)
 
         # ── Derecha: controles ───────────────────────────────────────────
+        self._maint_btn = MaintenanceButton()
+        self._tint_icon(self._maint_btn.icon_label(), "wrench", "text", 16)
+        lo.addWidget(self._maint_btn)
+
         self._settings_btn = QPushButton()
         self._tint_icon(self._settings_btn, "gear", "muted", 16)
         self._settings_btn.setObjectName("settings_btn")
         self._settings_btn.setToolTip("Configuración")
+        self._settings_btn.setAccessibleName("Configuración")
         self._settings_btn.setCheckable(True)
         self._settings_btn.clicked.connect(self._toggle_settings)
+
+        self._theme_btn = QPushButton()
+        self._theme_btn.setObjectName("theme_btn")
+        self._theme_btn.setToolTip("Cambiar tema")
+        self._theme_btn.setAccessibleName("Cambiar tema")
+        self._theme_btn.clicked.connect(
+            lambda: self._apply_theme("light" if self._theme == "dark" else "dark")
+        )
+
+        self._donate_btn = QPushButton(" Apoyar")
+        self._tint_icon(self._donate_btn, "heart", "muted", 15)
+        self._donate_btn.setObjectName("donate_btn")
+        self._donate_btn.clicked.connect(self._show_donation)
         lo.addWidget(self._settings_btn)
-
-        donate_btn = QPushButton(" Apoyar")
-        self._tint_icon(donate_btn, "heart", "accent", 14)
-        donate_btn.setObjectName("donate_btn")
-        donate_btn.clicked.connect(self._show_donation)
-        lo.addWidget(donate_btn)
-
-        toggle = QWidget()
-        toggle.setObjectName("theme_toggle")
-        t_lo = QHBoxLayout(toggle)
-        t_lo.setContentsMargins(2, 2, 2, 2)
-        t_lo.setSpacing(0)
-        self._sun_btn = QPushButton()
-        self._sun_btn.setObjectName("theme_sun")
-        self._moon_btn = QPushButton()
-        self._moon_btn.setObjectName("theme_moon")
-        self._sun_btn.clicked.connect(lambda: self._apply_theme("light"))
-        self._moon_btn.clicked.connect(lambda: self._apply_theme("dark"))
-        t_lo.addWidget(self._sun_btn)
-        t_lo.addWidget(self._moon_btn)
-        lo.addWidget(toggle)
+        lo.addWidget(self._theme_btn)
+        lo.addWidget(self._donate_btn)
 
         # T-016: botones propios de minimizar/maximizar/cerrar — solo en
         # Windows, donde la ventana es frameless y el frame nativo (que
@@ -623,7 +625,6 @@ class MainWindow(QMainWindow):
 
         lo.addWidget(self._build_rack_head())
         lo.addWidget(self._build_seek_row())
-        lo.addWidget(self._build_source_switcher())
         lo.addWidget(self._build_relocate_row())
         lo.addWidget(self._build_dest_section())
         lo.addWidget(self._build_playlists_header())
@@ -657,10 +658,6 @@ class MainWindow(QMainWindow):
         bl = QVBoxLayout(brand_block)
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(0)
-        self._brand_name_lbl = QLabel("listBuddy")
-        self._brand_name_lbl.setObjectName("brand_name")
-        bl.addWidget(self._brand_name_lbl)
-
         self._rack_np_title = QLabel("")
         self._rack_np_title.setObjectName("rack_np_title")
         self._rack_np_title.setVisible(False)
@@ -723,6 +720,23 @@ class MainWindow(QMainWindow):
         lo.addWidget(self._src_rb_btn, 1)
         lo.addWidget(self._src_tk_btn, 1)
         return wrap
+
+    def _sync_source_buttons(self) -> None:
+        """Marca el botón activo (propiedad + punto ámbar); el inactivo lleva un
+        ícono transparente del mismo tamaño para que el ancho no salte."""
+        accent = token(self._theme, "accent")
+        for btn, src in ((self._src_rb_btn, "rekordbox"), (self._src_tk_btn, "traktor")):
+            active = self._source == src
+            btn.setProperty("src_active", "true" if active else "false")
+            if active:
+                btn.setIcon(icons.icon("dot", accent, 10))
+            else:
+                blank = QPixmap(10, 10)
+                blank.fill(Qt.GlobalColor.transparent)
+                btn.setIcon(QIcon(blank))
+            btn.setIconSize(QSize(10, 10))
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
 
     def _build_relocate_row(self) -> QWidget:
         """
@@ -801,11 +815,7 @@ class MainWindow(QMainWindow):
         self._track_meta_cache.clear()
         self._exists_cache.clear()
         # Update button states
-        self._src_rb_btn.setProperty("src_active", "true" if source == "rekordbox" else "false")
-        self._src_tk_btn.setProperty("src_active", "true" if source == "traktor" else "false")
-        for btn in (self._src_rb_btn, self._src_tk_btn):
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
+        self._sync_source_buttons()
         self._update_relocate_tooltip()
         self._load_playlists()
 
@@ -1878,7 +1888,6 @@ class MainWindow(QMainWindow):
         self._header_track.setText(title)
         self._header_artist.setText(artist)
         playing = bool(title)
-        self._brand_name_lbl.setVisible(not playing)
         self._rack_np_title.setText(title)
         self._rack_np_artist.setText(artist)
         self._rack_np_title.setVisible(playing)
@@ -2658,6 +2667,7 @@ class MainWindow(QMainWindow):
             if card.isChecked():
                 card._refresh()
         self._sync_theme_toggle(theme)
+        self._sync_source_buttons()
         self._vu_bars.set_accent(token(theme, "accent"))
         self._seek_bar.set_accent(token(theme, "accent"))
         self._retint_icons()
@@ -2675,14 +2685,8 @@ class MainWindow(QMainWindow):
             pass
 
     def _sync_theme_toggle(self, theme: str) -> None:
-        is_light = theme == "light"
-        for btn, name, active in (
-            (self._sun_btn, "sun", is_light), (self._moon_btn, "moon", not is_light),
-        ):
-            btn.setProperty("active", "true" if active else "false")
-            self._apply_icon(btn, name, "accent" if active else "muted", 16)
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
+        # D5b: el ícono muestra el tema ACTUAL (luna en dark, sol en light).
+        self._apply_icon(self._theme_btn, "moon" if theme == "dark" else "sun", "muted", 16)
 
     def _show_donation(self) -> None:
         DonationDialog(self).exec()
