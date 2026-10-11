@@ -38,11 +38,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
 QScrollBar:horizontal { height: 0; }
 
 /* ── Header bar ── */
-QWidget#header_bar { background: @{header}; border-bottom: 1px solid @{row_line}; }
-QLabel#header_eyebrow {
-    font-family: "JetBrains Mono"; font-size: 11px; font-weight: 700;
-    letter-spacing: 1.2px; color: @{accent}; background: transparent;
-}
+QWidget#header_bar { background: @{header}; border-bottom: 1px solid @{line}; }
 QLabel#header_title { font-family: "Fraunces"; font-size: 20px; font-weight: 600; color: @{text}; background: transparent; }
 QLabel#header_np_track {
     font-size: 12px; font-weight: 600; color: @{text}; background: transparent;
@@ -55,20 +51,27 @@ QLabel#update_banner {
     color: @{accent}; font-size: 11px; font-weight: 600; padding: 3px 10px;
 }
 QLabel#update_banner:hover { background: @{surface2}; }
+
+/* ── Header controls (T-062) ── */
+QWidget#source_switcher { background: @{inset}; border: 1px solid @{line}; border-radius: 8px; padding: 2px; }
+QPushButton#source_btn_rb, QPushButton#source_btn_tk {
+    background: transparent; border: none; border-radius: 6px; color: @{muted};
+    font-size: 13px; font-weight: 500; padding: 0 14px; min-height: 30px; max-height: 30px;
+}
+QPushButton#source_btn_rb[src_active="true"], QPushButton#source_btn_tk[src_active="true"] {
+    background: @{surface2}; color: @{text}; font-weight: 600;
+}
+QPushButton#settings_btn, QPushButton#theme_btn {
+    background: transparent; border: 1px solid @{line}; border-radius: 8px; color: @{muted};
+    min-width: 34px; max-width: 34px; min-height: 34px; max-height: 34px; padding: 0;
+}
+QPushButton#settings_btn:hover, QPushButton#theme_btn:hover { background: @{surface2}; color: @{text}; }
+QPushButton#settings_btn:checked { background: @{sel_bg}; border-color: @{accent}; color: @{accent}; }
 QPushButton#donate_btn {
-    background: @{sel_bg}; border: 1px solid @{line}; border-radius: 8px;
-    color: @{text}; font-size: 12px; font-weight: 600; padding: 3px 11px; min-height: 24px;
+    background: transparent; border: none; border-radius: 8px; color: @{muted};
+    font-size: 13px; font-weight: 500; padding: 0 12px; min-height: 34px; max-height: 34px;
 }
-QPushButton#donate_btn:hover { background: @{surface2}; }
-QWidget#theme_toggle { background: transparent; border: none; padding: 2px; }
-QPushButton#theme_sun, QPushButton#theme_moon {
-    background: transparent; border: none; border-radius: 6px;
-    color: @{muted};
-    min-width: 28px; max-width: 28px; min-height: 24px; max-height: 24px; padding: 0;
-}
-QPushButton#theme_sun[active="true"], QPushButton#theme_moon[active="true"] {
-    background: @{sel_bg}; color: @{accent};
-}
+QPushButton#donate_btn:hover { background: @{surface2}; color: @{text}; }
 
 /* ── Window controls (T-010, Windows-only frameless chrome) ── */
 QWidget#winctl_group { background: transparent; }
@@ -90,7 +93,6 @@ QLabel#brand_logo_text {
     color: @{on_accent};
 }
 QLabel#brand_logo_text:hover { background: @{accent}; }
-QLabel#brand_name { font-size: 14px; font-weight: 700; color: @{text}; background: transparent; }
 QLabel#rack_np_title { font-size: 11px; font-weight: 600; color: @{text}; background: transparent; }
 QLabel#rack_np_artist { font-size: 11px; color: @{muted}; background: transparent; }
 QLabel#brand_sub {
@@ -102,16 +104,6 @@ QLabel#brand_sub {
 QLabel#eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: @{muted}; background: transparent; }
 
 /* ── Source switcher ── */
-QWidget#source_switcher {
-    background: @{inset}; border: 1.5px solid @{line}; border-radius: 8px; padding: 2px;
-}
-QPushButton#source_btn_rb, QPushButton#source_btn_tk {
-    background: transparent; border: none; border-radius: 8px;
-    color: @{muted}; font-size: 12px; font-weight: 600; padding: 5px 10px; min-height: 28px;
-}
-QPushButton#source_btn_rb[src_active="true"], QPushButton#source_btn_tk[src_active="true"] {
-    background: @{surface2}; color: @{text};
-}
 
 /* ── Relocate (F-07) ── */
 QPushButton#relocate_btn {
@@ -343,12 +335,6 @@ QPushButton#finder_btn {
 QPushButton#finder_btn:hover { background: @{sel_bg}; }
 
 /* ── Settings ── */
-QPushButton#settings_btn {
-    background: transparent; border: 1px solid @{row_line}; border-radius: 8px;
-    color: @{muted}; font-size: 14px; min-width: 28px; min-height: 26px; padding: 0;
-}
-QPushButton#settings_btn:hover { background: @{surface2}; color: @{text}; }
-QPushButton#settings_btn:checked { background: @{sel_bg}; border-color: @{accent}; color: @{accent}; }
 
 QWidget#settings_page { background: @{bg}; }
 QWidget#settings_scroll_vp { background: transparent; }
