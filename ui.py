@@ -395,6 +395,7 @@ class MainWindow(QMainWindow):
         root_layout.setSpacing(0)
 
         root_layout.addWidget(self._build_header())
+        root_layout.addWidget(self._build_update_strip())
 
         self._stack = QStackedWidget()
         self._stack.addWidget(self._build_body())             # 0 = principal
@@ -423,6 +424,7 @@ class MainWindow(QMainWindow):
             app.setStyleSheet(load_qss(self._theme))
         self._sync_theme_toggle(self._theme)
         self._sync_source_buttons()
+        QTimer.singleShot(0, self._fit_header)  # el ancho final llega tras el show
         self._vu_bars.set_accent(token(self._theme, "accent"))
         self._seek_bar.set_accent(token(self._theme, "accent"))
 
@@ -439,6 +441,24 @@ class MainWindow(QMainWindow):
         self._start_update_check()
 
     # ──────────────────────────────────────── Widget builders ────────────
+
+    def _build_update_strip(self) -> QWidget:
+        """T-021 (I-8): aviso de actualización en franja propia bajo el header (D2)."""
+        strip = QWidget()
+        strip.setObjectName("update_strip")
+        strip.setFixedHeight(28)
+        strip.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        lo = QHBoxLayout(strip)
+        lo.setContentsMargins(20, 0, 20, 0)
+        self._update_banner = ClickableLabel("")
+        self._update_banner.setObjectName("update_banner")
+        self._update_banner.setToolTip("Ver la nueva versión en GitHub")
+        self._update_banner.clicked.connect(self._open_update_link)
+        lo.addWidget(self._update_banner)
+        lo.addStretch(1)
+        strip.setVisible(False)
+        self._update_strip = strip
+        return strip
 
     def _build_header(self) -> QWidget:
         """
@@ -473,14 +493,6 @@ class MainWindow(QMainWindow):
         bl.addWidget(title_lbl)
         lo.addWidget(brand)
         lo.addWidget(self._build_source_switcher())
-
-        # T-021 (I-8): aviso de actualización. Oculto por default; la franja
-        # que lo aloja llega en Task 6 de T-062 (D2), por ahora sin layout.
-        self._update_banner = ClickableLabel("", bar)
-        self._update_banner.setObjectName("update_banner")
-        self._update_banner.setToolTip("Ver la nueva versión en GitHub")
-        self._update_banner.setVisible(False)
-        self._update_banner.clicked.connect(self._open_update_link)
 
         # Atributos dummy para _update_now_playing (no se agregan al layout)
         self._header_artist = QLabel("")
@@ -599,8 +611,23 @@ class MainWindow(QMainWindow):
         left.setGeometry(0, m, m, max(0, h - 2 * m))
         right.setGeometry(max(0, w - m), m, m, max(0, h - 2 * m))
 
+    def _fit_header(self) -> None:
+        """Si el header no entra a lo ancho, Mantenimiento y Apoyar quedan en solo ícono (D3)."""
+        bar = self._header_bar
+        self._set_header_compact(False)  # medir siempre contra el ancho completo
+        bar.layout().invalidate()
+        self._set_header_compact(bar.layout().sizeHint().width() > bar.width())
+
+    def _set_header_compact(self, compact: bool) -> None:
+        self._maint_btn.set_compact(compact)
+        self._donate_btn.setText("" if compact else " Apoyar")
+        self._donate_btn.setToolTip("Apoyar" if compact else "")
+        self._donate_btn.setAccessibleName("Apoyar")
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        if hasattr(self, "_donate_btn"):  # puede llegar antes de armar el header
+            self._fit_header()
         if self._grips:
             self._reposition_grips()
             for grip in self._grips:
@@ -2703,7 +2730,7 @@ class MainWindow(QMainWindow):
     def _on_update_available(self, info: UpdateInfo) -> None:
         self._update_url = info.url
         self._update_banner.setText(f"🔔  Nueva versión {info.version} disponible")
-        self._update_banner.setVisible(True)
+        self._update_strip.setVisible(True)
 
     def _open_update_link(self) -> None:
         if self._update_url:
