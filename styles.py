@@ -36,12 +36,6 @@ THEMES: Dict[str, Dict[str, str]] = {
         'broken_chip': '#3a2823',
         'ok': '#9fd6ad',
         'chip_text': '#c9c1b4',
-        # legacy: se elimina en Task 2
-        'title_bar': '#1e1c19',
-        'line2': '#2b2823',
-        'accent2': '#f0a93b',
-        'accent_soft': '#2a251b',
-        'faint': '#aca59a',
     },
     'light': {
         'bg': '#f3efe7',
@@ -63,18 +57,12 @@ THEMES: Dict[str, Dict[str, str]] = {
         'broken_chip': '#f1d2ca',
         'ok': '#1f6b3a',
         'chip_text': '#4a443b',
-        # legacy: se elimina en Task 2
-        'title_bar': '#fbf9f4',
-        'line2': '#ebe6db',
-        'accent2': '#8a5700',
-        'accent_soft': '#f6e8cf',
-        'faint': '#5b554b',
     },
 }
 
 
 def load_qss(name: str = 'dark') -> str:
-    path = ROOT / 'qss' / f'{name}.qss'
+    path = ROOT / 'qss' / 'app.qss'
     if not path.exists():
         return ''
     qss = path.read_text(encoding='utf-8')
