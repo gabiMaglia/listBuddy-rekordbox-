@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-11 20:30] nerv-orquestador → nerv-desktop T-062 · Niv S · fase CÓMO (P-19.2)
+- T-061 Done (QA Strong, f2bb26c). PO pidió seguir con T-062 (header de A).
+- Entrega: SOLO el CÓMO de T-062 con `superpowers:writing-plans`, como `## CÓMO — T-062` al final de `engram/plans/T-061.md`, estampado. Sin código. Incluir captura a 820 px de ancho (criterio de §T-062) y cierre de D-08.
+- Archivos a leer: `engram/plans/T-061.md` (QUÉ §Estructura/Header, §T-062, CÓMO de T-061 como referencia de convenciones) · `engram/03_backlog.md` (T-062, D-08) · `engram/plans/design/T-061-mezcla-calida.dc.html` (header) · `ui.py` (`_build_header`, `_build_rack_head`, `_build_source_switcher`, `_build_relocate_row`) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · decisiones que necesiten OK del PO.
+
 ### [2026-10-11 20:05] nerv-orquestador → nerv-qa T-061 · Niv S
 - Gate determinista P-12.1 PASS (lo corrió el Orquestador): tree limpio, diff == declarados, suite verde. Iteración 1 devuelta por el Orquestador (Nº sin marcar 1.16:1 por `row_line` como texto; badge Exportar 1.00:1 por WA_TranslucentBackground; hueco de test) → corregida en 7ecf448 y re-medida con PIL: 6.96/7.01 y 9.10/6.10.
 - Entrega: auditoría Strong contra §T-061 de `engram/plans/T-061.md` (criterios Gherkin + decisiones del PO D1–D5, sin build).
