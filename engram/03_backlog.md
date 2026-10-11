@@ -41,7 +41,7 @@
 ## Sprint 1 — Reskin «Mezcla Cálida» (spec: engram/plans/T-061.md · aprobado PO 2026-10-11)
 | ID | Ext (ADO/Jira) | Tarea | Asignado | Estado | Niv | Criterios de aceptación | Rama |
 |----|----------------|-------|----------|--------|-----|--------------------------|------|
-| T-061 | — | **Fundaciones del skin**: tokens Cálida dark/light en `styles.py` + QSS, escala tipográfica (≥11 px) y radios, fuentes Fraunces/Public Sans/JetBrains Mono bundleadas (QFontDatabase + spec), test de contraste WCAG ≥4.5, cero hex literales fuera de styles/QSS, íconos emoji → SVG | nerv-desktop | En revisión QA | S | Ver engram/plans/T-061.md §T-061 | feat/reskin |
+| T-061 | — | **Fundaciones del skin**: tokens Cálida dark/light en `styles.py` + QSS, escala tipográfica (≥11 px) y radios, fuentes Fraunces/Public Sans/JetBrains Mono bundleadas (QFontDatabase + spec), test de contraste WCAG ≥4.5, cero hex literales fuera de styles/QSS, íconos emoji → SVG | nerv-desktop | Done (2026-10-11) | S | Ver engram/plans/T-061.md §T-061 | feat/reskin |
 | T-062 | — | **Header** (de A): marca única, selector Rekordbox/Traktor, botón Mantenimiento con badge de rotos y menú (reparar/restaurar/auto-resolver), ajustes, tema, Apoyar. Saca relocate de la columna izquierda (cierra D-08) | nerv-desktop | To Do | S | Ver engram/plans/T-061.md §T-062 | feat/reskin |
 | T-063 | — | **Footer** (de A): reproductor con forma de onda + seek, destino con elipsis al inicio + tooltip, botón «Exportar N playlists», progreso de exportación en el footer | nerv-desktop | To Do | S | Ver engram/plans/T-061.md §T-063 | feat/reskin |
 | T-064 | — | **Columna de playlists** (de F1): filas nuevas, contador, Todas/Ninguna, búsqueda/filtro nuevo; árbol tri-estado de Rekordbox intacto | nerv-desktop | To Do | S | Ver engram/plans/T-061.md §T-064 | feat/reskin |
@@ -63,6 +63,7 @@
 ## Veredictos QA
 | Tarea | Veredicto | Defectos (si rechazo) | Fecha |
 |-------|-----------|------------------------|-------|
+| T-061 | APROBADO | — 5/5 Gherkin verificados: tokens exactos + contraste ≥4.5 dark/light (mutación muted→#3a362f rompe test_contrast); fuentes registradas con QFontDatabase y sin warning -apple-system en log de arranque; spec con ('fonts','fonts') y PySide6.QtSvg (test estático, sin build por decisión PO); cero hex/rgb/QColor(int) en .py y QSS; escala 11-20 px y radios 6/8/12 (mutación 10px rompe test_font_sizes). Suite completa verde. Capturas dark/light OK. Residual declarado: Windows sin probar; textos cortados «Restaurar…»/«Resolver automáticamente…» son T-062 (D-08). | 2026-10-11 |
 | T-001 | APROBADO | — ADR-001 cubre los 5 criterios (backup, escritura atómica, matching+desempate, sync COLLECTION↔PLAYLISTS, solo decisión sin código). | 2026-07-24 |
 | T-002 | APROBADO | — Motor verificado contra ADR-001 punto a punto en traktor_relocate.py: backup_collection (N=10), write_atomic (temp+fsync+replace), find_candidates+RelocateDialog, build_reverse_key_index/apply_relocation, is_traktor_running() bloqueando (R-03). PO validó con NML real. | 2026-07-24 |
 | T-003 | APROBADO | — relocate_auto_chk default OFF confirmado (ui.py), rama OFF usa modal sin cambios, rama ON aplica candidates[0] con log "(auto)", 0 candidatos sigue sin resolver, backup/atómico intactos. | 2026-07-24 |
