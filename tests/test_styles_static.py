@@ -94,3 +94,44 @@ def test_radii_follow_the_scale() -> None:
                 if float(m.group(1)) not in RADII:
                     mal.append(f"{selector.strip()[:40]}: {m.group(0)}")
     assert mal == []
+PY_SOURCES = sorted(p for p in PROJECT_ROOT.glob("*.py") if p.name != "styles.py")
+QCOLOR_INT = re.compile(r"QColor\(\s*\d")
+
+
+def _string_tokens(path: Path) -> list[str]:
+    src = path.read_text(encoding="utf-8")
+    return [t.string for t in tokenize.generate_tokens(io.StringIO(src).readline)
+            if t.type == tokenize.STRING or t.type == getattr(tokenize, "FSTRING_MIDDLE", -1)]
+
+
+def test_no_literal_colors_outside_styles() -> None:
+    malos: list[str] = []
+    for p in PY_SOURCES:
+        for s in _string_tokens(p):
+            if HEX.search(s) or RGB.search(s):
+                malos.append(f"{p.name}: {s[:50]!r}")
+        if QCOLOR_INT.search(p.read_text(encoding="utf-8")):
+            malos.append(f"{p.name}: QColor(<int>…)")
+    assert malos == []
+
+
+def test_no_inline_font_sizes_in_code() -> None:
+    malos = [f"{p.name}: {s[:50]!r}" for p in PY_SOURCES for s in _string_tokens(p) if SIZE.search(s)]
+    assert malos == []  # los tamaños viven en la QSS
+
+
+def test_style_helpers_use_tokens() -> None:
+    r = run_isolated(
+        "import styles\n"
+        "t = styles.THEMES\n"
+        "assert styles.token('light', 'accent') == t['light']['accent']\n"
+        "for th in ('dark', 'light'):\n"
+        "    cs = styles.card_styles(th)\n"
+        "    assert set(cs) == {'card_on', 'order_on', 'check_on'}\n"
+        "    assert t[th]['sel_bg'] in cs['card_on'] and t[th]['link'] in cs['order_on']\n"
+        "    assert t[th]['accent'] in cs['check_on'] and t[th]['on_accent'] in cs['check_on']\n"
+        "    assert t[th]['danger'] in styles.status_style(th, 'error')\n"
+        "    assert styles.status_style(th, 'active') == ''\n"
+        "print('ok')"
+    )
+    assert r.returncode == 0 and "ok" in r.stdout, r.stderr
