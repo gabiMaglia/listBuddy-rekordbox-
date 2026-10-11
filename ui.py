@@ -192,7 +192,7 @@ class ExportWidget(QWidget):
 
         self._badge = QLabel("00")
         self._badge.setObjectName("export_badge")
-        self._badge.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._badge.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         lo.addWidget(self._badge)
 
         self._text = QLabel("Exportar en orden")

@@ -26,7 +26,9 @@ TOKENS = {
 
 
 def _blocks(text: str) -> list[tuple[str, str]]:
-    return [(m.group(1).strip(), m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", text)]
+    # @{token} lleva llaves: se aplana a @token para no cortar el bloque.
+    flat = TOKEN_REF.sub(r"@\1", text)
+    return [(m.group(1).strip(), m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", flat)]
 
 
 def test_qss_exists() -> None:
@@ -144,3 +146,28 @@ def test_no_emoji_glyphs_as_widget_icons() -> None:
     malos = [f"{p.name}: {s[:40]!r}" for p in (PROJECT_ROOT / "ui.py", PROJECT_ROOT / "ui_components.py")
              for s in _string_tokens(p) if any(g in s for g in ICON_GLYPHS)]
     assert malos == []
+
+
+TEXT_COLOR_TOKENS = {"text", "muted", "link", "danger", "ok", "chip_text", "on_accent", "accent"}
+COLOR_DECL = re.compile(r"(?<![-\w])color:\s*([^;}]+)")
+
+
+def test_text_color_only_uses_text_tokens_in_qss() -> None:
+    # test_contrast valida pares de tokens; esto valida qué token usa cada regla como texto.
+    malos: list[str] = []
+    for f in QSS_FILES:
+        for selector, body in _blocks(f.read_text(encoding="utf-8")):
+            for m in COLOR_DECL.finditer(body):
+                val = m.group(1).strip()
+                if val in ("transparent",):
+                    continue
+                if not val.startswith("@") or val[1:] not in TEXT_COLOR_TOKENS:
+                    malos.append(f"{selector.strip()[:50]}: color: {val}")
+    assert malos == []
+
+
+def test_text_color_only_uses_text_tokens_in_inline_styles() -> None:
+    src = (PROJECT_ROOT / "styles.py").read_text(encoding="utf-8")
+    keys = set(re.findall(r"(?<![-\w])color:\s*\{t\['(\w+)'\]\}", src))
+    keys |= set(re.findall(r"(?<![-\w])color:\s*\{c\}", src) and ())
+    assert keys <= TEXT_COLOR_TOKENS, keys - TEXT_COLOR_TOKENS
