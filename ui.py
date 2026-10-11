@@ -294,7 +294,7 @@ class DonationDialog(QDialog):
 # ─────────────────────────────────────────────────── MainWindow ──────────
 
 class MainWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, settings_path: Path | None = None) -> None:
         super().__init__()
         self.setWindowTitle("listBuddy")
         # T-016: frameless + chrome propio, solo Windows. macOS conserva el
@@ -367,7 +367,7 @@ class MainWindow(QMainWindow):
         self._render_queue: list[GroupData] = []
         self._render_gen: int = 0   # se incrementa al limpiar; invalida batches stale
 
-        settings_path = Path(__file__).parent / ".rbe_settings.ini"
+        settings_path = settings_path or Path(__file__).parent / ".rbe_settings.ini"
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
         self._theme = str(self.settings.value("theme", "dark"))
         from ui_components import PlaylistCard as _PC
