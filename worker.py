@@ -12,6 +12,7 @@ from PySide6.QtCore import QThread, Signal
 
 from rekordbox_export import get_songs as _rb_get_songs
 from rekordbox_export import get_content, get_artist, resolve_path, sanitize
+from db import order_playlist_songs
 
 
 def _get_songs(pl):
@@ -118,10 +119,7 @@ class ExportWorker(QThread):
             self.log.emit(f"▶  {pl.Name}")
             dest_dir = self._output_root / sanitize(pl.Name)
 
-            sorted_songs = [s for _, s in sorted(
-                enumerate(songs),
-                key=lambda i_s: (i_s[1].TrackNo or 0, i_s[0])
-            )]
+            sorted_songs = order_playlist_songs(songs)
 
             dest_dir.mkdir(parents=True, exist_ok=True)
             pad = len(str(len(sorted_songs)))
