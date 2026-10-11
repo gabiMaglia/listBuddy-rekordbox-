@@ -6,7 +6,7 @@ from typing import ClassVar, List
 import icons
 import styles
 
-from PySide6.QtCore import QPoint, QRectF, Qt, Signal
+from PySide6.QtCore import QPoint, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFontMetrics,
@@ -27,6 +27,62 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+# ───────────────────────── Botón Mantenimiento del header (T-062) ──
+
+def broken_badge_text(n: int) -> str:
+    """Texto del badge de Mantenimiento; vacío = sin badge."""
+    if n <= 0:
+        return ""
+    return "1 roto" if n == 1 else f"{n} rotos"
+
+
+class MaintenanceButton(QPushButton):
+    """Botón del header: ícono + «Mantenimiento» + badge de rotos.
+
+    Los hijos son QLabel transparentes al mouse para que todo el botón sea
+    clickeable; sizeHint sale del layout porque QPushButton ignora sus hijos.
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("maint_btn")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedHeight(34)
+        self.setAccessibleName("Mantenimiento")
+        lo = QHBoxLayout(self)
+        lo.setContentsMargins(12, 0, 12, 0)
+        lo.setSpacing(8)
+        self._icon = QLabel()
+        self._icon.setObjectName("maint_icon")
+        self._text = QLabel("Mantenimiento")
+        self._text.setObjectName("maint_text")
+        self._badge = QLabel()
+        self._badge.setObjectName("maint_badge")
+        self._badge.setVisible(False)
+        for w in (self._icon, self._text, self._badge):
+            w.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            lo.addWidget(w)
+
+    def icon_label(self) -> QLabel:
+        return self._icon
+
+    def set_broken(self, n: int) -> None:
+        txt = broken_badge_text(n)
+        self._badge.setText(txt)
+        self._badge.setVisible(bool(txt))
+        self.setAccessibleDescription(txt)
+
+    def set_compact(self, compact: bool) -> None:
+        self._text.setVisible(not compact)
+        self.setToolTip("Mantenimiento" if compact else "")
+
+    def sizeHint(self) -> QSize:
+        return self.layout().sizeHint()
+
+    def minimumSizeHint(self) -> QSize:
+        return self.layout().sizeHint()
 
 
 # ───────────────────────── Custom title bar (T-010, Windows-only chrome) ──

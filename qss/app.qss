@@ -395,3 +395,12 @@ QPushButton#settings_path_btn {
     color: @{text}; font-size: 12px; font-weight: 600; padding: 6px 12px;
 }
 QPushButton#settings_path_btn:hover { background: @{row_line}; }
+
+QPushButton#maint_btn { background: transparent; border: 1px solid @{line}; border-radius: 8px; }
+QPushButton#maint_btn:hover { background: @{surface2}; border-color: @{accent}; }
+QLabel#maint_text { color: @{text}; font-size: 13px; background: transparent; }
+QLabel#maint_icon { background: transparent; }
+QLabel#maint_badge {
+    font-family: "JetBrains Mono"; font-size: 11px; font-weight: 600;
+    padding: 2px 6px; border-radius: 6px; background: @{danger_soft}; color: @{danger};
+}
