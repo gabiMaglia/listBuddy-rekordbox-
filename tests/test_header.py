@@ -203,3 +203,43 @@ def test_restore_in_flight_disables_both_maintenance_actions() -> None:
         "print('ok')\n"
     )
     assert out.split()[-1] == "ok"
+
+
+def test_badge_is_hidden_with_zero_broken() -> None:
+    out = run(
+        "from PySide6.QtWidgets import QLabel\n"
+        "from preview_worker import GroupData, TrackRow\n"
+        "w, _ = make()\n"
+        "ok = [TrackRow('001', 'a', 'x', 'mp3', '/a.mp3', True)]\n"
+        "w._queue_group(GroupData('pl', 1, 1, ok)); app.processEvents()\n"
+        "badge = w._maint_btn.findChild(QLabel, 'maint_badge')\n"
+        "print(w._broken_total, badge.isVisible())\n"
+    )
+    assert out.strip().splitlines()[-1] == "0 False"
+
+
+def test_badge_accumulates_across_groups_and_resets_on_clear() -> None:
+    out = run(
+        "from PySide6.QtWidgets import QLabel\n"
+        "from preview_worker import GroupData, TrackRow\n"
+        "def tr(n, ex): return TrackRow(f'{n:03d}', 't', 'a', 'mp3', f'/{n}.mp3', ex)\n"
+        "w, _ = make()\n"
+        "badge = w._maint_btn.findChild(QLabel, 'maint_badge')\n"
+        "w._queue_group(GroupData('A', 1, 3, [tr(1, False), tr(2, True), tr(3, False)]))\n"
+        "w._queue_group(GroupData('B', 2, 2, [tr(1, False), tr(2, True)]))\n"
+        "app.processEvents()\n"
+        "assert w._broken_total == 3 and badge.text() == '3 rotos' and badge.isVisible()\n"
+        "w._clear_preview_layout(); app.processEvents()\n"
+        "assert w._broken_total == 0 and not badge.isVisible()\n"
+        "print('ok')\n"
+    )
+    assert out.split()[-1] == "ok"
+
+
+def test_badge_singular() -> None:
+    out = run(
+        "from PySide6.QtWidgets import QLabel\n"
+        "w, _ = make(); w._set_broken_total(1); app.processEvents()\n"
+        "print(w._maint_btn.findChild(QLabel, 'maint_badge').text())\n"
+    )
+    assert out.strip().splitlines()[-1] == "1 roto"
