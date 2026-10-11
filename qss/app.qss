@@ -174,7 +174,7 @@ QWidget#playlist_card {
 }
 QLabel#card_order {
     font-family: "JetBrains Mono";
-    font-size: 17px; font-weight: 700; color: @{row_line}; background: transparent;
+    font-size: 17px; font-weight: 700; color: @{muted}; background: transparent;
 }
 QLabel#card_name { font-size: 13px; font-weight: 600; color: @{text}; background: transparent; }
 QLabel#card_tag {
@@ -298,7 +298,7 @@ QLabel#output_file_artist[file_missing="true"]  { color: @{danger}; }
 QLabel#output_file_ext[file_missing="true"]     { color: @{danger}; }
 
 /* Empty / loading */
-QLabel#output_empty_icon  { color: @{line}; background: transparent; }
+QLabel#output_empty_icon  { background: transparent; }
 QLabel#output_empty_title { font-size: 13px; font-weight: 500; color: @{muted}; background: transparent; }
 QLabel#output_empty_sub   { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; }
 QLabel#preview_loading    { font-family: "JetBrains Mono"; font-size: 12px; color: @{muted}; background: transparent; padding: 24px; }
@@ -312,7 +312,7 @@ QPlainTextEdit#log_view {
 
 /* Not-installed */
 QWidget#not_installed_card  { background: @{surface}; border: 1.5px solid @{line}; border-radius: 12px; }
-QLabel#not_installed_icon   { color: @{line}; background: transparent; }
+QLabel#not_installed_icon   { background: transparent; }
 QLabel#not_installed_title  { font-size: 14px; font-weight: 700; color: @{text}; background: transparent; }
 QLabel#not_installed_sub    { font-size: 12px; color: @{muted}; background: transparent; }
 
