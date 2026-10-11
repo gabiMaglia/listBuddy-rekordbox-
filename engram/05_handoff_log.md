@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-11 19:20] nerv-orquestador → nerv-desktop T-061 · Niv S · fase implementación
+- CÓMO estampado (4c45ab4). PO aprobó D1–D5 y vetó el build (Task 6 Step 6 → test estático del spec; build real en T-025). Ejecución: subagent-driven.
+- Entrega: ejecutar Tasks 0–6 del CÓMO de T-061 en `feat/reskin`, TDD (rojo primero), commits chicos, capturas antes/después en dark y light. Dejar T-061 «En revisión QA», NO «Done».
+- Archivos a leer: `engram/plans/T-061.md` (QUÉ + CÓMO + decisiones del PO al final) · `engram/03_backlog.md` (T-061) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · rutas de las capturas.
+
 ### [2026-10-11 18:56] nerv-orquestador → nerv-desktop T-061 · Niv S · fase CÓMO (P-19.2)
 - Entrega: SOLO el plan CÓMO de T-061 con `superpowers:writing-plans`, escrito en `engram/plans/T-061.md` (sección `## CÓMO — T-061`) y estampado (aprobado por · rol · fecha). **Sin código.** El paso de elección de ejecución vuelve al Orquestador (P-9).
 - Contexto: reskin «Mezcla Cálida» elegido por el PO sobre canvas renderizado (header+footer de A, cuerpo de F1, paleta cálida). Contraste de la paleta ya verificado por el Orquestador: mín. 6.24 dark / 5.24 light.
