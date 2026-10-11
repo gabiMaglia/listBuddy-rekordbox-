@@ -43,3 +43,20 @@ def test_missing_fonts_dir_does_not_crash() -> None:
         "print('ok')"
     )
     assert r.returncode == 0 and "ok" in r.stdout, r.stderr
+
+
+def test_icons_render_with_requested_color() -> None:
+    r = run_isolated(
+        "from PySide6.QtWidgets import QApplication\n"
+        "import icons\n"
+        "app = QApplication([])\n"
+        "for n in icons.ICON_NAMES:\n"
+        "    img = icons.pixmap(n, '#ff0000', 16).toImage()\n"
+        "    px = [img.pixelColor(x, y) for x in range(img.width()) for y in range(img.height())]\n"
+        "    solid = [c for c in px if c.alpha() > 200]\n"
+        "    assert solid, n\n"
+        "    assert all(c.red() > 200 and c.green() < 60 for c in solid), n\n"
+        "    assert not icons.icon(n, '#fff', 16).isNull(), n\n"
+        "print('ok')"
+    )
+    assert r.returncode == 0 and "ok" in r.stdout, r.stderr

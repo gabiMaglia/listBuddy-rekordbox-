@@ -14,7 +14,7 @@ from io import BytesIO
 from pathlib import Path
 
 from PySide6.QtCore import (
-    Qt, QTimer, QUrl, QSettings, Signal,
+    QSize, Qt, QTimer, QUrl, QSettings, Signal,
     QPropertyAnimation, QEasingCurve,
 )
 from PySide6.QtGui import (
@@ -54,6 +54,7 @@ from PySide6.QtMultimedia import QMediaDevices
 from db import get_playlist_tree as rb_get_playlist_tree
 from db import open_database as rb_open_database
 from db import playlist_song_count as rb_song_count
+import icons
 from styles import status_style, token
 from worker import ExportWorker
 from ui_components import (
@@ -337,6 +338,9 @@ class MainWindow(QMainWindow):
         self._audio.track_changed.connect(lambda _p: self._seek_row.setVisible(True))
         self._audio.track_finished.connect(self._on_track_finished)
         self._playing_path: str = ""        # raw_path del track sonando
+        self._is_playing: bool = False
+        # (widget, ícono, token de color, tamaño): se re-tiñen al cambiar de tema
+        self._themed_icons: list[tuple[QWidget, str, str, int]] = []
         self._playing_row: FileRow | None = None
         self._play_order: list[tuple[str, FileRow]] = []   # (raw_path, row) en orden
 
@@ -479,14 +483,16 @@ class MainWindow(QMainWindow):
         lo.addStretch(1)
 
         # ── Derecha: controles ───────────────────────────────────────────
-        self._settings_btn = QPushButton("⚙")
+        self._settings_btn = QPushButton()
+        self._tint_icon(self._settings_btn, "gear", "muted", 16)
         self._settings_btn.setObjectName("settings_btn")
         self._settings_btn.setToolTip("Configuración")
         self._settings_btn.setCheckable(True)
         self._settings_btn.clicked.connect(self._toggle_settings)
         lo.addWidget(self._settings_btn)
 
-        donate_btn = QPushButton("♥  Apoyar")
+        donate_btn = QPushButton(" Apoyar")
+        self._tint_icon(donate_btn, "heart", "accent", 14)
         donate_btn.setObjectName("donate_btn")
         donate_btn.clicked.connect(self._show_donation)
         lo.addWidget(donate_btn)
@@ -496,9 +502,9 @@ class MainWindow(QMainWindow):
         t_lo = QHBoxLayout(toggle)
         t_lo.setContentsMargins(2, 2, 2, 2)
         t_lo.setSpacing(0)
-        self._sun_btn = QPushButton("☀")
+        self._sun_btn = QPushButton()
         self._sun_btn.setObjectName("theme_sun")
-        self._moon_btn = QPushButton("🌙")
+        self._moon_btn = QPushButton()
         self._moon_btn.setObjectName("theme_moon")
         self._sun_btn.clicked.connect(lambda: self._apply_theme("light"))
         self._moon_btn.clicked.connect(lambda: self._apply_theme("dark"))
@@ -527,7 +533,8 @@ class MainWindow(QMainWindow):
             self._max_btn.setToolTip("Maximizar/restaurar")
             self._max_btn.setCursor(Qt.CursorShape.ArrowCursor)
             self._max_btn.clicked.connect(self._toggle_maximize_restore)
-            self._close_btn = QPushButton("✕")
+            self._close_btn = QPushButton()
+            self._tint_icon(self._close_btn, "close", "muted", 14)
             self._close_btn.setObjectName("winctl_close")
             self._close_btn.setToolTip("Cerrar")
             self._close_btn.setCursor(Qt.CursorShape.ArrowCursor)
@@ -635,13 +642,14 @@ class MainWindow(QMainWindow):
         lo.setContentsMargins(14, 12, 14, 12)
         lo.setSpacing(11)
 
-        logo = ClickableLabel("♪")
+        logo = ClickableLabel()
         logo.setObjectName("brand_logo_text")
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo.setFixedSize(34, 34)
         logo.setToolTip("Reproducir / pausar")
         logo.clicked.connect(self._audio.toggle)
         self._play_toggle = logo
+        self._refresh_play_glyph()
         lo.addWidget(logo)
 
         brand_block = QWidget()
@@ -827,11 +835,7 @@ class MainWindow(QMainWindow):
 
         fi = QLabel()
         fi.setObjectName("path_folder_icon")
-        fi.setPixmap(
-            self.style().standardIcon(
-                self.style().StandardPixmap.SP_DirIcon
-            ).pixmap(16, 16)
-        )
+        self._tint_icon(fi, "folder", "accent", 16)
         pr.addWidget(fi)
 
         self.folder_edit = QLineEdit()
@@ -994,11 +998,7 @@ class MainWindow(QMainWindow):
         oh.setSpacing(8)
         fi = QLabel()
         fi.setObjectName("output_folder_icon")
-        fi.setPixmap(
-            self.style().standardIcon(
-                self.style().StandardPixmap.SP_DirIcon
-            ).pixmap(15, 15)
-        )
+        self._tint_icon(fi, "folder", "accent", 15)
         self.output_path_label = QLabel("Sin carpeta seleccionada")
         self.output_path_label.setObjectName("output_path_label")
         self.output_path_label.setSizePolicy(
@@ -1319,7 +1319,7 @@ class MainWindow(QMainWindow):
         self._update_order_numbers()
         self._preview_debounce.start()
         src_label = "Traktor" if self._source == "traktor" else "Rekordbox"
-        self._log(f"♪ {len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
+        self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
 
     def _clear_playlist_area(self) -> None:
         self._all_cards.clear()
@@ -1711,11 +1711,7 @@ class MainWindow(QMainWindow):
 
         folder_ic = QLabel()
         folder_ic.setObjectName("output_grp_folder_icon")
-        folder_ic.setPixmap(
-            self.style().standardIcon(
-                self.style().StandardPixmap.SP_DirIcon
-            ).pixmap(14, 14)
-        )
+        self._tint_icon(folder_ic, "folder", "accent", 14)
         hl.addWidget(folder_ic)
 
         fname_lbl = QLabel(f"{data.name} /")
@@ -1733,7 +1729,8 @@ class MainWindow(QMainWindow):
         # _close_group_card llama _update_order_numbers() a mano, igual que
         # ya hace _set_all() para el mismo caso.
         if data.card is not None:
-            close_btn = QPushButton("✕")
+            close_btn = QPushButton()
+            self._tint_icon(close_btn, "close", "muted", 12)
             close_btn.setObjectName("output_grp_close_btn")
             close_btn.setToolTip("Sacar esta playlist de la cola (destilda en la lista)")
             close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1888,18 +1885,35 @@ class MainWindow(QMainWindow):
         self._rack_np_artist.setVisible(playing and bool(artist))
 
     def _on_playing_changed(self, playing: bool) -> None:
-        # T-015: ⏸ (U+23F8) no tiene glyph en la fuente base de UI de Windows;
-        # el fallback cae a Segoe UI Emoji, que pinta el ícono a color (celeste)
-        # ignorando el `color:` del QSS — se probó con variation selector U+FE0E
-        # (fuerza presentación de texto) y Qt lo ignora igual, así que se dibuja
-        # a mano con QPainter (ver ClickableLabel.set_pause_icon). ▶/♪ sí
-        # respetan el color del QSS como texto normal, no hace falta tocarlos.
-        if playing:
-            self._play_toggle.set_pause_icon(True)
-        else:
-            self._play_toggle.set_pause_icon(False)
-            self._play_toggle.setText("▶" if self._playing_path else "♪")
+        self._is_playing = playing
+        self._refresh_play_glyph()
         self._vu_bars.set_live(playing)
+
+    def _refresh_play_glyph(self) -> None:
+        """Ícono del logo: nota en reposo, play con un track cargado, pausa sonando."""
+        name = "pause" if self._is_playing else ("play" if self._playing_path else "note")
+        self._play_toggle.setPixmap(icons.pixmap(name, token(self._theme, "on_accent"), 20))
+
+    def _tint_icon(self, widget: QWidget, name: str, color_token: str, size: int) -> None:
+        """Pone un ícono SVG y lo registra para re-teñirlo con el tema."""
+        self._themed_icons.append((widget, name, color_token, size))
+        self._apply_icon(widget, name, color_token, size)
+
+    def _apply_icon(self, widget: QWidget, name: str, color_token: str, size: int) -> None:
+        color = token(self._theme, color_token)
+        if isinstance(widget, QPushButton):
+            widget.setIcon(icons.icon(name, color, size))
+            widget.setIconSize(QSize(size, size))
+        elif isinstance(widget, QLabel):
+            widget.setPixmap(icons.pixmap(name, color, size))
+
+    def _retint_icons(self) -> None:
+        from shiboken6 import isValid
+        # El preview recrea widgets: descartar los que Qt ya destruyó.
+        self._themed_icons = [t for t in self._themed_icons if isValid(t[0])]
+        for widget, name, color_token, size in self._themed_icons:
+            self._apply_icon(widget, name, color_token, size)
+        self._refresh_play_glyph()
 
     def _on_space(self) -> None:
         # No robar la barra espaciadora cuando se está escribiendo o sobre un botón
@@ -1935,8 +1949,8 @@ class MainWindow(QMainWindow):
 
     def _on_audio_error(self, msg: str) -> None:
         self._playing_path = ""
-        self._play_toggle.set_pause_icon(False)
-        self._play_toggle.setText("♪")
+        self._is_playing = False
+        self._refresh_play_glyph()
         self._set_row_playing(self._playing_row, False)
         self._playing_row = None
         self._update_now_playing(None)
@@ -1962,7 +1976,8 @@ class MainWindow(QMainWindow):
 
         self._cancel_spectro()
         self._spectro_gen += 1
-        accent = (206, 125, 230) if self._theme == "dark" else (140, 56, 191)
+        ac = QColor(token(self._theme, "accent"))
+        accent = (ac.red(), ac.green(), ac.blue())
         w = max(120, self._rack_head.width())
         h = max(40, self._rack_head.height())
         self._spectro_worker = SpectrogramWorker(
@@ -2031,7 +2046,7 @@ class MainWindow(QMainWindow):
         self._update_order_numbers()
 
     def _close_group_card(self, card: PlaylistCard) -> None:
-        """T-015: botón '✕' del header de un grupo en el preview — destilda
+        """T-015: botón de cerrar del header de un grupo en el preview — destilda
         el checkbox real de esa playlist en el árbol izquierdo (mismo efecto
         que destildarla ahí a mano)."""
         card.setChecked(False)
@@ -2059,7 +2074,7 @@ class MainWindow(QMainWindow):
             return
 
         # Cambiar botón a modo Cancelar
-        self.export_btn.set_label("✕  Cancelar")
+        self.export_btn.set_label("Cancelar")
         self.export_btn.clicked.disconnect()
         self.export_btn.clicked.connect(self._cancel_export)
 
@@ -2316,7 +2331,7 @@ class MainWindow(QMainWindow):
             return
 
         # T-007: cambiar botón a modo Cancelar (mismo patrón que export_btn).
-        self.relocate_btn.setText("✕  Cancelar")
+        self.relocate_btn.setText("Cancelar")
         self.relocate_btn.clicked.disconnect()
         self.relocate_btn.clicked.connect(self._cancel_relocate)
 
@@ -2636,6 +2651,8 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app:
             app.setStyleSheet(load_qss(theme))
+        for grp in self.findChildren(PlaylistGroup):
+            grp.set_theme(theme)
         # Refresh cards so their inline stylesheets use new theme colors
         for card in self._all_cards:
             if card.isChecked():
@@ -2643,6 +2660,7 @@ class MainWindow(QMainWindow):
         self._sync_theme_toggle(theme)
         self._vu_bars.set_accent(token(theme, "accent"))
         self._seek_bar.set_accent(token(theme, "accent"))
+        self._retint_icons()
         # Re-tint del highlight de la fila sonando con el accent del nuevo tema
         self._set_row_playing(self._playing_row, True)
         # El espectrograma cacheado está tintado con el accent viejo → recalcular
@@ -2658,9 +2676,11 @@ class MainWindow(QMainWindow):
 
     def _sync_theme_toggle(self, theme: str) -> None:
         is_light = theme == "light"
-        self._sun_btn.setProperty("active", "true" if is_light else "false")
-        self._moon_btn.setProperty("active", "true" if not is_light else "false")
-        for btn in (self._sun_btn, self._moon_btn):
+        for btn, name, active in (
+            (self._sun_btn, "sun", is_light), (self._moon_btn, "moon", not is_light),
+        ):
+            btn.setProperty("active", "true" if active else "false")
+            self._apply_icon(btn, name, "accent" if active else "muted", 16)
             btn.style().unpolish(btn)
             btn.style().polish(btn)
 
