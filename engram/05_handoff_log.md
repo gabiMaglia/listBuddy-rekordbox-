@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-11 20:05] nerv-orquestador → nerv-qa T-061 · Niv S
+- Gate determinista P-12.1 PASS (lo corrió el Orquestador): tree limpio, diff == declarados, suite verde. Iteración 1 devuelta por el Orquestador (Nº sin marcar 1.16:1 por `row_line` como texto; badge Exportar 1.00:1 por WA_TranslucentBackground; hueco de test) → corregida en 7ecf448 y re-medida con PIL: 6.96/7.01 y 9.10/6.10.
+- Entrega: auditoría Strong contra §T-061 de `engram/plans/T-061.md` (criterios Gherkin + decisiones del PO D1–D5, sin build).
+- Archivos a leer: `engram/plans/T-061.md` · `engram/03_backlog.md` (T-061) · diff `e1d9274..HEAD` en `feat/reskin` · `engram/plans/design/evidence/T-061_*`.
+- Se espera: veredicto APROBADO/RECHAZADO con evidencia por criterio · defectos con archivo:línea.
+
 ### [2026-10-11 19:20] nerv-orquestador → nerv-desktop T-061 · Niv S · fase implementación
 - CÓMO estampado (4c45ab4). PO aprobó D1–D5 y vetó el build (Task 6 Step 6 → test estático del spec; build real en T-025). Ejecución: subagent-driven.
 - Entrega: ejecutar Tasks 0–6 del CÓMO de T-061 en `feat/reskin`, TDD (rojo primero), commits chicos, capturas antes/después en dark y light. Dejar T-061 «En revisión QA», NO «Done».
