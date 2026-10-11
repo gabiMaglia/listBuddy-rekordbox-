@@ -733,6 +733,7 @@ class MainWindow(QMainWindow):
         wrap = QWidget()
         wrap.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         wrap.setObjectName("source_switcher")
+        wrap.setFixedHeight(36)  # 30 del botón + 2 de margen + 1 de borde por lado
         lo = QHBoxLayout(wrap)
         lo.setContentsMargins(2, 2, 2, 2)
         lo.setSpacing(0)
