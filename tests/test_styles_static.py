@@ -135,3 +135,12 @@ def test_style_helpers_use_tokens() -> None:
         "print('ok')"
     )
     assert r.returncode == 0 and "ok" in r.stdout, r.stderr
+
+
+ICON_GLYPHS = "☀🌙♥⚙📁♪▶⏸✕▸"  # D3: ✓ y ⚠ dentro de textos de estado quedan
+
+
+def test_no_emoji_glyphs_as_widget_icons() -> None:
+    malos = [f"{p.name}: {s[:40]!r}" for p in (PROJECT_ROOT / "ui.py", PROJECT_ROOT / "ui_components.py")
+             for s in _string_tokens(p) if any(g in s for g in ICON_GLYPHS)]
+    assert malos == []

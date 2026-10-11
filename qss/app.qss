@@ -6,7 +6,7 @@
 QWidget {
     background: transparent;
     color: @{text};
-    font-family: "Public Sans", sans-serif;
+    font-family: "Public Sans";
     font-size: 13px;
 }
 QMainWindow { background: @{bg}; }
@@ -40,15 +40,15 @@ QScrollBar:horizontal { height: 0; }
 /* ── Header bar ── */
 QWidget#header_bar { background: @{header}; border-bottom: 1px solid @{row_line}; }
 QLabel#header_eyebrow {
-    font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700;
+    font-family: "JetBrains Mono"; font-size: 11px; font-weight: 700;
     letter-spacing: 1.2px; color: @{accent}; background: transparent;
 }
-QLabel#header_title { font-family: "Fraunces", serif; font-size: 20px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#header_title { font-family: "Fraunces"; font-size: 20px; font-weight: 600; color: @{text}; background: transparent; }
 QLabel#header_np_track {
     font-size: 12px; font-weight: 600; color: @{text}; background: transparent;
 }
 QLabel#header_np_artist {
-    font-family: "JetBrains Mono", monospace; font-size: 11px; color: @{muted}; background: transparent;
+    font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent;
 }
 QLabel#update_banner {
     background: @{sel_bg}; border: 1px solid @{accent}; border-radius: 8px;
@@ -94,7 +94,7 @@ QLabel#brand_name { font-size: 14px; font-weight: 700; color: @{text}; backgroun
 QLabel#rack_np_title { font-size: 11px; font-weight: 600; color: @{text}; background: transparent; }
 QLabel#rack_np_artist { font-size: 11px; color: @{muted}; background: transparent; }
 QLabel#brand_sub {
-    font-family: "JetBrains Mono", monospace; font-size: 11px;
+    font-family: "JetBrains Mono"; font-size: 11px;
     letter-spacing: 1px; color: @{muted}; background: transparent;
 }
 
@@ -151,7 +151,7 @@ QPushButton#browse_btn:hover { background: @{row_line}; }
 
 /* ── Playlists header ── */
 QLabel#count_pill {
-    font-family: "JetBrains Mono", monospace; font-size: 11px; color: @{muted};
+    font-family: "JetBrains Mono"; font-size: 11px; color: @{muted};
     border: 1px solid @{line}; border-radius: 6px; padding: 2px 8px; background: transparent;
 }
 QPushButton#all_btn, QPushButton#none_btn {
@@ -173,12 +173,12 @@ QWidget#playlist_card {
     border-radius: 8px;
 }
 QLabel#card_order {
-    font-family: "JetBrains Mono", monospace;
+    font-family: "JetBrains Mono";
     font-size: 17px; font-weight: 700; color: @{row_line}; background: transparent;
 }
 QLabel#card_name { font-size: 13px; font-weight: 600; color: @{text}; background: transparent; }
 QLabel#card_tag {
-    font-family: "JetBrains Mono", monospace; font-size: 11px; color: @{muted};
+    font-family: "JetBrains Mono"; font-size: 11px; color: @{muted};
     border: 1px solid @{row_line}; border-radius: 6px; padding: 1px 6px; background: transparent;
 }
 QLabel#card_check {
@@ -206,8 +206,8 @@ QProgressBar#progress::chunk {
     background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 @{accent}, stop:1 @{accent});
     border-radius: 12px;
 }
-QLabel#prog_label { font-family: "JetBrains Mono", monospace; font-size: 11px; color: @{muted}; background: transparent; }
-QLabel#prog_pct   { font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 600; color: @{accent}; background: transparent; }
+QLabel#prog_label { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; }
+QLabel#prog_pct   { font-family: "JetBrains Mono"; font-size: 11px; font-weight: 600; color: @{accent}; background: transparent; }
 
 /* ── Export widget ── */
 QWidget#export_widget { background: @{accent}; border: 1.5px solid @{accent}; border-radius: 8px; min-height: 50px; }
@@ -215,7 +215,7 @@ QWidget#export_widget[export_disabled="true"] { background: @{surface2}; border-
 QLabel#export_badge {
     background: @{on_accent}; color: @{accent};
     border-radius: 6px; padding: 2px 9px;
-    font-family: "JetBrains Mono", monospace; font-size: 13px; font-weight: 700;
+    font-family: "JetBrains Mono"; font-size: 13px; font-weight: 700;
 }
 QLabel#export_badge[export_disabled="true"] { background: @{inset}; color: @{muted}; }
 QLabel#export_text { color: @{on_accent}; font-size: 14px; font-weight: 700; background: transparent; }
@@ -224,7 +224,7 @@ QLabel#export_text[export_disabled="true"] { color: @{muted}; }
 /* ── Output panel ── */
 QLabel#output_eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: @{muted}; background: transparent; }
 QLabel#output_status_tag {
-    font-family: "JetBrains Mono", monospace; font-size: 11px; color: @{accent};
+    font-family: "JetBrains Mono"; font-size: 11px; color: @{accent};
     border: 1px solid @{line}; border-radius: 6px; padding: 2px 7px; background: transparent;
 }
 QWidget#output_panel { background: @{inset}; border: 1.5px solid @{line}; border-radius: 12px; }
@@ -249,15 +249,15 @@ QWidget#output_grp_head {
 }
 QLabel#output_grp_badge {
     background: @{accent}; color: @{on_accent}; border-radius: 6px;
-    padding: 2px 8px; font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; font-family: "JetBrains Mono"; font-size: 11px; font-weight: 700;
 }
 QLabel#output_grp_badge_warn {
     background: @{danger_soft}; color: @{danger}; border-radius: 6px;
-    padding: 2px 8px; font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; font-family: "JetBrains Mono"; font-size: 11px; font-weight: 700;
 }
 QLabel#output_grp_folder_icon { color: @{accent}; background: transparent; }
 QLabel#output_grp_fname { font-size: 13px; font-weight: 600; color: @{text}; background: transparent; }
-QLabel#output_grp_cnt   { font-family: "JetBrains Mono", monospace; font-size: 11px; color: @{muted}; background: transparent; }
+QLabel#output_grp_cnt   { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; }
 
 /* T-015: cerrar un grupo individual (destilda el checkbox real) */
 QPushButton#output_grp_close_btn {
@@ -284,11 +284,11 @@ QWidget#grp_files_container  { background: @{surface}; }
 /* File rows */
 QWidget#output_file_row { background: transparent; }
 QWidget#output_file_row[file_missing="false"]:hover { background: @{surface2}; }
-QLabel#output_file_idx  { font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 700; color: @{accent}; min-width: 28px; max-width: 28px; background: transparent; }
-QLabel#output_file_name   { font-family: "JetBrains Mono", monospace; font-size: 12px; color: @{text}; background: transparent; }
-QLabel#output_file_artist { font-family: "JetBrains Mono", monospace; font-size: 12px; color: @{muted}; background: transparent; }
-QLabel#output_file_ext    { font-family: "JetBrains Mono", monospace; font-size: 12px; color: @{muted}; background: transparent; }
-QLabel#output_file_more   { font-family: "JetBrains Mono", monospace; font-size: 11px; color: @{muted}; background: transparent; padding: 5px 13px 7px; }
+QLabel#output_file_idx  { font-family: "JetBrains Mono"; font-size: 12px; font-weight: 700; color: @{accent}; min-width: 28px; max-width: 28px; background: transparent; }
+QLabel#output_file_name   { font-family: "JetBrains Mono"; font-size: 12px; color: @{text}; background: transparent; }
+QLabel#output_file_artist { font-family: "JetBrains Mono"; font-size: 12px; color: @{muted}; background: transparent; }
+QLabel#output_file_ext    { font-family: "JetBrains Mono"; font-size: 12px; color: @{muted}; background: transparent; }
+QLabel#output_file_more   { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; padding: 5px 13px 7px; }
 
 /* Missing files */
 QWidget#output_file_row[file_missing="true"]    { background: @{broken_bg}; }
@@ -300,13 +300,13 @@ QLabel#output_file_ext[file_missing="true"]     { color: @{danger}; }
 /* Empty / loading */
 QLabel#output_empty_icon  { color: @{line}; background: transparent; }
 QLabel#output_empty_title { font-size: 13px; font-weight: 500; color: @{muted}; background: transparent; }
-QLabel#output_empty_sub   { font-family: "JetBrains Mono", monospace; font-size: 11px; color: @{muted}; background: transparent; }
-QLabel#preview_loading    { font-family: "JetBrains Mono", monospace; font-size: 12px; color: @{muted}; background: transparent; padding: 24px; }
+QLabel#output_empty_sub   { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; }
+QLabel#preview_loading    { font-family: "JetBrains Mono"; font-size: 12px; color: @{muted}; background: transparent; padding: 24px; }
 
 /* Log view */
 QPlainTextEdit#log_view {
     background: @{inset}; border: none; color: @{muted};
-    font-family: "JetBrains Mono", monospace; font-size: 12px;
+    font-family: "JetBrains Mono"; font-size: 12px;
     padding: 8px 14px; selection-background-color: @{sel_bg};
 }
 
@@ -330,10 +330,10 @@ QPushButton#close_dialog_btn {
 QPushButton#close_dialog_btn:hover { background: @{row_line}; }
 
 /* ── Título de diálogos ── */
-QLabel#dialog_title { font-family: "Fraunces", serif; font-size: 17px; font-weight: 600; background: transparent; }
+QLabel#dialog_title { font-family: "Fraunces"; font-size: 17px; font-weight: 600; background: transparent; }
 
 /* ── Seek bar ── */
-QLabel#seek_time { font-family: "JetBrains Mono", monospace; font-size: 11px; color: @{muted}; background: transparent; }
+QLabel#seek_time { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; }
 
 /* ── Finder button ── */
 QPushButton#finder_btn {
@@ -357,7 +357,7 @@ QPushButton#settings_back {
     color: @{text}; font-size: 12px; font-weight: 600; padding: 5px 13px;
 }
 QPushButton#settings_back:hover { background: @{row_line}; }
-QLabel#settings_title { font-family: "Fraunces", serif; font-size: 17px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#settings_title { font-family: "Fraunces"; font-size: 17px; font-weight: 600; color: @{text}; background: transparent; }
 
 QWidget#settings_card { background: @{surface}; border: 1.5px solid @{row_line}; border-radius: 12px; }
 QLabel#settings_section {
@@ -388,7 +388,7 @@ QCheckBox#settings_check::indicator:checked {
 
 QLineEdit#settings_path {
     background: @{inset}; border: 1.5px solid @{line}; border-radius: 8px;
-    color: @{muted}; font-family: "JetBrains Mono", monospace; font-size: 11px; padding: 7px 11px;
+    color: @{muted}; font-family: "JetBrains Mono"; font-size: 11px; padding: 7px 11px;
 }
 QPushButton#settings_path_btn {
     background: @{surface2}; border: 1.5px solid @{line}; border-radius: 8px;

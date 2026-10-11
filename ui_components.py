@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import ClassVar, List
 
+import icons
 import styles
 
 from PySide6.QtCore import QPoint, QRectF, Qt, Signal
@@ -12,7 +13,6 @@ from PySide6.QtGui import (
     QMouseEvent,
     QPainter,
     QPainterPath,
-    QPalette,
     QPixmap,
 )
 from PySide6.QtWidgets import (
@@ -91,48 +91,11 @@ class ClickableLabel(QLabel):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._draw_pause_bars = False
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
         super().mousePressEvent(event)
-
-    def set_pause_icon(self, active: bool) -> None:
-        """
-        T-015: el glyph Unicode de pausa (⏸, U+23F8) no existe en la fuente
-        base de UI de Windows — el fallback de fuente cae a Segoe UI Emoji,
-        que pinta el ícono con sus propios colores (celeste), ignorando el
-        `color: @{on_accent}` del QSS. Ni siquiera el variation selector
-        U+FE0E (fuerza presentación de texto) lo evita en Qt. Con `active`
-        se dibuja la pausa a mano en paintEvent, con el color de paleta que
-        el QSS ya resolvió para este QLabel — sin fuente de por medio, así
-        que no puede volver a pintarse "a color" en ninguna plataforma.
-        """
-        self._draw_pause_bars = active
-        if active:
-            self.setText("")
-        self.update()
-
-    def paintEvent(self, event) -> None:
-        if not self._draw_pause_bars:
-            super().paintEvent(event)
-            return
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        color = self.palette().color(QPalette.ColorRole.WindowText)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(color)
-        w, h = self.width(), self.height()
-        bar_w = max(3, round(w * 0.13))
-        bar_h = round(h * 0.36)
-        gap = max(3, round(w * 0.11))
-        total_w = bar_w * 2 + gap
-        x0 = (w - total_w) // 2
-        y0 = (h - bar_h) // 2
-        radius = bar_w * 0.35
-        painter.drawRoundedRect(x0, y0, bar_w, bar_h, radius, radius)
-        painter.drawRoundedRect(x0 + bar_w + gap, y0, bar_w, bar_h, radius, radius)
 
 
 # ──────────────────────────── Rack-head con espectrograma de fondo ────────
@@ -458,9 +421,10 @@ class PlaylistGroup(QWidget):
         h_layout.setContentsMargins(12, 8, 12, 8)
         h_layout.setSpacing(8)
 
-        icon = QLabel("▸")
-        icon.setObjectName("group_icon")
-        h_layout.addWidget(icon)
+        self._chevron = QLabel()
+        self._chevron.setObjectName("group_icon")
+        h_layout.addWidget(self._chevron)
+        self.set_theme(PlaylistCard._theme)
 
         title = QLabel(name)
         title.setObjectName("group_title")
@@ -475,6 +439,9 @@ class PlaylistGroup(QWidget):
         self._body_layout.setContentsMargins(6, 4, 6, 6)
         self._body_layout.setSpacing(4)
         layout.addWidget(self._body)
+
+    def set_theme(self, theme: str) -> None:
+        self._chevron.setPixmap(icons.pixmap("chevron_right", styles.token(theme, "accent"), 14))
 
     def add_card(self, card: PlaylistCard) -> None:
         self._body_layout.addWidget(card)
