@@ -40,7 +40,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QMenu,
-    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -54,6 +53,7 @@ from PySide6.QtMultimedia import QMediaDevices
 from db import get_playlist_tree as rb_get_playlist_tree
 from db import open_database as rb_open_database
 from db import playlist_song_count as rb_song_count
+import dialogs
 import icons
 from branding import APP_NAME
 from preview_card import (
@@ -1760,7 +1760,7 @@ class MainWindow(QMainWindow):
         self._update_now_playing(None)
         self._cancel_waveform()
         self._footer.set_peaks(None)
-        QMessageBox.warning(self, "Reproducción de audio", msg)
+        dialogs.warning(self, "Reproducción de audio", msg)
 
     # ── Forma de onda del footer ───────────────────────────────────────────
 
@@ -1862,18 +1862,18 @@ class MainWindow(QMainWindow):
 
     def _start_export(self) -> None:
         if self._relocate_worker and self._relocate_worker.isRunning():
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Relocate en curso",
                 "Esperá a que termine la reparación de enlaces antes de exportar.",
             )
             return
         output = self._footer.dest_text().strip()
         if not output:
-            QMessageBox.warning(self, "Falta carpeta", "Elegí primero una carpeta de destino.")
+            dialogs.warning(self, "Falta carpeta", "Elegí primero una carpeta de destino.")
             return
         selected = self._selected_playlists()
         if not selected:
-            QMessageBox.warning(self, "Sin selección", "Marcá al menos una playlist.")
+            dialogs.warning(self, "Sin selección", "Marcá al menos una playlist.")
             return
 
         self._last_export_dest = output
@@ -2069,13 +2069,11 @@ class MainWindow(QMainWindow):
             ]
         lines += ["", "¿Continuar?"]
 
-        resp = QMessageBox.question(
+        yes = dialogs.question(
             self, f"Reparar enlaces rotos — {app_name}",
             "\n".join(lines),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
         )
-        return resp == QMessageBox.StandardButton.Yes
+        return yes
 
     def _confirm_relocate_interrupt(self, action_label: str) -> bool:
         """
@@ -2090,16 +2088,14 @@ class MainWindow(QMainWindow):
         """
         done = self._relocate_progress_done
         total = self._relocate_progress_total
-        resp = QMessageBox.question(
+        yes = dialogs.question(
             self, "¿Perder el trabajo hecho?",
             f"Ya se revisaron {done} de {total or done} enlace(s) roto(s) "
             "en esta sesión. Nada se guarda hasta el final: si continuás, "
             "se pierden todas las decisiones ya tomadas y vas a tener que "
             f"volver a repasarlas.\n\n{action_label} de todos modos?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
         )
-        return resp == QMessageBox.StandardButton.Yes
+        return yes
 
     def _start_relocate(
         self, scope: RelocateScope | None = None, auto_resolve: bool | None = None,
@@ -2108,12 +2104,12 @@ class MainWindow(QMainWindow):
         de las pistas de una playlist. Con alcance el tilde del menú no se
         lee: `auto_resolve` viene explícito y la confirmación siempre se pide."""
         if self._source == "traktor" and self._db is None:
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Sin librería", "Cargá la librería de Traktor primero."
             )
             return
         if self._worker and self._worker.isRunning():
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Exportación en curso",
                 "Esperá a que termine la exportación actual antes de reparar enlaces.",
             )
@@ -2243,7 +2239,7 @@ class MainWindow(QMainWindow):
             self.log_view.setVisible(False)
             self.preview_scroll.setVisible(True)
             if is_traktor:
-                QMessageBox.warning(
+                dialogs.warning(
                     self, "Traktor está abierto",
                     "Cerrá Traktor antes de reparar enlaces.\n\n"
                     "Traktor reescribe collection.nml entero al salir o guardar "
@@ -2251,7 +2247,7 @@ class MainWindow(QMainWindow):
                     "que si queda abierto pisaría las reparaciones.",
                 )
             else:
-                QMessageBox.warning(
+                dialogs.warning(
                     self, "Rekordbox está abierto",
                     "Cerrá Rekordbox antes de reparar enlaces.\n\n"
                     "La base de datos (master.db) queda bloqueada a nivel de "
@@ -2284,7 +2280,7 @@ class MainWindow(QMainWindow):
             )
             if log_path is not None:
                 detail += f"\n\nRevisá el detalle del error en el log:\n{log_path}"
-            QMessageBox.critical(self, f"Error al reparar enlaces — {app_name}", detail)
+            dialogs.critical(self, f"Error al reparar enlaces — {app_name}", detail)
         elif unresolved > 0:
             self._footer.end_progress(summary, "⚠")
             self.output_status.setText("parcial ⚠")
@@ -2322,14 +2318,14 @@ class MainWindow(QMainWindow):
     def _open_restore_backup_dialog(self) -> None:
         """Entrypoint del botón "↩ Restaurar copia de seguridad…"."""
         if self._worker and self._worker.isRunning():
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Exportación en curso",
                 "Esperá a que termine la exportación actual antes de "
                 "restaurar un backup.",
             )
             return
         if self._relocate_worker and self._relocate_worker.isRunning():
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Reparación en curso",
                 "Esperá a que termine la reparación de enlaces antes de "
                 "restaurar un backup.",
@@ -2341,7 +2337,7 @@ class MainWindow(QMainWindow):
         target_name, target_path = self._relocate_target_info()
         if target_path is None:
             app_name = "Traktor" if self._source == "traktor" else "Rekordbox"
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Sin ubicación conocida",
                 f"No se pudo determinar dónde vive tu {target_name} de "
                 f"{app_name} — no hay carpeta de backups para mostrar.",
@@ -2375,7 +2371,7 @@ class MainWindow(QMainWindow):
             else is_rekordbox_running()
         )
         if is_running:
-            QMessageBox.warning(
+            dialogs.warning(
                 self, f"{app_name} está abierto",
                 f"Cerrá {app_name} antes de restaurar un backup — la "
                 "restauración reemplaza el archivo real y una app abierta "
@@ -2387,17 +2383,15 @@ class MainWindow(QMainWindow):
             backup.timestamp.strftime("%d/%m/%Y %H:%M:%S")
             if backup.timestamp is not None else backup.path.name
         )
-        resp = QMessageBox.question(
+        yes = dialogs.question(
             self, f"Restaurar copia de seguridad — {app_name}",
             f"Esto va a reemplazar tu {target_name} actual con la copia "
             f"del {when} — ¿seguro?\n\n"
             f"Archivo que se sobrescribe:\n{target_path}\n\n"
             "Tus otros backups no se tocan y siguen disponibles si te "
             "equivocás de copia.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
         )
-        if resp != QMessageBox.StandardButton.Yes:
+        if not yes:
             return
 
         self._set_maintenance_enabled(False)
@@ -2417,7 +2411,7 @@ class MainWindow(QMainWindow):
         if ok:
             self.output_status.setText("restaurado ✓")
             self._set_status_style("ok")
-            QMessageBox.information(
+            dialogs.information(
                 self, "Backup restaurado",
                 f"Tu {target_name} de {app_name} fue reemplazado por la "
                 f"copia elegida.\n\nAbrí {app_name} para confirmar que todo "
@@ -2426,7 +2420,7 @@ class MainWindow(QMainWindow):
         else:
             self.output_status.setText("error ✗")
             self._set_status_style("error")
-            QMessageBox.critical(
+            dialogs.critical(
                 self, "No se pudo restaurar el backup",
                 f"Algo falló al restaurar sobre tu {target_name}:\n\n"
                 f"{error_msg}\n\n"
