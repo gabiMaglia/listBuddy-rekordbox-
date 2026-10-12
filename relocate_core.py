@@ -575,6 +575,8 @@ class BaseRelocateWorker(QThread):
         con el finalize propio del motor (backup + escritura/commit).
         """
         total = len(broken)
+        if self._scope is not None:
+            self.log.emit(f"📁  Alcance: solo la carpeta «{self._scope.name}».")
         self.log.emit(f"🔍  {total} enlace(s) roto(s) en la {self._broken_scope_noun()}.")
         if total == 0:
             self.finished_ok.emit(0, 0, 0, "ok")

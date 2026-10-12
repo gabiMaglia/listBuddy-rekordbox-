@@ -6,3 +6,18 @@ FAILED tests/test_relocate_scope.py::TestRelocateScope::test_scope_contains_only
 FAILED tests/test_relocate_scope.py::TestRelocateScope::test_empty_scope_contains_nothing_it_is_not_global
 FAILED tests/test_relocate_scope.py::TestRelocateScope::test_scope_is_immutable
 FAILED tests/test_relocate_scope.py::TestRelocateScope::test_base_worker_stores_the_scope
+    def _run_traktor(nml: Path, search: Path, scope, monkeypatch) -> tuple[list, list[str]]:
+        monkeypatch.setattr(tr, "is_traktor_running", lambda: False)
+>       w = tr.RelocateWorker(nml, search, auto_resolve=True, scope=scope)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: RelocateWorker.__init__() got an unexpected keyword argument 'scope'
+
+tests/test_relocate_scope.py:104: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_relocate_scope.py::TestTraktorFindBrokenScoped::test_only_scoped_entries_are_returned
+FAILED tests/test_relocate_scope.py::TestTraktorFindBrokenScoped::test_empty_scope_returns_nothing
+FAILED tests/test_relocate_scope.py::TestTraktorFindBrokenScoped::test_out_of_scope_entries_never_hit_the_disk
+FAILED tests/test_relocate_scope.py::TestTraktorWorkerScoped::test_only_the_scoped_track_is_repaired_the_other_is_untouched
+FAILED tests/test_relocate_scope.py::TestTraktorWorkerScoped::test_scope_with_no_matching_track_writes_nothing_and_makes_no_backup
+FAILED tests/test_relocate_scope.py::TestTraktorWorkerScoped::test_playlists_section_follows_the_repaired_entry
+FAILED tests/test_relocate_scope.py::TestTraktorWorkerScoped::test_track_in_two_playlists_is_repaired_for_both
