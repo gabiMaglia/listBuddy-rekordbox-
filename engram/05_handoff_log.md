@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-11 23:40] nerv-orquestador → nerv-desktop T-063 · Niv S · relanzamiento Tasks 2–8
+- Ejecución anterior PARCIAL (cortada por el sistema; delegaba en subagentes anidados y devolvía antes de terminar). Hecho y verificado por el Orquestador: re-estampado D4 (044a68c, ebf7af3), Task 0 (58166fc), Task 1/T-068 (2024d26; mutación 8 rojos en `evidence/T-068_mutacion.txt`; excepción P-18 aplicada). Suite verde, tree limpio. Agente anterior detenido.
+- Entrega: Tasks 2–8 del CÓMO de T-063, ejecución INLINE (sin subagentes anidados, sin monitores), sin devolver el control hasta T-063 + T-068 en «En revisión QA» o un bloqueo concreto.
+- Archivos a leer: `engram/plans/T-061.md` (§T-063, CÓMO — T-063 desde Task 2, decisiones del PO al final) · `engram/03_backlog.md` (T-063, T-068) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · rutas de capturas.
+
 ### [2026-10-11 22:50] nerv-orquestador → nerv-desktop T-063 (+T-068) · Niv S · fase implementación
 - CÓMO estampado (9a2999d). PO: D1/D2/D3/D5/D6 sí; D4 sí con cambio (0 playlists → «Exportar playlists»). T1–T8 aprobadas. Excepción P-18 aceptada para T-068 (no-vacuidad por mutación, 8 rojos).
 - Entrega: ajustar el CÓMO por D4 y re-estampar; después Tasks 0–8 en `feat/reskin`, TDD, commits chicos, evidencia a 820 px dark+light, verificación manual de la onda con audio real si el test offscreen no corre. Dejar T-063 y T-068 «En revisión QA».
