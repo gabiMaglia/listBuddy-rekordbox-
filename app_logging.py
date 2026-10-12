@@ -82,14 +82,17 @@ def install_excepthook() -> None:
 
         try:
             from PySide6.QtWidgets import QApplication, QMessageBox
+            import dialogs
             if QApplication.instance() is None:
                 return
-            box = QMessageBox(QApplication.activeWindow())
-            box.setIcon(QMessageBox.Icon.Warning)
-            box.setWindowTitle(f"{APP_NAME} — error inesperado")
-            box.setText("Ocurrió un error inesperado, pero la app sigue funcionando.")
+            box = dialogs.build_message(
+                QApplication.activeWindow(), QMessageBox.Icon.Warning,
+                f"{APP_NAME} — error inesperado",
+                "Ocurrió un error inesperado, pero la app sigue funcionando.",
+            )
             box.setInformativeText(f"{exc_type.__name__}: {exc_value}")
             box.setDetailedText(tb_text)
+            dialogs.localize_details_button(box)
             box.exec()
         except Exception:  # nunca dejar que el hook tire otra excepción
             pass
