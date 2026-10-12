@@ -1,0 +1,8 @@
+
+tests/test_relocate_scope.py:33: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_relocate_scope.py::TestRelocateScope::test_none_scope_contains_everything
+FAILED tests/test_relocate_scope.py::TestRelocateScope::test_scope_contains_only_its_paths
+FAILED tests/test_relocate_scope.py::TestRelocateScope::test_empty_scope_contains_nothing_it_is_not_global
+FAILED tests/test_relocate_scope.py::TestRelocateScope::test_scope_is_immutable
+FAILED tests/test_relocate_scope.py::TestRelocateScope::test_base_worker_stores_the_scope
