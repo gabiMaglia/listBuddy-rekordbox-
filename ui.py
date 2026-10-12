@@ -1130,10 +1130,19 @@ class MainWindow(QMainWindow):
         """Muestra/oculta filas por nombre; solo de vista: no toca marcas, orden ni contador."""
         query = self.playlist_search.text()
         active = bool(query.strip())
-        for card in self._all_cards:
-            card.setVisible(matches(card.name, query))
-        for grp in self._groups:
-            grp.setVisible(not active or any(not c.isHidden() for c in grp.cards()))
+        # Layout y repintado una sola vez al final: mostrar cientos de filas de
+        # golpe (al borrar la consulta) costaba ~0,8 s con 300 playlists.
+        layout = self.playlist_container_layout
+        layout.setEnabled(False)
+        self.playlist_container.setUpdatesEnabled(False)
+        try:
+            for card in self._all_cards:
+                card.setVisible(matches(card.name, query))
+            for grp in self._groups:
+                grp.setVisible(not active or any(not c.isHidden() for c in grp.cards()))
+        finally:
+            self.playlist_container.setUpdatesEnabled(True)
+            layout.setEnabled(True)
         none_visible = bool(self._all_cards) and all(c.isHidden() for c in self._all_cards)
         self._no_results.setText(f"Sin resultados para «{query.strip()}»")
         self._no_results.setVisible(active and none_visible)
