@@ -13,7 +13,7 @@ Sos un experto en Python, empaquetado de apps de escritorio para macOS/Windows, 
 ### Flujo de usuario
 
 1. La app abre la DB de Rekordbox 6 al iniciar (requiere que RB esté cerrado).
-2. Muestra un árbol de carpetas y playlists con checkboxes tri-estado.
+2. Muestra las playlists agrupadas en carpetas plegables; solo las playlists tienen checkbox (las carpetas no se marcan).
 3. El usuario elige carpeta de destino, marca playlists, y exporta.
 4. Un `QThread` copia los archivos con nombre `001 - Artist - Title.mp3`, mostrando progreso y log.
 
