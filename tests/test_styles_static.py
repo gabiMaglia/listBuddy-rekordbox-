@@ -17,7 +17,7 @@ RADIUS = re.compile(r"border(?:-[a-z]+)*-radius:\s*([\d.]+)px")
 FAMILY = re.compile(r"font-family:\s*([^;}\n]+)")
 SCALE = {11, 12, 13, 14, 17, 20}
 RADII = {6, 8, 12}
-FAMILIES = {"Public Sans", "Fraunces", "JetBrains Mono"}
+FAMILIES = {"Public Sans", "Sora", "JetBrains Mono"}
 TOKENS = {
     "bg", "header", "surface", "surface2", "inset", "line", "row_line", "text", "muted",
     "accent", "on_accent", "link", "sel_bg", "danger", "danger_soft", "broken_bg",

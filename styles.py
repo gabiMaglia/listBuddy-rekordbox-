@@ -6,8 +6,8 @@ import sys
 from pathlib import Path
 from typing import Dict
 
-from PySide6.QtGui import QFontDatabase
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtWidgets import QApplication, QLabel
 
 
 # En modo frozen (PyInstaller) los recursos quedan en sys._MEIPASS
@@ -78,6 +78,16 @@ def register_fonts() -> list[str]:
     if not families:
         _log.warning('Sin fuentes bundleadas en %s; se usa el fallback del sistema', FONTS_DIR)
     return sorted(families)
+
+
+TITLE_TRACKING_EM = -0.02
+
+
+def apply_title_tracking(label: QLabel, px: int) -> None:
+    """QSS no soporta letter-spacing: el tracking de marca/títulos va por QFont."""
+    font = label.font()
+    font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, TITLE_TRACKING_EM * px)
+    label.setFont(font)
 
 
 def token(theme: str, name: str) -> str:
