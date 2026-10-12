@@ -353,10 +353,10 @@ ui.RelocateWorker = FakeTk
 ui.QFileDialog.getExistingDirectory = staticmethod(lambda *a, **k: PICKED[0])
 PICKED = ["/tmp/busqueda"]
 asked = []
-ANSWER = [ui.QMessageBox.StandardButton.Yes]
+ANSWER = [True]
 def fake_question(*a, **k):
     asked.append(a[2]); return ANSWER[0]
-ui.QMessageBox.question = staticmethod(fake_question)
+ui.dialogs.question = staticmethod(fake_question)
 SC = RelocateScope("housepost", frozenset({"/x/1.mp3", "/x/2.mp3", "/x/3.mp3"}))
 '''
 
@@ -381,7 +381,7 @@ class TestStartRelocateScoped:
     def test_answering_no_starts_nothing(self) -> None:
         out = run_ui(
             "w, _ = make(); w._source = 'rekordbox'\n"
-            "ANSWER[0] = ui.QMessageBox.StandardButton.No\n"
+            "ANSWER[0] = False\n"
             "w._start_relocate(scope=SC, auto_resolve=True)\n"
             "print(len(asked), calls, w._relocate_state, w._relocate_worker)\n"
         )

@@ -278,7 +278,7 @@ def test_choose_folder_goes_through_the_footer_change_button() -> None:
 
 def test_now_playing_reaches_the_footer_and_clears_on_audio_error() -> None:
     out = run(
-        "ui.QMessageBox.warning = staticmethod(lambda *a, **k: None)\n"
+        "ui.dialogs.warning = staticmethod(lambda *a, **k: None)\n"
         "w, _ = make()\n"
         "row = w._make_row_widget(ui.TrackRow('001', 'Glace Circle (Original Mix)', 'DJOKO', 'MP3', 'x.mp3', True))\n"
         "w._update_now_playing(row.track)\n"
@@ -353,7 +353,7 @@ def test_stale_hide_timer_does_not_hide_a_running_export_progress() -> None:
 
 def test_relocate_progress_and_summary_use_the_footer() -> None:
     out = run(
-        "ui.QMessageBox.warning = staticmethod(lambda *a, **k: None)\n"
+        "ui.dialogs.warning = staticmethod(lambda *a, **k: None)\n"
         "w, _ = make(); f = w._footer; w._relocate_source = 'rekordbox'\n"
         "w._footer.begin_progress('Buscando enlaces rotos…'); w._set_relocate_state('running')\n"
         "w._on_relocate_finished(3, 1, 0, 'ok'); app.processEvents()\n"
@@ -421,7 +421,7 @@ def test_waveform_workers_are_kept_alive_until_finished_and_closed_cleanly() -> 
 def test_waveform_resets_on_audio_error() -> None:
     out = run(
         _FAKE_WAVE +
-        "ui.QMessageBox.warning = staticmethod(lambda *a, **k: None)\n"
+        "ui.dialogs.warning = staticmethod(lambda *a, **k: None)\n"
         "w, _ = make(); w._start_waveform('/a.mp3'); created[-1].ready.emit([0.8] * 5, created[-1].gen)\n"
         "w._on_audio_error('boom'); print(list(w._footer.wave._peaks))\n"
     )
