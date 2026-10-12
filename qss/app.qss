@@ -154,23 +154,20 @@ QLabel#group_title { font-size: 13px; font-weight: 600; color: @{text}; backgrou
 QWidget#group_body { background: transparent; }
 
 /* ── Output panel ── */
-QLabel#output_eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: @{muted}; background: transparent; }
+QLabel#preview_title    { font-family: "Sora"; font-size: 17px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#preview_subtitle { font-size: 12px; color: @{muted}; background: transparent; }
+QLabel#broken_notice_label { font-size: 12px; color: @{danger}; background: transparent; }
+QLabel#broken_notice_icon  { background: transparent; }
 QLabel#output_status_tag {
     font-family: "JetBrains Mono"; font-size: 11px; color: @{accent};
     border: 1px solid @{line}; border-radius: 6px; padding: 2px 7px; background: transparent;
 }
-QWidget#output_panel { background: @{inset}; border: 1.5px solid @{line}; border-radius: 12px; }
-QWidget#output_head {
-    background: @{surface}; border-bottom: 1px solid @{line};
-    border-top-left-radius: 12px; border-top-right-radius: 12px;
-}
-QLabel#output_path_label { font-size: 13px; font-weight: 600; color: @{text}; background: transparent; }
-QLabel#output_folder_icon { color: @{accent}; background: transparent; }
+QWidget#output_panel { background: transparent; border: none; }
 
-/* Preview scroll */
-QScrollArea#preview_scroll { background: @{inset}; border: none; }
-QWidget#preview_scroll_vp  { background: @{inset}; }
-QWidget#preview_container  { background: @{inset}; }
+/* Preview scroll: las tarjetas van directo sobre bg */
+QScrollArea#preview_scroll { background: @{bg}; border: none; }
+QWidget#preview_scroll_vp  { background: @{bg}; }
+QWidget#preview_container  { background: @{bg}; }
 QWidget#preview_empty      { background: transparent; }
 
 /* Preview cards (T-065) */
