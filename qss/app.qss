@@ -92,26 +92,31 @@ QLabel#brand_sub {
     letter-spacing: 1px; color: @{muted}; background: transparent;
 }
 
-/* ── Eyebrow ── */
-QLabel#eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: @{muted}; background: transparent; }
-
 /* ── Source switcher ── */
 
-/* ── Playlists header ── */
+/* ── Columna de playlists (T-064) ── */
+QWidget#left_col { background: @{surface}; border-right: 1px solid @{line}; }
+QLabel#playlists_title { font-family: "Sora"; font-size: 17px; font-weight: 600; color: @{text}; background: transparent; }
 QLabel#count_pill {
-    font-family: "JetBrains Mono"; font-size: 11px; color: @{muted};
-    border: 1px solid @{line}; border-radius: 6px; padding: 2px 8px; background: transparent;
+    font-family: "JetBrains Mono"; font-size: 12px; color: @{link};
+    background: transparent; border: none; padding: 0;
 }
 QPushButton#all_btn, QPushButton#none_btn {
-    background: transparent; border: 1.5px solid @{line}; border-radius: 8px;
-    color: @{text}; font-size: 12px; font-weight: 600;
-    padding: 3px 11px; min-height: 26px; max-height: 26px;
+    background: transparent; border: none; color: @{muted};
+    font-size: 12px; padding: 2px 4px;
 }
-QPushButton#all_btn:hover, QPushButton#none_btn:hover { background: @{surface2}; }
+QPushButton#all_btn:hover, QPushButton#none_btn:hover { color: @{text}; }
+QLabel#playlists_help { font-size: 12px; color: @{muted}; padding: 0 16px 10px 16px; background: transparent; }
+QLineEdit#playlist_search {
+    background: @{bg}; border: 1px solid @{line}; border-radius: 8px;
+    color: @{text}; font-size: 13px; padding: 8px 10px;
+    placeholder-text-color: @{muted};
+}
+QLineEdit#playlist_search:focus { border-color: @{accent}; }
+QLabel#playlist_no_results { font-size: 12px; color: @{muted}; padding: 4px 16px; background: transparent; }
 
-/* ── Playlist scroll ── */
-QScrollArea#playlist_scroll { background: @{surface}; border: 1.5px solid @{line}; border-radius: 12px; }
-QWidget#playlist_scroll_vp  { background: @{surface}; }
+QScrollArea#playlist_scroll { background: transparent; border: none; }
+QWidget#playlist_scroll_vp  { background: transparent; }
 QWidget#scroll_content      { background: transparent; }
 
 /* ── Playlist card (fila plana) — OFF state (ON state via inline setStyleSheet) ── */
