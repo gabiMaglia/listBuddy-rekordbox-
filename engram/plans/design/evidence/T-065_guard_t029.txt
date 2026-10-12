@@ -1,0 +1,1 @@
+Mutación 2 (sin _stop_fade_anim en _clear_preview_layout): los dos tests siguen VERDES con PySide6 6.11.1 en macOS (no hay SIGSEGV ni Traceback). El guard NO detecta la regresión de T-029 en este entorno; queda como mejor esfuerzo (riesgo 9 del plan).
