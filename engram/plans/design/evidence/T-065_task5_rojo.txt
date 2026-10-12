@@ -1,0 +1,10 @@
+E        +  where 1 = CompletedProcess(args=['/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/.venv/bin/python', '-c', '\nimport pathlib, tempf...).isNull()\n           ^^^^^^^^^^^^^^^^^^^\nAttributeError: \'NoneType\' object has no attribute \'accessibleName\'\n').returncode
+
+tests/test_row_blocks.py:70: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_preview_column.py::test_healthy_row_shows_number_title_artist_chip_and_no_prefix
+FAILED tests/test_preview_column.py::test_broken_row_has_icon_with_name_note_and_keeps_its_number
+FAILED tests/test_preview_column.py::test_broken_row_text_does_not_depend_only_on_color
+FAILED tests/test_preview_column.py::test_title_with_dash_survives_in_row_and_now_playing
+FAILED tests/test_preview_column.py::test_healthy_row_paints_a_separator_and_broken_rows_do_not
+FAILED tests/test_row_blocks.py::test_rendered_rows_carry_block_position_and_accessible_icon

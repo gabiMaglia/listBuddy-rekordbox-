@@ -242,6 +242,12 @@ class FileRow(QWidget):
         if not self._exists:
             theme = PlaylistCard._theme
             self._paint_block(styles.token(theme, "broken_bg"), styles.token(theme, "danger"))
+        else:
+            # Separador de 1 px pintado acá: un border-bottom QSS pelearía con el bloque (T6).
+            QPainter(self).fillRect(
+                0, self.height() - 1, self.width(), 1,
+                QColor(styles.token(PlaylistCard._theme, "row_line")),
+            )
         super().paintEvent(event)
 
     def _paint_block(self, fill_hex: str, border_hex: str) -> None:

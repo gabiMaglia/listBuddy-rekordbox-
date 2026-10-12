@@ -216,10 +216,13 @@ QWidget#grp_files_container  { background: @{surface}; }
 /* File rows */
 QWidget#output_file_row { background: transparent; }
 QWidget#output_file_row[file_missing="false"]:hover { background: @{surface2}; }
-QLabel#output_file_idx  { font-family: "JetBrains Mono"; font-size: 12px; font-weight: 700; color: @{accent}; min-width: 28px; max-width: 28px; background: transparent; }
-QLabel#output_file_name   { font-family: "JetBrains Mono"; font-size: 12px; color: @{text}; background: transparent; }
-QLabel#output_file_artist { font-family: "JetBrains Mono"; font-size: 12px; color: @{muted}; background: transparent; }
-QLabel#output_file_ext    { font-family: "JetBrains Mono"; font-size: 12px; color: @{muted}; background: transparent; }
+QLabel#output_file_idx  { font-family: "JetBrains Mono"; font-size: 12px; font-weight: 400; color: @{muted}; min-width: 40px; max-width: 40px; background: transparent; }
+QLabel#output_file_name   { font-family: "Public Sans"; font-size: 13px; font-weight: 500; color: @{text}; background: transparent; }
+QLabel#output_file_artist { font-family: "Public Sans"; font-size: 13px; color: @{muted}; background: transparent; }
+QLabel#output_file_ext    {
+    font-family: "JetBrains Mono"; font-size: 11px; color: @{chip_text};
+    background: @{surface2}; border-radius: 6px; padding: 2px 7px;
+}
 QLabel#output_file_more   { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; padding: 5px 13px 7px; }
 
 /* Missing files */
@@ -228,7 +231,9 @@ QWidget#output_file_row[file_missing="true"]    { background: transparent; }
 QLabel#output_file_idx[file_missing="true"]     { color: @{danger}; }
 QLabel#output_file_name[file_missing="true"]    { color: @{danger}; }
 QLabel#output_file_artist[file_missing="true"]  { color: @{danger}; }
-QLabel#output_file_ext[file_missing="true"]     { color: @{danger}; }
+QLabel#output_file_note[file_missing="true"]    { font-family: "Public Sans"; font-size: 11px; color: @{danger}; background: transparent; }
+QLabel#output_file_warn[file_missing="true"]    { background: transparent; }
+QLabel#output_file_ext[file_missing="true"]     { color: @{danger}; background: @{broken_chip}; }
 
 /* Empty / loading */
 QLabel#output_empty_icon  { background: transparent; }
