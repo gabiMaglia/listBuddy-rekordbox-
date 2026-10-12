@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12 17:10] nerv-orquestador → nerv-qa T-064 · Niv S
+- Gate P-12.1 PASS (Orquestador): tree limpio, suite verde (311), `.rbe_settings.ini` intacto, captura 980 dark revisada (numeración de dos estilos, filas planas, buscador, «vacía»). Suite tarda ~5–6 min por subprocesos de Qt → deuda D-09, no defecto de T-064.
+- Archivos a leer: `engram/plans/T-061.md` (§T-064, CÓMO — T-064, decisiones del PO de T-064 al final) · `engram/03_backlog.md` (T-064) · diff `fdd26ff..HEAD` · `engram/plans/design/evidence/T-064_*`.
+- Se espera: veredicto con evidencia por criterio, defectos con archivo:línea.
+
 ### [2026-10-12 15:40] nerv-orquestador → nerv-desktop T-064 · Niv S · fase implementación
 - CÓMO estampado (6a5a9e3). PO: D1–D4 sí; D5 = carpetas sin checkbox (spec/CLAUDE.md corregidos). T1–T8 aprobadas; excepción P-18 para 3 tests de caracterización.
 - Entrega: Tasks 0–5 del CÓMO de T-064 en `feat/reskin`, ejecución INLINE, TDD, commits chicos, evidencia dark+light. Dejar T-064 «En revisión QA».
