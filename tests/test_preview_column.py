@@ -330,3 +330,48 @@ def test_preview_has_no_outer_border_and_cards_sit_on_bg() -> None:
         "print(px == QColor(styles.token('dark', 'bg')).name(), w.preview_layout.spacing())\n"
     )
     assert out == "True 14"
+
+
+# ───────── Cabecera de columnas alineada con las filas (QA iteración 1) ─────────
+
+def test_column_header_shows_the_three_labels_aligned_with_the_row_columns() -> None:
+    out = run(CARD_IMPORT +
+        "w, _ = make(); w.resize(980, 760); fill(w, [(4, 0)])\n"
+        "c = w.findChildren(PreviewGroupCard)[0]\n"
+        "labs = {l.text(): l for l in c.cols.findChildren(QLabel, 'card_col_label')}\n"
+        "row = c.findChildren(FileRow)[0]\n"
+        "x = lambda wd: wd.mapTo(c, wd.rect().topLeft()).x()\n"
+        "ok = all(labs[k].isVisible() and labs[k].width() > 0 for k in ('NÚMERO', 'TÍTULO — ARTISTA', 'FORMATO'))\n"
+        "print(sorted(labs), ok,\n"
+        "      x(labs['NÚMERO']) == x(row.findChild(QLabel, 'output_file_idx')),\n"
+        "      x(labs['TÍTULO — ARTISTA']) == x(row.findChild(QLabel, 'output_file_name')),\n"
+        "      x(labs['FORMATO']) == x(row.findChild(QLabel, 'output_file_ext')))\n"
+    )
+    assert out == "['FORMATO', 'NÚMERO', 'TÍTULO — ARTISTA'] True True True True"
+
+
+def test_format_header_stays_aligned_when_the_inner_scrollbar_takes_width() -> None:
+    out = run(CARD_IMPORT +
+        "w, _ = make(); w.resize(980, 760); fill(w, [(40, 0)])\n"
+        "c = w.findChildren(PreviewGroupCard)[0]\n"
+        "lab = [l for l in c.cols.findChildren(QLabel, 'card_col_label') if l.text() == 'FORMATO'][0]\n"
+        "chip = c.findChildren(FileRow)[0].findChild(QLabel, 'output_file_ext')\n"
+        "x = lambda wd: wd.mapTo(c, wd.rect().topLeft()).x()\n"
+        "print(abs(x(lab) - x(chip)) <= 1)\n"
+    )
+    assert out == "True"
+
+
+def test_artist_column_is_aligned_between_healthy_and_broken_rows() -> None:
+    out = run(CARD_IMPORT +
+        "w, _ = make(); w.resize(980, 760); fill(w, [(12, 3)])\n"
+        "c = w.findChildren(PreviewGroupCard)[0]\n"
+        "rows = c.findChildren(FileRow)\n"
+        "x = lambda r, n: r.findChild(QLabel, n).mapTo(c, r.findChild(QLabel, n).rect().topLeft()).x()\n"
+        "healthy = [r for r in rows if r.property('file_missing') == 'false'][0]\n"
+        "broken = [r for r in rows if r.property('file_missing') == 'true'][0]\n"
+        "print(x(healthy, 'output_file_artist') == x(broken, 'output_file_artist'),\n"
+        "      x(healthy, 'output_file_name') == x(broken, 'output_file_name'),\n"
+        "      x(healthy, 'output_file_ext') == x(broken, 'output_file_ext'))\n"
+    )
+    assert out == "True True True"

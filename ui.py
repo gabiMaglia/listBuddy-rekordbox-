@@ -56,7 +56,9 @@ from db import open_database as rb_open_database
 from db import playlist_song_count as rb_song_count
 import icons
 from branding import APP_NAME
-from preview_card import PreviewGroupCard
+from preview_card import (
+    CHIP_W, IDX_W, NOTE_W, ROW_GAP, WARN_W, PreviewGroupCard,
+)
 from row_blocks import ALL_BROKEN, MISSING_NOTE, NONE, block_positions, broken_notice_text, ext_chip_text
 from playlist_filter import matches
 from styles import apply_title_tracking, status_style, token
@@ -1476,7 +1478,8 @@ class MainWindow(QMainWindow):
         if card.state == ALL_BROKEN:
             card.expand_toggled.connect(partial(self._on_card_expand, card, rows, gen))
         else:
-            self._batch_rows(rows, card.files_layout, gen, batch=15)
+            self._batch_rows(rows, card.files_layout, gen, batch=15,
+                             reserve_note=data.missing_count > 0)
 
         # Continuar con el siguiente grupo en el próximo tick
         if self._render_queue:
@@ -1488,7 +1491,7 @@ class MainWindow(QMainWindow):
         if not on or card.rows_built or gen != self._render_gen:
             return                       # contraer no destruye; una generación vieja no dibuja
         card.rows_built = True
-        self._batch_rows(list(rows), card.files_layout, gen, batch=15)
+        self._batch_rows(list(rows), card.files_layout, gen, batch=15, reserve_note=True)
 
     def _on_card_repair(self, auto: bool, data: GroupData) -> None:
         """Botonera de la tarjeta (D1 del PO): actúa SOLO sobre los rotos de esa carpeta."""
@@ -1505,6 +1508,7 @@ class MainWindow(QMainWindow):
         layout: QVBoxLayout,
         gen: int,
         batch: int = 15,
+        reserve_note: bool = False,
     ) -> None:
         """Añade `batch` filas al layout y se re-programa si quedan más."""
         if gen != self._render_gen:
@@ -1514,9 +1518,10 @@ class MainWindow(QMainWindow):
                 layout.addStretch(1)
                 return
             track, pos = remaining.pop(0)
-            layout.addWidget(self._make_row_widget(track, pos))
+            layout.addWidget(self._make_row_widget(track, pos, reserve_note))
         if remaining:
-            QTimer.singleShot(0, lambda: self._batch_rows(remaining, layout, gen, batch))
+            QTimer.singleShot(
+                0, lambda: self._batch_rows(remaining, layout, gen, batch, reserve_note))
         else:
             layout.addStretch(1)
 
@@ -1556,8 +1561,11 @@ class MainWindow(QMainWindow):
         el.addStretch(1)
         lo.addWidget(empty)
 
-    def _make_row_widget(self, track: TrackRow, block_pos: str = NONE) -> QWidget:
-        """Una fila de archivo. Llamado desde _batch_rows."""
+    def _make_row_widget(
+        self, track: TrackRow, block_pos: str = NONE, reserve_note: bool = False,
+    ) -> QWidget:
+        """Una fila de archivo. Llamado desde _batch_rows. `reserve_note`: en una carpeta con
+        rotas, las sanas reservan el hueco de la nota para que el artista y el chip alineen."""
         missing = not track.exists
         flag = "true" if missing else "false"
         row = FileRow(track.raw_path, track.exists, block_pos=block_pos)
@@ -1571,7 +1579,7 @@ class MainWindow(QMainWindow):
             self._playing_row = row
         rl = QHBoxLayout(row)
         rl.setContentsMargins(14, 0, 14, 0)
-        rl.setSpacing(12)
+        rl.setSpacing(ROW_GAP)
 
         def label(name: str, text: str) -> QLabel:
             lbl = QLabel(text)
@@ -1579,7 +1587,9 @@ class MainWindow(QMainWindow):
             lbl.setProperty("file_missing", flag)
             return lbl
 
-        rl.addWidget(label("output_file_idx", track.num))
+        idx_lbl = label("output_file_idx", track.num)
+        idx_lbl.setFixedWidth(IDX_W)
+        rl.addWidget(idx_lbl)
         # Ignored: un título largo se recorta en vez de ensanchar la columna (T8).
         name_lbl = label("output_file_name", track.title)
         name_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -1589,15 +1599,22 @@ class MainWindow(QMainWindow):
             ar_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
             rl.addWidget(ar_lbl, 2)
         if missing:
-            rl.addWidget(label("output_file_note", MISSING_NOTE))
+            note = label("output_file_note", MISSING_NOTE)
+            note.setFixedWidth(NOTE_W)
+            rl.addWidget(note)
             warn = label("output_file_warn", "")
+            warn.setFixedWidth(WARN_W)
             warn.setPixmap(icons.pixmap("warning", token(PlaylistCard._theme, "danger"), 16))
             warn.setAccessibleName("Enlace roto")
             warn.setToolTip("Enlace roto")
             rl.addWidget(warn)
+        elif reserve_note:
+            rl.addSpacing(NOTE_W + 2 * ROW_GAP + WARN_W)
         if track.ext:
-            rl.addWidget(label("output_file_ext", ext_chip_text(track.ext)), 0,
-                         Qt.AlignmentFlag.AlignVCenter)
+            chip = label("output_file_ext", ext_chip_text(track.ext))
+            chip.setFixedWidth(CHIP_W)
+            chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            rl.addWidget(chip, 0, Qt.AlignmentFlag.AlignVCenter)
         return row
 
     # ──────────────────────────────────── Audio playback ─────────────────

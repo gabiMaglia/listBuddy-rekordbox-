@@ -1,0 +1,6 @@
+
+tests/test_preview_column.py:377: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_preview_column.py::test_column_header_shows_the_three_labels_aligned_with_the_row_columns
+FAILED tests/test_preview_column.py::test_format_header_stays_aligned_when_the_inner_scrollbar_takes_width
+FAILED tests/test_preview_column.py::test_artist_column_is_aligned_between_healthy_and_broken_rows
