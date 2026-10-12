@@ -271,3 +271,55 @@ class TestRekordboxWorkerScoped:
         done = _run_rb(master, disk, rc.RelocateScope("uno", frozenset({"/Z/nope/a.mp3"})))
         assert done[-1][0] == 1
         assert fake.contents[0].FolderPath == str(disk / "a.mp3")
+
+
+# ───────────── Criterio 3: el backup es el mismo y va antes del primer write ─────────────
+
+class TestBackupBeforeFirstWriteWithScope:
+    def test_traktor_backup_then_write_and_real_backup_has_original_bytes(self, tmp_path, monkeypatch) -> None:
+        nml = _nml(tmp_path, ["a", "b"])
+        original = nml.read_bytes()
+        disk = tmp_path / "disk"; disk.mkdir(); (disk / "a.mp3").write_text("x")
+        order: list[str] = []
+        real_backup, real_write = tr.backup_collection, tr.write_atomic
+        monkeypatch.setattr(tr, "backup_collection", lambda p: (order.append("backup"), real_backup(p))[1])
+        monkeypatch.setattr(tr, "write_atomic", lambda t, p: (order.append("write"), real_write(t, p))[1])
+        _run_traktor(nml, disk, rc.RelocateScope("P", frozenset({_raw("a")})), monkeypatch)
+        assert order == ["backup", "write"]
+        backups = list((tmp_path / "listBuddy_backups").glob("*"))
+        assert len(backups) == 1 and backups[0].read_bytes() == original
+
+    def test_traktor_backup_failure_aborts_without_writing(self, tmp_path, monkeypatch) -> None:
+        nml = _nml(tmp_path, ["a"])
+        original = nml.read_bytes()
+        disk = tmp_path / "disk"; disk.mkdir(); (disk / "a.mp3").write_text("x")
+
+        def boom(_p):
+            raise OSError("sin espacio")
+
+        monkeypatch.setattr(tr, "backup_collection", boom)
+        done, _ = _run_traktor(nml, disk, rc.RelocateScope("P", frozenset({_raw("a")})), monkeypatch)
+        assert done[-1][3] == "error"
+        assert nml.read_bytes() == original
+
+    def test_rekordbox_backup_then_commit(self, tmp_path, monkeypatch) -> None:
+        fake, master, disk = _rb_setup(tmp_path, ["a", "b"], monkeypatch)
+        order: list[str] = []
+        real_backup = rr.backup_master_db
+        monkeypatch.setattr(rr, "backup_master_db", lambda p: (order.append("backup"), real_backup(p))[1])
+        real_commit = fake.commit
+        monkeypatch.setattr(fake, "commit", lambda: (order.append("commit"), real_commit())[1])
+        _run_rb(master, disk, rc.RelocateScope("P", frozenset({"/Z/nope/a.mp3"})))
+        assert order == ["backup", "commit"]
+        assert len(list((tmp_path / "listBuddy_backups").glob("*"))) == 1
+
+    def test_rekordbox_backup_failure_rolls_back_and_does_not_commit(self, tmp_path, monkeypatch) -> None:
+        fake, master, disk = _rb_setup(tmp_path, ["a"], monkeypatch)
+
+        def boom(_p):
+            raise OSError("sin espacio")
+
+        monkeypatch.setattr(rr, "backup_master_db", boom)
+        done = _run_rb(master, disk, rc.RelocateScope("P", frozenset({"/Z/nope/a.mp3"})))
+        assert done[-1][3] == "error"
+        assert fake.commits == 0 and fake.rollbacks == 1
