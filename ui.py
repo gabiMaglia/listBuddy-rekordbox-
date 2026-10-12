@@ -206,6 +206,7 @@ class MainWindow(QMainWindow):
         self._db = None
         self._worker: ExportWorker | None = None
         self._all_cards: list[PlaylistCard] = []
+        self._groups: list[PlaylistGroup] = []
         self._source: str = "rekordbox"  # "rekordbox" | "traktor"
         self._preview_worker: PreviewWorker | None = None
         self._relocate_worker: RelocateWorker | RekordboxRelocateWorker | None = None
@@ -533,8 +534,8 @@ class MainWindow(QMainWindow):
         body.setObjectName("body_widget")
         body.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         lo = QHBoxLayout(body)
-        lo.setContentsMargins(18, 18, 18, 18)
-        lo.setSpacing(16)
+        lo.setContentsMargins(0, 0, 0, 0)
+        lo.setSpacing(0)
         lo.addWidget(self._build_left_col())
         lo.addWidget(self._build_right_col(), 1)
         return body
@@ -544,12 +545,21 @@ class MainWindow(QMainWindow):
     def _build_left_col(self) -> QWidget:
         col = QWidget()
         col.setObjectName("left_col")
-        col.setFixedWidth(344)
+        col.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        col.setFixedWidth(320)
         lo = QVBoxLayout(col)
         lo.setContentsMargins(0, 0, 0, 0)
-        lo.setSpacing(14)
+        lo.setSpacing(0)
 
         lo.addWidget(self._build_playlists_header())
+        help_lbl = QLabel("Marcá las que querés exportar")
+        help_lbl.setObjectName("playlists_help")
+        lo.addWidget(help_lbl)
+        lo.addWidget(self._build_playlist_search())
+        self._no_results = QLabel("")
+        self._no_results.setObjectName("playlist_no_results")
+        self._no_results.setVisible(False)
+        lo.addWidget(self._no_results)
         lo.addWidget(self._build_playlist_scroll(), 1)
         return col
 
@@ -689,29 +699,43 @@ class MainWindow(QMainWindow):
         row = QWidget()
         row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         rl = QHBoxLayout(row)
-        rl.setContentsMargins(0, 0, 0, 0)
-        rl.setSpacing(8)
+        rl.setContentsMargins(16, 16, 12, 4)
+        rl.setSpacing(10)
 
-        ey = QLabel("PLAYLISTS")
-        ey.setObjectName("eyebrow")
-        rl.addWidget(ey)
+        title = QLabel("Playlists")
+        title.setObjectName("playlists_title")
+        apply_title_tracking(title, 17)
+        rl.addWidget(title)
 
-        self.count_pill = QLabel("0 / 0")
+        self.count_pill = QLabel("0/0")
         self.count_pill.setObjectName("count_pill")
         rl.addWidget(self.count_pill)
         rl.addStretch(1)
 
         self.all_btn = QPushButton("Todas")
         self.all_btn.setObjectName("all_btn")
-        self.all_btn.clicked.connect(lambda: self._set_all(True))
+        self.all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.all_btn.clicked.connect(lambda: self._set_all(True, only_visible=True))
         rl.addWidget(self.all_btn)
 
         self.none_btn = QPushButton("Ninguna")
         self.none_btn.setObjectName("none_btn")
-        self.none_btn.clicked.connect(lambda: self._set_all(False))
+        self.none_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.none_btn.clicked.connect(lambda: self._set_all(False, only_visible=True))
         rl.addWidget(self.none_btn)
-
         return row
+
+    def _build_playlist_search(self) -> QWidget:
+        wrap = QWidget()
+        wrap.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        wl = QHBoxLayout(wrap)
+        wl.setContentsMargins(12, 0, 12, 8)
+        self.playlist_search = QLineEdit()
+        self.playlist_search.setObjectName("playlist_search")
+        self.playlist_search.setPlaceholderText("Buscar playlist")
+        self.playlist_search.setAccessibleName("Buscar playlist")
+        wl.addWidget(self.playlist_search)
+        return wrap
 
     def _build_playlist_scroll(self) -> QScrollArea:
         scroll = QScrollArea()
@@ -724,10 +748,8 @@ class MainWindow(QMainWindow):
         self.playlist_container = QWidget()
         self.playlist_container.setObjectName("scroll_content")
         self.playlist_container_layout = QVBoxLayout(self.playlist_container)
-        self.playlist_container_layout.setContentsMargins(6, 5, 6, 5)
-        # T-015: densidad — de 5 a 4 (junto con el padding/spacing reducido de
-        # PlaylistCard) para que entren más playlists sin scroll.
-        self.playlist_container_layout.setSpacing(4)
+        self.playlist_container_layout.setContentsMargins(8, 0, 8, 8)
+        self.playlist_container_layout.setSpacing(2)
         self.playlist_container_layout.addStretch(1)
 
         scroll.setWidget(self.playlist_container)
@@ -740,7 +762,7 @@ class MainWindow(QMainWindow):
         col.setObjectName("right_col")
         col.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         lo = QVBoxLayout(col)
-        lo.setContentsMargins(0, 0, 0, 0)
+        lo.setContentsMargins(20, 18, 20, 18)
         lo.setSpacing(10)
 
         # Eyebrow + status
@@ -1146,24 +1168,17 @@ class MainWindow(QMainWindow):
         self._update_order_numbers()
 
     def _update_order_numbers(self) -> None:
-        selected: list[PlaylistCard] = []
-        selectable = 0
-        for card in self._all_cards:
-            if not card._empty:
-                selectable += 1
+        selectable = sum(1 for c in self._all_cards if not c._empty)
+        order = 0
+        for position, card in enumerate(self._all_cards, start=1):
             if card.isChecked():
-                selected.append(card)
-
-        sel_pos = 0
-        for i, card in enumerate(self._all_cards):
-            if card.isChecked():
-                card.set_order_num(str(sel_pos + 1).zfill(2))
-                sel_pos += 1
+                order += 1
+                card.set_numbers(position, order)
             else:
-                card.set_order_num(str(i + 1).zfill(2))
+                card.set_numbers(position, None)
 
-        n = len(selected)
-        self.count_pill.setText(f"{n} / {selectable}")
+        n = order
+        self.count_pill.setText(f"{n}/{selectable}")
         self._footer.set_export_count(n)
 
         if n == 0:
@@ -1826,8 +1841,10 @@ class MainWindow(QMainWindow):
         else:
             self.output_path_label.setText("Sin carpeta seleccionada")
 
-    def _set_all(self, checked: bool) -> None:
+    def _set_all(self, checked: bool, only_visible: bool = False) -> None:
         for card in self._all_cards:
+            if only_visible and card.isHidden():
+                continue
             card.setChecked(checked)
         self._update_order_numbers()
 

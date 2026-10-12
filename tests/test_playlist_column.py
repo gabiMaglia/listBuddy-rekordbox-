@@ -88,3 +88,93 @@ def test_checked_row_uses_sel_bg_and_unchecked_clears_the_inline_style() -> None
 def test_empty_playlist_cannot_be_checked_and_says_vacia() -> None:
     out = run("c = card(n=0); c.setChecked(True); print(c.isChecked(), c._tag.text())\n")
     assert out == "False vacía"
+
+
+WIN = '''
+from types import SimpleNamespace
+from ui_components import PlaylistCard
+
+def add_cards(w, names):
+    for i, n in enumerate(names):
+        c = PlaylistCard(SimpleNamespace(Name=n), 5, index=i)
+        w._all_cards.append(c)
+        w.playlist_container_layout.insertWidget(w.playlist_container_layout.count() - 1, c)
+    w._update_order_numbers(); app.processEvents()
+
+def shown(c):
+    w = c._num_stack.currentWidget()
+    return (w.objectName(), w.text())
+'''
+
+
+def runw(code: str) -> str:
+    r = run_isolated(BOOT + WIN + code)
+    assert r.returncode == 0, r.stderr[-2000:]
+    return r.stdout.strip().splitlines()[-1]
+
+
+def test_header_has_title_counter_buttons_help_and_search() -> None:
+    out = runw(
+        "w, _ = make()\n"
+        "f = lambda n, t=ui.QLabel: w.findChild(t, n)\n"
+        "print(f('playlists_title').text(), '|', w.count_pill.text(), '|', w.all_btn.text(), '|', w.none_btn.text(),\n"
+        "      '|', f('playlists_help').text(), '|', w.playlist_search.placeholderText(), '|',\n"
+        "      w.playlist_search.accessibleName(), '|', w.findChild(ui.QWidget, 'left_col').width())\n"
+    )
+    assert out == ("Playlists | 0/0 | Todas | Ninguna | Marcá las que querés exportar | "
+                   "Buscar playlist | Buscar playlist | 320")
+
+
+def test_left_column_is_full_bleed_with_right_border() -> None:
+    out = runw(
+        "w, _ = make()\n"
+        "col = w.findChild(ui.QWidget, 'left_col'); body = w.findChild(ui.QWidget, 'body_widget')\n"
+        "print(col.x(), col.y(), col.height() == body.height(), body.layout().contentsMargins().left())\n"
+    )
+    assert out == "0 0 True 0"
+
+
+def test_counter_and_numbers_follow_the_decision_of_the_po() -> None:
+    # 4 playlists; se marcan la 2.ª y la 4.ª: orden 01 y 02; las otras muestran su posición.
+    out = runw(
+        "w, _ = make(); add_cards(w, ['A', 'B', 'C', 'D'])\n"
+        "w._all_cards[1].setChecked(True); w._all_cards[3].setChecked(True); w._update_order_numbers()\n"
+        "print(w.count_pill.text(), [shown(c) for c in w._all_cards])\n"
+    )
+    assert out == ("2/4 [('card_pos', '01'), ('card_order', '01'), ('card_pos', '03'), ('card_order', '02')]")
+
+
+def test_two_equal_numbers_on_screen_never_share_a_style() -> None:
+    # Guard de la decisión del PO: para CUALQUIER combinación de marcadas, lo marcado usa
+    # card_order y lo no marcado card_pos; y la QSS les da estilos distintos (test aparte).
+    out = runw(
+        "import itertools\n"
+        "w, _ = make(); add_cards(w, list('ABCD'))\n"
+        "bad = []\n"
+        "for mask in itertools.product([False, True], repeat=4):\n"
+        "    for c, on in zip(w._all_cards, mask): c.setChecked(on)\n"
+        "    w._update_order_numbers()\n"
+        "    for c in w._all_cards:\n"
+        "        if shown(c)[0] != ('card_order' if c.isChecked() else 'card_pos'): bad.append((mask, shown(c)))\n"
+        "print(bad)\n"
+    )
+    assert out == "[]"
+
+
+def test_group_structure_and_cards_inside_a_folder_still_toggle() -> None:
+    # D5: PlaylistGroup no cambia; marcar tarjetas dentro de una carpeta cuenta igual.
+    out = runw(
+        "from ui_components import PlaylistGroup\n"
+        "w, _ = make()\n"
+        "g = PlaylistGroup('Carpeta'); w.playlist_container_layout.insertWidget(0, g)\n"
+        "c = PlaylistCard(SimpleNamespace(Name='En carpeta'), 3, index=0); g.add_card(c)\n"
+        "w._all_cards.append(c); c.toggled.connect(w._on_card_toggled); app.processEvents()\n"
+        "c.mousePressEvent(__import__('PySide6.QtGui', fromlist=['QMouseEvent']).QMouseEvent(\n"
+        "    __import__('PySide6.QtCore', fromlist=['QEvent']).QEvent.Type.MouseButtonPress,\n"
+        "    c.rect().center().toPointF(), c.rect().center().toPointF(),\n"
+        "    __import__('PySide6.QtCore', fromlist=['Qt']).Qt.MouseButton.LeftButton,\n"
+        "    __import__('PySide6.QtCore', fromlist=['Qt']).Qt.MouseButton.LeftButton,\n"
+        "    __import__('PySide6.QtCore', fromlist=['Qt']).Qt.KeyboardModifier.NoModifier))\n"
+        "print(g.cards() == [c], c.isChecked(), w.count_pill.text(), shown(c))\n"
+    )
+    assert out == "True True 1/1 ('card_order', '01')"
