@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12 13:30] nerv-orquestador → nerv-qa T-069 (A) + T-070 (S) + T-071 (A)
+- Gate P-12.1 PASS (Orquestador) para los tres: tree limpio, suite verde, `.rbe_settings.ini` md5 intacto, sin referencias a Fraunces. Capturas revisadas (header Sora, píldora de rotos, bloques D en housepost/techDeFondo).
+- Para la auditoría: T-070 — PO aceptó 185 ms (registrado en `engram/plans/T-070.md`); el implementador NO mutó el guard → hacer la mutación; verificar el riesgo declarado de auto-avance de pista durante el re-render (≈cientos de ms). T-071 — no existe diálogo «Acerca de» (no aplica); commits sin rojo aislado (red-first declarado).
+- Archivos a leer: `engram/03_backlog.md` (T-069, T-070, T-071) · `engram/plans/T-070.md` · `engram/plans/T-061.md` §Correcciones del PO — ronda 1 · diff `743c125..HEAD` · `engram/plans/design/evidence/T-069_*`, `T-070_*`, `T-071_*`.
+- Se espera: veredicto por ticket con evidencia por criterio, defectos con archivo:línea.
+
 ### [2026-10-12 12:10] nerv-orquestador → nerv-desktop T-071 · Niv A
 - T-069/T-070 entregados (gate PASS: tree limpio, suite verde, ini intacto; T-070 4130 → 185 ms, aceptación del PO pendiente). QA de T-069/T-070/T-071 se corre junta al final para no auditar con la rama en movimiento.
 - Entrega: T-071 (Advisory: criterios del backlog = plan): Fraunces → Sora; filas rotas en bloque agrupado (opción D); marca visible «List Buddy». Migrar `engram/plans/design/capture.py` a ini temporal (caveat de T-070).
