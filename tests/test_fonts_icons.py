@@ -107,3 +107,12 @@ def test_icons_render_with_requested_color() -> None:
         "print('ok')"
     )
     assert r.returncode == 0 and "ok" in r.stdout, r.stderr
+
+
+def test_preview_card_icons_are_registered() -> None:
+    r = run_isolated(
+        "import icons\n"
+        "missing = {'check', 'chevron_down'} - set(icons.ICON_NAMES)\n"
+        "print('missing', sorted(missing))"
+    )
+    assert "missing []" in r.stdout, r.stdout + r.stderr

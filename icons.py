@@ -9,6 +9,7 @@ ICON_NAMES: tuple[str, ...] = (
     "sun", "moon", "heart", "gear", "folder", "note",
     "play", "pause", "close", "chevron_right",
     "wrench", "logo", "dot", "arrow_right", "warning",
+    "check", "chevron_down",
 )
 
 # Grilla 24x24; `{c}` se reemplaza por el color (también para los rellenos de play/pause).
@@ -40,6 +41,8 @@ _PATHS: dict[str, str] = {
     "pause": '<path fill="{c}" d="M7 5h3v14H7zM14 5h3v14h-3z"/>',
     "close": '<path d="M6 6l12 12M18 6L6 18"/>',
     "chevron_right": '<path d="M9 6l6 6-6 6"/>',
+    "chevron_down": '<path d="M6 9l6 6 6-6"/>',
+    "check": '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
     "wrench": '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
     # Las 4 barras del logo (diseño, grilla 22 -> 24): rellenas, sin trazo.
     "logo": (

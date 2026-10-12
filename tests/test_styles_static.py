@@ -175,3 +175,8 @@ def test_text_color_only_uses_text_tokens_in_inline_styles() -> None:
     keys = set(re.findall(r"(?<![-\w])color:\s*\{t\['(\w+)'\]\}", src))
     keys |= set(re.findall(r"(?<![-\w])color:\s*\{c\}", src) and ())
     assert keys <= TEXT_COLOR_TOKENS, keys - TEXT_COLOR_TOKENS
+
+
+def test_column_header_tracking_helper_exists() -> None:
+    r = run_isolated("import styles; print(styles.COLUMN_TRACKING_EM, callable(styles.apply_caps_tracking))")
+    assert r.stdout.strip().splitlines()[-1] == "0.06 True", r.stderr
