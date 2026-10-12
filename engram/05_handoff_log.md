@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12 15:00] nerv-orquestador → nerv-desktop T-064 · Niv S · fase CÓMO (P-19.2)
+- T-063/T-068 Done (QA, 7d2498d). PO revisó la app en vivo y decidió la numeración (opción 3).
+- Entrega: SOLO el CÓMO de T-064 con `superpowers:writing-plans`, como `## CÓMO — T-064` al final de `engram/plans/T-061.md`, estampado. Sin código. Decisiones para el PO como D1..Dn, técnicas como T1..Tn.
+- Archivos a leer: `engram/plans/T-061.md` (QUÉ §Estructura → Columna izquierda, §T-064, decisiones del PO incl. la de T-064) · `engram/03_backlog.md` (T-064) · `engram/plans/design/T-061-mezcla-calida.dc.html` (aside) · `ui.py` (`_build_left_col`, `_build_playlists_header`, `_build_playlist_scroll`, `_load_playlists`, `_update_order_numbers`), `ui_components.py` (PlaylistCard, PlaylistGroup) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · decisiones para el PO.
+
 ### [2026-10-12 14:20] nerv-orquestador → nerv-qa T-063 (S) + T-068 (S)
 - Pendiente desde el 2026-10-11: T-063/T-068 quedaron «En revisión QA» y se frenaron para la prueba manual del PO (OK del PO: «el resto está perfecto»; sus pulidos → T-069/T-071, ya Done). Gate P-12.1 del Orquestador PASS al entregar (cc24364..481de4e) y suite verde hoy.
 - Ojo: el código posterior (T-069/T-070/T-071) tocó `footer.py`, `ui.py` y QSS → auditar los criterios de T-063 contra el HEAD actual, no solo contra 481de4e. T-068: excepción P-18 aceptada por el Orquestador (no-vacuidad por mutación, 8 rojos en `evidence/T-068_mutacion.txt`).
