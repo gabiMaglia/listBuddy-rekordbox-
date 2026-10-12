@@ -6,6 +6,7 @@ from typing import ClassVar, List
 
 import icons
 import styles
+from row_blocks import NONE, border_sides, corner_radii
 
 from PySide6.QtCore import QEvent, QPoint, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
@@ -13,6 +14,8 @@ from PySide6.QtGui import (
     QFontMetrics,
     QMouseEvent,
     QPainter,
+    QPainterPath,
+    QPen,
 )
 from PySide6.QtWidgets import (
     QDialog,
@@ -218,15 +221,86 @@ class FileRow(QWidget):
         raw_path: str,
         exists: bool,
         parent: QWidget | None = None,
+        block_pos: str = NONE,
     ) -> None:
         super().__init__(parent)
         self._raw_path = raw_path
         self._exists = exists
+        self.block_pos = block_pos if not exists else NONE
         self.setObjectName("output_file_row")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setProperty("file_missing", "false" if exists else "true")
         if exists:
             self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def paintEvent(self, event) -> None:
+        # Estilo D: los rotos contiguos se pintan como un solo bloque; el fondo y
+        # el borde van acá porque QSS no puede dar radio por esquina según el vecino.
+        if not self._exists:
+            theme = PlaylistCard._theme
+            self._paint_block(styles.token(theme, "broken_bg"), styles.token(theme, "danger"))
+        super().paintEvent(event)
+
+    def _paint_block(self, fill_hex: str, border_hex: str) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = float(self.width()), float(self.height())
+        tl, tr, br, bl = (float(r) for r in corner_radii(self.block_pos))
+        # Medio píxel adentro: el trazo de 1 px queda entero dentro del widget.
+        x0, y0, x1, y1 = 0.5, 0.5, w - 0.5, h - 0.5
+        top_b, right_b, bottom_b, left_b = border_sides(self.block_pos)
+
+        def corner(
+            path: QPainterPath, cx: float, cy: float, r: float, start: float, sweep: float = -90,
+        ) -> None:
+            # Qt mide los ángulos en sentido antihorario: -90 recorre la esquina en horario.
+            if r:
+                path.arcTo(QRectF(cx, cy, 2 * r, 2 * r), start, sweep)
+
+        shape = QPainterPath()
+        shape.moveTo(x0 + tl, y0)
+        shape.lineTo(x1 - tr, y0)
+        corner(shape, x1 - 2 * tr, y0, tr, 90)
+        shape.lineTo(x1, y1 - br)
+        corner(shape, x1 - 2 * br, y1 - 2 * br, br, 0)
+        shape.lineTo(x0 + bl, y1)
+        corner(shape, x0, y1 - 2 * bl, bl, 270)
+        shape.lineTo(x0, y0 + tl)
+        corner(shape, x0, y0, tl, 180)
+        shape.closeSubpath()
+        p.fillPath(shape, QColor(fill_hex))
+
+        edge = QColor(border_hex)
+        edge.setAlphaF(0.38)
+        pen = QPen(edge)
+        pen.setWidthF(1.0)
+        p.setPen(pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        if all((top_b, right_b, bottom_b, left_b)):
+            p.drawPath(shape)
+            return
+        # Bloque abierto: solo los lados exteriores (sin línea entre filas del bloque).
+        open_path = QPainterPath()
+        if top_b:  # START: izquierda -> arriba -> derecha
+            open_path.moveTo(x0, y1 + 1)
+            open_path.lineTo(x0, y0 + tl)
+            corner(open_path, x0, y0, tl, 180)
+            open_path.lineTo(x1 - tr, y0)
+            corner(open_path, x1 - 2 * tr, y0, tr, 90)
+            open_path.lineTo(x1, y1 + 1)
+        elif bottom_b:  # END
+            open_path.moveTo(x0, y0 - 1)
+            open_path.lineTo(x0, y1 - bl)
+            corner(open_path, x0, y1 - 2 * bl, bl, 180, 90)
+            open_path.lineTo(x1 - br, y1)
+            corner(open_path, x1 - 2 * br, y1 - 2 * br, br, 270, 90)
+            open_path.lineTo(x1, y0 - 1)
+        else:  # MIDDLE
+            open_path.moveTo(x0, y0 - 1)
+            open_path.lineTo(x0, y1 + 1)
+            open_path.moveTo(x1, y0 - 1)
+            open_path.lineTo(x1, y1 + 1)
+        p.drawPath(open_path)
 
     def mousePressEvent(self, event) -> None:
         if self._exists and event.button() == Qt.MouseButton.LeftButton:
