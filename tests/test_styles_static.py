@@ -94,6 +94,8 @@ def test_radii_follow_the_scale() -> None:
                 continue  # el radio es media altura de una barra de 4-5 px
             if "#footer_play" in selector:
                 continue  # botón redondo de 40 px: radio = mitad del lado
+            if "#maint_badge" in selector:
+                continue  # píldora de 18 px (T-069): radio = media altura
             for m in RADIUS.finditer(body):
                 if float(m.group(1)) not in RADII:
                     mal.append(f"{selector.strip()[:40]}: {m.group(0)}")

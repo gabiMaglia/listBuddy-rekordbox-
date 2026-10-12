@@ -314,3 +314,34 @@ def test_relocate_finished_returns_menu_action_to_idle(status: str, start_state:
         "print(w._act_relocate.text(), w._act_relocate.isEnabled(), w._relocate_state)\n"
     )
     assert out.strip().splitlines()[-1] == "Reparar enlaces rotos… True idle"
+
+
+def test_t069_badge_is_a_small_pill_fully_inside_the_button() -> None:
+    out = run(
+        "import re\n"
+        "from PySide6.QtCore import QPoint\n"
+        "from PySide6.QtWidgets import QLabel\n"
+        "from ui_components import MaintenanceButton\n"
+        "b = MaintenanceButton(); b.show(); app.processEvents()\n"
+        "b.set_broken(30); app.processEvents()\n"
+        "badge = b.findChild(QLabel, 'maint_badge')\n"
+        "tl = badge.mapTo(b, QPoint(0, 0))\n"
+        "top, bottom = tl.y(), b.height() - (tl.y() + badge.height())\n"
+        "left_ok = tl.x() >= 0 and tl.x() + badge.width() <= b.width()\n"
+        "qss = open('qss/app.qss').read()\n"
+        "rule = re.search(r'QLabel#maint_badge\\s*\\{((?:[^{}]|@\\{\\w+\\})*)\\}', qss).group(1)\n"
+        "radius = int(re.search(r'border-radius:\\s*(\\d+)px', rule).group(1))\n"
+        "print(top, bottom, left_ok, badge.height(), radius)\n"
+    )
+    top, bottom, left_ok, h, radius = out.split()[-5:]
+    assert int(top) >= 4 and int(bottom) >= 4 and left_ok == "True"
+    assert int(radius) * 2 == int(h)
+
+
+def test_t069_badge_text_meets_contrast_in_both_themes() -> None:
+    import json
+    from test_contrast import ratio
+
+    r = run_isolated("import json, styles; print(json.dumps(styles.THEMES))")
+    for name, t in json.loads(r.stdout).items():
+        assert ratio(t["danger"], t["danger_soft"]) >= 4.5, name
