@@ -25,6 +25,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QPushButton,
     QSizePolicy,
     QStackedLayout,
@@ -659,6 +661,23 @@ def _fmt_size(num_bytes: int) -> str:
     return f"{size:.1f} GB"
 
 
+class _ElideLinesDelegate(QStyledItemDelegate):
+    """Qt solo elide bien texto de una línea: acá cada línea del ítem se recorta con «…»."""
+
+    _H_PADDING = 9 * 2 + 8  # padding del QSS + margen de texto del estilo
+
+    def initStyleOption(self, option: QStyleOptionViewItem, index) -> None:
+        super().initStyleOption(option, index)
+        width = max(option.rect.width() - self._H_PADDING, 0)
+        # option.fontMetrics ignora el font-size del QSS; el widget sí lo tiene aplicado.
+        fm = QFontMetrics(option.widget.font()) if option.widget is not None else option.fontMetrics
+        # Qt reemplaza el \n del ítem por U+2028 en option.text.
+        option.text = "\u2028".join(
+            fm.elidedText(line, Qt.TextElideMode.ElideRight, width)
+            for line in option.text.replace("\n", "\u2028").split("\u2028")
+        )
+
+
 class RelocateDialog(QDialog):
     """
     Modal de desambiguación (ADR-001, punto 3 y contrato del modal).
@@ -703,6 +722,8 @@ class RelocateDialog(QDialog):
 
         self._list = QListWidget()
         self._list.setObjectName("relocate_list")
+        self._list.setItemDelegate(_ElideLinesDelegate(self._list))
+        self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         for cand in request.candidates:
             hint_parts = []
             if cand.matched_artist or cand.matched_title:

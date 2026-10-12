@@ -117,9 +117,9 @@ def test_relocate_long_detail_is_elided_with_ellipsis() -> None:
         "from PySide6.QtWidgets import QStyleOptionViewItem\n"
         "lst = d.findChild(QListWidget, 'relocate_list')\n"
         "dg = lst.itemDelegate(); opt = QStyleOptionViewItem(); opt.initFrom(lst)\n"
-        "opt.rect = lst.visualItemRect(lst.item(0)); opt.font = lst.font(); opt.fontMetrics = lst.fontMetrics()\n"
+        "opt.rect = lst.visualItemRect(lst.item(0)); opt.widget = lst\n"
         "dg.initStyleOption(opt, lst.model().index(0, 0))\n"
-        "lines = opt.text.split('\\n')\n"
-        "print(lines[1].endswith('…'), opt.fontMetrics.horizontalAdvance(lines[1]) <= opt.rect.width())\n"
+        "lines = opt.text.split('\\u2028')\n"
+        "print(lines[1].endswith('…'), lst.fontMetrics().horizontalAdvance(lines[1]) <= opt.rect.width())\n"
     )
     assert out == "True True"
