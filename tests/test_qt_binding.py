@@ -49,9 +49,10 @@ _SIGNAL_OWNERS = [
     ("relocate_core", "BaseRelocateWorker", "ask_user"),
     ("update_checker", "UpdateCheckWorker", "update_available"),
     ("audio_player", "AudioPlayer", "position_changed"),
-    ("spectro_worker", "SpectrogramWorker", "ready"),
+    ("waveform_worker", "WaveformWorker", "ready"),
     ("ui_components", "SeekBar", "seek_requested"),
-    ("ui", "ExportWidget", "clicked"),
+    ("ui_components", "WaveformSeek", "seek_requested"),
+    ("footer", "FooterBar", "export_clicked"),
 ]
 
 

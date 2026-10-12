@@ -13,8 +13,11 @@ from test_contrast import ratio
 _RULE = r"%s\s*\{((?:[^{}]|@\{\w+\})*)\}"
 
 
+_QT = "from PySide6.QtCore import QObject, Signal\n"
+
+
 def run(code: str) -> str:
-    r = run_isolated(BOOT + code)
+    r = run_isolated(BOOT + _QT + code)
     assert r.returncode == 0, r.stderr[-2000:]
     return r.stdout
 
@@ -188,3 +191,229 @@ def test_footer_export_button_text_meets_contrast_in_both_states() -> None:
     for name, t in themes.items():
         assert ratio(t["on_accent"], t["accent"]) >= 4.5, name
         assert ratio(t["muted"], t["surface2"]) >= 4.5, name   # el caso «Exportar playlists» (0)
+
+
+def test_footer_is_wired_at_the_bottom_and_the_old_widgets_are_gone() -> None:
+    out = run(
+        "w, _ = make()\n"
+        "f = w.findChild(ui.QWidget, 'footer_bar')\n"
+        "central = w.centralWidget()\n"
+        "gone = ['rack_head', 'seek_row', 'export_widget', 'folder_edit', 'path_row_widget']\n"
+        "left = w.findChild(ui.QWidget, 'left_col')\n"
+        "print(f is w._footer, f.height(), central.layout().itemAt(central.layout().count() - 1).widget() is f,\n"
+        "      [n for n in gone if w.findChild(ui.QWidget, n) is not None],\n"
+        "      [a for a in ('_vu_bars', '_rack_head', '_seek_bar', 'export_btn', 'folder_edit', 'progress_section',\n"
+        "                   '_spectro_chk', '_start_spectrogram') if hasattr(w, a)],\n"
+        "      left.isAncestorOf(f))\n"
+    )
+    assert out.strip().splitlines()[-1] == "True 76 True [] [] False"
+
+
+def test_export_button_follows_the_number_of_checked_playlists() -> None:
+    out = run(
+        "class Card:\n"
+        "    def __init__(self, on): self.on = on; self._empty = False\n"
+        "    def isChecked(self): return self.on\n"
+        "    def set_order_num(self, s): pass\n"
+        "w, _ = make()\n"
+        "rows = []\n"
+        "for marks in ([], [True], [True, True, True, False]):\n"
+        "    w._all_cards = [Card(m) for m in marks]; w._update_order_numbers()\n"
+        "    b = w._footer.export_btn; rows.append((b.text(), b.isEnabled()))\n"
+        "print(rows)\n"
+    )
+    assert out.strip().splitlines()[-1] == (
+        "[('Exportar playlists', False), ('Exportar 1 playlist', True), ('Exportar 3 playlists', True)]"
+    )
+
+
+def test_export_click_dispatches_by_state_and_running_survives_selection_changes() -> None:
+    out = run(
+        "calls = []\n"
+        "ui.MainWindow._start_export = lambda self: calls.append('start')\n"
+        "ui.MainWindow._cancel_export = lambda self: calls.append('cancel')\n"
+        "class Card:\n"
+        "    _empty = False\n"
+        "    def isChecked(self): return True\n"
+        "    def set_order_num(self, s): pass\n"
+        "w, _ = make(); w._all_cards = [Card(), Card()]; w._update_order_numbers()\n"
+        "b = w._footer.export_btn\n"
+        "b.click()\n"
+        "w._set_export_state('running'); w._all_cards = []; w._update_order_numbers()\n"
+        "mid = (b.text(), b.isEnabled())              # la selección no re-habilita el botón en curso\n"
+        "b.click()\n"
+        "w._set_export_state('cancelling')\n"
+        "cancelling = (b.text(), b.isEnabled())\n"
+        "w._set_export_state('idle')\n"
+        "print(calls, mid, cancelling, b.text())\n"
+    )
+    assert out.strip().splitlines()[-1] == (
+        "['start', 'cancel'] ('Cancelar', True) ('Cancelando…', False) Exportar playlists"
+    )
+
+
+def test_destination_lives_in_the_footer_and_persists() -> None:
+    out = run(
+        "w, tmp = make()\n"
+        "w._footer.set_dest('/Volumes/MUSIC/LISTAS2026/MAC/Traktor/Sesiones/')\n"
+        "w.settings.sync()\n"
+        "print(w.settings.value('last_dest_folder') == '/Volumes/MUSIC/LISTAS2026/MAC/Traktor/Sesiones/',\n"
+        "      w.output_path_label.text())\n"
+        "w2 = ui.MainWindow(settings_path=tmp); w2.show(); app.processEvents()\n"
+        "print(w2._footer.dest_text())\n"
+    )
+    lines = out.strip().splitlines()
+    assert lines[-2].startswith("True ")
+    assert lines[-1] == "/Volumes/MUSIC/LISTAS2026/MAC/Traktor/Sesiones/"
+
+
+def test_choose_folder_goes_through_the_footer_change_button() -> None:
+    out = run(
+        "ui.QFileDialog.getExistingDirectory = staticmethod(lambda *a, **k: '/tmp/destino')\n"
+        "w, _ = make()\n"
+        "w._footer.change_btn.click()\n"
+        "print(w._footer.dest_text())\n"
+    )
+    assert out.strip().splitlines()[-1] == "/tmp/destino"
+
+
+def test_now_playing_reaches_the_footer_and_clears_on_audio_error() -> None:
+    out = run(
+        "ui.QMessageBox.warning = staticmethod(lambda *a, **k: None)\n"
+        "w, _ = make()\n"
+        "row = w._make_row_widget(ui.TrackRow('001', 'Glace Circle (Original Mix)', 'DJOKO', 'MP3', 'x.mp3', True))\n"
+        "w._update_now_playing(row)\n"
+        "a = (w._footer.title_lbl.full_text(), w._footer.artist_lbl.full_text())\n"
+        "w._on_audio_error('boom')\n"
+        "print(a, repr(w._footer.title_lbl.full_text()), repr(w._footer.artist_lbl.full_text()))\n"
+    )
+    # _update_now_playing quita el «001 - » del nombre de la fila (como hoy)
+    assert out.strip().splitlines()[-1] == "('Glace Circle (Original Mix)', 'DJOKO') '' ''"
+
+
+def test_playing_state_and_position_reach_the_footer() -> None:
+    out = run(
+        "w, _ = make()\n"
+        "w._playing_path = 'x'; w._on_playing_changed(True)\n"
+        "icon_playing = w._footer._play_name\n"
+        "w._on_playing_changed(False)\n"
+        "w._on_position_changed(161_000, 418_000)\n"
+        "print(icon_playing, w._footer._play_name, w._footer.time_cur.text(), w._footer.time_total.text())\n"
+    )
+    assert out.strip().splitlines()[-1] == "pause play 2:41 6:58"
+
+
+def test_export_progress_is_shown_in_the_footer_and_cancel_is_the_main_button() -> None:
+    out = run(
+        "class FakeWorker(QObject):\n"
+        "    log = Signal(str); progress = Signal(int, int); finished_ok = Signal(int, int, int, str)\n"
+        "    def __init__(self, *a, **k): super().__init__()\n"
+        "    def start(self): pass\n"
+        "    def isRunning(self): return True\n"
+        "    def requestInterruption(self): pass\n"
+        "ui.ExportWorker = FakeWorker\n"
+        "w, _ = make(); f = w._footer\n"
+        "class Card:\n"
+        "    _empty = False; playlist = object()\n"
+        "    def isChecked(self): return True\n"
+        "    def set_order_num(self, s): pass\n"
+        "w._all_cards = [Card()]; w._update_order_numbers()\n"
+        "import tempfile; f.set_dest(tempfile.mkdtemp())\n"
+        "w._start_export(); w._worker.progress.emit(30, 120); app.processEvents()\n"
+        "a = (f.prog_bar.isVisible(), f.prog_label.full_text(), f.prog_pct.text(), f.export_btn.text())\n"
+        "w._worker.finished_ok.emit(120, 0, 0, 'ok'); app.processEvents()\n"
+        "b = (f.prog_label.full_text(), f.prog_pct.text(), f.export_btn.text(), f.export_btn.isEnabled())\n"
+        "print(a, b)\n"
+    )
+    assert out.strip().splitlines()[-1] == (
+        "(True, 'Copiando y numerando…', '25%', 'Cancelar') "
+        "('120 copiadas', '✓', 'Exportar 1 playlist', True)"
+    )
+
+
+def test_stale_hide_timer_does_not_hide_a_running_export_progress() -> None:
+    out = run(
+        "w, _ = make(); f = w._footer\n"
+        "f.begin_progress('Copiando y numerando…'); app.processEvents()\n"
+        "w._set_status_style('warn'); styled = w.output_status.styleSheet()\n"
+        "w._hide_progress_section(); app.processEvents()   # timer de 8 s de una corrida anterior\n"
+        "print(f.prog_bar.isVisible(), f.progress_active(), w.output_status.styleSheet() == styled != '')\n"
+    )
+    assert out.strip().splitlines()[-1] == "True True True"
+
+
+def test_relocate_progress_and_summary_use_the_footer() -> None:
+    out = run(
+        "ui.QMessageBox.warning = staticmethod(lambda *a, **k: None)\n"
+        "w, _ = make(); f = w._footer; w._relocate_source = 'rekordbox'\n"
+        "w._footer.begin_progress('Buscando enlaces rotos…'); w._set_relocate_state('running')\n"
+        "w._on_relocate_finished(3, 1, 0, 'ok'); app.processEvents()\n"
+        "print(f.prog_label.full_text(), f.prog_pct.text(), f.progress_active(), w._relocate_state)\n"
+    )
+    assert out.strip().splitlines()[-1] == "3 reparadas · 1 salteada ✓ False idle"
+
+
+_FAKE_WAVE = (
+    "created = []\n"
+    "class FakeWave(QObject):\n"
+    "    ready = Signal(object, int); finished = Signal()\n"
+    "    def __init__(self, path, gen): super().__init__(); self.path = path; self.gen = gen; self.cancelled = False; created.append(self)\n"
+    "    def start(self): pass\n"
+    "    def cancel(self): self.cancelled = True\n"
+    "    def isRunning(self): return True\n"
+    "    def wait(self, ms=0): return True\n"
+    "ui.WaveformWorker = FakeWave\n"
+)
+
+
+def test_waveform_arrives_in_the_footer_and_stale_generations_are_ignored() -> None:
+    out = run(
+        _FAKE_WAVE +
+        "w, _ = make()\n"
+        "w._start_waveform('/a.mp3'); first = created[-1]\n"
+        "w._start_waveform('/b.mp3'); second = created[-1]\n"
+        "first.ready.emit([0.9] * 10, first.gen)       # llega tarde: se descarta\n"
+        "stale = list(w._footer.wave._peaks)\n"
+        "second.ready.emit([0.5] * 10, second.gen)\n"
+        "w._on_wave_ready('/old.mp3', [0.9] * 10, w._wave_gen - 1)   # señal en cola de una generación vieja\n"
+        "print(first.cancelled, stale, list(w._footer.wave._peaks)[:2], '/old.mp3' in w._wave_cache)\n"
+    )
+    assert out.strip().splitlines()[-1] == "True [] [0.5, 0.5] False"
+
+
+def test_waveform_cache_hit_starts_no_new_worker_and_is_bounded() -> None:
+    out = run(
+        _FAKE_WAVE +
+        "w, _ = make()\n"
+        "w._start_waveform('/a.mp3'); created[-1].ready.emit([0.7] * 4, created[-1].gen)\n"
+        "n = len(created); w._start_waveform('/a.mp3')\n"
+        "hit = (len(created) == n, list(w._footer.wave._peaks))\n"
+        "for i in range(40):\n"
+        "    w._on_wave_ready(f'/t{i}.mp3', [0.1], w._wave_gen)\n"
+        "print(hit, len(w._wave_cache) <= 32)\n"
+    )
+    assert out.strip().splitlines()[-1] == "(True, [0.7, 0.7, 0.7, 0.7]) True"
+
+
+def test_waveform_workers_are_kept_alive_until_finished_and_closed_cleanly() -> None:
+    out = run(
+        _FAKE_WAVE +
+        "w, _ = make()\n"
+        "w._start_waveform('/a.mp3'); a = created[-1]\n"
+        "w._start_waveform('/b.mp3')\n"
+        "kept = a in w._live_wave_workers          # cancelado pero referenciado hasta su finished\n"
+        "a.finished.emit()\n"
+        "gone = a not in w._live_wave_workers\n"
+        "w.close(); print(kept, gone, created[-1].cancelled)\n"
+    )
+    assert out.strip().splitlines()[-1] == "True True True"
+
+
+def test_waveform_resets_on_audio_error() -> None:
+    out = run(
+        _FAKE_WAVE +
+        "ui.QMessageBox.warning = staticmethod(lambda *a, **k: None)\n"
+        "w, _ = make(); w._start_waveform('/a.mp3'); created[-1].ready.emit([0.8] * 5, created[-1].gen)\n"
+        "w._on_audio_error('boom'); print(list(w._footer.wave._peaks))\n"
+    )
+    assert out.strip().splitlines()[-1] == "[]"
