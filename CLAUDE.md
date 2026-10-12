@@ -30,8 +30,10 @@ rekordbox_export.py  → Lógica base validada. NO modificar sin causa mayor.
 traktor_db.py        → Parser de colección NML de Traktor Pro 3/4. open_collection(), get_playlist_tree().
 preview_worker.py    → PreviewWorker (QThread). Existence checks en background; emite GroupData.
 audio_player.py      → AudioPlayer (QMediaPlayer+FFmpeg). play/pause/seek; señales playing_changed, position_changed, track_finished.
-spectro_worker.py    → SpectrogramWorker (QThread). QAudioDecoder + numpy STFT → QImage tenue de fondo.
-ui_components.py     → PlaylistCard, PlaylistGroup, SeekBar, FileRow, RackHead, ClickableLabel.
+waveform_worker.py   → WaveformWorker (QThread). Picos de la onda del footer.
+audio_decode.py      → buffer_to_mono (helper de decode compartido).
+footer.py            → FooterBar (reproductor, destino, exportar, progreso).
+ui_components.py     → PlaylistCard, PlaylistGroup, SeekBar, WaveformSeek, ElidedLabel, FileRow, ClickableLabel.
 styles.py            → Tokens de diseño dark/light + load_qss().
 rb_exporter.spec     → Spec de PyInstaller para empaquetar (produce "listBuddy" ejecutable).
 requirements.txt     → Dependencias pineadas exactas.
