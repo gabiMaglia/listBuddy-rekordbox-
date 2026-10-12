@@ -779,9 +779,14 @@ class MainWindow(QMainWindow):
         apply_title_tracking(title, 17)
         sub = QLabel("Así van a quedar las carpetas en el destino")
         sub.setObjectName("preview_subtitle")
-        hl.addWidget(title, 0, Qt.AlignmentFlag.AlignBottom)
-        hl.addSpacing(6)
-        hl.addWidget(sub, 0, Qt.AlignmentFlag.AlignBottom)
+        # Subtítulo bajo el título (no en línea como el diseño): en la columna angosta
+        # chocaba con el aviso y el estado y se recortaba.
+        tb = QVBoxLayout()
+        tb.setContentsMargins(0, 0, 0, 0)
+        tb.setSpacing(2)
+        tb.addWidget(title)
+        tb.addWidget(sub)
+        hl.addLayout(tb)
         hl.addStretch(1)
 
         # Aviso «N enlaces rotos»: sigue al total de la vista previa (_set_broken_total).
@@ -1591,7 +1596,8 @@ class MainWindow(QMainWindow):
             warn.setToolTip("Enlace roto")
             rl.addWidget(warn)
         if track.ext:
-            rl.addWidget(label("output_file_ext", ext_chip_text(track.ext)))
+            rl.addWidget(label("output_file_ext", ext_chip_text(track.ext)), 0,
+                         Qt.AlignmentFlag.AlignVCenter)
         return row
 
     # ──────────────────────────────────── Audio playback ─────────────────

@@ -108,7 +108,7 @@ class PreviewGroupCard(QWidget):
         cl = QHBoxLayout(self.cols)
         cl.setContentsMargins(14, 6, 14, 6)
         cl.setSpacing(12)
-        for text, width, stretch in (("NÚMERO", 40, 0), ("TÍTULO — ARTISTA", 0, 1), ("FORMATO", 0, 0)):
+        for text, width, stretch in (("NÚMERO", 56, 0), ("TÍTULO — ARTISTA", 0, 1), ("FORMATO", 0, 0)):
             lbl = QLabel(text)
             lbl.setObjectName("card_col_label")
             if width:
