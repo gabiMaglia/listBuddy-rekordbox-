@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12] nerv-orquestador → nerv-desktop T-075 → T-074 → T-066 · Niv A (los tres)
+- T-065 Done (QA, 3dbbe2a). PO: la nota en segunda línea queda; «metele» a D-09 (→ T-075) y «dale» a T-066 + T-074 + indicador del auto-resolver (sumado a T-066).
+- Entrega, en orden: T-075 (suite rápida, primero porque acelera lo demás) → T-074 → T-066. Advisory: los criterios del backlog son el plan. TDD donde haya lógica, commits chicos por ticket, capturas dark+light en T-074/T-066. Dejar los tres «En revisión QA».
+- Archivos a leer: `engram/03_backlog.md` (T-075, T-074, T-066, D-09) · `tests/` (conftest, `_window_boot.py`, patrón de subproceso de T-033) · `preview_card.py` · `ui.py` (página de ajustes, menú Mantenimiento, diálogos) · `engram/plans/T-061.md` (tokens y reglas transversales) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · capturas · cifras de T-075.
+
 ### [2026-10-12] nerv-orquestador → nerv-qa T-065 · Niv S · re-auditoría (iteración 1)
 - Fix entregado (8aaae8e, 673eae8, 1035a85): FORMATO visible y alineado (también con scroll interno), artista alineado entre sana/rota; tests nuevos con rojo previo (`T-065_qa1_rojo.txt`). Cambio visual: en filas rotas la nota va bajo el título (fila de 48 px). Gate rápido del Orquestador: tree limpio, tests de preview verdes, ini intacto; suite completa corrida por el implementador.
 - Entrega: re-auditar SOLO el defecto de `engram/qa/T-065.md` y la deuda de alineación, más no-regresión de lo ya verificado. Registrar veredicto.
