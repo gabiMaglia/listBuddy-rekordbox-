@@ -90,6 +90,16 @@ def apply_title_tracking(label: QLabel, px: int) -> None:
     label.setFont(font)
 
 
+COLUMN_TRACKING_EM = 0.06
+
+
+def apply_caps_tracking(label: QLabel, px: int) -> None:
+    """Tracking de la cabecera de columnas (QSS no soporta letter-spacing)."""
+    font = label.font()
+    font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, COLUMN_TRACKING_EM * px)
+    label.setFont(font)
+
+
 def token(theme: str, name: str) -> str:
     return THEMES.get(theme, THEMES['dark'])[name]
 
