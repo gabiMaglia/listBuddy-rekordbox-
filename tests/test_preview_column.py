@@ -44,16 +44,15 @@ def test_healthy_row_shows_number_title_artist_chip_and_no_prefix() -> None:
     assert out == "['003', 'Glace Circle', '— DJOKO', 'MP3', None, 4]"
 
 
-def test_broken_row_has_icon_with_name_note_and_keeps_its_number() -> None:
+def test_broken_row_has_the_named_icon_and_keeps_its_number_without_a_note() -> None:
     out = run(
         "w, _ = make()\n"
         "row = w._make_row_widget(TrackRow('005', 'Sax Hustler', 'Joeski', '.wav', '/x/b.wav', False))\n"
         "ic = row.findChild(QLabel, 'output_file_warn')\n"
         "print([row.findChild(QLabel, 'output_file_idx').text(),\n"
-        "       row.findChild(QLabel, 'output_file_note').text(),\n"
         "       ic.accessibleName(), not ic.pixmap().isNull(), row.property('file_missing')])\n"
     )
-    assert out == "['005', ' · archivo no encontrado', 'Enlace roto', True, 'true']"
+    assert out == "['005', 'Enlace roto', True, 'true']"
 
 
 def test_broken_row_text_does_not_depend_only_on_color() -> None:
@@ -62,7 +61,21 @@ def test_broken_row_text_does_not_depend_only_on_color() -> None:
         "row = w._make_row_widget(TrackRow('001', 't', 'a', '.mp3', '/x', False))\n"
         "print(sorted(l.objectName() for l in row.findChildren(QLabel)))\n"
     )
-    assert "output_file_note" in out and "output_file_warn" in out
+    assert "output_file_warn" in out and "output_file_note" not in out
+
+
+def test_broken_row_has_no_note_and_is_one_line_as_tall_as_a_healthy_one() -> None:
+    # Decisión del PO 2026-10-12: se quita «· archivo no encontrado»; si vuelve, este test falla.
+    out = run(
+        "from preview_card import ROW_HEIGHT\n"
+        "w, _ = make()\n"
+        "rows = [w._make_row_widget(TrackRow('001', 't', 'a', '.mp3', '/x', e)) for e in (True, False)]\n"
+        "for r in rows: r.resize(500, 200)\n"
+        "texts = [l.text() for r in rows for l in r.findChildren(QLabel)]\n"
+        "print(any('encontrado' in t for t in texts), [r.minimumHeight() for r in rows], ROW_HEIGHT,\n"
+        "      [r.sizeHint().height() <= ROW_HEIGHT for r in rows])\n"
+    )
+    assert out == "False [38, 38] 38 [True, True]"
 
 
 def test_title_with_dash_survives_in_row_and_now_playing() -> None:
@@ -376,3 +389,19 @@ def test_artist_column_is_aligned_between_healthy_and_broken_rows() -> None:
         "      x(healthy, 'output_file_ext') == x(broken, 'output_file_ext'))\n"
     )
     assert out == "True True True"
+
+
+def test_five_tracks_with_three_broken_need_no_inner_scrollbar_and_format_stays_aligned() -> None:
+    # T-074: antes el alto del scroll contaba 38 px por fila y las rotas medían 48.
+    out = run(CARD_IMPORT +
+        "w, _ = make(); w.resize(980, 760); fill(w, [(5, 3)])\n"
+        "c = w.findChildren(PreviewGroupCard)[0]\n"
+        "lab = [l for l in c.cols.findChildren(QLabel, 'card_col_label') if l.text() == 'FORMATO'][0]\n"
+        "rows = c.findChildren(FileRow)\n"
+        "chip = rows[0].findChild(QLabel, 'output_file_ext')\n"
+        "x = lambda wd: wd.mapTo(c, wd.rect().topLeft()).x()\n"
+        "bar = c.scroll.verticalScrollBar()\n"
+        "print(len(rows), bar.maximum(), c.scroll.height(), x(lab) == x(chip),\n"
+        "      sum(r.height() for r in rows) <= c.scroll.height())\n"
+    )
+    assert out == "5 0 190 True True"
