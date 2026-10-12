@@ -373,3 +373,26 @@ QLabel#maint_badge {
     font-family: "JetBrains Mono"; font-size: 11px; font-weight: 600;
     padding: 2px 6px; border-radius: 6px; background: @{danger_soft}; color: @{danger};
 }
+
+/* ── Footer (T-063) ── */
+QWidget#footer_bar { background: @{header}; border-top: 1px solid @{line}; }
+QPushButton#footer_play { background: @{accent}; border: none; border-radius: 20px; }
+QPushButton#footer_play:hover { background: @{link}; }
+QLabel#footer_title { font-size: 13px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#footer_artist { font-size: 12px; color: @{muted}; background: transparent; }
+QLabel#footer_time { font-family: "JetBrains Mono"; font-size: 12px; color: @{muted}; background: transparent; }
+QWidget#footer_dest { background: @{inset}; border: 1px solid @{line}; border-radius: 8px; }
+QLabel#footer_dest_path { font-family: "JetBrains Mono"; font-size: 12px; color: @{text}; background: transparent; }
+QLabel#footer_dest_path[empty="true"] { color: @{muted}; }
+QLabel#footer_dest_icon { background: transparent; }
+QPushButton#footer_dest_change { background: @{surface2}; color: @{text}; border: none; border-radius: 6px; padding: 0 8px; font-size: 12px; }
+QPushButton#footer_dest_change:hover { background: @{row_line}; }
+QPushButton#footer_export { background: @{accent}; color: @{on_accent}; border: none; border-radius: 8px; padding: 0 20px; font-size: 14px; font-weight: 700; }
+QPushButton#footer_export:hover { background: @{link}; }
+QPushButton#footer_export:disabled { background: @{surface2}; color: @{muted}; }
+QLabel#footer_prog_label { font-family: "JetBrains Mono"; font-size: 12px; color: @{muted}; background: transparent; }
+QLabel#footer_prog_pct { font-family: "JetBrains Mono"; font-size: 12px; font-weight: 600; color: @{link}; background: transparent; }
+QPushButton#footer_finder { background: @{surface2}; color: @{text}; border: none; border-radius: 6px; padding: 0 8px; font-size: 12px; }
+QProgressBar#footer_prog_bar { background: @{inset}; border: none; border-radius: 3px; max-height: 6px; min-height: 6px; }
+QProgressBar#footer_prog_bar::chunk { background: @{accent}; border-radius: 3px; }
+QWidget#footer_progress { background: transparent; }
