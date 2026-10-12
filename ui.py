@@ -57,7 +57,7 @@ from db import playlist_song_count as rb_song_count
 import icons
 from branding import APP_NAME
 from preview_card import (
-    CHIP_W, IDX_W, NOTE_W, ROW_GAP, WARN_W, PreviewGroupCard,
+    CHIP_W, IDX_W, ROW_GAP, WARN_W, PreviewGroupCard,
 )
 from row_blocks import ALL_BROKEN, MISSING_NOTE, NONE, block_positions, broken_notice_text, ext_chip_text
 from playlist_filter import matches
@@ -1570,7 +1570,7 @@ class MainWindow(QMainWindow):
         flag = "true" if missing else "false"
         row = FileRow(track.raw_path, track.exists, block_pos=block_pos)
         row.track = track
-        row.setMinimumHeight(38)
+        row.setMinimumHeight(48 if missing else 38)   # rota: título + nota en dos líneas
         if track.exists:
             row.clicked.connect(self._play_track)
         # Re-aplicar highlight si esta fila corresponde al track sonando
@@ -1593,15 +1593,24 @@ class MainWindow(QMainWindow):
         # Ignored: un título largo se recorta en vez de ensanchar la columna (T8).
         name_lbl = label("output_file_name", track.title)
         name_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        rl.addWidget(name_lbl, 3)
+        if missing:
+            # La nota va bajo el título: así no le quita ancho a título/artista y las
+            # columnas alinean con las filas sanas.
+            cell = QVBoxLayout()
+            cell.setContentsMargins(0, 0, 0, 0)
+            cell.setSpacing(0)
+            cell.addWidget(name_lbl)
+            note = label("output_file_note", MISSING_NOTE)
+            note.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+            cell.addWidget(note)
+            rl.addLayout(cell, 3)
+        else:
+            rl.addWidget(name_lbl, 3)
         if track.artist:
             ar_lbl = label("output_file_artist", f"— {track.artist}")
             ar_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
             rl.addWidget(ar_lbl, 2)
         if missing:
-            note = label("output_file_note", MISSING_NOTE)
-            note.setFixedWidth(NOTE_W)
-            rl.addWidget(note)
             warn = label("output_file_warn", "")
             warn.setFixedWidth(WARN_W)
             warn.setPixmap(icons.pixmap("warning", token(PlaylistCard._theme, "danger"), 16))
@@ -1609,7 +1618,7 @@ class MainWindow(QMainWindow):
             warn.setToolTip("Enlace roto")
             rl.addWidget(warn)
         elif reserve_note:
-            rl.addSpacing(NOTE_W + 2 * ROW_GAP + WARN_W)
+            rl.addSpacing(WARN_W + ROW_GAP)
         if track.ext:
             chip = label("output_file_ext", ext_chip_text(track.ext))
             chip.setFixedWidth(CHIP_W)

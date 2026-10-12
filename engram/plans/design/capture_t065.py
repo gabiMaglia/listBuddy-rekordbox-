@@ -86,7 +86,12 @@ def step_light_expand() -> None:
 def after_collapsed() -> None:
     ok = expand_broken()
     QTimer.singleShot(900, lambda: (to_bottom(), QTimer.singleShot(300, lambda: (
-        (shoot("light_980_expanded") if ok else None), done()))))
+        (shoot("light_980_expanded") if ok else None), step_light_820()))))
+
+
+def step_light_820() -> None:
+    win.resize(820, 640)
+    QTimer.singleShot(700, lambda: (shoot("light_820"), done()))
 
 
 def done() -> None:
