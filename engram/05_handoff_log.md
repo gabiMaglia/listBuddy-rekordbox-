@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12] nerv-orquestador → nerv-desktop T-077 · Niv A
+- T-074/T-075/T-076/T-066 Done (QA, ff91170). PO: «hacé el ticket chico» antes del merge.
+- Entrega: T-077 (Advisory: criterios del backlog = plan). TDD, commits chicos, capturas dark+light, suite completa. Dejar «En revisión QA».
+- Archivos a leer: `engram/03_backlog.md` (T-077) · `ui.py` (QMessageBox, página de ajustes, diálogo de relocate), `qss/app.qss`, `icons.py` · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · cómo probar · capturas.
+
 ### [2026-10-12] nerv-orquestador → nerv-qa T-076 (S) + T-074 (A) + T-075 (A) + T-066 (A)
 - Gate P-12.1 PASS (Orquestador): tree limpio, suite completa verde en 1:48 con `-n 4` (antes 6–8 min), `.rbe_settings.ini` intacto, pytest-xdist 3.8.0 instalado.
 - T-076: crash del PO al cambiar Traktor→Rekordbox; implementador lo reprodujo 6/6 y lo atribuye a `itemAt`+`setParent(None)` en `_clear_playlist_area` (repro mínimo PySide6 en evidencia). Verificar: el test falla sin el fix (mutación), la ráfaga de repro en evidencia, y búsqueda del mismo patrón en todo el proyecto. Salvedad declarada: stack no idéntico al del PO.
