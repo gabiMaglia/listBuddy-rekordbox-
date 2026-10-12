@@ -55,7 +55,7 @@ from db import open_database as rb_open_database
 from db import playlist_song_count as rb_song_count
 import icons
 from branding import APP_NAME
-from row_blocks import NONE, block_positions
+from row_blocks import MISSING_NOTE, NONE, block_positions, ext_chip_text
 from playlist_filter import matches
 from styles import apply_title_tracking, status_style, token
 from worker import ExportWorker
@@ -1597,9 +1597,12 @@ class MainWindow(QMainWindow):
         return grp, files_layout
 
     def _make_row_widget(self, track: TrackRow, block_pos: str = NONE) -> QWidget:
-        """Crea una única fila de archivo. Llamado desde _batch_rows."""
+        """Una fila de archivo. Llamado desde _batch_rows."""
         missing = not track.exists
+        flag = "true" if missing else "false"
         row = FileRow(track.raw_path, track.exists, block_pos=block_pos)
+        row.track = track
+        row.setMinimumHeight(38)
         if track.exists:
             row.clicked.connect(self._play_track)
         # Re-aplicar highlight si esta fila corresponde al track sonando
@@ -1607,38 +1610,33 @@ class MainWindow(QMainWindow):
             row.set_playing(True)
             self._playing_row = row
         rl = QHBoxLayout(row)
-        rl.setContentsMargins(13, 4, 13, 4)
-        rl.setSpacing(7)
+        rl.setContentsMargins(14, 0, 14, 0)
+        rl.setSpacing(12)
 
-        idx_lbl = QLabel("" if missing else track.num[-2:])
-        idx_lbl.setObjectName("output_file_idx")
-        if missing:
-            # Mismo slot de 28 px que el Nº para no desalinear la columna.
-            idx_lbl.setPixmap(icons.pixmap("warning", token(PlaylistCard._theme, "danger"), 14))
-            idx_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            idx_lbl.setAccessibleName("Archivo faltante")
-            idx_lbl.setToolTip("Archivo faltante")
-        idx_lbl.setProperty("file_missing", "true" if missing else "false")
-        rl.addWidget(idx_lbl)
+        def label(name: str, text: str) -> QLabel:
+            lbl = QLabel(text)
+            lbl.setObjectName(name)
+            lbl.setProperty("file_missing", flag)
+            return lbl
 
-        name_lbl = QLabel(f"{track.num} - {track.title}")
-        name_lbl.setObjectName("output_file_name")
-        name_lbl.setProperty("file_missing", "true" if missing else "false")
-        rl.addWidget(name_lbl, 1)
-
+        rl.addWidget(label("output_file_idx", track.num))
+        # Ignored: un título largo se recorta en vez de ensanchar la columna (T8).
+        name_lbl = label("output_file_name", track.title)
+        name_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        rl.addWidget(name_lbl, 3)
         if track.artist:
-            ar_lbl = QLabel(f"— {track.artist}")
-            ar_lbl.setObjectName("output_file_artist")
-            ar_lbl.setProperty("file_missing", "true" if missing else "false")
-            rl.addWidget(ar_lbl)
-
+            ar_lbl = label("output_file_artist", f"— {track.artist}")
+            ar_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+            rl.addWidget(ar_lbl, 2)
+        if missing:
+            rl.addWidget(label("output_file_note", MISSING_NOTE))
+            warn = label("output_file_warn", "")
+            warn.setPixmap(icons.pixmap("warning", token(PlaylistCard._theme, "danger"), 16))
+            warn.setAccessibleName("Enlace roto")
+            warn.setToolTip("Enlace roto")
+            rl.addWidget(warn)
         if track.ext:
-            ext_lbl = QLabel(track.ext)
-            ext_lbl.setObjectName("output_file_ext")
-            ext_lbl.setProperty("file_missing", "true" if missing else "false")
-            rl.addWidget(ext_lbl)
-
-        row.track = track
+            rl.addWidget(label("output_file_ext", ext_chip_text(track.ext)))
         return row
 
     # ──────────────────────────────────── Audio playback ─────────────────

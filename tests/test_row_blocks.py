@@ -61,8 +61,9 @@ def test_rendered_rows_carry_block_position_and_accessible_icon() -> None:
         "rows = [w._make_row_widget(TrackRow(f'{i:03d}', 't', 'a', 'mp3', f'/x/{i}', e), p)\n"
         "        for i, (e, p) in enumerate(zip(ex, block_positions(ex)), 1)]\n"
         "print([r.block_pos for r in rows])\n"
-        "icon = rows[1].findChild(QLabel, 'output_file_idx')\n"
-        "assert icon.accessibleName() == 'Archivo faltante' and not icon.pixmap().isNull()\n"
+        "icon = rows[1].findChild(QLabel, 'output_file_warn')\n"
+        "assert icon.accessibleName() == 'Enlace roto' and not icon.pixmap().isNull()\n"
+        "assert rows[1].findChild(QLabel, 'output_file_idx').text() == '002'\n"
         "w2 = rows[1]; w2.resize(400, 30); w2.show(); app.processEvents(); w2.grab()\n"
         "print('ok')\n"
     )
