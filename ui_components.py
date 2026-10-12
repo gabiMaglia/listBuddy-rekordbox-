@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QPushButton,
     QSizePolicy,
+    QStackedLayout,
     QVBoxLayout,
     QWidget,
 )
@@ -475,62 +476,48 @@ class PlaylistCard(QWidget):
         )
 
         layout = QHBoxLayout(self)
-        # T-015: densidad — reducido de (12,9,13,9)/spacing 12 para que entren
-        # más playlists sin scroll en la mayoría de los casos (con ~35 igual
-        # puede hacer falta scrollear, ver nota en el handoff de T-015).
-        layout.setContentsMargins(11, 6, 12, 6)
+        layout.setContentsMargins(10, 8, 10, 8)
         layout.setSpacing(10)
 
-        # Large mono order number
-        self._order_label = QLabel(str(index + 1).zfill(2))
+        # Checkbox a la izquierda (diseño F1)
+        self._check = QLabel()
+        self._check.setObjectName("card_check")
+        self._check.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._check.setFixedSize(18, 18)
+        layout.addWidget(self._check)
+
+        # Dos etiquetas de Nº apiladas: el estilo lo da la QSS por objectName y
+        # alternar es setCurrentWidget (sin unpolish/polish, ver _refresh).
+        self._num_holder = QWidget()
+        self._num_holder.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._num_holder.setFixedWidth(30)
+        self._num_stack = QStackedLayout(self._num_holder)
+        self._num_stack.setContentsMargins(0, 0, 0, 0)
+        align = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        self._pos_label = QLabel(str(index + 1).zfill(2))
+        self._pos_label.setObjectName("card_pos")
+        self._pos_label.setAlignment(align)
+        self._order_label = QLabel("")
         self._order_label.setObjectName("card_order")
-        self._order_label.setFixedWidth(30)
-        self._order_label.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        layout.addWidget(self._order_label)
+        self._order_label.setAlignment(align)
+        self._num_stack.addWidget(self._pos_label)
+        self._num_stack.addWidget(self._order_label)
+        self._num_stack.setCurrentWidget(self._pos_label)
+        layout.addWidget(self._num_holder)
 
-        # Name + meta tag
-        info = QWidget()
-        info.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        info_layout = QVBoxLayout(info)
-        info_layout.setContentsMargins(0, 0, 0, 0)
-        info_layout.setSpacing(2)
-
-        # Nombre completo guardado aparte: el label muestra una versión
-        # recortada con "…" según el ancho real disponible (recalculada en
-        # resizeEvent), para que un nombre largo nunca fuerce el contenedor
-        # a ser más ancho que la columna — sin esto, el QScrollArea de la
-        # lista queda desplazable horizontalmente (sin barra visible, porque
-        # el policy la oculta, pero el desplazamiento sigue existiendo).
+        # Nombre completo aparte: el label muestra una versión recortada con «…»
+        # según el ancho real (resizeEvent); sin esto un nombre largo ensancha el
+        # contenedor y el QScrollArea queda desplazable en horizontal.
         self._full_name = str(playlist.Name)
         self._name_label = QLabel(self._full_name)
         self._name_label.setObjectName("card_name")
         self._name_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self._name_label.setToolTip(self._full_name)
-        info_layout.addWidget(self._name_label)
+        layout.addWidget(self._name_label, 1)
 
-        meta_row = QWidget()
-        meta_row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        meta_layout = QHBoxLayout(meta_row)
-        meta_layout.setContentsMargins(0, 0, 0, 0)
-        meta_layout.setSpacing(5)
-
-        tag_text = f"{count} tracks" if count > 0 else "vacía"
-        self._tag = QLabel(tag_text)
+        self._tag = QLabel(f"{count} tracks" if count > 0 else "vacía")
         self._tag.setObjectName("card_tag")
-        meta_layout.addWidget(self._tag)
-        meta_layout.addStretch(1)
-        info_layout.addWidget(meta_row)
-
-        layout.addWidget(info, 1)
-
-        # Check indicator
-        self._check = QLabel()
-        self._check.setObjectName("card_check")
-        self._check.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._check.setFixedSize(19, 19)
-        layout.addWidget(self._check)
+        layout.addWidget(self._tag)
 
         if self._empty:
             effect = QGraphicsOpacityEffect(self)
@@ -561,18 +548,16 @@ class PlaylistCard(QWidget):
         todos los siblings dentro del mismo QScrollArea.
         """
         on = self._checked
-        s  = styles.card_styles(self._theme)
-
+        s = styles.card_styles(self._theme)
         if on:
             self.setStyleSheet(s["card_on"])
-            self._order_label.setStyleSheet(s["order_on"])
             self._check.setStyleSheet(s["check_on"])
+            self._num_stack.setCurrentWidget(self._order_label)
         else:
             # Vaciar inline stylesheet → retoma el QSS global
             self.setStyleSheet("")
-            self._order_label.setStyleSheet("")
             self._check.setStyleSheet("")
-
+            self._num_stack.setCurrentWidget(self._pos_label)
         self._check.setText("✓" if on else "")
 
     # ─────────────────────────────────────────────────────────────────────
@@ -584,8 +569,16 @@ class PlaylistCard(QWidget):
             self.toggled.emit(self)
         super().mousePressEvent(event)
 
-    def set_order_num(self, s: str) -> None:
-        self._order_label.setText(s)
+    @property
+    def name(self) -> str:
+        return self._full_name
+
+    def set_numbers(self, position: int, order: int | None) -> None:
+        """position: lugar en la lista (se ve sin marcar); order: rango de
+        exportación (se ve marcada). Qué etiqueta se muestra lo decide _refresh."""
+        self._pos_label.setText(f"{position:02d}")
+        if order is not None:
+            self._order_label.setText(f"{order:02d}")
 
     def setChecked(self, value: bool) -> None:
         if not self._empty:
