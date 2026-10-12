@@ -73,13 +73,15 @@ class FooterBar(QWidget):
         self._info = info
         il = QVBoxLayout(info)
         il.setContentsMargins(0, 0, 0, 0)
-        il.setSpacing(2)
+        il.setSpacing(8)   # T-069: aire propio entre líneas, el bloque se centra
         self.title_lbl = ElidedLabel()
         self.title_lbl.setObjectName("footer_title")
         self.artist_lbl = ElidedLabel()
         self.artist_lbl.setObjectName("footer_artist")
+        il.addStretch(1)
         il.addWidget(self.title_lbl)
         il.addWidget(self.artist_lbl)
+        il.addStretch(1)
         lo.addWidget(info)
 
         wave_box = QWidget()

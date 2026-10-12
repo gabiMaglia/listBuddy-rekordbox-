@@ -451,3 +451,21 @@ def test_footer_dest_shrinks_before_the_wave_and_title_when_width_is_short() -> 
         "      f.title_lbl.width(), f._right.width(), f.wave.width())\n"
     )
     assert out.strip().splitlines()[-1].startswith("True True")
+
+
+def test_t069_title_and_artist_are_a_centered_block_with_a_small_gap() -> None:
+    out = run(
+        "import footer\n"
+        "f = footer.FooterBar(); f.resize(980, 76); f.show()\n"
+        "f.set_now_playing('Glace Circle (Original Mix)', 'DJOKO'); app.processEvents()\n"
+        "t, a = f.title_lbl.geometry(), f.artist_lbl.geometry()\n"
+        "ty = f.title_lbl.mapTo(f, t.topLeft()).y() - t.y()\n"
+        "top = f.title_lbl.mapTo(f, f.title_lbl.rect().topLeft()).y()\n"
+        "abot = f.artist_lbl.mapTo(f, f.artist_lbl.rect().bottomLeft()).y() + 1\n"
+        "tbot = f.title_lbl.mapTo(f, f.title_lbl.rect().bottomLeft()).y() + 1\n"
+        "atop = f.artist_lbl.mapTo(f, f.artist_lbl.rect().topLeft()).y()\n"
+        "print(atop - tbot, top, f.height() - abot)\n"
+    )
+    gap, top, bottom = (int(x) for x in out.split()[-3:])
+    assert gap in (8, 16)
+    assert abs(top - bottom) <= 1

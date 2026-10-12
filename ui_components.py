@@ -59,10 +59,12 @@ class MaintenanceButton(QPushButton):
         self._text.setObjectName("maint_text")
         self._badge = QLabel()
         self._badge.setObjectName("maint_badge")
+        self._badge.setFixedHeight(18)   # píldora chica: el radio del QSS es la mitad
         self._badge.setVisible(False)
         for w in (self._icon, self._text, self._badge):
             w.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             lo.addWidget(w)
+        lo.setAlignment(self._badge, Qt.AlignmentFlag.AlignVCenter)
 
     def icon_label(self) -> QLabel:
         return self._icon
