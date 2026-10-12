@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12 15:40] nerv-orquestador → nerv-desktop T-064 · Niv S · fase implementación
+- CÓMO estampado (6a5a9e3). PO: D1–D4 sí; D5 = carpetas sin checkbox (spec/CLAUDE.md corregidos). T1–T8 aprobadas; excepción P-18 para 3 tests de caracterización.
+- Entrega: Tasks 0–5 del CÓMO de T-064 en `feat/reskin`, ejecución INLINE, TDD, commits chicos, evidencia dark+light. Dejar T-064 «En revisión QA».
+- Archivos a leer: `engram/plans/T-061.md` (§T-064, CÓMO — T-064, decisiones del PO al final) · `engram/03_backlog.md` (T-064) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · capturas.
+
 ### [2026-10-12 15:00] nerv-orquestador → nerv-desktop T-064 · Niv S · fase CÓMO (P-19.2)
 - T-063/T-068 Done (QA, 7d2498d). PO revisó la app en vivo y decidió la numeración (opción 3).
 - Entrega: SOLO el CÓMO de T-064 con `superpowers:writing-plans`, como `## CÓMO — T-064` al final de `engram/plans/T-061.md`, estampado. Sin código. Decisiones para el PO como D1..Dn, técnicas como T1..Tn.
