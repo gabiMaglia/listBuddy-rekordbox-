@@ -38,7 +38,12 @@ def shoot(theme: str) -> None:
     foot = getattr(win, "_footer", None)
     if foot is None:
         return
-    foot.set_export_count(3)
+    # Estado coherente: 3 playlists marcadas de verdad (no se fuerza el contador).
+    cards = [c for c in getattr(win, "_all_cards", []) if not c._empty][:3]
+    for c in cards:
+        c.setChecked(True)
+    win._update_order_numbers(); app.processEvents()
+    print(theme, "marcadas:", len(cards), "->", foot.export_btn.text())
     snap("idle", theme)
     foot.set_now_playing("Glace Circle (Original Mix)", "DJOKO")
     foot.set_peaks([0.2 + 0.8 * abs(math.sin(i / 7)) for i in range(400)])
@@ -47,11 +52,16 @@ def shoot(theme: str) -> None:
     foot.set_dest(LONG)
     snap("longdest", theme)
     foot.begin_progress("Copiando y numerando…")
+    foot.set_export_mode("running")
     foot.set_progress(37, 120)
     snap("progress", theme)
+    foot.set_export_mode("idle")
     foot.end_progress("120 copiadas", "✓")
     foot.hide_progress()
     foot.set_dest("")
+    for c in cards:
+        c.setChecked(False)
+    win._update_order_numbers()
 
 
 def run() -> None:

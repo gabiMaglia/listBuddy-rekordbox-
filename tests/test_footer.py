@@ -427,3 +427,27 @@ def test_footer_empty_placeholder_is_cut_at_the_end_not_the_start() -> None:
         "print(t.startswith('Elegí'), t.endswith('…'))\n"
     )
     assert out.strip().splitlines()[-1] == "True True"
+
+
+def test_footer_wave_is_the_widest_block_at_980_and_title_has_room() -> None:
+    out = run(
+        "import footer\n"
+        "f = footer.FooterBar(); f.resize(980, 76); f.show(); f.set_export_count(3)\n"
+        "f.set_now_playing('Glace Circle (Original Mix)', 'DJOKO')\n"
+        "f.set_dest('/Volumes/MUSIC/LISTAS2026/MAC/Traktor/Sesiones/'); app.processEvents()\n"
+        "w = f.wave.width(); t = f.title_lbl.width(); d = f._right.width()\n"
+        "print(w > t and w > d, t >= 180, d <= 340, w, t, d)\n"
+    )
+    assert out.strip().splitlines()[-1].startswith("True True True")
+
+
+def test_footer_dest_shrinks_before_the_wave_and_title_when_width_is_short() -> None:
+    out = run(
+        "import footer\n"
+        "f = footer.FooterBar(); f.resize(820, 76); f.show(); f.set_export_count(12)\n"
+        "f.set_now_playing('Glace Circle (Original Mix)', 'DJOKO')\n"
+        "f.set_dest('/Volumes/MUSIC/LISTAS2026/MAC/Traktor/Sesiones/'); app.processEvents()\n"
+        "print(f.wave.width() >= 100, f.change_btn.width() >= f.change_btn.sizeHint().width(),\n"
+        "      f.title_lbl.width(), f._right.width(), f.wave.width())\n"
+    )
+    assert out.strip().splitlines()[-1].startswith("True True")
