@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12 17:45] nerv-orquestador → nerv-desktop T-065 (+T-072) · Niv S · fase CÓMO (P-19.2)
+- T-064 Done (QA, 7509152). PO: «dale» a T-065. Se pliega T-072 (auto-avance perdido durante el re-render de tema) porque vive en el mismo código (`_clear_preview_layout`, `_play_order`, cola de render).
+- Entrega: SOLO el CÓMO de T-065 (+ tarea para T-072) con `superpowers:writing-plans`, como `## CÓMO — T-065` al final de `engram/plans/T-061.md`, estampado. Sin código. Respetar: estilo D de filas rotas (T-071, ya implementado en `row_blocks.py`/`FileRow`), sin regresión de T-029 ni de T-070 (re-encolado al cambiar tema, 185 ms). Decisiones para el PO como D1..Dn; técnicas como T1..Tn.
+- Archivos a leer: `engram/plans/T-061.md` (QUÉ §Estructura → Vista previa, §T-065, §Correcciones ronda 1, decisiones previas) · `engram/03_backlog.md` (T-065, T-072, T-029) · `engram/plans/T-070.md` · `engram/plans/design/T-061-mezcla-calida.dc.html` (main) · `ui.py` (`_build_right_col`, `_queue_group`, `_make_row_widget`, `_clear_preview_layout`, `_on_track_finished`), `ui_components.py` (FileRow), `row_blocks.py`, `preview_worker.py` · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · decisiones para el PO.
+
 ### [2026-10-12 17:10] nerv-orquestador → nerv-qa T-064 · Niv S
 - Gate P-12.1 PASS (Orquestador): tree limpio, suite verde (311), `.rbe_settings.ini` intacto, captura 980 dark revisada (numeración de dos estilos, filas planas, buscador, «vacía»). Suite tarda ~5–6 min por subprocesos de Qt → deuda D-09, no defecto de T-064.
 - Archivos a leer: `engram/plans/T-061.md` (§T-064, CÓMO — T-064, decisiones del PO de T-064 al final) · `engram/03_backlog.md` (T-064) · diff `fdd26ff..HEAD` · `engram/plans/design/evidence/T-064_*`.
