@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12 18:30] nerv-orquestador → nerv-desktop T-073 (S) → T-065+T-072 (S) · CÓMO T-073 + ajuste CÓMO T-065 + implementación
+- PO decidió D1 de T-065 distinto a lo propuesto: botonera POR CARPETA (alcance = esa playlist) + global en el menú. Requiere relocate con scope → T-073 nuevo (escribe sobre la librería del usuario). D2–D6 sí; T1–T11 y excepción P-18 aprobadas.
+- Entrega, en orden: (1) CÓMO de T-073 con writing-plans en `engram/plans/T-073.md` (## QUÉ: «No requerido (Strong)»), estampado; (2) ajustar `## CÓMO — T-065` a D1 y re-estampar; (3) implementar T-073; (4) implementar T-065+T-072. Volver al Orquestador después de (2) SOLO si el plan de T-073 necesita una decisión del PO; si no, seguir.
+- Archivos a leer: `engram/plans/T-061.md` (§T-065, CÓMO — T-065, decisiones del PO al final) · `engram/03_backlog.md` (T-065, T-072, T-073) · `engram/02_architecture.md` (ADR-001, ADR-002) · `relocate_core.py`, `traktor_relocate.py`, `rekordbox_relocate.py`, `ui.py` (`_start_relocate`) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · capturas.
+
 ### [2026-10-12 17:45] nerv-orquestador → nerv-desktop T-065 (+T-072) · Niv S · fase CÓMO (P-19.2)
 - T-064 Done (QA, 7509152). PO: «dale» a T-065. Se pliega T-072 (auto-avance perdido durante el re-render de tema) porque vive en el mismo código (`_clear_preview_layout`, `_play_order`, cola de render).
 - Entrega: SOLO el CÓMO de T-065 (+ tarea para T-072) con `superpowers:writing-plans`, como `## CÓMO — T-065` al final de `engram/plans/T-061.md`, estampado. Sin código. Respetar: estilo D de filas rotas (T-071, ya implementado en `row_blocks.py`/`FileRow`), sin regresión de T-029 ni de T-070 (re-encolado al cambiar tema, 185 ms). Decisiones para el PO como D1..Dn; técnicas como T1..Tn.
