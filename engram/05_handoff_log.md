@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12 14:20] nerv-orquestador → nerv-qa T-063 (S) + T-068 (S)
+- Pendiente desde el 2026-10-11: T-063/T-068 quedaron «En revisión QA» y se frenaron para la prueba manual del PO (OK del PO: «el resto está perfecto»; sus pulidos → T-069/T-071, ya Done). Gate P-12.1 del Orquestador PASS al entregar (cc24364..481de4e) y suite verde hoy.
+- Ojo: el código posterior (T-069/T-070/T-071) tocó `footer.py`, `ui.py` y QSS → auditar los criterios de T-063 contra el HEAD actual, no solo contra 481de4e. T-068: excepción P-18 aceptada por el Orquestador (no-vacuidad por mutación, 8 rojos en `evidence/T-068_mutacion.txt`).
+- Archivos a leer: `engram/plans/T-061.md` (§T-063, CÓMO — T-063, decisiones del PO) · `engram/03_backlog.md` (T-063, T-068) · diff `d39570a..481de4e` + estado actual · `engram/plans/design/evidence/T-063_*`, `T-068_mutacion.txt`.
+- Se espera: veredicto por ticket con evidencia por criterio.
+
 ### [2026-10-12 13:30] nerv-orquestador → nerv-qa T-069 (A) + T-070 (S) + T-071 (A)
 - Gate P-12.1 PASS (Orquestador) para los tres: tree limpio, suite verde, `.rbe_settings.ini` md5 intacto, sin referencias a Fraunces. Capturas revisadas (header Sora, píldora de rotos, bloques D en housepost/techDeFondo).
 - Para la auditoría: T-070 — PO aceptó 185 ms (registrado en `engram/plans/T-070.md`); el implementador NO mutó el guard → hacer la mutación; verificar el riesgo declarado de auto-avance de pista durante el re-render (≈cientos de ms). T-071 — no existe diálogo «Acerca de» (no aplica); commits sin rojo aislado (red-first declarado).
