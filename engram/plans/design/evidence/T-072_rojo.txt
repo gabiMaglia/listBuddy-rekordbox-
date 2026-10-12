@@ -1,0 +1,14 @@
+>       assert out == "/x/0/3.mp3 /x/0/3.mp3"
+E       AssertionError: assert '/x/0/1.mp3 /x/0/1.mp3' == '/x/0/3.mp3 /x/0/3.mp3'
+E         
+E         - /x/0/3.mp3 /x/0/3.mp3
+E         ?      ^          ^
+E         + /x/0/1.mp3 /x/0/1.mp3
+E         ?      ^          ^
+
+tests/test_autoadvance.py:119: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_autoadvance.py::test_advance_right_after_theme_switch_is_not_lost
+FAILED tests/test_autoadvance.py::test_advance_crosses_to_the_next_folder_after_theme_switch
+FAILED tests/test_autoadvance.py::test_footer_shows_the_next_track_even_if_its_row_is_not_drawn_yet
+FAILED tests/test_autoadvance.py::test_highlight_lands_on_the_next_row_once_it_is_drawn
