@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12] nerv-orquestador → nerv-qa T-065 + T-072 · Niv S
+- T-073 Done (QA en worktree, a17b09f). Gate P-12.1 de T-065/T-072 PASS (Orquestador): tree limpio, suite completa verde, `.rbe_settings.ini` intacto. Agente implementador detenido.
+- Para la auditoría: decisiones del PO sobre T-065 (D1 botonera POR CARPETA con scope de T-073 + global en menú; D2–D6) al final de `engram/plans/T-061.md`. Excepción P-18 aceptada para los tests de caracterización (cada uno con mutación). Declarado por el implementador: el guard de T-029 no reproduce el crash en PySide6 6.11.1/macOS (mejor esfuerzo). Observación del Orquestador: la cabecera de columnas de la tarjeta no muestra «FORMATO» (D6 lo pide).
+- Archivos a leer: `engram/plans/T-061.md` (§T-065, CÓMO — T-065, decisiones del PO) · `engram/03_backlog.md` (T-065, T-072) · diff `bc254d8..2740a5e` · `engram/plans/design/evidence/T-065_*`, `T-072_*`.
+- Se espera: veredicto por ticket con evidencia por criterio, defectos con archivo:línea.
+
 ### [2026-10-12 18:30] nerv-orquestador → nerv-desktop T-073 (S) → T-065+T-072 (S) · CÓMO T-073 + ajuste CÓMO T-065 + implementación
 - PO decidió D1 de T-065 distinto a lo propuesto: botonera POR CARPETA (alcance = esa playlist) + global en el menú. Requiere relocate con scope → T-073 nuevo (escribe sobre la librería del usuario). D2–D6 sí; T1–T11 y excepción P-18 aprobadas.
 - Entrega, en orden: (1) CÓMO de T-073 con writing-plans en `engram/plans/T-073.md` (## QUÉ: «No requerido (Strong)»), estampado; (2) ajustar `## CÓMO — T-065` a D1 y re-estampar; (3) implementar T-073; (4) implementar T-065+T-072. Volver al Orquestador después de (2) SOLO si el plan de T-073 necesita una decisión del PO; si no, seguir.
