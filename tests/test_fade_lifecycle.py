@@ -34,7 +34,7 @@ def test_clearing_inside_the_fade_window_does_not_crash() -> None:
         "        pump(40)\n"
         "pump(600)\n"                                   # pasa el tiempo en que `finished` dispararía
         "print('alive')\n",
-        timeout=120,
+        timeout=120, cold=True,  # mira SIGSEGV y stderr del proceso: sin reutilizar
     )
     assert r.returncode == 0, f"código {r.returncode} (-11 = SIGSEGV): {r.stderr[-1500:]}"
     assert r.stdout.strip().splitlines()[-1] == "alive"
@@ -49,7 +49,7 @@ def test_theme_switch_inside_the_fade_window_does_not_crash() -> None:
         "    w._apply_theme(t); pump(30)\n"
         "pump(800)\n"
         "print('alive')\n",
-        timeout=120,
+        timeout=120, cold=True,  # mira SIGSEGV y stderr del proceso: sin reutilizar
     )
     assert r.returncode == 0, f"código {r.returncode}: {r.stderr[-1500:]}"
     assert "Traceback" not in r.stderr, r.stderr[-1500:]

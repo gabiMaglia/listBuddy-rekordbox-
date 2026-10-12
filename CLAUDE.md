@@ -272,3 +272,16 @@ pyinstaller rb_exporter.spec
 - Los errores de apertura de DB deben siempre mostrar un mensaje claro al usuario vía `QMessageBox`, nunca stacktrace crudo.
 - `ExportWorker` corre en un `QThread` — nunca actualizar widgets de Qt directamente desde `run()`, siempre via signals.
 - El conteo de progreso usa `total_songs` acumulado antes del loop; no recalcular mid-flight.
+
+---
+
+## Tests (T-075)
+
+```bash
+python -m pytest -q          # ~115 s en serie
+python -m pytest -q -n 4     # ~40 s con pytest-xdist (requirements-dev.txt)
+```
+
+- Los tests de Qt corren en un intérprete **aparte** del de pytest (aislamiento de binding, T-033: PyQt6 sigue instalado en el venv y nunca deben convivir dos Qt en un proceso).
+- Los que arrancan con `BOOT` (`tests/_window_boot.py`) reutilizan un único intérprete Qt por worker de pytest (`tests/_qt_warm_worker.py`): entre snippets cierra las ventanas, frena timers, restaura los atributos de módulos y clases del proyecto y vuelve al tema dark.
+- Siguen con un proceso nuevo por test (`cold=True` o sin `BOOT`): los de `test_fade_lifecycle.py` (miran SIGSEGV/stderr), `test_fonts_icons.py`, `test_styles_static.py`, `test_contrast.py`, `test_audio_decode.py`, `test_playlist_order.py`, `test_excepthook_slot.py`, `test_qt_binding.py` (necesitan import/arranque limpio o miran el estado del proceso).
