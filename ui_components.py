@@ -178,6 +178,10 @@ class ElidedLabel(QLabel):
     def full_text(self) -> str:
         return self._full
 
+    def set_mode(self, mode: Qt.TextElideMode) -> None:
+        self._mode = mode
+        self._apply()
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._apply()

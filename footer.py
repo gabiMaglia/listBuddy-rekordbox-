@@ -189,6 +189,10 @@ class FooterBar(QWidget):
 
     def set_dest(self, text: str) -> None:
         self._dest = text
+        # El placeholder es prosa (se corta por el final); una ruta, por el inicio.
+        self.dest_label.set_mode(
+            Qt.TextElideMode.ElideLeft if text else Qt.TextElideMode.ElideRight
+        )
         self.dest_label.set_full_text(text or "Elegí dónde exportar…")
         # Sin destino el placeholder necesita el lugar del ícono para entrar a 820 px.
         self._dest_icon.setVisible(bool(text))

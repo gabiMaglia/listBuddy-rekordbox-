@@ -2,6 +2,7 @@
 import math
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 REPO = Path(sys.argv[1]).resolve(); OUT = Path(sys.argv[2]); TAG = sys.argv[3]
@@ -13,7 +14,8 @@ from ui import MainWindow
 
 app = QApplication(sys.argv)
 register_fonts(); apply_theme(app, "dark")
-win = MainWindow(); win.resize(980, 700); win.show()
+# ini temporal: el footer persiste el destino y no hay que ensuciar el .rbe_settings.ini del PO
+win = MainWindow(settings_path=Path(tempfile.mkdtemp()) / "s.ini"); win.resize(980, 700); win.show()
 LONG = "/Volumes/MUSIC/LISTAS2026/MAC/Traktor/Sesiones/Octubre/Warehouse/Peak-time/"
 
 

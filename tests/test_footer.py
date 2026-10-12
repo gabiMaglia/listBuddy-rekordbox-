@@ -417,3 +417,13 @@ def test_waveform_resets_on_audio_error() -> None:
         "w._on_audio_error('boom'); print(list(w._footer.wave._peaks))\n"
     )
     assert out.strip().splitlines()[-1] == "[]"
+
+
+def test_footer_empty_placeholder_is_cut_at_the_end_not_the_start() -> None:
+    out = run(
+        "import footer\n"
+        "f = footer.FooterBar(); f.resize(820, 76); f.show(); f.set_export_count(12); f.set_dest(''); app.processEvents()\n"
+        "t = f.dest_label.text()\n"
+        "print(t.startswith('Elegí'), t.endswith('…'))\n"
+    )
+    assert out.strip().splitlines()[-1] == "True True"
