@@ -12,7 +12,8 @@ from ui import MainWindow
 app = QApplication(sys.argv)
 register_fonts()
 apply_theme(app, "dark")
-win = MainWindow()
+import tempfile
+win = MainWindow(settings_path=Path(tempfile.mkdtemp()) / 'capture.ini')  # no tocar .rbe_settings.ini del repo
 win.resize(1180, 780)
 win.show()
 
