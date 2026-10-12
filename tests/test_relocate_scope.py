@@ -323,3 +323,114 @@ class TestBackupBeforeFirstWriteWithScope:
         done = _run_rb(master, disk, rc.RelocateScope("P", frozenset({"/Z/nope/a.mp3"})))
         assert done[-1][3] == "error"
         assert fake.commits == 0 and fake.rollbacks == 1
+
+
+# ───────────── UI: _start_relocate(scope, auto_resolve) y confirmación (criterios 4-6) ─────────────
+
+from _qt_isolated import run_isolated
+from _window_boot import BOOT
+
+FAKE = '''
+from pathlib import Path
+from types import SimpleNamespace
+from relocate_core import RelocateScope
+
+class Sig:
+    def connect(self, *a): pass
+
+calls = []
+class FakeWorker:
+    log = progress = ask_user = finished_ok = Sig()
+    def __init__(self, *args, auto_resolve=False, scope=None, **kw):
+        calls.append((type(self).__name__, auto_resolve, scope))
+    def start(self): pass
+    def isRunning(self): return False
+
+class FakeRb(FakeWorker): pass
+class FakeTk(FakeWorker): pass
+ui.RekordboxRelocateWorker = FakeRb
+ui.RelocateWorker = FakeTk
+ui.QFileDialog.getExistingDirectory = staticmethod(lambda *a, **k: PICKED[0])
+PICKED = ["/tmp/busqueda"]
+asked = []
+ANSWER = [ui.QMessageBox.StandardButton.Yes]
+def fake_question(*a, **k):
+    asked.append(a[2]); return ANSWER[0]
+ui.QMessageBox.question = staticmethod(fake_question)
+SC = RelocateScope("housepost", frozenset({"/x/1.mp3", "/x/2.mp3", "/x/3.mp3"}))
+'''
+
+
+def run_ui(code: str) -> str:
+    r = run_isolated(BOOT + FAKE + code)
+    assert r.returncode == 0, r.stderr[-2000:]
+    return r.stdout.strip().splitlines()[-1]
+
+
+class TestStartRelocateScoped:
+    def test_scoped_auto_resolve_confirms_with_count_name_and_shared_note(self) -> None:
+        out = run_ui(
+            "w, _ = make(); w._source = 'rekordbox'\n"
+            "w._start_relocate(scope=SC, auto_resolve=True)\n"
+            "t = asked[0]\n"
+            "print(len(asked), 'housepost' in t, '3 pistas' in t, 'otras playlists' in t,\n"
+            "      calls[0][1], calls[0][2] is SC)\n"
+        )
+        assert out == "1 True True True True True"
+
+    def test_answering_no_starts_nothing(self) -> None:
+        out = run_ui(
+            "w, _ = make(); w._source = 'rekordbox'\n"
+            "ANSWER[0] = ui.QMessageBox.StandardButton.No\n"
+            "w._start_relocate(scope=SC, auto_resolve=True)\n"
+            "print(len(asked), calls, w._relocate_state, w._relocate_worker)\n"
+        )
+        assert out == "1 [] idle None"
+
+    def test_cancelling_the_folder_picker_asks_nothing_and_starts_nothing(self) -> None:
+        out = run_ui(
+            "w, _ = make(); w._source = 'rekordbox'; PICKED[0] = ''\n"
+            "w._start_relocate(scope=SC, auto_resolve=True)\n"
+            "print(len(asked), calls)\n"
+        )
+        assert out == "0 []"
+
+    def test_scoped_run_asks_even_with_the_menu_tick_off_and_ignores_the_tick(self) -> None:
+        out = run_ui(
+            "w, _ = make(); w._source = 'rekordbox'\n"
+            "w._start_relocate(scope=SC, auto_resolve=True)\n"            # tilde apagado
+            "ask_off = len(asked)\n"
+            "w._set_relocate_state('idle'); w._relocate_worker = None\n"
+            "w._act_auto.setChecked(True)\n"
+            "w._start_relocate(scope=SC)\n"                                 # tilde encendido, sin auto
+            "print(ask_off, len(asked), calls[0][1], calls[1][1], w._act_auto.isChecked())\n"
+        )
+        assert out == "1 2 True False True"
+
+    def test_without_scope_it_is_the_old_global_flow(self) -> None:
+        out = run_ui(
+            "w, _ = make(); w._source = 'rekordbox'; w._act_auto.setChecked(True)\n"
+            "w._start_relocate()\n"
+            "t = asked[0]\n"
+            "print(calls[0][1], calls[0][2], 'carpeta' in t, 'otras playlists' in t)\n"
+        )
+        assert out == "True None False False"
+
+    def test_traktor_gets_the_scope_too(self) -> None:
+        out = run_ui(
+            "w, _ = make(); w._source = 'traktor'; w._db = SimpleNamespace(path=Path('/tmp/c.nml'))\n"
+            "w._start_relocate(scope=SC, auto_resolve=False)\n"
+            "print(calls[0][0], calls[0][2] is SC)\n"
+        )
+        assert out == "FakeTk True"
+
+    def test_nothing_is_persisted_in_the_ini(self) -> None:
+        out = run_ui(
+            "w, ini = make(); w._source = 'rekordbox'\n"
+            "before = ini.read_bytes() if ini.exists() else b''\n"
+            "w._start_relocate(scope=SC, auto_resolve=True)\n"
+            "w.settings.sync()\n"
+            "after = ini.read_bytes() if ini.exists() else b''\n"
+            "print(before == after, w._act_auto.isChecked())\n"
+        )
+        assert out == "True False"

@@ -73,7 +73,7 @@ from preview_worker import PreviewWorker, GroupData, TrackRow
 from audio_player import AudioPlayer
 from footer import FooterBar
 from waveform_worker import WaveformWorker
-from relocate_core import BackupInfo, RestoreBackupWorker, list_backups
+from relocate_core import BackupInfo, RelocateScope, RestoreBackupWorker, list_backups
 from traktor_relocate import RelocateWorker, is_traktor_running
 from rekordbox_relocate import RekordboxRelocateWorker, is_rekordbox_running
 from update_checker import UpdateCheckWorker, UpdateInfo
@@ -2036,7 +2036,10 @@ class MainWindow(QMainWindow):
         candidate = base / "master.db"
         return "master.db", candidate if candidate.exists() else None
 
-    def _confirm_relocate_start(self, search_root: str, auto_resolve: bool) -> bool:
+    def _confirm_relocate_start(
+        self, search_root: str, auto_resolve: bool,
+        scope: RelocateScope | None = None,
+    ) -> bool:
         """
         B-2: diálogo de confirmación previo a arrancar el relocate — hoy el
         flujo iba directo de "elegir carpeta" a "arrancar y escribe" (cero
@@ -2057,9 +2060,22 @@ class MainWindow(QMainWindow):
             else f"la carpeta 'listBuddy_backups' junto a tu {target_name}"
         )
 
-        lines = [
-            f"Esto va a modificar el archivo de tu librería de {app_name}:",
-            target_display,
+        if scope is not None:
+            n = len(scope.paths)
+            head = [
+                f"Esto va a reparar los enlaces rotos de la carpeta «{scope.name}» "
+                f"({n} pista{'s' if n != 1 else ''}) en tu librería de {app_name}:",
+                target_display,
+                "",
+                "Si alguna de estas pistas también está en otras playlists, queda "
+                "reparada en todas: es la misma entrada de tu librería.",
+            ]
+        else:
+            head = [
+                f"Esto va a modificar el archivo de tu librería de {app_name}:",
+                target_display,
+            ]
+        lines = head + [
             "",
             "Se crea un backup automático antes de escribir, en:",
             backups_display,
@@ -2067,7 +2083,13 @@ class MainWindow(QMainWindow):
             f"Cerrá {app_name} antes de continuar — si sigue abierto, la "
             "reparación se cancela sin escribir nada.",
         ]
-        if auto_resolve:
+        if auto_resolve and scope is not None:
+            lines += [
+                "",
+                "⚠ Vas a aplicar la mejor coincidencia en las pistas con más de un "
+                "candidato, sin preguntar una por una. Solo en esta carpeta.",
+            ]
+        elif auto_resolve:
             lines += [
                 "",
                 "⚠ Tenés activado \"Resolver automáticamente…\": vas a aplicar "
@@ -2108,7 +2130,12 @@ class MainWindow(QMainWindow):
         )
         return resp == QMessageBox.StandardButton.Yes
 
-    def _start_relocate(self) -> None:
+    def _start_relocate(
+        self, scope: RelocateScope | None = None, auto_resolve: bool | None = None,
+    ) -> None:
+        """Relocate global (menú, sin argumentos) o, con `scope` (T-073), solo
+        de las pistas de una playlist. Con alcance el tilde del menú no se
+        lee: `auto_resolve` viene explícito y la confirmación siempre se pide."""
         if self._source == "traktor" and self._db is None:
             QMessageBox.warning(
                 self, "Sin librería", "Cargá la librería de Traktor primero."
@@ -2135,8 +2162,12 @@ class MainWindow(QMainWindow):
         if not search_root:
             return
 
-        auto_resolve = self._auto_resolve_enabled()
-        if not self._confirm_relocate_start(search_root, auto_resolve):
+        if scope is None:
+            if auto_resolve is None:
+                auto_resolve = self._auto_resolve_enabled()
+        else:
+            auto_resolve = bool(auto_resolve)
+        if not self._confirm_relocate_start(search_root, auto_resolve, scope):
             return
 
         # T-007: cambiar botón a modo Cancelar (mismo patrón que export_btn).
@@ -2159,16 +2190,19 @@ class MainWindow(QMainWindow):
         self._relocate_progress_done = 0
         self._relocate_progress_total = 0
 
+        if scope is not None:
+            self._log(f"→ Alcance: carpeta «{scope.name}» ({len(scope.paths)} pista(s))")
         if self._source == "traktor":
             self._log(f"→ NML: {self._db.path}")
             self._relocate_worker = RelocateWorker(
                 self._db.path, Path(search_root), auto_resolve=auto_resolve,
+                scope=scope,
             )
         else:
             self._log("→ Librería: Rekordbox 6 (master.db)")
             self._relocate_worker = RekordboxRelocateWorker(
                 Path(self._rb_db_path) if self._rb_db_path else None,
-                Path(search_root), auto_resolve=auto_resolve,
+                Path(search_root), auto_resolve=auto_resolve, scope=scope,
             )
         self._relocate_worker.log.connect(self._log)
         self._relocate_worker.progress.connect(self._on_progress)
