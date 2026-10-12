@@ -1,4 +1,4 @@
-"""Agrupado de filas con archivo faltante en bloques contiguos (T-071, estilo D).
+"""Bloques de filas rotas contiguas (T-071, estilo D) y estados/textos de la tarjeta de carpeta (T-065).
 
 Sin Qt a propósito: la lógica se testea en el proceso de pytest sin cargar PySide6.
 """
@@ -13,6 +13,31 @@ MIDDLE = "middle"
 END = "end"
 
 BLOCK_RADIUS = 8
+
+OK, PARTIAL, ALL_BROKEN, EMPTY = "ok", "partial", "all_broken", "empty"
+MISSING_NOTE = " · archivo no encontrado"
+
+
+def group_state(total: int, missing: int) -> str:
+    if total <= 0:
+        return EMPTY
+    if missing <= 0:
+        return OK
+    return ALL_BROKEN if missing >= total else PARTIAL
+
+
+def all_broken_text(n: int) -> str:
+    return f"{n} {'roto' if n == 1 else 'rotos'} — ningún archivo se encuentra. ¿Cambió el disco?"
+
+
+def broken_notice_text(n: int) -> str:
+    if n <= 0:
+        return ""
+    return "1 enlace roto" if n == 1 else f"{n} enlaces rotos"
+
+
+def ext_chip_text(ext: str) -> str:
+    return ext.lstrip(".").upper()
 
 
 def block_positions(exists: Sequence[bool]) -> list[str]:
