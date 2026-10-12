@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import tempfile
 from pathlib import Path
 from typing import Dict
 
@@ -127,6 +128,18 @@ def status_style(theme: str, variant: str) -> str:
     return f"color: {c}; border-color: {c};"
 
 
+def _tick_url(tokens: Dict[str, str]) -> str:
+    """QSS solo acepta imágenes por ruta: el tilde se rasteriza una vez por color."""
+    import icons
+
+    color = tokens['on_accent']
+    path = Path(tempfile.gettempdir()) / 'listbuddy-qss' / f"tick-{color.lstrip('#')}.png"
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        icons.pixmap('check', color, 18).save(str(path), 'PNG')
+    return path.as_posix()
+
+
 def load_qss(name: str = 'dark') -> str:
     path = ROOT / 'qss' / 'app.qss'
     if not path.exists():
@@ -135,7 +148,9 @@ def load_qss(name: str = 'dark') -> str:
     tokens = THEMES.get(name, THEMES['dark'])
     for k, v in tokens.items():
         qss = qss.replace(f'@{{{k}}}', v)
-    return qss
+    # El tilde va como regla extra: la ruta de la imagen no es un token de diseño.
+    tick = _tick_url(tokens)
+    return qss + f"\nQCheckBox#settings_check::indicator:checked {{ image: url({tick}); }}\n"
 
 
 def apply_theme(app: QApplication, name: str = 'dark') -> None:
