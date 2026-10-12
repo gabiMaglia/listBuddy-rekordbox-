@@ -294,3 +294,23 @@ def test_update_notice_lives_in_its_own_strip_not_in_the_header() -> None:
         "print('ok')\n"
     )
     assert out.split()[-1] == "ok"
+
+
+import pytest
+
+
+@pytest.mark.parametrize("status", ["ok", "cancelled", "blocked", "error"])
+@pytest.mark.parametrize("start_state", ["running", "cancelling"])
+def test_relocate_finished_returns_menu_action_to_idle(status: str, start_state: str) -> None:
+    out = run(
+        "ui.QMessageBox.warning = staticmethod(lambda *a, **k: None)\n"
+        "ui.QMessageBox.critical = staticmethod(lambda *a, **k: None)\n"
+        "w, _ = make()\n"
+        "w._relocate_source = 'rekordbox'\n"
+        f"w._set_relocate_state({start_state!r})\n"
+        # precondición: si ya estuviera en reposo el test sería vacuo
+        "assert w._act_relocate.text() != 'Reparar enlaces rotos…'\n"
+        f"w._on_relocate_finished(0, 0, 0, {status!r})\n"
+        "print(w._act_relocate.text(), w._act_relocate.isEnabled(), w._relocate_state)\n"
+    )
+    assert out.strip().splitlines()[-1] == "Reparar enlaces rotos… True idle"

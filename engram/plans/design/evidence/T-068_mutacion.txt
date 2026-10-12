@@ -1,0 +1,19 @@
+== VERDE (arbol sano)
+........                                                                 [100%]
+
+== ROJO (mutacion: _set_relocate_state("idle") -> pass en _on_relocate_finished, ui.py:2461)
+E       AssertionError: assert 'Cancelando… False cancelling' == 'Reparar enla...os… True idle'
+E         
+E         - Reparar enlaces rotos… True idle
+E         + Cancelando… False cancelling
+
+tests/test_header.py:316: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_header.py::test_relocate_finished_returns_menu_action_to_idle[running-ok]
+FAILED tests/test_header.py::test_relocate_finished_returns_menu_action_to_idle[running-cancelled]
+FAILED tests/test_header.py::test_relocate_finished_returns_menu_action_to_idle[running-blocked]
+FAILED tests/test_header.py::test_relocate_finished_returns_menu_action_to_idle[running-error]
+FAILED tests/test_header.py::test_relocate_finished_returns_menu_action_to_idle[cancelling-ok]
+FAILED tests/test_header.py::test_relocate_finished_returns_menu_action_to_idle[cancelling-cancelled]
+FAILED tests/test_header.py::test_relocate_finished_returns_menu_action_to_idle[cancelling-blocked]
+FAILED tests/test_header.py::test_relocate_finished_returns_menu_action_to_idle[cancelling-error]
