@@ -209,7 +209,7 @@ FAKE_RELOCATE = (
     "ui.RekordboxRelocateWorker = FakeWorker\n"
     "ui.QFileDialog.getExistingDirectory = staticmethod(lambda *a, **k: '/tmp/r')\n"
     "asked = []\n"
-    "ui.QMessageBox.question = staticmethod(lambda *a, **k: (asked.append(a[2]), ui.QMessageBox.StandardButton.Yes)[1])\n"
+    "ui.dialogs.question = staticmethod(lambda *a, **k: (asked.append(a[2]), True)[1])\n"
 )
 
 
@@ -237,7 +237,7 @@ def test_card_autoresolve_always_asks_with_count_and_folder_name_and_ignores_men
 def test_card_autoresolve_cancel_in_the_confirmation_starts_nothing() -> None:
     out = run(CARD_IMPORT + FAKE_RELOCATE +
         "w, _ = make(); w._source = 'rekordbox'; fill(w, [(27, 27)])\n"
-        "ui.QMessageBox.question = staticmethod(lambda *a, **k: ui.QMessageBox.StandardButton.No)\n"
+        "ui.dialogs.question = staticmethod(lambda *a, **k: False)\n"
         "w.findChildren(PreviewGroupCard)[0].findChild(QPushButton, 'card_auto_btn').click()\n"
         "print(calls, w._relocate_state)\n")
     assert out == "[] idle"

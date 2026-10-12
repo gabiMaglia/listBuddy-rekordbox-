@@ -303,8 +303,8 @@ import pytest
 @pytest.mark.parametrize("start_state", ["running", "cancelling"])
 def test_relocate_finished_returns_menu_action_to_idle(status: str, start_state: str) -> None:
     out = run(
-        "ui.QMessageBox.warning = staticmethod(lambda *a, **k: None)\n"
-        "ui.QMessageBox.critical = staticmethod(lambda *a, **k: None)\n"
+        "ui.dialogs.warning = staticmethod(lambda *a, **k: None)\n"
+        "ui.dialogs.critical = staticmethod(lambda *a, **k: None)\n"
         "w, _ = make()\n"
         "w._relocate_source = 'rekordbox'\n"
         f"w._set_relocate_state({start_state!r})\n"
