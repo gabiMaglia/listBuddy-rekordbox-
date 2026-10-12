@@ -70,8 +70,7 @@ class FooterBar(QWidget):
         lo.addWidget(self.play_btn)
 
         info = QWidget()
-        info.setMinimumWidth(100)
-        info.setMaximumWidth(220)
+        self._info = info
         il = QVBoxLayout(info)
         il.setContentsMargins(0, 0, 0, 0)
         il.setSpacing(2)
@@ -81,7 +80,7 @@ class FooterBar(QWidget):
         self.artist_lbl.setObjectName("footer_artist")
         il.addWidget(self.title_lbl)
         il.addWidget(self.artist_lbl)
-        lo.addWidget(info, 2)
+        lo.addWidget(info)
 
         wave_box = QWidget()
         wl = QHBoxLayout(wave_box)
@@ -96,16 +95,14 @@ class FooterBar(QWidget):
         wl.addWidget(self.time_cur)
         wl.addWidget(self.wave, 1)
         wl.addWidget(self.time_total)
-        lo.addWidget(wave_box, 4)
+        lo.addWidget(wave_box, 1)
 
         # Destino y progreso comparten lugar: uno a la vez (D6).
         self._right = QStackedWidget()
-        self._right.setMaximumWidth(340)
-        self._right.setMinimumWidth(150)
         self._right.setFixedHeight(40)
         self._right.addWidget(self._build_dest())
         self._right.addWidget(self._build_progress())
-        lo.addWidget(self._right, 5)
+        lo.addWidget(self._right)
 
         self.export_btn = QPushButton()
         self.export_btn.setObjectName("footer_export")
@@ -117,6 +114,39 @@ class FooterBar(QWidget):
 
         self.apply_theme("dark")
         self.set_dest("")
+
+    # Reparto de ancho: la onda se lleva el sobrante; info y destino piden
+    # su tamaño del diseño (220 / 300) solo si la onda ya es protagonista.
+    _INFO_MIN, _INFO_FLOOR, _INFO_MAX = 100, 180, 220
+    _DEST_MIN, _DEST_NARROW, _DEST_MAX = 190, 245, 300
+    _WAVE_BOX_MIN, _WAVE_BOX_BIG = 178, 340   # onda de 100 px / de ~240 px
+
+    def _rebalance(self) -> None:
+        self.export_btn.ensurePolished()  # el ancho depende de la fuente del QSS
+        lo = self.layout()
+        m = lo.contentsMargins()
+        fixed = m.left() + m.right() + 4 * lo.spacing() + self.play_btn.width()
+        avail = self.width() - fixed - self.export_btn.sizeHint().width()
+        # Vacío necesita sitio para el placeholder entero; con ruta alcanza menos.
+        dest = self._DEST_MIN if self._dest else self._DEST_NARROW
+        info = self._INFO_FLOOR
+        rest = avail - dest - info
+        if rest < self._WAVE_BOX_MIN:
+            # Angosto: la info cede hasta su mínimo y el destino toma lo que
+            # sobra (hasta 245 px, lo que pide el placeholder entero).
+            info = max(self._INFO_MIN, avail - self._DEST_NARROW - self._WAVE_BOX_MIN)
+            dest = max(150, min(self._DEST_NARROW, avail - info - self._WAVE_BOX_MIN))
+        else:
+            extra = max(0, rest - self._WAVE_BOX_BIG)
+            more = min(extra, self._INFO_MAX - info)
+            info += more
+            dest += min(extra - more, self._DEST_MAX - dest)
+        self._info.setFixedWidth(int(info))
+        self._right.setFixedWidth(int(dest))
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._rebalance()
 
     def _build_dest(self) -> QWidget:
         box = QWidget()
@@ -199,6 +229,7 @@ class FooterBar(QWidget):
         self.dest_label.setProperty("empty", not text)
         self.dest_label.style().unpolish(self.dest_label)
         self.dest_label.style().polish(self.dest_label)
+        self._rebalance()
         self.dest_changed.emit(text)
 
     def dest_text(self) -> str:
@@ -227,6 +258,7 @@ class FooterBar(QWidget):
         self.export_btn.setIcon(
             icons.icon("arrow_right", token(self._theme, "on_accent"), 16) if arrow else QIcon()
         )
+        self._rebalance()
 
     # ── Progreso ─────────────────────────────────────────────────
 
