@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12 10:00] nerv-orquestador → nerv-desktop T-069 (Niv A) + T-070 (Niv S)
+- PO probó la app en vivo (T-063): picker OK, «el resto perfecto». Pidió pulidos chicos (T-069) y reportó lentitud al cambiar de tema en macOS (T-070). Fuente de marca/títulos y estilo de filas rotas → opciones renderizadas en paralelo (Orquestador), NO tocar Fraunces ni el estilo de filas rotas en este handoff.
+- Entrega: T-069 (Advisory: criterios = plan) y T-070 (Strong: CÓMO con writing-plans estampado en `engram/plans/T-070.md` antes de corregir; la investigación/medición previa con systematic-debugging SÍ se hace antes del plan).
+- Archivos a leer: `engram/03_backlog.md` (T-069, T-070) · `footer.py`, `ui_components.py` (MaintenanceButton), `qss/app.qss`, `ui.py` (`_apply_theme`, `_retint_icons`), `styles.py` · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · capturas · cifras de T-070.
+
 ### [2026-10-11 23:40] nerv-orquestador → nerv-desktop T-063 · Niv S · relanzamiento Tasks 2–8
 - Ejecución anterior PARCIAL (cortada por el sistema; delegaba en subagentes anidados y devolvía antes de terminar). Hecho y verificado por el Orquestador: re-estampado D4 (044a68c, ebf7af3), Task 0 (58166fc), Task 1/T-068 (2024d26; mutación 8 rojos en `evidence/T-068_mutacion.txt`; excepción P-18 aplicada). Suite verde, tree limpio. Agente anterior detenido.
 - Entrega: Tasks 2–8 del CÓMO de T-063, ejecución INLINE (sin subagentes anidados, sin monitores), sin devolver el control hasta T-063 + T-068 en «En revisión QA» o un bloqueo concreto.
