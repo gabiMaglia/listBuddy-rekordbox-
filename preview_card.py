@@ -18,7 +18,7 @@ from ui_components import broken_badge_text
 ROW_HEIGHT = 38
 # Anchos compartidos con las filas (ui._make_row_widget) para que la cabecera de columnas alinee.
 IDX_W = 56
-CHIP_W = 56
+CHIP_W = 68
 NOTE_W = 150    # «· archivo no encontrado»
 WARN_W = 16
 ROW_GAP = 12
