@@ -114,25 +114,28 @@ QScrollArea#playlist_scroll { background: @{surface}; border: 1.5px solid @{line
 QWidget#playlist_scroll_vp  { background: @{surface}; }
 QWidget#scroll_content      { background: transparent; }
 
-/* ── Playlist card — OFF state (ON state via inline setStyleSheet) ── */
+/* ── Playlist card (fila plana) — OFF state (ON state via inline setStyleSheet) ── */
 QWidget#playlist_card {
-    background: @{surface};
-    border: 1.5px solid @{row_line};
+    background: transparent;
+    border: 1.5px solid transparent;
     border-radius: 8px;
 }
-QLabel#card_order {
-    font-family: "JetBrains Mono";
-    font-size: 17px; font-weight: 700; color: @{muted}; background: transparent;
+/* Nº sin marcar = posición en la lista; marcado = orden de exportación (T-064, decisión del PO) */
+QLabel#card_pos {
+    font-family: "JetBrains Mono"; font-size: 11px; font-weight: 400;
+    color: @{muted}; background: transparent;
 }
-QLabel#card_name { font-size: 13px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#card_order {
+    font-family: "JetBrains Mono"; font-size: 17px; font-weight: 700;
+    color: @{link}; background: transparent;
+}
+QLabel#card_name { font-size: 13px; font-weight: 500; color: @{text}; background: transparent; }
 QLabel#card_tag {
-    font-family: "JetBrains Mono"; font-size: 11px; color: @{muted};
-    border: 1px solid @{row_line}; border-radius: 6px; padding: 1px 6px; background: transparent;
+    font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent;
 }
 QLabel#card_check {
     background: @{inset}; border: 1.5px solid @{line}; border-radius: 6px;
     color: transparent; font-size: 12px; font-weight: 700;
-    min-width: 21px; max-width: 21px; min-height: 21px; max-height: 21px;
 }
 
 /* ── Folder group ── */

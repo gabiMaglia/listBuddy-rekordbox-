@@ -100,9 +100,8 @@ def card_styles(theme: str) -> dict[str, str]:
     return {
         'card_on': (
             f"QWidget#playlist_card {{ background: {t['sel_bg']};"
-            f" border: 1.5px solid {t['accent']}; border-radius: 12px; }}"
+            f" border: 1.5px solid {t['sel_bg']}; border-radius: 8px; }}"
         ),
-        'order_on': f"color: {t['link']};",
         'check_on': (
             f"background: {t['accent']}; border: 1.5px solid {t['accent']};"
             f" color: {t['on_accent']}; border-radius: 6px;"
