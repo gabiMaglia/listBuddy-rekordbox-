@@ -3,6 +3,14 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12] nerv-orquestador → nerv-qa T-076 (S) + T-074 (A) + T-075 (A) + T-066 (A)
+- Gate P-12.1 PASS (Orquestador): tree limpio, suite completa verde en 1:48 con `-n 4` (antes 6–8 min), `.rbe_settings.ini` intacto, pytest-xdist 3.8.0 instalado.
+- T-076: crash del PO al cambiar Traktor→Rekordbox; implementador lo reprodujo 6/6 y lo atribuye a `itemAt`+`setParent(None)` en `_clear_playlist_area` (repro mínimo PySide6 en evidencia). Verificar: el test falla sin el fix (mutación), la ráfaga de repro en evidencia, y búsqueda del mismo patrón en todo el proyecto. Salvedad declarada: stack no idéntico al del PO.
+- T-074: cambio de PO (sin nota, filas 38 px). T-066: verificar capturas de cada modal/QMessageBox y el indicador del menú. Observación del Orquestador: QMessageBox muestra «Yes/No» en inglés (preexistente, viola la convención rioplatense de CLAUDE.md) → se abrirá ticket aparte, no es defecto de T-066.
+- T-075: verificar que no se debilitó ni borró ningún test (diff de tests/), qué tests quedaron en proceso frío y por qué, y que el aislamiento de binding se mantiene.
+- Archivos a leer: `engram/03_backlog.md` (T-074, T-075, T-076, T-066) · `engram/plans/T-061.md` (decisión del PO sobre la nota) · diff `0f8e82d..HEAD` · `engram/plans/design/evidence/T-076_*`, `T-074_*`, `T-066_*` · `CLAUDE.md` §Tests.
+- Se espera: veredicto por ticket con evidencia, defectos con archivo:línea.
+
 ### [2026-10-12] nerv-orquestador → nerv-desktop T-075 → T-074 → T-066 · Niv A (los tres)
 - T-065 Done (QA, 3dbbe2a). PO: la nota en segunda línea queda; «metele» a D-09 (→ T-075) y «dale» a T-066 + T-074 + indicador del auto-resolver (sumado a T-066).
 - Entrega, en orden: T-075 (suite rápida, primero porque acelera lo demás) → T-074 → T-066. Advisory: los criterios del backlog son el plan. TDD donde haya lógica, commits chicos por ticket, capturas dark+light en T-074/T-066. Dejar los tres «En revisión QA».
