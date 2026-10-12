@@ -31,18 +31,19 @@ def run(code: str) -> str:
 def test_no_rows_are_alive_while_the_stylesheet_is_applied() -> None:
     out = run(
         "import styles\n"
+        "from preview_card import PreviewGroupCard\n"
         "w, _ = make(); fill(w)\n"
         "seen = []\n"
         "orig = styles.load_qss\n"
         "def spy(name='dark'):\n"
-        "    seen.append(len(w.findChildren(FileRow))); return orig(name)\n"
+        "    seen.append((len(w.findChildren(FileRow)), len(w.findChildren(PreviewGroupCard)))); return orig(name)\n"
         "styles.load_qss = spy\n"
         "before = len(w.findChildren(FileRow))\n"
         "w._apply_theme('light')\n"
         "print(before, seen)\n"
     )
     before, seen = out.strip().splitlines()[-1].split(" ", 1)
-    assert int(before) == 120 and seen == "[0]"
+    assert int(before) == 120 and seen == "[(0, 0)]"   # ni filas ni tarjetas vivas al re-pulear
 
 
 def test_preview_comes_back_after_a_theme_switch() -> None:

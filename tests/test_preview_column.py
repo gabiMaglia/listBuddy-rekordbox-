@@ -14,10 +14,12 @@ def pump(ms=400):
     loop = QEventLoop(); QTimer.singleShot(ms, loop.quit); loop.exec()
 
 def fill(w, spec):
-    # spec: [(total, missing)]; las rotas son las pistas de índice 2..2+missing-1, raw_path /x/<g>/<i>.mp3
+    # spec: [(total, missing)]; las rotas son las pistas de índice 2..2+missing-1 (todas si missing == total),
+    # raw_path /x/<g>/<i>.mp3
     for g, (total, missing) in enumerate(spec):
+        first = 0 if missing >= total else 2
         tracks = [TrackRow(str(i + 1).zfill(3), f"T{g}-{i}", "Art", ".mp3", f"/x/{g}/{i}.mp3",
-                           exists=not (2 <= i < 2 + missing)) for i in range(total)]
+                           exists=not (first <= i < first + missing)) for i in range(total)]
         w._queue_group(GroupData(f"P{g}", g + 1, total, tracks))
     pump(1500)
 '''
@@ -98,3 +100,177 @@ def test_healthy_row_paints_a_separator_and_broken_rows_do_not() -> None:
         "print(bottom(True) == line, bottom(False) == line)\n"
     )
     assert out == "True False"
+
+
+# ───────────────────────────── Tarjeta (Task 6) ─────────────────────────────
+
+CARD_IMPORT = "from preview_card import PreviewGroupCard\n"
+
+
+def test_card_ok_says_todo_ok_and_has_no_repair_button() -> None:
+    out = run(CARD_IMPORT +
+        "w, _ = make(); fill(w, [(40, 0)])\n"
+        "c = w.findChildren(PreviewGroupCard)[0]\n"
+        "print(c.state, c.findChild(QLabel,'card_status').text(),\n"
+        "      c.findChild(QPushButton,'card_repair_btn') is None,\n"
+        "      c.findChild(QLabel,'card_title').text(), c.findChild(QLabel,'card_count').text())\n")
+    assert out == "ok todo ok True 01 P0 40 archivos"
+
+
+def test_card_partial_shows_count_and_repair_button() -> None:
+    out = run(CARD_IMPORT +
+        "w, _ = make(); fill(w, [(12, 3)])\n"
+        "c = w.findChildren(PreviewGroupCard)[0]\n"
+        "b = c.findChild(QPushButton, 'card_repair_btn')\n"
+        "print(c.state, c.findChild(QLabel, 'card_status').text(), b is not None and b.text())\n")
+    assert out == "partial 3 rotos Reparar enlaces"
+
+
+def test_card_all_broken_is_collapsed_with_message_and_autoresolve() -> None:
+    out = run(CARD_IMPORT +
+        "w, _ = make(); fill(w, [(27, 27)])\n"
+        "c = w.findChildren(PreviewGroupCard)[0]\n"
+        "print(c.state, c.findChild(QLabel, 'card_status').text(),\n"
+        "      c.findChild(QPushButton, 'card_auto_btn').text(),\n"
+        "      c.findChild(QPushButton, 'card_expand_btn') is not None,\n"
+        "      c.is_expanded(), len(c.findChildren(FileRow)))\n")   # filas NO creadas (D4)
+    assert out == ("all_broken 27 rotos — ningún archivo se encuentra. ¿Cambió el disco? "
+                   "Auto-resolver True False 0")
+
+
+def test_expanding_all_broken_builds_its_rows_once() -> None:
+    out = run(CARD_IMPORT +
+        "w, _ = make(); fill(w, [(27, 27)])\n"
+        "c = w.findChildren(PreviewGroupCard)[0]\n"
+        "b = c.findChild(QPushButton, 'card_expand_btn')\n"
+        "b.click(); pump(800); n1 = len(c.findChildren(FileRow))\n"
+        "b.click(); b.click(); pump(800)\n"
+        "print(n1, len(c.findChildren(FileRow)), c.is_expanded())\n")
+    assert out == "27 27 True"
+
+
+def test_expand_button_has_an_accessible_name_that_follows_the_state() -> None:
+    out = run(CARD_IMPORT +
+        "w, _ = make(); fill(w, [(5, 5)])\n"
+        "c = w.findChildren(PreviewGroupCard)[0]\n"
+        "b = c.findChild(QPushButton, 'card_expand_btn')\n"
+        "a = b.accessibleName(); b.click()\n"
+        "print(a, '|', b.accessibleName())\n")
+    assert out == "Expandir carpeta | Contraer carpeta"
+
+
+def test_card_scroll_is_fixed_and_keeps_all_rows() -> None:
+    out = run(CARD_IMPORT +
+        "w, _ = make(); fill(w, [(40, 5)])\n"
+        "c = w.findChildren(PreviewGroupCard)[0]\n"
+        "print(len(c.findChildren(FileRow)), c.findChild(QScrollArea, 'card_scroll').height())\n")
+    assert out == "40 190"   # D2: todas las filas, alto fijo
+
+
+def test_card_close_button_unchecks_the_real_playlist_card() -> None:
+    out = run(CARD_IMPORT +
+        "w, _ = make()\n"
+        "class Fake:\n"
+        "    on = True\n"
+        "    def setChecked(self, v): self.on = v\n"
+        "    def isChecked(self): return self.on\n"
+        "f = Fake(); w._update_order_numbers = lambda: None\n"
+        "w._queue_group(GroupData('P', 1, 3, [TrackRow('001','t','a','.mp3','/x',True)], card=f)); pump(800)\n"
+        "c = w.findChildren(PreviewGroupCard)[0]\n"
+        "c.findChild(QPushButton, 'card_close_btn').click()\n"
+        "print(f.isChecked())\n")
+    assert out == "False"
+
+
+# ───────── Botonera por carpeta: actúa SOLO sobre esa playlist (D1 del PO, T-073) ─────────
+
+FAKE_RELOCATE = (
+    "class Sig:\n"
+    "    def connect(self, *a): pass\n"
+    "calls = []\n"
+    "class FakeWorker:\n"
+    "    log = progress = ask_user = finished_ok = Sig()\n"
+    "    def __init__(self, db, root, auto_resolve=False, scope=None): calls.append((auto_resolve, scope))\n"
+    "    def start(self): pass\n"
+    "    def isRunning(self): return False\n"
+    "ui.RekordboxRelocateWorker = FakeWorker\n"
+    "ui.QFileDialog.getExistingDirectory = staticmethod(lambda *a, **k: '/tmp/r')\n"
+    "asked = []\n"
+    "ui.QMessageBox.question = staticmethod(lambda *a, **k: (asked.append(a[2]), ui.QMessageBox.StandardButton.Yes)[1])\n"
+)
+
+
+def test_card_repair_button_scopes_the_relocate_to_that_folders_broken_tracks() -> None:
+    out = run(CARD_IMPORT + FAKE_RELOCATE +
+        "w, _ = make(); w._source = 'rekordbox'; fill(w, [(12, 3), (9, 2)])\n"
+        "cards = w.findChildren(PreviewGroupCard)\n"
+        "cards[0].findChild(QPushButton, 'card_repair_btn').click()\n"
+        "auto, sc = calls[0]\n"
+        "print(len(calls), auto, sc.name, sorted(sc.paths))\n")
+    # rotas = pistas de índice 2..4 de P0; las de P1 NO están en el alcance
+    assert out == "1 False P0 ['/x/0/2.mp3', '/x/0/3.mp3', '/x/0/4.mp3']"
+
+
+def test_card_autoresolve_always_asks_with_count_and_folder_name_and_ignores_menu_tick() -> None:
+    out = run(CARD_IMPORT + FAKE_RELOCATE +
+        "w, _ = make(); w._source = 'rekordbox'; fill(w, [(27, 27)])\n"
+        "w.findChildren(PreviewGroupCard)[0].findChild(QPushButton, 'card_auto_btn').click()\n"
+        "auto, sc = calls[0]\n"
+        "print(auto, len(sc.paths), len(asked), 'P0' in asked[0], '27 pistas' in asked[0],\n"
+        "      w._act_auto.isChecked())\n")
+    assert out == "True 27 1 True True False"      # pregunta siempre; el tilde del menú no cambió
+
+
+def test_card_autoresolve_cancel_in_the_confirmation_starts_nothing() -> None:
+    out = run(CARD_IMPORT + FAKE_RELOCATE +
+        "w, _ = make(); w._source = 'rekordbox'; fill(w, [(27, 27)])\n"
+        "ui.QMessageBox.question = staticmethod(lambda *a, **k: ui.QMessageBox.StandardButton.No)\n"
+        "w.findChildren(PreviewGroupCard)[0].findChild(QPushButton, 'card_auto_btn').click()\n"
+        "print(calls, w._relocate_state)\n")
+    assert out == "[] idle"
+
+
+def test_card_repair_with_menu_tick_on_does_not_auto_resolve() -> None:
+    out = run(CARD_IMPORT + FAKE_RELOCATE +
+        "w, _ = make(); w._source = 'rekordbox'; fill(w, [(12, 3)])\n"
+        "w._act_auto.setChecked(True)\n"
+        "w.findChildren(PreviewGroupCard)[0].findChild(QPushButton, 'card_repair_btn').click()\n"
+        "print(calls[0][0])\n")
+    assert out == "False"      # con alcance el tilde global no se lee (T-073 T5)
+
+
+def test_global_menu_repair_is_unchanged_and_has_no_scope() -> None:
+    out = run(CARD_IMPORT + FAKE_RELOCATE +
+        "w, _ = make(); w._source = 'rekordbox'; w._act_auto.setChecked(True)\n"
+        "w._start_relocate()\n"
+        "print(calls[0])\n")
+    assert out == "(True, None)"
+
+
+def test_card_buttons_do_nothing_while_a_relocate_is_running() -> None:
+    out = run(CARD_IMPORT + FAKE_RELOCATE +
+        "w, _ = make(); w._source = 'rekordbox'; fill(w, [(12, 3)])\n"
+        "w._relocate_state = 'running'\n"
+        "w.findChildren(PreviewGroupCard)[0].findChild(QPushButton, 'card_repair_btn').click()\n"
+        "print(calls)\n")
+    assert out == "[]"
+
+
+def test_card_with_nothing_broken_in_the_data_never_starts_a_global_relocate() -> None:
+    # Guardia: un alcance vacío no puede degradarse a «toda la librería».
+    out = run(CARD_IMPORT + FAKE_RELOCATE +
+        "w, _ = make(); w._source = 'rekordbox'; fill(w, [(12, 3)])\n"
+        "data = w._rendered_groups[0]\n"
+        "for t in data.tracks: t.exists = True\n"
+        "w._on_card_repair(False, data)\n"
+        "print(calls)\n")
+    assert out == "[]"
+
+
+def test_card_buttons_have_scope_tooltips() -> None:
+    out = run(CARD_IMPORT +
+        "w, _ = make(); fill(w, [(12, 3), (5, 5)])\n"
+        "cs = w.findChildren(PreviewGroupCard)\n"
+        "print(cs[0].findChild(QPushButton, 'card_repair_btn').toolTip(), '|',\n"
+        "      cs[1].findChild(QPushButton, 'card_auto_btn').toolTip())\n")
+    assert out == "Reparar enlaces de esta carpeta… | Auto-resolver esta carpeta…"

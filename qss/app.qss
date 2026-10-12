@@ -173,32 +173,40 @@ QWidget#preview_scroll_vp  { background: @{inset}; }
 QWidget#preview_container  { background: @{inset}; }
 QWidget#preview_empty      { background: transparent; }
 
-/* Output groups */
-QWidget#output_grp { background: @{surface}; border: 1.5px solid @{line}; border-radius: 12px; }
-QWidget#output_grp_head {
-    background: @{surface2}; border-bottom: 1.5px solid @{line};
-    border-top-left-radius: 12px; border-top-right-radius: 12px;
+/* Preview cards (T-065) */
+QWidget#preview_card { background: @{surface}; border: 1px solid @{line}; border-radius: 12px; }
+QWidget#preview_card_head { background: transparent; }
+QWidget#preview_card_head[state="all_broken"] {
+    background: @{broken_bg}; border-top-left-radius: 12px; border-top-right-radius: 12px;
 }
-QLabel#output_grp_badge {
-    background: @{accent}; color: @{on_accent}; border-radius: 6px;
-    padding: 2px 8px; font-family: "JetBrains Mono"; font-size: 11px; font-weight: 700;
+QWidget#preview_card_head[state="all_broken"][expanded="false"] {
+    border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;
 }
-QLabel#output_grp_badge_warn {
-    background: @{danger_soft}; color: @{danger}; border-radius: 6px;
-    padding: 2px 8px; font-family: "JetBrains Mono"; font-size: 11px; font-weight: 700;
+QLabel#card_folder_icon, QLabel#card_status_icon { background: transparent; }
+QLabel#card_title { font-family: "JetBrains Mono"; font-size: 13px; font-weight: 500; color: @{text}; background: transparent; }
+QLabel#card_count { font-size: 12px; color: @{muted}; background: transparent; }
+QLabel#card_status { font-size: 12px; background: transparent; }
+QLabel#card_status[state="ok"] { color: @{ok}; }
+QLabel#card_status[state="partial"], QLabel#card_status[state="all_broken"] { color: @{danger}; }
+QPushButton#card_repair_btn, QPushButton#card_auto_btn {
+    background: transparent; border: 1px solid @{line}; border-radius: 8px;
+    color: @{link}; font-size: 12px; padding: 4px 10px;
 }
-QLabel#output_grp_folder_icon { color: @{accent}; background: transparent; }
-QLabel#output_grp_fname { font-size: 13px; font-weight: 600; color: @{text}; background: transparent; }
-QLabel#output_grp_cnt   { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; }
-
-/* T-015: cerrar un grupo individual (destilda el checkbox real) */
-QPushButton#output_grp_close_btn {
-    background: transparent; border: none; border-radius: 6px;
-    color: @{muted}; font-size: 11px; font-weight: 700;
+QPushButton#card_repair_btn:hover, QPushButton#card_auto_btn:hover { background: @{surface2}; }
+QPushButton#card_expand_btn {
+    background: transparent; border: none; border-radius: 8px; padding: 0px;
+    min-width: 28px; max-width: 28px; min-height: 28px; max-height: 28px;
+}
+QPushButton#card_expand_btn:hover { background: @{surface2}; }
+QPushButton#card_close_btn {
+    background: transparent; border: none; border-radius: 8px; padding: 0px;
     min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px;
-    padding: 0px;
 }
-QPushButton#output_grp_close_btn:hover { background: @{row_line}; color: @{text}; }
+QPushButton#card_close_btn:hover { background: @{row_line}; }
+QWidget#card_cols { background: transparent; border-top: 1px solid @{line}; border-bottom: 1px solid @{line}; }
+QLabel#card_col_label { font-size: 11px; font-weight: 600; color: @{muted}; background: transparent; }
+QScrollArea#card_scroll { background: @{surface}; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
+QWidget#card_scroll_vp { background: @{surface}; }
 
 /* T-015: cerrar (destildar) todas las playlists de la cola */
 QPushButton#close_all_btn {
@@ -208,9 +216,7 @@ QPushButton#close_all_btn {
 }
 QPushButton#close_all_btn:hover { background: @{surface2}; color: @{text}; }
 
-/* Inner scroll */
-QScrollArea#grp_inner_scroll { background: @{surface}; border: none; }
-QWidget#grp_inner_scroll_vp  { background: @{surface}; }
+/* Contenedor de filas de la tarjeta */
 QWidget#grp_files_container  { background: @{surface}; }
 
 /* File rows */
