@@ -21,3 +21,15 @@ FAILED tests/test_relocate_scope.py::TestTraktorWorkerScoped::test_only_the_scop
 FAILED tests/test_relocate_scope.py::TestTraktorWorkerScoped::test_scope_with_no_matching_track_writes_nothing_and_makes_no_backup
 FAILED tests/test_relocate_scope.py::TestTraktorWorkerScoped::test_playlists_section_follows_the_repaired_entry
 FAILED tests/test_relocate_scope.py::TestTraktorWorkerScoped::test_track_in_two_playlists_is_repaired_for_both
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: RekordboxRelocateWorker.__init__() got an unexpected keyword argument 'scope'
+
+tests/test_relocate_scope.py:239: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_relocate_scope.py::TestRekordboxFindBrokenScoped::test_only_scoped_content_is_returned
+FAILED tests/test_relocate_scope.py::TestRekordboxFindBrokenScoped::test_empty_scope_returns_nothing
+FAILED tests/test_relocate_scope.py::TestRekordboxFindBrokenScoped::test_out_of_scope_content_never_hits_the_disk
+FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_only_the_scoped_track_is_repaired_the_other_is_untouched
+FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_scope_with_no_matching_track_commits_nothing_and_makes_no_backup
+FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_no_scope_repairs_everything_like_before
+FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_same_content_in_two_playlists_is_one_repair

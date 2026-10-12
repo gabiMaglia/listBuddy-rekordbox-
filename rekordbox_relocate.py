@@ -73,9 +73,11 @@ from relocate_core import (
     BaseRelocateWorker,
     Candidate,
     RelocateRequest,
+    RelocateScope,
     build_basename_index,
     check_disk_space_for_backup,
     find_candidates,
+    scope_contains,
 )
 
 _BACKUP_DIR_NAME = "listBuddy_backups"
@@ -139,6 +141,7 @@ def find_broken_content(
     should_stop: Callable[[], bool] | None = None,
     on_progress: Callable[[int, int], None] | None = None,
     progress_every: int = _DETECT_PROGRESS_EVERY,
+    scope: RelocateScope | None = None,
 ) -> list[tuple[Any, BrokenTrack]]:
     """
     Recorre `db.get_content()` y devuelve los DjmdContent cuyo FolderPath
@@ -165,6 +168,10 @@ def find_broken_content(
     materializa en una lista antes del loop para conocer `total` de
     antemano sin un roundtrip extra (iterar el Query ya ejecuta la consulta
     completa; materializarlo antes no agrega una segunda consulta).
+
+    T-073: `scope` limita la detección a las pistas de una playlist (por el
+    `FolderPath` crudo, igual que el `raw_path` de la vista previa). El filtro
+    va ANTES de `resolve_path`: lo que está fuera del alcance no toca disco.
     """
     broken: list[tuple[Any, BrokenTrack]] = []
     contents = list(db.get_content())
@@ -173,7 +180,7 @@ def find_broken_content(
         if should_stop is not None and should_stop():
             break
         raw = getattr(content, "FolderPath", None)
-        if raw and resolve_path(raw) is None:  # None = vacío o no existe
+        if raw and scope_contains(scope, raw) and resolve_path(raw) is None:  # None = vacío o no existe
             path = _normalize_folder_path(raw)
             title = getattr(content, "Title", None) or path.name
             artist = get_artist(content)
@@ -255,8 +262,9 @@ def _prune_backups(backups_dir: Path, keep: int = _BACKUP_RETENTION) -> None:
 class RekordboxRelocateWorker(BaseRelocateWorker):
     def __init__(
         self, db_path: Path | None, search_root: Path, auto_resolve: bool = False,
+        scope: RelocateScope | None = None,
     ) -> None:
-        super().__init__(search_root, auto_resolve=auto_resolve)
+        super().__init__(search_root, auto_resolve=auto_resolve, scope=scope)
         self._db_path = db_path
         self._db: Rekordbox6Database | None = None
 
@@ -374,6 +382,7 @@ class RekordboxRelocateWorker(BaseRelocateWorker):
                 db,
                 should_stop=self.isInterruptionRequested,
                 on_progress=lambda done, total: self.progress.emit(done, total),
+                scope=self._scope,
             )
             if self.isInterruptionRequested():
                 self._emit_cancelled(0, 0, 0)
