@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from collections.abc import Sequence
 from typing import ClassVar, List
 
 import icons
 import styles
 
-from PySide6.QtCore import QPoint, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFontMetrics,
@@ -193,6 +194,48 @@ class RackHead(QWidget):
 
 # ──────────────────────────────────────── File row (clickable) ───────────
 
+class ElidedLabel(QLabel):
+    """QLabel con elipsis (inicio o final) y tooltip = texto completo."""
+
+    def __init__(
+        self,
+        mode: Qt.TextElideMode = Qt.TextElideMode.ElideRight,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._mode = mode
+        self._full = ""
+        # Ignored: el layout no le pide el ancho del texto completo.
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.setMinimumWidth(0)
+
+    def set_full_text(self, text: str) -> None:
+        self._full = text
+        self.setToolTip(text)
+        self._apply()
+
+    def full_text(self) -> str:
+        return self._full
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._apply()
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
+            self._apply()
+
+    def _apply(self) -> None:
+        width = self.width() - 2
+        shown = (
+            self.fontMetrics().elidedText(self._full, self._mode, width)
+            if width > 0 else self._full
+        )
+        if shown != self.text():
+            self.setText(shown)
+
+
 class FileRow(QWidget):
     """
     Fila de archivo en el preview. Si el archivo existe, es clickeable y emite
@@ -306,6 +349,58 @@ class SeekBar(QWidget):
             p.drawEllipse(
                 max(5, min(self.width() - 5, cx)) - 5, y + track_h // 2 - 5, 10, 10
             )
+
+
+def bar_heights(peaks: Sequence[float], n: int, floor: float = 0.12) -> list[float]:
+    """n alturas 0..1 por max-pool de los picos; sin picos, barras planas al piso."""
+    if n <= 0:
+        return []
+    if not peaks:
+        return [floor] * n
+    total = len(peaks)
+    out: list[float] = []
+    for i in range(n):
+        a = i * total // n
+        b = max(a + 1, (i + 1) * total // n)
+        out.append(max(floor, max(peaks[a:b])))
+    return out
+
+
+class WaveformSeek(SeekBar):
+    """SeekBar con forma de onda: mismo click/arrastre, barras en vez de riel."""
+
+    _BAR, _GAP = 3, 2
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setFixedHeight(32)
+        self._peaks: Sequence[float] = ()
+        self._rest = QColor(styles.token("dark", "line"))
+
+    def set_peaks(self, peaks: Sequence[float] | None) -> None:
+        self._peaks = peaks or ()
+        self.update()
+
+    def set_colors(self, played_hex: str, rest_hex: str) -> None:
+        self._accent = QColor(played_hex)
+        self._rest = QColor(rest_hex)
+        self.update()
+
+    def paintEvent(self, _event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        step = self._BAR + self._GAP
+        n = max(1, (self.width() + self._GAP) // step)
+        heights = bar_heights(self._peaks, n)
+        frac = (self._pos / self._dur) if self._dur > 0 else 0.0
+        mid = self.height() / 2
+        p.setPen(Qt.PenStyle.NoPen)
+        for i, level in enumerate(heights):
+            x = i * step
+            h = max(2.0, level * (self.height() - 2))
+            # La barra cuenta como reproducida si su centro ya fue pasado.
+            p.setBrush(self._accent if (x + self._BAR / 2) / self.width() <= frac else self._rest)
+            p.drawRect(QRectF(x, mid - h / 2, self._BAR, h))
 
 
 class PlaylistCard(QWidget):

@@ -70,3 +70,52 @@ def test_worker_decodes_a_real_wav_and_tracks_loudness(tmp_path) -> None:
     """, timeout=90)
     assert r.returncode == 0, r.stderr[-2000:]
     assert r.stdout.split()[-4:] == ["5", "True", "True", "True"]
+
+
+def _rc(code: str) -> str:
+    r = run_isolated(code)
+    assert r.returncode == 0, r.stderr[-2000:]
+    return r.stdout.strip().splitlines()[-1]
+
+
+def test_bar_heights_max_pools_flat_when_empty_and_respects_floor() -> None:
+    assert _rc("""
+        import ui_components as uc
+        spike = [0.0] * 99 + [1.0]
+        h = uc.bar_heights(spike, 10)
+        print(len(h), h[-1], h[0], uc.bar_heights([], 4), uc.bar_heights([0.5], 3))
+    """) == "10 1.0 0.12 [0.12, 0.12, 0.12, 0.12] [0.5, 0.5, 0.5]"
+
+
+def test_waveform_seek_paints_played_part_in_accent_and_rest_in_line() -> None:
+    assert _rc("""
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtGui import QColor
+        import styles, ui_components as uc
+        app = QApplication([]); styles.register_fonts()
+        acc, rest = styles.token('dark', 'accent'), styles.token('dark', 'line')
+        wf = uc.WaveformSeek(); wf.resize(200, 32); wf.set_colors(acc, rest)
+        wf.set_peaks([1.0] * 100); wf.set_progress(500, 1000); wf.show(); app.processEvents()
+        img = wf.grab().toImage()
+        mid = wf.height() // 2
+        left = QColor(img.pixel(1, mid)).name()      # 1.ª barra, x∈[0,3): reproducida
+        right = QColor(img.pixel(196, mid)).name()   # barra 39 (n=40), x∈[195,198): resto
+        print(left == QColor(acc).name(), right == QColor(rest).name())
+    """) == "True True"
+
+
+def test_waveform_seek_click_emits_proportional_position_and_ignores_unknown_duration() -> None:
+    assert _rc("""
+        from PySide6.QtCore import Qt, QPoint
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QApplication
+        import ui_components as uc
+        app = QApplication([])
+        wf = uc.WaveformSeek(); wf.resize(200, 32); wf.show()
+        got = []; wf.seek_requested.connect(got.append)
+        QTest.mouseClick(wf, Qt.MouseButton.LeftButton, pos=QPoint(100, 16))
+        assert got == []                          # sin duración no hay seek
+        wf.set_progress(0, 10_000)
+        QTest.mouseClick(wf, Qt.MouseButton.LeftButton, pos=QPoint(100, 16))
+        print(len(got) == 1 and abs(got[0] - 5000) <= 100)
+    """) == "True"
