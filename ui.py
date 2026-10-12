@@ -260,6 +260,8 @@ class MainWindow(QMainWindow):
 
         # Cola de grupos pendientes de render + generation counter
         self._render_queue: list[GroupData] = []
+        # Grupos ya dibujados: el cambio de tema los re-encola (T-070).
+        self._rendered_groups: list[GroupData] = []
         self._broken_total: int = 0
         self._render_gen: int = 0   # se incrementa al limpiar; invalida batches stale
 
@@ -1221,8 +1223,11 @@ class MainWindow(QMainWindow):
         self._broken_total = n
         self._maint_btn.set_broken(n)
 
-    def _clear_preview_layout(self) -> None:
+    def _clear_preview_layout(self, immediate: bool = False) -> None:
+        """`immediate` destruye ya los widgets (no deleteLater): el cambio de tema
+        necesita que no existan cuando Qt re-pulea (T-070)."""
         self._render_gen += 1          # invalida cualquier batch en vuelo
+        self._rendered_groups.clear()
         self._set_broken_total(0)
         self._render_queue.clear()
         # Las filas se destruyen acá (deleteLater); soltar la ref al row sonando
@@ -1235,7 +1240,11 @@ class MainWindow(QMainWindow):
             w = item.widget()
             if w:
                 self._stop_fade_anim(w)   # T-029: parar el fade ANTES de borrar
-                w.deleteLater()
+                if immediate:
+                    from shiboken6 import delete
+                    delete(w)
+                else:
+                    w.deleteLater()
 
     def _cancel_preview_worker(self) -> None:
         if self._preview_worker and self._preview_worker.isRunning():
@@ -1367,6 +1376,7 @@ class MainWindow(QMainWindow):
         if not self._render_queue:
             return
         data = self._render_queue.pop(0)
+        self._rendered_groups.append(data)
         gen  = self._render_gen
         lo   = self.preview_layout
 
@@ -2363,6 +2373,12 @@ class MainWindow(QMainWindow):
         from styles import load_qss
         from ui_components import PlaylistCard as _PC
         _PC.set_theme(theme)
+        # app.setStyleSheet re-pulea cada widget recorriendo sus hijos (≈1,7 ms por
+        # widget de fila a profundidad 15): con la vista previa llena eran ~4 s.
+        # Se destruyen las filas antes y se re-encolan después (T-070).
+        pending = self._rendered_groups + self._render_queue
+        if pending:
+            self._clear_preview_layout(immediate=True)
         app = QApplication.instance()
         if app:
             app.setStyleSheet(load_qss(theme))
@@ -2378,6 +2394,8 @@ class MainWindow(QMainWindow):
         self._retint_icons()
         # Re-tint del highlight de la fila sonando con el accent del nuevo tema
         self._set_row_playing(self._playing_row, True)
+        for data in pending:
+            self._queue_group(data)
         try:
             self.theme_action.setChecked(theme == "light")
         except Exception:
