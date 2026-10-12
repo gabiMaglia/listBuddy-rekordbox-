@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12] nerv-orquestador → nerv-desktop T-065 · Niv S · iteración 1 de 2 (rechazo QA)
+- QA: T-072 APROBADO (Done); T-065 RECHAZADO (`engram/qa/T-065.md`): «FORMATO» invisible en la cabecera de columnas (`preview_card.py:111-118`, ancho 0 + stretch 0 + política Ignored) y sin test que afirme las 3 columnas.
+- Entrega: (1) test que falle primero afirmando que las 3 etiquetas de la cabecera son visibles con ancho > 0 y alineadas con sus columnas de fila; fix. (2) Incluido a pedido del Orquestador (deuda no bloqueante de QA): el artista de las filas rotas debe alinear con el de las sanas (hoy x≈1218 vs x≈1410 en `T-065_after_dark_980_expanded.png`; la nota «· archivo no encontrado» + ícono no deben correr la columna) — test de geometría. Capturas regeneradas dark+light 980/820. Suite completa una vez al final.
+- Archivos a leer: `engram/qa/T-065.md` · `preview_card.py`, `ui_components.py` (FileRow) · `engram/plans/T-061.md` (decisiones del PO de T-065, D6).
+- Se espera (retorno estructurado): estado · archivos tocados · cómo probar · capturas.
+
 ### [2026-10-12] nerv-orquestador → nerv-qa T-065 + T-072 · Niv S
 - T-073 Done (QA en worktree, a17b09f). Gate P-12.1 de T-065/T-072 PASS (Orquestador): tree limpio, suite completa verde, `.rbe_settings.ini` intacto. Agente implementador detenido.
 - Para la auditoría: decisiones del PO sobre T-065 (D1 botonera POR CARPETA con scope de T-073 + global en menú; D2–D6) al final de `engram/plans/T-061.md`. Excepción P-18 aceptada para los tests de caracterización (cada uno con mutación). Declarado por el implementador: el guard de T-029 no reproduce el crash en PySide6 6.11.1/macOS (mejor esfuerzo). Observación del Orquestador: la cabecera de columnas de la tarjeta no muestra «FORMATO» (D6 lo pide).
