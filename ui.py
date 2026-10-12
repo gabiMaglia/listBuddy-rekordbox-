@@ -1161,11 +1161,16 @@ class MainWindow(QMainWindow):
         self._all_cards.clear()
         self._groups.clear()
         layout = self.playlist_container_layout
-        for i in reversed(range(layout.count())):
-            item = layout.itemAt(i)
-            w = item.widget() if item else None
+        # takeAt y no itemAt+setParent(None): sacar el widget por debajo del layout
+        # corrompía el heap de PySide6 y reventaba (SIGSEGV) el widget siguiente (T-076).
+        # El stretch final (sin widget) se conserva.
+        stretch = layout.takeAt(layout.count() - 1) if layout.count() else None
+        while layout.count():
+            w = layout.takeAt(0).widget()
             if w:
                 w.setParent(None)  # type: ignore[arg-type]
+        if stretch is not None:
+            layout.addItem(stretch)
 
     def _show_not_installed(self, detail: str) -> None:
         """Show a friendly 'not installed' placeholder in the playlist area."""
