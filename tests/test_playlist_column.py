@@ -178,3 +178,131 @@ def test_group_structure_and_cards_inside_a_folder_still_toggle() -> None:
         "print(g.cards() == [c], c.isChecked(), w.count_pill.text(), shown(c))\n"
     )
     assert out == "True True 1/1 ('card_order', '01')"
+
+
+TREE = '''
+def node(name, kids=None):
+    return {"playlist": SimpleNamespace(Name=name, is_folder=kids is not None), "children": kids or []}
+
+TREE = [node("Café Tech"), node("TECHNO"), node("Deep House"),
+        node("Sesiones", [node("Warm Tech"), node("Afterhours")]),
+        node("Vacía carpeta", [node("Solo Deep")])]
+
+def load(w):
+    w._populate_playlists(TREE, lambda pl: 5)
+    app.processEvents()
+
+def vis(w):
+    return [c.name for c in w._all_cards if not c.isHidden()]
+'''
+
+
+def runf(code: str) -> str:
+    r = run_isolated(BOOT + WIN + TREE + code)
+    assert r.returncode == 0, r.stderr[-2000:]
+    return r.stdout.strip().splitlines()[-1]
+
+
+def test_populate_builds_cards_groups_and_counter() -> None:
+    out = runf("w, _ = make(); load(w)\nprint(len(w._all_cards), len(w._groups), w.count_pill.text())\n")
+    assert out == "6 2 0/6"
+
+
+def test_typing_tech_keeps_only_matching_names_case_and_accent_insensitive() -> None:
+    out = runf("w, _ = make(); load(w); w.playlist_search.setText('TECH'); print(vis(w))\n")
+    assert out == "['Café Tech', 'TECHNO', 'Warm Tech']"
+    out = runf("w, _ = make(); load(w); w.playlist_search.setText('cafe'); print(vis(w))\n")
+    assert out == "['Café Tech']"
+
+
+def test_counter_does_not_change_while_filtering() -> None:
+    out = runf(
+        "w, _ = make(); load(w)\n"
+        "w._all_cards[0].setChecked(True); w._all_cards[2].setChecked(True); w._update_order_numbers()\n"
+        "before = w.count_pill.text(); w.playlist_search.setText('tech'); print(before, w.count_pill.text())\n"
+    )
+    assert out == "2/6 2/6"
+
+
+def test_folder_hides_when_no_child_matches_and_shows_only_matching_children() -> None:
+    out = runf(
+        "w, _ = make(); load(w); w.playlist_search.setText('warm')\n"
+        "g1, g2 = w._groups\n"
+        "print(g1.isHidden(), g2.isHidden(), [c.name for c in g1.cards() if not c.isHidden()])\n"
+    )
+    assert out == "False True ['Warm Tech']"
+
+
+def test_clearing_the_query_shows_everything_again() -> None:
+    out = runf(
+        "w, _ = make(); load(w); w.playlist_search.setText('zzz'); w.playlist_search.setText('')\n"
+        "print(len(vis(w)), [g.isHidden() for g in w._groups], w._no_results.isHidden())\n"
+    )
+    assert out == "6 [False, False] True"
+
+
+def test_no_results_message_only_when_a_query_matches_nothing() -> None:
+    out = runf(
+        "w, _ = make(); load(w); w.playlist_search.setText('zzz')\n"
+        "a = (w._no_results.isHidden(), w._no_results.text())\n"
+        "w.playlist_search.setText('deep'); b = w._no_results.isHidden()\n"
+        "print(a, b)\n"
+    )
+    assert out == "(False, 'Sin resultados para «zzz»') True"
+
+
+def test_hidden_checked_playlists_stay_checked_and_are_exported() -> None:
+    out = runf(
+        "w, _ = make(); load(w)\n"
+        "w._all_cards[2].setChecked(True); w._update_order_numbers()\n"
+        "w.playlist_search.setText('tech')\n"
+        "print(w._all_cards[2].isHidden(), w._all_cards[2].isChecked(), [p.Name for p in w._selected_playlists()])\n"
+    )
+    assert out == "True True ['Deep House']"
+
+
+def test_numbers_do_not_move_while_filtering() -> None:
+    out = runf(
+        "w, _ = make(); load(w); before = [c._pos_label.text() for c in w._all_cards]\n"
+        "w.playlist_search.setText('tech'); print(before == [c._pos_label.text() for c in w._all_cards], before[:3])\n"
+    )
+    assert out == "True ['01', '02', '03']"
+
+
+def test_all_and_none_buttons_act_only_on_visible_while_filtering_and_on_all_otherwise() -> None:
+    out = runf(
+        "w, _ = make(); load(w)\n"
+        "w.playlist_search.setText('tech'); w.all_btn.click()\n"
+        "a = [c.name for c in w._all_cards if c.isChecked()]\n"
+        "w.playlist_search.setText(''); w.none_btn.click(); b = sum(c.isChecked() for c in w._all_cards)\n"
+        "w.all_btn.click(); c_ = sum(c.isChecked() for c in w._all_cards)\n"
+        "print(a, b, c_, w.count_pill.text())\n"
+    )
+    assert out == "['Café Tech', 'TECHNO', 'Warm Tech'] 0 6 6/6"
+
+
+def test_close_all_from_the_preview_still_unchecks_everything_even_when_filtered() -> None:
+    out = runf(
+        "w, _ = make(); load(w)\n"
+        "w._all_cards[2].setChecked(True); w._update_order_numbers()\n"
+        "w.playlist_search.setText('tech'); w.close_all_btn.click()\n"
+        "print(sum(c.isChecked() for c in w._all_cards))\n"
+    )
+    assert out == "0"
+
+
+def test_filter_survives_a_reload_of_the_list() -> None:
+    out = runf(
+        "w, _ = make(); load(w); w.playlist_search.setText('tech')\n"
+        "w._clear_playlist_area(); load(w); print(vis(w), len(w._groups))\n"
+    )
+    assert out == "['Café Tech', 'TECHNO', 'Warm Tech'] 2"
+
+
+def test_space_in_the_search_box_does_not_toggle_playback() -> None:
+    out = runf(
+        "w, _ = make(); calls = []\n"
+        "w._audio.toggle = lambda: calls.append(1)\n"
+        "w.playlist_search.setFocus(); app.processEvents(); w._on_space(); print(calls)\n"
+    )
+    assert out == "[]"

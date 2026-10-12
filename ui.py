@@ -12,7 +12,7 @@ import os
 import sys
 from io import BytesIO
 from pathlib import Path
-from typing import Literal
+from typing import Any, Callable, Literal
 
 from PySide6.QtCore import (
     QPoint, QSize, Qt, QTimer, QUrl, QSettings,
@@ -56,6 +56,7 @@ from db import playlist_song_count as rb_song_count
 import icons
 from branding import APP_NAME
 from row_blocks import NONE, block_positions
+from playlist_filter import matches
 from styles import apply_title_tracking, status_style, token
 from worker import ExportWorker
 from ui_components import (
@@ -734,6 +735,7 @@ class MainWindow(QMainWindow):
         self.playlist_search.setObjectName("playlist_search")
         self.playlist_search.setPlaceholderText("Buscar playlist")
         self.playlist_search.setAccessibleName("Buscar playlist")
+        self.playlist_search.textChanged.connect(lambda _t: self._apply_filter())
         wl.addWidget(self.playlist_search)
         return wrap
 
@@ -1089,6 +1091,12 @@ class MainWindow(QMainWindow):
             self._show_not_installed(str(e))
             return
 
+        self._populate_playlists(tree, playlist_song_count)
+        src_label = "Traktor" if self._source == "traktor" else "Rekordbox"
+        self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
+
+    def _populate_playlists(self, tree: list[dict], song_count: Callable[[Any], int]) -> None:
+        """Arma carpetas y filas desde el árbol; separado de la carga para testearlo sin DB."""
         card_index = 0
         layout = self.playlist_container_layout
 
@@ -1097,12 +1105,12 @@ class MainWindow(QMainWindow):
             pl = node["playlist"]
             if pl.is_folder:
                 grp = PlaylistGroup(pl.Name)
+                self._groups.append(grp)
                 layout.insertWidget(layout.count() - 1, grp)
                 for child in node["children"]:
                     add_node(child, grp)
             else:
-                count = playlist_song_count(pl)
-                card = PlaylistCard(pl, count, index=card_index)
+                card = PlaylistCard(pl, song_count(pl), index=card_index)
                 card.toggled.connect(self._on_card_toggled)
                 card_index += 1
                 self._all_cards.append(card)
@@ -1115,12 +1123,24 @@ class MainWindow(QMainWindow):
             add_node(node)
 
         self._update_order_numbers()
+        self._apply_filter()  # el texto del campo sobrevive a recargas (cambio de fuente)
         self._preview_debounce.start()
-        src_label = "Traktor" if self._source == "traktor" else "Rekordbox"
-        self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
+
+    def _apply_filter(self) -> None:
+        """Muestra/oculta filas por nombre; solo de vista: no toca marcas, orden ni contador."""
+        query = self.playlist_search.text()
+        active = bool(query.strip())
+        for card in self._all_cards:
+            card.setVisible(matches(card.name, query))
+        for grp in self._groups:
+            grp.setVisible(not active or any(not c.isHidden() for c in grp.cards()))
+        none_visible = bool(self._all_cards) and all(c.isHidden() for c in self._all_cards)
+        self._no_results.setText(f"Sin resultados para «{query.strip()}»")
+        self._no_results.setVisible(active and none_visible)
 
     def _clear_playlist_area(self) -> None:
         self._all_cards.clear()
+        self._groups.clear()
         layout = self.playlist_container_layout
         for i in reversed(range(layout.count())):
             item = layout.itemAt(i)
