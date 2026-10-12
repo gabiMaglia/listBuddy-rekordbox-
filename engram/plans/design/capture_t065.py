@@ -56,10 +56,21 @@ def step_820() -> None:
     QTimer.singleShot(600, lambda: (shoot("dark_820"), step_expand()))
 
 
+def to_bottom() -> None:
+    bar = win.preview_scroll.verticalScrollBar()
+    bar.setValue(bar.maximum())
+
+
 def step_expand() -> None:
     win.resize(980, 760)
+    QTimer.singleShot(400, lambda: (to_bottom(), QTimer.singleShot(300, collapsed_shot)))
+
+
+def collapsed_shot() -> None:
+    shoot("dark_980_collapsed")
     ok = expand_broken()
-    QTimer.singleShot(900, lambda: ((shoot("dark_980_expanded") if ok else None), step_light()))
+    QTimer.singleShot(900, lambda: (to_bottom(), QTimer.singleShot(300, lambda: (
+        (shoot("dark_980_expanded") if ok else None), step_light()))))
 
 
 def step_light() -> None:
@@ -68,8 +79,14 @@ def step_light() -> None:
 
 
 def step_light_expand() -> None:
+    to_bottom()
+    QTimer.singleShot(300, lambda: (shoot("light_980_collapsed"), after_collapsed()))
+
+
+def after_collapsed() -> None:
     ok = expand_broken()
-    QTimer.singleShot(900, lambda: ((shoot("light_980_expanded") if ok else None), done()))
+    QTimer.singleShot(900, lambda: (to_bottom(), QTimer.singleShot(300, lambda: (
+        (shoot("light_980_expanded") if ok else None), done()))))
 
 
 def done() -> None:
