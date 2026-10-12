@@ -33,3 +33,15 @@ FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_only_the_sc
 FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_scope_with_no_matching_track_commits_nothing_and_makes_no_backup
 FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_no_scope_repairs_everything_like_before
 FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_same_content_in_two_playlists_is_one_repair
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/.venv/bin/python', '-c', '\nimport pathlib, tempf...^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: MainWindow._start_relocate() got an unexpected keyword argument \'scope\'\n').returncode
+
+tests/test_relocate_scope.py:366: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_scoped_auto_resolve_confirms_with_count_name_and_shared_note
+FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_answering_no_starts_nothing
+FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_cancelling_the_folder_picker_asks_nothing_and_starts_nothing
+FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_scoped_run_asks_even_with_the_menu_tick_off_and_ignores_the_tick
+FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_traktor_gets_the_scope_too
+FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_nothing_is_persisted_in_the_ini
