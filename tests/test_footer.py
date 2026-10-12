@@ -257,13 +257,12 @@ def test_destination_lives_in_the_footer_and_persists() -> None:
         "w, tmp = make()\n"
         "w._footer.set_dest('/Volumes/MUSIC/LISTAS2026/MAC/Traktor/Sesiones/')\n"
         "w.settings.sync()\n"
-        "print(w.settings.value('last_dest_folder') == '/Volumes/MUSIC/LISTAS2026/MAC/Traktor/Sesiones/',\n"
-        "      w.output_path_label.text())\n"
+        "print(w.settings.value('last_dest_folder') == '/Volumes/MUSIC/LISTAS2026/MAC/Traktor/Sesiones/')\n"
         "w2 = ui.MainWindow(settings_path=tmp); w2.show(); app.processEvents()\n"
         "print(w2._footer.dest_text())\n"
     )
     lines = out.strip().splitlines()
-    assert lines[-2].startswith("True ")
+    assert lines[-2] == "True"
     assert lines[-1] == "/Volumes/MUSIC/LISTAS2026/MAC/Traktor/Sesiones/"
 
 

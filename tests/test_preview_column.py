@@ -274,3 +274,59 @@ def test_card_buttons_have_scope_tooltips() -> None:
         "print(cs[0].findChild(QPushButton, 'card_repair_btn').toolTip(), '|',\n"
         "      cs[1].findChild(QPushButton, 'card_auto_btn').toolTip())\n")
     assert out == "Reparar enlaces de esta carpeta… | Auto-resolver esta carpeta…"
+
+
+# ───────────────────────────── Encabezado y panel (Task 7) ─────────────────────────────
+
+def test_header_has_title_subtitle_and_no_old_eyebrow_or_destination_bar() -> None:
+    out = run(
+        "from PySide6.QtWidgets import QWidget\n"
+        "w, _ = make()\n"
+        "t = w.findChild(QLabel, 'preview_title'); s = w.findChild(QLabel, 'preview_subtitle')\n"
+        "print(t.text(), '|', s.text(), '|', hasattr(w, 'output_path_label'),\n"
+        "      w.findChild(QWidget, 'output_head') is None, w.findChild(QLabel, 'output_eyebrow') is None)\n"
+    )
+    assert out == ("Vista previa de la salida | Así van a quedar las carpetas en el destino | "
+                   "False True True")
+
+
+def test_broken_notice_follows_the_total_and_hides_at_zero() -> None:
+    out = run(
+        "w, _ = make()\n"
+        "lbl = w.findChild(QLabel, 'broken_notice_label')\n"
+        "res = []\n"
+        "for n in (0, 1, 30):\n"
+        "    w._set_broken_total(n); app.processEvents()\n"
+        "    res.append((lbl.text(), w._broken_notice.isVisible()))\n"
+        "print(res)\n"
+    )
+    assert out == "[('', False), ('1 enlace roto', True), ('30 enlaces rotos', True)]"
+
+
+def test_status_tag_and_close_all_are_kept() -> None:
+    out = run("w, _ = make()\nprint(w.output_status.text(), hasattr(w, 'close_all_btn'))\n")
+    assert out == "en espera True"
+
+
+def test_title_uses_tracking_like_the_playlists_title() -> None:
+    out = run(
+        "w, _ = make()\n"
+        "print(w.findChild(QLabel, 'preview_title').font().letterSpacing() < 0)\n"
+    )
+    assert out == "True"
+
+
+def test_preview_has_no_outer_border_and_cards_sit_on_bg() -> None:
+    out = run(
+        "import styles\n"
+        "from PySide6.QtGui import QColor\n"
+        "w, _ = make(); w.resize(980, 760); fill(w, [(3, 0), (3, 0)])\n"
+        "cards = sorted(w.findChildren(__import__('preview_card').PreviewGroupCard),\n"
+        "               key=lambda c: c.mapTo(w, c.rect().topLeft()).y())\n"
+        "a, b = cards[0], cards[1]\n"
+        "gap_y = (a.mapTo(w, a.rect().bottomLeft()).y() + b.mapTo(w, b.rect().topLeft()).y()) // 2\n"
+        "x = a.mapTo(w, a.rect().center()).x()\n"
+        "px = w.grab().toImage().pixelColor(x, gap_y).name()\n"
+        "print(px == QColor(styles.token('dark', 'bg')).name(), w.preview_layout.spacing())\n"
+    )
+    assert out == "True 14"

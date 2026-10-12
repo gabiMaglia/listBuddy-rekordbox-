@@ -57,7 +57,7 @@ from db import playlist_song_count as rb_song_count
 import icons
 from branding import APP_NAME
 from preview_card import PreviewGroupCard
-from row_blocks import ALL_BROKEN, MISSING_NOTE, NONE, block_positions, ext_chip_text
+from row_blocks import ALL_BROKEN, MISSING_NOTE, NONE, block_positions, broken_notice_text, ext_chip_text
 from playlist_filter import matches
 from styles import apply_title_tracking, status_style, token
 from worker import ExportWorker
@@ -765,23 +765,44 @@ class MainWindow(QMainWindow):
         col.setObjectName("right_col")
         col.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         lo = QVBoxLayout(col)
-        lo.setContentsMargins(20, 18, 20, 18)
-        lo.setSpacing(10)
+        lo.setContentsMargins(20, 16, 20, 0)
+        lo.setSpacing(12)
 
-        # Eyebrow + status
+        # Título + subtítulo + aviso de rotos + estado
         head_row = QWidget()
         head_row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         hl = QHBoxLayout(head_row)
         hl.setContentsMargins(0, 0, 0, 0)
         hl.setSpacing(8)
-        ey = QLabel("SALIDA · VISTA PREVIA")
-        ey.setObjectName("output_eyebrow")
-        hl.addWidget(ey)
-        hl.addSpacing(14)
+        title = QLabel("Vista previa de la salida")
+        title.setObjectName("preview_title")
+        apply_title_tracking(title, 17)
+        sub = QLabel("Así van a quedar las carpetas en el destino")
+        sub.setObjectName("preview_subtitle")
+        hl.addWidget(title, 0, Qt.AlignmentFlag.AlignBottom)
+        hl.addSpacing(6)
+        hl.addWidget(sub, 0, Qt.AlignmentFlag.AlignBottom)
+        hl.addStretch(1)
+
+        # Aviso «N enlaces rotos»: sigue al total de la vista previa (_set_broken_total).
+        self._broken_notice = QWidget()
+        self._broken_notice.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        bn = QHBoxLayout(self._broken_notice)
+        bn.setContentsMargins(0, 0, 0, 0)
+        bn.setSpacing(6)
+        bn_icon = QLabel()
+        bn_icon.setObjectName("broken_notice_icon")
+        self._tint_icon(bn_icon, "warning", "danger", 14)
+        self._broken_notice_label = QLabel("")
+        self._broken_notice_label.setObjectName("broken_notice_label")
+        bn.addWidget(bn_icon)
+        bn.addWidget(self._broken_notice_label)
+        self._broken_notice.setVisible(False)
+        hl.addWidget(self._broken_notice)
+
         self.output_status = QLabel("en espera")
         self.output_status.setObjectName("output_status_tag")
         hl.addWidget(self.output_status)
-        hl.addStretch(1)
 
         # T-015: "cerrar todas" — reusa _set_all(False), el mismo handler que
         # ya usa el botón "Ninguna" del árbol izquierdo (ui.py _build_playlists_header).
@@ -803,25 +824,6 @@ class MainWindow(QMainWindow):
         panel_lo.setContentsMargins(0, 0, 0, 0)
         panel_lo.setSpacing(0)
 
-        # Panel header — destination path
-        self.output_head = QWidget()
-        self.output_head.setObjectName("output_head")
-        self.output_head.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        oh = QHBoxLayout(self.output_head)
-        oh.setContentsMargins(14, 10, 14, 10)
-        oh.setSpacing(8)
-        fi = QLabel()
-        fi.setObjectName("output_folder_icon")
-        self._tint_icon(fi, "folder", "accent", 15)
-        self.output_path_label = QLabel("Sin carpeta seleccionada")
-        self.output_path_label.setObjectName("output_path_label")
-        self.output_path_label.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
-        )
-        oh.addWidget(fi)
-        oh.addWidget(self.output_path_label, 1)
-        panel_lo.addWidget(self.output_head)
-
         # Preview scroll (idle/selecting)
         self.preview_scroll = QScrollArea()
         self.preview_scroll.setObjectName("preview_scroll")
@@ -835,8 +837,8 @@ class MainWindow(QMainWindow):
         self.preview_container = QWidget()
         self.preview_container.setObjectName("preview_container")
         self.preview_layout = QVBoxLayout(self.preview_container)
-        self.preview_layout.setContentsMargins(12, 10, 12, 10)
-        self.preview_layout.setSpacing(10)
+        self.preview_layout.setContentsMargins(0, 0, 0, 20)
+        self.preview_layout.setSpacing(14)
         self.preview_scroll.setWidget(self.preview_container)
         panel_lo.addWidget(self.preview_scroll, 1)
 
@@ -1275,6 +1277,10 @@ class MainWindow(QMainWindow):
     def _set_broken_total(self, n: int) -> None:
         self._broken_total = n
         self._maint_btn.set_broken(n)
+        notice = getattr(self, "_broken_notice", None)
+        if notice is not None:
+            self._broken_notice_label.setText(broken_notice_text(n))
+            notice.setVisible(n > 0)
         # El badge cambia el ancho del header: sin re-medir, Sora (más ancha) lo recortaba.
         self._fit_header()
 
@@ -1808,11 +1814,7 @@ class MainWindow(QMainWindow):
 
     def _on_path_changed(self, text: str) -> None:
         if text.strip():
-            display = text if len(text) <= 52 else "…" + text[-50:]
-            self.output_path_label.setText(display)
             self.settings.setValue("last_dest_folder", text.strip())
-        else:
-            self.output_path_label.setText("Sin carpeta seleccionada")
 
     def _set_all(self, checked: bool, only_visible: bool = False) -> None:
         for card in self._all_cards:
