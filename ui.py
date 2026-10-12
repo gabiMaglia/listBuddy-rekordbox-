@@ -11,6 +11,7 @@ import itertools
 import os
 import sys
 from io import BytesIO
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Literal
 
@@ -55,7 +56,8 @@ from db import open_database as rb_open_database
 from db import playlist_song_count as rb_song_count
 import icons
 from branding import APP_NAME
-from row_blocks import MISSING_NOTE, NONE, block_positions, ext_chip_text
+from preview_card import PreviewGroupCard
+from row_blocks import ALL_BROKEN, MISSING_NOTE, NONE, block_positions, ext_chip_text
 from playlist_filter import matches
 from styles import apply_title_tracking, status_style, token
 from worker import ExportWorker
@@ -1445,19 +1447,46 @@ class MainWindow(QMainWindow):
         if last and last.spacerItem():
             lo.removeItem(last)
 
-        # Renderizar cabecera del grupo y añadir con fade-in
-        grp, files_layout = self._render_group_header(data)
-        lo.addWidget(grp)
+        # T-015: ✕ destilda el mismo checkbox del árbol (`data.card`, que setChecked()
+        # no avisa por señal: _close_group_card actualiza los números a mano).
+        card = PreviewGroupCard(data, self._theme)
+        if data.card is not None:
+            card.close_requested.connect(partial(self._close_group_card, data.card))
+        card.repair_requested.connect(partial(self._on_card_repair, False, data))
+        card.auto_resolve_requested.connect(partial(self._on_card_repair, True, data))
+        lo.addWidget(card)
         lo.addStretch(1)
-        self._animate_fade_in(grp, duration=180)
+        self._animate_fade_in(card, duration=180)
 
-        # Filas: en lotes de 15 para no bloquear el event loop
+        # Filas: en lotes de 15 para no bloquear el event loop. Una carpeta 100 % rota
+        # nace colapsada y no crea sus filas hasta que se expande (D4).
         positions = block_positions([t.exists for t in data.tracks])
-        self._batch_rows(list(zip(data.tracks, positions)), files_layout, gen, batch=15)
+        rows = list(zip(data.tracks, positions))
+        if card.state == ALL_BROKEN:
+            card.expand_toggled.connect(partial(self._on_card_expand, card, rows, gen))
+        else:
+            self._batch_rows(rows, card.files_layout, gen, batch=15)
 
         # Continuar con el siguiente grupo en el próximo tick
         if self._render_queue:
             QTimer.singleShot(0, self._pump_render_queue)
+
+    def _on_card_expand(
+        self, card: PreviewGroupCard, rows: list[tuple[TrackRow, str]], gen: int, on: bool,
+    ) -> None:
+        if not on or card.rows_built or gen != self._render_gen:
+            return                       # contraer no destruye; una generación vieja no dibuja
+        card.rows_built = True
+        self._batch_rows(list(rows), card.files_layout, gen, batch=15)
+
+    def _on_card_repair(self, auto: bool, data: GroupData) -> None:
+        """Botonera de la tarjeta (D1 del PO): actúa SOLO sobre los rotos de esa carpeta."""
+        if self._relocate_state != "idle":
+            return
+        paths = frozenset(t.raw_path for t in data.tracks if not t.exists and t.raw_path)
+        if not paths:
+            return                       # alcance vacío: nunca degradar a «toda la librería»
+        self._start_relocate(scope=RelocateScope(data.name, paths), auto_resolve=auto)
 
     def _batch_rows(
         self,
@@ -1515,86 +1544,6 @@ class MainWindow(QMainWindow):
         el.addWidget(sub)
         el.addStretch(1)
         lo.addWidget(empty)
-
-    def _render_group_header(self, data: GroupData) -> tuple[QWidget, QVBoxLayout]:
-        """
-        Crea el widget del grupo con la cabecera y el scroll vacío.
-        Devuelve (grp_widget, files_layout) para que _batch_rows llene las filas.
-        Rápido: solo ~10 widgets, sin I/O.
-        """
-        grp = QWidget()
-        grp.setObjectName("output_grp")
-        grp.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        gl = QVBoxLayout(grp)
-        # Bottom margin exposes the group's rounded corners below the scroll area
-        gl.setContentsMargins(0, 0, 0, 8)
-        gl.setSpacing(0)
-
-        head = QWidget()
-        head.setObjectName("output_grp_head")
-        head.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        hl = QHBoxLayout(head)
-        hl.setContentsMargins(13, 9, 13, 9)
-        hl.setSpacing(8)
-
-        has_missing = data.missing_count > 0
-        badge = QLabel(
-            f"{str(data.order).zfill(2)} ⚠" if has_missing else str(data.order).zfill(2)
-        )
-        badge.setObjectName("output_grp_badge_warn" if has_missing else "output_grp_badge")
-        badge.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        hl.addWidget(badge)
-
-        folder_ic = QLabel()
-        folder_ic.setObjectName("output_grp_folder_icon")
-        self._tint_icon(folder_ic, "folder", "accent", 14)
-        hl.addWidget(folder_ic)
-
-        fname_lbl = QLabel(f"{data.name} /")
-        fname_lbl.setObjectName("output_grp_fname")
-        hl.addWidget(fname_lbl, 1)
-
-        cnt_lbl = QLabel(f"{data.total_count} archivos")
-        cnt_lbl.setObjectName("output_grp_cnt")
-        hl.addWidget(cnt_lbl)
-
-        # T-015: atajo al mismo checkbox del árbol izquierdo — no es una
-        # lógica de "cerrado" nueva, solo destilda `data.card` (poblado en
-        # _extract_preview_data). setChecked() por sí solo NO emite `toggled`
-        # (confirmado en PlaylistCard.setChecked — solo _refresh()), por eso
-        # _close_group_card llama _update_order_numbers() a mano, igual que
-        # ya hace _set_all() para el mismo caso.
-        if data.card is not None:
-            close_btn = QPushButton()
-            self._tint_icon(close_btn, "close", "muted", 12)
-            close_btn.setObjectName("output_grp_close_btn")
-            close_btn.setToolTip("Sacar esta playlist de la cola (destilda en la lista)")
-            close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            close_btn.clicked.connect(
-                lambda _checked=False, card=data.card: self._close_group_card(card)
-            )
-            hl.addWidget(close_btn)
-
-        gl.addWidget(head)
-
-        inner_scroll = QScrollArea()
-        inner_scroll.setObjectName("grp_inner_scroll")
-        inner_scroll.setWidgetResizable(True)
-        inner_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        inner_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        inner_scroll.setFixedHeight(160)
-        inner_scroll.viewport().setObjectName("grp_inner_scroll_vp")
-
-        files_widget = QWidget()
-        files_widget.setObjectName("grp_files_container")
-        files_layout = QVBoxLayout(files_widget)
-        files_layout.setContentsMargins(0, 2, 0, 4)
-        files_layout.setSpacing(0)
-
-        inner_scroll.setWidget(files_widget)
-        gl.addWidget(inner_scroll)
-
-        return grp, files_layout
 
     def _make_row_widget(self, track: TrackRow, block_pos: str = NONE) -> QWidget:
         """Una fila de archivo. Llamado desde _batch_rows."""
