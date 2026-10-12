@@ -29,5 +29,6 @@ def test_ext_chip_text_is_uppercase_without_dot() -> None:
     assert rb.ext_chip_text(".") == ""
 
 
-def test_missing_note_is_the_design_text() -> None:
-    assert rb.MISSING_NOTE == " · archivo no encontrado"
+def test_there_is_no_missing_note_text_anymore() -> None:
+    # El PO la sacó (2026-10-12): el estado se dice con el ícono «Enlace roto».
+    assert not hasattr(rb, "MISSING_NOTE")

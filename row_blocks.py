@@ -15,7 +15,6 @@ END = "end"
 BLOCK_RADIUS = 8
 
 OK, PARTIAL, ALL_BROKEN, EMPTY = "ok", "partial", "all_broken", "empty"
-MISSING_NOTE = " · archivo no encontrado"
 
 
 def group_state(total: int, missing: int) -> str:
