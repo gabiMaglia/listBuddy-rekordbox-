@@ -13,8 +13,6 @@ from PySide6.QtGui import (
     QFontMetrics,
     QMouseEvent,
     QPainter,
-    QPainterPath,
-    QPixmap,
 )
 from PySide6.QtWidgets import (
     QDialog,
@@ -155,44 +153,7 @@ class ClickableLabel(QLabel):
         super().mousePressEvent(event)
 
 
-# ──────────────────────────── Rack-head con espectrograma de fondo ────────
-
-class RackHead(QWidget):
-    """
-    Banner del rack con un espectrograma tenue pintado detrás del contenido.
-    super().paintEvent() dibuja el fondo del QSS; encima va el pixmap clippeado
-    al borde redondeado. Los hijos (nota, brand, VU) pintan después, arriba.
-    """
-
-    _RADIUS = 12.0
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._spectro: QPixmap | None = None
-
-    def set_spectrogram(self, pixmap: QPixmap | None) -> None:
-        self._spectro = pixmap
-        self.update()
-
-    def paintEvent(self, event) -> None:
-        super().paintEvent(event)               # fondo + borde del QSS
-        if self._spectro is None:
-            return
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        path = QPainterPath()
-        rect = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
-        path.addRoundedRect(rect, self._RADIUS, self._RADIUS)
-        p.setClipPath(path)
-        scaled = self._spectro.scaled(
-            self.size(),
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        p.drawPixmap(0, 0, scaled)
-
-
-# ──────────────────────────────────────── File row (clickable) ───────────
+# ─────────────────────────────────── Etiqueta con elipsis (footer, T-063) ────
 
 class ElidedLabel(QLabel):
     """QLabel con elipsis (inicio o final) y tooltip = texto completo."""

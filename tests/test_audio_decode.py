@@ -68,14 +68,3 @@ def test_odd_length_buffer_is_trimmed() -> None:
     print(ad.buffer_to_mono(make(raw, SF.Int16, 1)).tolist())
     """)
     assert out == "[0.5]"
-
-
-def test_render_returns_pyside6_qimage() -> None:
-    out = _run("""
-    from PySide6.QtGui import QImage
-    import spectro_worker as sw
-    w = sw.SpectrogramWorker("x.mp3", 8, 4, (1, 2, 3), 0)
-    img = w._render(np.ones((3, 5), np.float32))
-    print(isinstance(img, QImage), img.width(), img.height(), img.pixelColor(0, 0).alpha())
-    """)
-    assert out == "True 8 4 150"

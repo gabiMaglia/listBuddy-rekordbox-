@@ -87,15 +87,6 @@ QPushButton#winctl_close:hover { background: @{danger_soft}; color: @{danger}; }
 /* ── Body ── */
 QWidget#body_widget { background: @{bg}; }
 
-/* ── Rack head ── */
-QWidget#rack_head { background: @{surface}; border: 1.5px solid @{line}; border-radius: 12px; }
-QLabel#brand_logo_text {
-    background: @{accent}; border-radius: 8px; border: 1.5px solid @{accent};
-    color: @{on_accent};
-}
-QLabel#brand_logo_text:hover { background: @{accent}; }
-QLabel#rack_np_title { font-size: 11px; font-weight: 600; color: @{text}; background: transparent; }
-QLabel#rack_np_artist { font-size: 11px; color: @{muted}; background: transparent; }
 QLabel#brand_sub {
     font-family: "JetBrains Mono"; font-size: 11px;
     letter-spacing: 1px; color: @{muted}; background: transparent;
@@ -105,24 +96,6 @@ QLabel#brand_sub {
 QLabel#eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: @{muted}; background: transparent; }
 
 /* ── Source switcher ── */
-
-/* ── Destination ── */
-QWidget#path_row_widget {
-    background: @{surface}; border: 1.5px solid @{line}; border-radius: 8px;
-    min-height: 42px; max-height: 42px;
-}
-QLabel#path_folder_icon { color: @{accent}; }
-QLineEdit#folder_edit {
-    background: transparent; border: none; color: @{text}; font-size: 13px; padding: 0;
-    selection-background-color: @{sel_bg};
-}
-QLineEdit#folder_edit:focus { border: none; }
-QPushButton#browse_btn {
-    background: @{surface2}; border: 1.5px solid @{line}; border-radius: 8px;
-    color: @{text}; font-size: 12px; font-weight: 600;
-    padding: 4px 11px; min-height: 28px; max-height: 28px;
-}
-QPushButton#browse_btn:hover { background: @{row_line}; }
 
 /* ── Playlists header ── */
 QLabel#count_pill {
@@ -171,30 +144,6 @@ QWidget#group_header {
 QLabel#group_icon  { color: @{accent}; background: transparent; }
 QLabel#group_title { font-size: 13px; font-weight: 600; color: @{text}; background: transparent; }
 QWidget#group_body { background: transparent; }
-
-/* ── Progress ── */
-QProgressBar#progress {
-    background: @{inset}; border: 1px solid @{line}; border-radius: 12px;
-    min-height: 10px; max-height: 10px;
-}
-QProgressBar#progress::chunk {
-    background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 @{accent}, stop:1 @{accent});
-    border-radius: 12px;
-}
-QLabel#prog_label { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; }
-QLabel#prog_pct   { font-family: "JetBrains Mono"; font-size: 11px; font-weight: 600; color: @{accent}; background: transparent; }
-
-/* ── Export widget ── */
-QWidget#export_widget { background: @{accent}; border: 1.5px solid @{accent}; border-radius: 8px; min-height: 50px; }
-QWidget#export_widget[export_disabled="true"] { background: @{surface2}; border-color: @{line}; }
-QLabel#export_badge {
-    background: @{on_accent}; color: @{accent};
-    border-radius: 6px; padding: 2px 9px;
-    font-family: "JetBrains Mono"; font-size: 13px; font-weight: 700;
-}
-QLabel#export_badge[export_disabled="true"] { background: @{inset}; color: @{muted}; }
-QLabel#export_text { color: @{on_accent}; font-size: 14px; font-weight: 700; background: transparent; }
-QLabel#export_text[export_disabled="true"] { color: @{muted}; }
 
 /* ── Output panel ── */
 QLabel#output_eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: @{muted}; background: transparent; }
@@ -306,16 +255,6 @@ QPushButton#close_dialog_btn:hover { background: @{row_line}; }
 
 /* ── Título de diálogos ── */
 QLabel#dialog_title { font-family: "Fraunces"; font-size: 17px; font-weight: 600; background: transparent; }
-
-/* ── Seek bar ── */
-QLabel#seek_time { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; }
-
-/* ── Finder button ── */
-QPushButton#finder_btn {
-    background: transparent; border: 1px solid @{row_line}; border-radius: 6px;
-    color: @{accent}; font-size: 11px; padding: 1px 8px;
-}
-QPushButton#finder_btn:hover { background: @{sel_bg}; }
 
 /* ── Settings ── */
 
