@@ -83,8 +83,8 @@ CHECK = '''
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QCheckBox
 def tick_pixels(theme):
-    styles.apply_theme(app, theme)
     w, _ = make()
+    w._apply_theme(theme); w._toggle_settings(True); app.processEvents()
     chk = w._auto_advance_chk
     chk.setChecked(True); chk.show(); app.processEvents()
     img = chk.grab().toImage()
