@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
-    QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
+    QHBoxLayout, QLabel, QPushButton, QScrollArea, QScrollBar, QSizePolicy, QVBoxLayout, QWidget,
 )
 
 import icons
@@ -16,6 +16,12 @@ from styles import apply_caps_tracking, token
 from ui_components import broken_badge_text
 
 ROW_HEIGHT = 38
+# Anchos compartidos con las filas (ui._make_row_widget) para que la cabecera de columnas alinee.
+IDX_W = 56
+CHIP_W = 56
+NOTE_W = 150    # «· archivo no encontrado»
+WARN_W = 16
+ROW_GAP = 12
 ROWS_VISIBLE_HEIGHT = 190   # ≈ 5 filas de 38 px (D2): las demás se alcanzan con el scroll interno
 
 
@@ -31,6 +37,7 @@ class PreviewGroupCard(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.state = rb.group_state(len(data.tracks), data.missing_count)
         self.rows_built = False
+        self.scroll_bar_width = QScrollBar().sizeHint().width()
         self._expanded = self.state != rb.ALL_BROKEN
         self._theme = theme
         n_broken = data.missing_count
@@ -106,9 +113,13 @@ class PreviewGroupCard(QWidget):
         self.cols.setObjectName("card_cols")
         self.cols.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         cl = QHBoxLayout(self.cols)
-        cl.setContentsMargins(14, 6, 14, 6)
-        cl.setSpacing(12)
-        for text, width, stretch in (("NÚMERO", 56, 0), ("TÍTULO — ARTISTA", 0, 1), ("FORMATO", 0, 0)):
+        # Si el scroll interno muestra barra, las filas son más angostas: la cabecera cede lo mismo.
+        bar_w = self.scroll_bar_width if len(data.tracks) * ROW_HEIGHT > ROWS_VISIBLE_HEIGHT else 0
+        cl.setContentsMargins(14, 6, 14 + bar_w, 6)
+        cl.setSpacing(ROW_GAP)
+        for text, width, stretch in (
+            ("NÚMERO", IDX_W, 0), ("TÍTULO — ARTISTA", 0, 1), ("FORMATO", CHIP_W, 0),
+        ):
             lbl = QLabel(text)
             lbl.setObjectName("card_col_label")
             if width:

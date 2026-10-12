@@ -219,7 +219,7 @@ QWidget#grp_files_container  { background: @{surface}; }
 /* File rows */
 QWidget#output_file_row { background: transparent; }
 QWidget#output_file_row[file_missing="false"]:hover { background: @{surface2}; }
-QLabel#output_file_idx  { font-family: "JetBrains Mono"; font-size: 12px; font-weight: 400; color: @{muted}; min-width: 56px; max-width: 56px; background: transparent; }
+QLabel#output_file_idx  { font-family: "JetBrains Mono"; font-size: 12px; font-weight: 400; color: @{muted}; background: transparent; }
 QLabel#output_file_name   { font-family: "Public Sans"; font-size: 13px; font-weight: 500; color: @{text}; background: transparent; }
 QLabel#output_file_artist { font-family: "Public Sans"; font-size: 13px; color: @{muted}; background: transparent; }
 QLabel#output_file_ext    {
