@@ -39,7 +39,7 @@ QScrollBar:horizontal { height: 0; }
 
 /* ── Header bar ── */
 QWidget#header_bar { background: @{header}; border-bottom: 1px solid @{line}; }
-QLabel#header_title { font-family: "Fraunces"; font-size: 20px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#header_title { font-family: "Sora"; font-size: 20px; font-weight: 700; color: @{text}; background: transparent; }
 QLabel#header_np_track {
     font-size: 12px; font-weight: 600; color: @{text}; background: transparent;
 }
@@ -215,7 +215,8 @@ QLabel#output_file_ext    { font-family: "JetBrains Mono"; font-size: 12px; colo
 QLabel#output_file_more   { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; padding: 5px 13px 7px; }
 
 /* Missing files */
-QWidget#output_file_row[file_missing="true"]    { background: @{broken_bg}; }
+/* El fondo y el borde del bloque de rotos los pinta FileRow.paintEvent (estilo D). */
+QWidget#output_file_row[file_missing="true"]    { background: transparent; }
 QLabel#output_file_idx[file_missing="true"]     { color: @{danger}; }
 QLabel#output_file_name[file_missing="true"]    { color: @{danger}; }
 QLabel#output_file_artist[file_missing="true"]  { color: @{danger}; }
@@ -254,7 +255,7 @@ QPushButton#close_dialog_btn {
 QPushButton#close_dialog_btn:hover { background: @{row_line}; }
 
 /* ── Título de diálogos ── */
-QLabel#dialog_title { font-family: "Fraunces"; font-size: 17px; font-weight: 600; background: transparent; }
+QLabel#dialog_title { font-family: "Sora"; font-size: 17px; font-weight: 600; background: transparent; }
 
 /* ── Settings ── */
 
@@ -265,7 +266,7 @@ QPushButton#settings_back {
     color: @{text}; font-size: 12px; font-weight: 600; padding: 5px 13px;
 }
 QPushButton#settings_back:hover { background: @{row_line}; }
-QLabel#settings_title { font-family: "Fraunces"; font-size: 17px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#settings_title { font-family: "Sora"; font-size: 17px; font-weight: 600; color: @{text}; background: transparent; }
 
 QWidget#settings_card { background: @{surface}; border: 1.5px solid @{row_line}; border-radius: 12px; }
 QLabel#settings_section {

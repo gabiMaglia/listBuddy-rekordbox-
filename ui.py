@@ -54,7 +54,9 @@ from db import get_playlist_tree as rb_get_playlist_tree
 from db import open_database as rb_open_database
 from db import playlist_song_count as rb_song_count
 import icons
-from styles import status_style, token
+from branding import APP_NAME
+from row_blocks import NONE, block_positions
+from styles import apply_title_tracking, status_style, token
 from worker import ExportWorker
 from ui_components import (
     ClickableLabel,
@@ -125,16 +127,17 @@ class DonationDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("donation_dialog")
-        self.setWindowTitle("Apoyar — listBuddy")
+        self.setWindowTitle(f"Apoyar — {APP_NAME}")
         self.setFixedSize(310, 400)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(14)
 
-        title = QLabel("¿Te sirvió listBuddy?")
+        title = QLabel(f"¿Te sirvió {APP_NAME}?")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setObjectName("dialog_title")
+        apply_title_tracking(title, 17)
         layout.addWidget(title)
 
         sub = QLabel("Podés invitarme un café en Ko-fi.\nContribución 100 % voluntaria.")
@@ -187,7 +190,7 @@ class DonationDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self, settings_path: Path | None = None) -> None:
         super().__init__()
-        self.setWindowTitle("listBuddy")
+        self.setWindowTitle(APP_NAME)
         # T-016: frameless + chrome propio, solo Windows. macOS conserva el
         # frame nativo (sin tocar) — ver nota de compatibilidad en
         # TitleBar/_build_header. Resize por bordes vía _ResizeGrip
@@ -379,8 +382,9 @@ class MainWindow(QMainWindow):
         bl.setSpacing(10)
         logo = QLabel()
         self._tint_icon(logo, "logo", "accent", 22)
-        title_lbl = QLabel("listBuddy")
+        title_lbl = QLabel(APP_NAME)
         title_lbl.setObjectName("header_title")
+        apply_title_tracking(title_lbl, 20)
         bl.addWidget(logo)
         bl.addWidget(title_lbl)
         lo.addWidget(brand)
@@ -505,6 +509,9 @@ class MainWindow(QMainWindow):
         self._set_header_compact(False)  # medir siempre contra el ancho completo
         bar.layout().invalidate()
         self._set_header_compact(bar.layout().sizeHint().width() > bar.width())
+        self._maint_btn.layout().activate()  # su sizeHint sale de este layout interno
+        bar.layout().invalidate()
+        bar.layout().activate()  # aplicar ya la geometría nueva (sin esperar al próximo evento)
 
     def _set_header_compact(self, compact: bool) -> None:
         self._maint_btn.set_compact(compact)
@@ -839,6 +846,7 @@ class MainWindow(QMainWindow):
         back.clicked.connect(lambda: self._toggle_settings(False))
         title = QLabel("Configuración")
         title.setObjectName("settings_title")
+        apply_title_tracking(title, 17)
         tl.addWidget(back)
         tl.addWidget(title)
         tl.addStretch(1)
@@ -1222,6 +1230,8 @@ class MainWindow(QMainWindow):
     def _set_broken_total(self, n: int) -> None:
         self._broken_total = n
         self._maint_btn.set_broken(n)
+        # El badge cambia el ancho del header: sin re-medir, Sora (más ancha) lo recortaba.
+        self._fit_header()
 
     def _clear_preview_layout(self, immediate: bool = False) -> None:
         """`immediate` destruye ya los widgets (no deleteLater): el cambio de tema
@@ -1400,7 +1410,8 @@ class MainWindow(QMainWindow):
         self._animate_fade_in(grp, duration=180)
 
         # Filas: en lotes de 15 para no bloquear el event loop
-        self._batch_rows(list(data.tracks), files_layout, gen, batch=15)
+        positions = block_positions([t.exists for t in data.tracks])
+        self._batch_rows(list(zip(data.tracks, positions)), files_layout, gen, batch=15)
 
         # Continuar con el siguiente grupo en el próximo tick
         if self._render_queue:
@@ -1408,7 +1419,7 @@ class MainWindow(QMainWindow):
 
     def _batch_rows(
         self,
-        remaining: list[TrackRow],
+        remaining: list[tuple[TrackRow, str]],
         layout: QVBoxLayout,
         gen: int,
         batch: int = 15,
@@ -1420,7 +1431,8 @@ class MainWindow(QMainWindow):
             if not remaining:
                 layout.addStretch(1)
                 return
-            layout.addWidget(self._make_row_widget(remaining.pop(0)))
+            track, pos = remaining.pop(0)
+            layout.addWidget(self._make_row_widget(track, pos))
         if remaining:
             QTimer.singleShot(0, lambda: self._batch_rows(remaining, layout, gen, batch))
         else:
@@ -1542,10 +1554,10 @@ class MainWindow(QMainWindow):
 
         return grp, files_layout
 
-    def _make_row_widget(self, track: TrackRow) -> QWidget:
+    def _make_row_widget(self, track: TrackRow, block_pos: str = NONE) -> QWidget:
         """Crea una única fila de archivo. Llamado desde _batch_rows."""
         missing = not track.exists
-        row = FileRow(track.raw_path, track.exists)
+        row = FileRow(track.raw_path, track.exists, block_pos=block_pos)
         if track.exists:
             row.clicked.connect(self._play_track)
         # Re-aplicar highlight si esta fila corresponde al track sonando
@@ -1556,8 +1568,14 @@ class MainWindow(QMainWindow):
         rl.setContentsMargins(13, 4, 13, 4)
         rl.setSpacing(7)
 
-        idx_lbl = QLabel("✗" if missing else track.num[-2:])
+        idx_lbl = QLabel("" if missing else track.num[-2:])
         idx_lbl.setObjectName("output_file_idx")
+        if missing:
+            # Mismo slot de 28 px que el Nº para no desalinear la columna.
+            idx_lbl.setPixmap(icons.pixmap("warning", token(PlaylistCard._theme, "danger"), 14))
+            idx_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            idx_lbl.setAccessibleName("Archivo faltante")
+            idx_lbl.setToolTip("Archivo faltante")
         idx_lbl.setProperty("file_missing", "true" if missing else "false")
         rl.addWidget(idx_lbl)
 

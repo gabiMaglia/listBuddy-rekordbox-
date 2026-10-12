@@ -19,6 +19,8 @@ import traceback
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+from branding import APP_NAME
+
 _LOGGER = "listBuddy"
 
 
@@ -84,7 +86,7 @@ def install_excepthook() -> None:
                 return
             box = QMessageBox(QApplication.activeWindow())
             box.setIcon(QMessageBox.Icon.Warning)
-            box.setWindowTitle("listBuddy — error inesperado")
+            box.setWindowTitle(f"{APP_NAME} — error inesperado")
             box.setText("Ocurrió un error inesperado, pero la app sigue funcionando.")
             box.setInformativeText(f"{exc_type.__name__}: {exc_value}")
             box.setDetailedText(tb_text)

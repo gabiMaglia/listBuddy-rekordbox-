@@ -8,7 +8,7 @@ from PySide6.QtSvg import QSvgRenderer
 ICON_NAMES: tuple[str, ...] = (
     "sun", "moon", "heart", "gear", "folder", "note",
     "play", "pause", "close", "chevron_right",
-    "wrench", "logo", "dot", "arrow_right",
+    "wrench", "logo", "dot", "arrow_right", "warning",
 )
 
 # Grilla 24x24; `{c}` se reemplaza por el color (también para los rellenos de play/pause).
@@ -49,6 +49,10 @@ _PATHS: dict[str, str] = {
         '<rect x="18" y="13" width="3" height="7" rx="1" fill="{c}" stroke="none"/>'
     ),
     "dot": '<circle cx="12" cy="12" r="6" fill="{c}" stroke="none"/>',
+    "warning": (
+        '<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>'
+        '<path d="M12 9v4M12 17h.01"/>'
+    ),
     "arrow_right": '<path d="M5 12h14M13 6l6 6-6 6"/>',
 }
 

@@ -69,7 +69,7 @@ def test_brand_appears_exactly_once() -> None:
     out = run(
         "from PySide6.QtWidgets import QLabel\n"
         "w, _ = make()\n"
-        "print(sum(1 for l in w.findChildren(QLabel) if l.text() == 'listBuddy'))\n"
+        "print(sum(1 for l in w.findChildren(QLabel) if l.text() == 'List Buddy'))\n"
     )
     assert out.split()[-1] == "1"  # hoy son 2 (header_title + brand_name del rack head)
 
