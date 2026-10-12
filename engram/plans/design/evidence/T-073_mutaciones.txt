@@ -1,0 +1,11 @@
+1 scope_contains siempre True: ROJO ['FAILED tests/test_relocate_scope.py::TestRelocateScope::test_scope_contains_only_its_paths']
+2 alcance vacío = global: ROJO ['FAILED tests/test_relocate_scope.py::TestRelocateScope::test_empty_scope_contains_nothing_it_is_not_global']
+3 Traktor run sin scope: ROJO ['FAILED tests/test_relocate_scope.py::TestTraktorWorkerScoped::test_only_the_scoped_track_is_repaired_the_other_is_untouched']
+4 Rekordbox run sin scope: ROJO ['FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_only_the_scoped_track_is_repaired_the_other_is_untouched']
+5 filtro después del exists (Traktor): ROJO ['FAILED tests/test_relocate_scope.py::TestTraktorFindBrokenScoped::test_out_of_scope_entries_never_hit_the_disk']
+5b filtro después del resolve (Rekordbox): ROJO ['FAILED tests/test_relocate_scope.py::TestRekordboxFindBrokenScoped::test_out_of_scope_content_never_hits_the_disk']
+6 write antes del backup (Traktor): ROJO ['FAILED tests/test_relocate_scope.py::TestBackupBeforeFirstWriteWithScope::test_traktor_backup_then_write_and_real_backup_has_original_bytes']
+7 sin confirmación con scope: ROJO ['FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_scoped_auto_resolve_confirms_with_count_name_and_shared_note']
+8 lee el tilde con scope: ROJO ['FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_scoped_run_asks_even_with_the_menu_tick_off_and_ignores_the_tick']
+9 nombre ausente en el diálogo: ROJO ['FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_scoped_auto_resolve_confirms_with_count_name_and_shared_note']
+(cada mutación restaurada con git checkout)
