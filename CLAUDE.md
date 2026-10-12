@@ -278,8 +278,8 @@ pyinstaller rb_exporter.spec
 ## Tests (T-075)
 
 ```bash
-python -m pytest -q          # ~115 s en serie
-python -m pytest -q -n 4     # ~40 s con pytest-xdist (requirements-dev.txt)
+python -m pytest -q          # ~45 s: pytest.ini fija -n 4 (pytest-xdist, requirements-dev.txt)
+python -m pytest -q -n 0     # en serie, ~2-2,5 min (para depurar un test)
 ```
 
 - Los tests de Qt corren en un intérprete **aparte** del de pytest (aislamiento de binding, T-033: PyQt6 sigue instalado en el venv y nunca deben convivir dos Qt en un proceso).
