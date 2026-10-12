@@ -6,6 +6,7 @@ from typing import ClassVar, List
 
 import icons
 import styles
+from preview_worker import TrackRow
 from row_blocks import NONE, border_sides, corner_radii
 
 from PySide6.QtCore import QEvent, QPoint, QRectF, QSize, Qt, Signal
@@ -227,6 +228,7 @@ class FileRow(QWidget):
         super().__init__(parent)
         self._raw_path = raw_path
         self._exists = exists
+        self.track: TrackRow | None = None   # el dato de la fila (lo fija MainWindow)
         self.block_pos = block_pos if not exists else NONE
         self.setObjectName("output_file_row")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)

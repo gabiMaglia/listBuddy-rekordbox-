@@ -237,7 +237,6 @@ class MainWindow(QMainWindow):
         # (widget, ícono, token de color, tamaño): se re-tiñen al cambiar de tema
         self._themed_icons: list[tuple[QWidget, str, str, int]] = []
         self._playing_row: FileRow | None = None
-        self._play_order: list[tuple[str, FileRow]] = []   # (raw_path, row) en orden
 
         # ── Forma de onda del footer ─────────────────────────────────────
         self._wave_worker: WaveformWorker | None = None
@@ -1287,7 +1286,6 @@ class MainWindow(QMainWindow):
         # Las filas se destruyen acá (deleteLater); soltar la ref al row sonando
         # para no tocar un objeto C++ borrado en el próximo click (→ abort de Qt).
         self._playing_row = None
-        self._play_order.clear()
         lo = self.preview_layout
         while lo.count():
             item = lo.takeAt(0)
@@ -1640,9 +1638,7 @@ class MainWindow(QMainWindow):
             ext_lbl.setProperty("file_missing", "true" if missing else "false")
             rl.addWidget(ext_lbl)
 
-        if track.exists and track.raw_path:
-            self._play_order.append((track.raw_path, row))
-
+        row.track = track
         return row
 
     # ──────────────────────────────────── Audio playback ─────────────────
@@ -1670,6 +1666,7 @@ class MainWindow(QMainWindow):
         row: FileRow | None,
         raw_path: str,
         allow_toggle: bool = True,
+        track: TrackRow | None = None,
     ) -> None:
         # Click en la fila que ya suena → pausa/reanuda en vez de reiniciar
         if allow_toggle and raw_path and raw_path == self._playing_path \
@@ -1695,31 +1692,14 @@ class MainWindow(QMainWindow):
             self._set_row_playing(row, True)
             self._playing_row = row
 
-        self._update_now_playing(row)
+        self._update_now_playing(track or getattr(row, "track", None))
         self._start_waveform(resolved)
 
-    def _update_now_playing(self, row: FileRow | None = None) -> None:
-        """Extrae título y artista del FileRow activo y los muestra en el header."""
-        title = artist = ""
-        if row is not None:
-            try:
-                lo = row.layout()
-                if lo:
-                    for i in range(lo.count()):
-                        w = lo.itemAt(i).widget()
-                        if not w:
-                            continue
-                        obj = w.objectName()
-                        if obj == "output_file_name":
-                            # Formato: "001 - Title"  →  extraer Title
-                            txt = w.text()
-                            parts = txt.split(" - ", 1)
-                            title = parts[1] if len(parts) > 1 else txt
-                        elif obj == "output_file_artist":
-                            artist = w.text().lstrip("— ").strip()
-            except RuntimeError:
-                pass
-        self._footer.set_now_playing(title, artist)
+    def _update_now_playing(self, track: TrackRow | None = None) -> None:
+        """Título y artista del footer salen del dato de la pista, no de las filas."""
+        self._footer.set_now_playing(
+            track.title if track else "", track.artist if track else "",
+        )
 
     def _on_playing_changed(self, playing: bool) -> None:
         self._is_playing = playing
@@ -1759,19 +1739,36 @@ class MainWindow(QMainWindow):
             return
         self._audio.toggle()
 
+    def _playable_tracks(self) -> list[TrackRow]:
+        """Pistas reproducibles en orden de cola, leídas de los DATOS y no de las filas:
+        el cambio de tema destruye las filas y las reconstruye por lotes (T-070), pero
+        `_apply_theme` repone estos grupos de forma síncrona, así que nunca quedan
+        vacíos (T-072)."""
+        return [
+            t for g in (*self._rendered_groups, *self._render_queue)
+            for t in g.tracks if t.exists and t.raw_path
+        ]
+
+    def _row_for(self, raw_path: str) -> FileRow | None:
+        for row in self.preview_container.findChildren(FileRow):
+            try:
+                if row._raw_path == raw_path:
+                    return row
+            except RuntimeError:
+                continue
+        return None   # aún no dibujada: _make_row_widget la resalta cuando aparezca
+
     def _on_track_finished(self) -> None:
         """Reproduce el siguiente track existente de la cola, si lo hay."""
-        if not self._auto_advance or not self._play_order:
+        if not self._auto_advance:
             return
-        idx = next(
-            (i for i, (rp, _) in enumerate(self._play_order)
-             if rp == self._playing_path),
-            -1,
-        )
-        if idx == -1 or idx + 1 >= len(self._play_order):
+        queue = self._playable_tracks()
+        idx = next((i for i, t in enumerate(queue) if t.raw_path == self._playing_path), -1)
+        if idx == -1 or idx + 1 >= len(queue):
             return
-        next_path, next_row = self._play_order[idx + 1]
-        self._play_file_row(next_row, next_path, allow_toggle=False)
+        nxt = queue[idx + 1]
+        self._play_file_row(self._row_for(nxt.raw_path), nxt.raw_path,
+                            allow_toggle=False, track=nxt)
 
     def _on_position_changed(self, pos: int, dur: int) -> None:
         self._footer.set_position(pos, dur)

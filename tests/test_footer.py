@@ -282,13 +282,23 @@ def test_now_playing_reaches_the_footer_and_clears_on_audio_error() -> None:
         "ui.QMessageBox.warning = staticmethod(lambda *a, **k: None)\n"
         "w, _ = make()\n"
         "row = w._make_row_widget(ui.TrackRow('001', 'Glace Circle (Original Mix)', 'DJOKO', 'MP3', 'x.mp3', True))\n"
-        "w._update_now_playing(row)\n"
+        "w._update_now_playing(row.track)\n"
         "a = (w._footer.title_lbl.full_text(), w._footer.artist_lbl.full_text())\n"
         "w._on_audio_error('boom')\n"
         "print(a, repr(w._footer.title_lbl.full_text()), repr(w._footer.artist_lbl.full_text()))\n"
     )
-    # _update_now_playing quita el «001 - » del nombre de la fila (como hoy)
+    # El título sale del dato de la pista: no se quita ningún «001 - » del texto de la fila
     assert out.strip().splitlines()[-1] == "('Glace Circle (Original Mix)', 'DJOKO') '' ''"
+
+
+def test_now_playing_keeps_a_title_that_contains_a_dash_separator() -> None:
+    out = run(
+        "w, _ = make()\n"
+        "row = w._make_row_widget(ui.TrackRow('002', 'A - B', 'X', 'MP3', 'y.mp3', True))\n"
+        "w._update_now_playing(row.track)\n"
+        "print(w._footer.title_lbl.full_text())\n"
+    )
+    assert out.strip().splitlines()[-1] == "A - B"   # el split viejo por « - » lo cortaba
 
 
 def test_playing_state_and_position_reach_the_footer() -> None:
