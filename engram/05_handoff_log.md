@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12 12:10] nerv-orquestador → nerv-desktop T-071 · Niv A
+- T-069/T-070 entregados (gate PASS: tree limpio, suite verde, ini intacto; T-070 4130 → 185 ms, aceptación del PO pendiente). QA de T-069/T-070/T-071 se corre junta al final para no auditar con la rama en movimiento.
+- Entrega: T-071 (Advisory: criterios del backlog = plan): Fraunces → Sora; filas rotas en bloque agrupado (opción D); marca visible «List Buddy». Migrar `engram/plans/design/capture.py` a ini temporal (caveat de T-070).
+- Archivos a leer: `engram/03_backlog.md` (T-071) · `engram/plans/T-061.md` §Correcciones del PO — ronda 1 · `engram/plans/design/` (canvas no accesible: la spec escrita es la fuente) · `fonts/README.md`, `styles.py`, `qss/app.qss`, `ui.py`, `ui_components.py`, `rb_exporter.spec` · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · capturas.
+
 ### [2026-10-12 10:00] nerv-orquestador → nerv-desktop T-069 (Niv A) + T-070 (Niv S)
 - PO probó la app en vivo (T-063): picker OK, «el resto perfecto». Pidió pulidos chicos (T-069) y reportó lentitud al cambiar de tema en macOS (T-070). Fuente de marca/títulos y estilo de filas rotas → opciones renderizadas en paralelo (Orquestador), NO tocar Fraunces ni el estilo de filas rotas en este handoff.
 - Entrega: T-069 (Advisory: criterios = plan) y T-070 (Strong: CÓMO con writing-plans estampado en `engram/plans/T-070.md` antes de corregir; la investigación/medición previa con systematic-debugging SÍ se hace antes del plan).
