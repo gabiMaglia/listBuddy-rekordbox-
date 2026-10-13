@@ -12,11 +12,11 @@
     codesign --force --deep --options runtime \
       --entitlements entitlements.plist \
       --sign "Developer ID Application: <Nombre> (<TEAMID>)" \
-      "dist/listBuddy.app"
+      "dist/List Buddy.app"
 
   Para firma ad-hoc (uso propio, sin Developer ID) el hardened runtime no aplica
   y este archivo no hace falta:
-    codesign --force --deep --sign - "dist/listBuddy.app"
+    codesign --force --deep --sign - "dist/List Buddy.app"
 -->
 <plist version="1.0">
 <dict>
