@@ -1,0 +1,4 @@
+python 3.14.7 | default CA: None
+SIN certifi (contexto default): URLError <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1082)>
+verify_mode 2 check_hostname True
+CON certifi: HTTPError HTTP Error 404: Not Found

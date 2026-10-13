@@ -48,3 +48,80 @@ class TestIsNewer:
     def test_different_length_padding_equal(self):
         # "v1.1" vs "1.1.0" -> misma versión, solo distinto formato
         assert _is_newer((1, 1), (1, 1, 0)) is False
+
+
+# ── T-079: contexto SSL con el CA de certifi ──────────────────────────────
+
+import ssl
+import sys
+import types
+
+import update_checker
+from _qt_isolated import PROJECT_ROOT
+
+
+class TestSslContext:
+    def test_verification_is_never_disabled(self):
+        ctx = update_checker._build_ssl_context()
+        assert ctx.verify_mode == ssl.CERT_REQUIRED
+        assert ctx.check_hostname is True
+
+    def test_uses_certifi_bundle(self, monkeypatch):
+        import certifi
+
+        seen: dict[str, object] = {}
+        real = ssl.create_default_context
+
+        def spy(*args, **kwargs):
+            seen.update(kwargs)
+            return real()
+
+        monkeypatch.setattr(update_checker.ssl, "create_default_context", spy)
+        update_checker._build_ssl_context()
+        assert seen.get("cafile") == certifi.where()
+
+    def test_falls_back_to_default_when_certifi_missing(self, monkeypatch):
+        # None en sys.modules hace que `import certifi` lance ImportError.
+        monkeypatch.setitem(sys.modules, "certifi", None)
+        ctx = update_checker._build_ssl_context()
+        assert ctx.verify_mode == ssl.CERT_REQUIRED
+        assert ctx.check_hostname is True
+
+    def test_falls_back_when_certifi_bundle_unreadable(self, monkeypatch):
+        fake = types.SimpleNamespace(where=lambda: "/no/existe/cacert.pem")
+        monkeypatch.setitem(sys.modules, "certifi", fake)
+        ctx = update_checker._build_ssl_context()
+        assert ctx.verify_mode == ssl.CERT_REQUIRED
+
+    def test_request_passes_context_to_urlopen(self, monkeypatch):
+        captured: dict[str, object] = {}
+
+        def fake_urlopen(req, timeout=None, context=None):
+            captured["context"] = context
+            raise OSError("sin red")
+
+        monkeypatch.setattr(update_checker.urllib.request, "urlopen", fake_urlopen)
+        update_checker.UpdateCheckWorker("1.0.0").run()  # no debe propagar
+        assert isinstance(captured["context"], ssl.SSLContext)
+
+    def test_no_network_is_silent(self, monkeypatch):
+        def boom(*a, **k):
+            raise TimeoutError("timeout")
+
+        monkeypatch.setattr(update_checker.urllib.request, "urlopen", boom)
+        emitted: list[object] = []
+        w = update_checker.UpdateCheckWorker("1.0.0")
+        w.update_available.connect(emitted.append)
+        w.run()
+        assert emitted == []
+
+
+class TestCertifiPackaging:
+    def test_requirements_pin_certifi_exact(self):
+        reqs = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+        assert any(r.startswith("certifi==") for r in reqs)
+
+    def test_spec_collects_certifi(self):
+        spec = (PROJECT_ROOT / "rb_exporter.spec").read_text(encoding="utf-8")
+        assert "collect_data_files('certifi')" in spec
+        assert "'certifi'" in spec

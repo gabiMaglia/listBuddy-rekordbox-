@@ -51,15 +51,16 @@ from PySide6.QtWidgets import (
 from PySide6.QtMultimedia import QMediaDevices
 
 from db import get_playlist_tree as rb_get_playlist_tree
+from db import key_bpm_of
 from db import open_database as rb_open_database
 from db import playlist_song_count as rb_song_count
 import dialogs
 import icons
 from branding import APP_NAME
 from preview_card import (
-    CHIP_W, IDX_W, ROW_GAP, ROW_HEIGHT, WARN_W, PreviewGroupCard,
+    CHIP_W, IDX_W, KEYBPM_W, ROW_GAP, ROW_HEIGHT, WARN_W, PreviewGroupCard,
 )
-from row_blocks import ALL_BROKEN, NONE, block_positions, broken_notice_text, ext_chip_text
+from row_blocks import ALL_BROKEN, NONE, block_positions, broken_notice_text, ext_chip_text, format_key_bpm
 from playlist_filter import matches
 from styles import apply_title_tracking, status_style, token
 from worker import ExportWorker
@@ -1396,6 +1397,7 @@ class MainWindow(QMainWindow):
                     TrackRow(
                         num=t.num, title=t.title, artist=t.artist,
                         ext=t.ext, raw_path=t.raw_path, exists=True,
+                        key=t.key, bpm=t.bpm,
                     )
                     for t in cached
                 ]
@@ -1412,6 +1414,7 @@ class MainWindow(QMainWindow):
                         artist_s = sanitize(str(artist)) if artist else ""
                         raw      = getattr(content, "FolderPath", "") or ""
                         ext      = Path(raw).suffix.lower() if raw else ""
+                        key, bpm = key_bpm_of(content)
                         tracks.append(TrackRow(
                             num      = str(i + 1).zfill(3),
                             title    = title    if len(title)    <= 46 else title[:44]    + "…",
@@ -1419,6 +1422,8 @@ class MainWindow(QMainWindow):
                             ext      = ext,
                             raw_path = raw,
                             exists   = True,
+                            key      = key,
+                            bpm      = bpm,
                         ))
                 except Exception:
                     pass
@@ -1612,6 +1617,10 @@ class MainWindow(QMainWindow):
             rl.addWidget(warn)
         elif reserve_note:
             rl.addSpacing(WARN_W + ROW_GAP)
+        kb = label("output_file_keybpm", format_key_bpm(track.key, track.bpm))
+        kb.setFixedWidth(KEYBPM_W)
+        row.keybpm_label = kb
+        rl.addWidget(kb)
         if track.ext:
             chip = label("output_file_ext", ext_chip_text(track.ext))
             chip.setFixedWidth(CHIP_W)

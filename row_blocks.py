@@ -72,3 +72,13 @@ def border_sides(pos: str) -> tuple[bool, bool, bool, bool]:
     if pos == NONE:
         return (False, False, False, False)
     return (pos in (ALONE, START), True, pos in (ALONE, END), True)
+
+
+def format_key_bpm(key: str | None, bpm: float | None) -> str:
+    """«9A · 128»; BPM entero si es .0, 1 decimal si no. Sin ningún dato «—»; un dato suelto deja «—» en el otro."""
+    k = (key or "").strip()
+    b = round(bpm, 1) if bpm is not None and bpm > 0 else None
+    if not k and b is None:
+        return "—"
+    b_txt = "—" if b is None else (str(int(b)) if b == int(b) else f"{b:.1f}")
+    return f"{k or '—'} · {b_txt}"
