@@ -128,7 +128,7 @@ Las canciones de una playlist están en la relación `Songs` (o `songs` o `items
 | `ArtistName` | str | Nombre del artista (puede ser `None`) |
 | `FolderPath` | str | Ruta al archivo en disco (puede ser `/C/Users/...` o `C:\Users\...`) |
 | `TrackNo` | int | Número de pista del archivo (suele valer `0`). **NO es el orden de la playlist:** ese vive en `TrackNo` de la entrada playlist-canción (`DjmdSongPlaylist`, los items de `get_songs()`); ordenar siempre con `db.order_playlist_songs()` |
-| `BeatCount` | int | BPM×10 |
+| `BPM` | int | BPM×100 (12800 → 128). `Key.ScaleName` (relación `Key`) trae la tonalidad en Camelot («9A») |
 | `ColorID` | int | Color de la pista en RB |
 
 Acceso: `get_content(song)` prueba los atributos `Content` y `content` para compatibilidad cross-versión.

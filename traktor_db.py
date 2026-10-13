@@ -63,6 +63,7 @@ class TraktorTrack:
     artist: str
     file_path: Path
     bpm: float | None = None
+    key: str = ""   # INFO@KEY (Camelot en texto, ej. «4A»)
 
     # Compatibility shims used by rekordbox_export helpers in worker.py
     @property
@@ -401,11 +402,15 @@ def _build_track_index(root: ET.Element) -> dict[str, TraktorTrack]:
             except (ValueError, TypeError):
                 pass
 
+        info_el = entry.find("INFO")
+        musical_key = (info_el.get("KEY", "") if info_el is not None else "").strip()
+
         index[key] = TraktorTrack(
             title=title,
             artist=artist,
             file_path=file_path,
             bpm=bpm,
+            key=musical_key,
         )
     return index
 

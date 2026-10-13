@@ -27,6 +27,35 @@ def order_playlist_songs(songs: Iterable[Any]) -> list[Any]:
     return [s for _, s in indexed]
 
 
+def key_bpm_of(content: Any) -> tuple[str, float | None]:
+    """
+    (key, bpm) de una pista de Rekordbox o Traktor; ("", None) si falta el dato.
+
+    Rekordbox: DjmdContent.BPM es BPM×100 (12800 -> 128) y Key.ScaleName ya viene
+    en Camelot. Traktor (TraktorTrack): bpm float y key de INFO@KEY. Todo con
+    getattr defensivo: Key es una relación lazy que puede fallar fuera de sesión.
+    """
+    key = ""
+    try:
+        scale = getattr(getattr(content, "Key", None), "ScaleName", None)
+        key = str(scale).strip() if scale else ""
+    except Exception:
+        key = ""
+    if not key:
+        raw_key = getattr(content, "key", None)
+        key = str(raw_key).strip() if isinstance(raw_key, str) else ""
+
+    bpm: float | None = None
+    raw_bpm = getattr(content, "BPM", None)
+    if isinstance(raw_bpm, (int, float)) and raw_bpm > 0:
+        bpm = raw_bpm / 100
+    else:
+        trk = getattr(content, "bpm", None)
+        if isinstance(trk, (int, float)) and trk > 0:
+            bpm = float(trk)
+    return key, bpm
+
+
 def open_database(path: str | None = None):
     """
     Abre la base de datos de Rekordbox 6.
