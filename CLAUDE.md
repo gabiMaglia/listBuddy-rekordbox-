@@ -88,9 +88,9 @@ python main.py                   # arrancar la app
 |---|---|---|
 | 5.x | XML (`rekordbox.xml`) + colección propia | `pyrekordbox` (modo XML) |
 | 6.x | SQLite cifrado con SQLCipher | `pyrekordbox.Rekordbox6Database` |
-| 6.7+ | Misma DB, cambia la clave de cifrado con cada update | requiere `python -m pyrekordbox download-key` |
+| 6.7+ / 7.x | Misma DB y misma clave | pyrekordbox 0.4.4 trae la clave embebida (`db6/database.py`, `deobfuscate(BLOB)`) |
 
-> Este proyecto solo soporta **Rekordbox 6**. La DB es un archivo SQLite cifrado con SQLCipher 4. La clave se descarga una vez con `python -m pyrekordbox download-key` y queda guardada localmente.
+> Este proyecto solo soporta **Rekordbox 6**. La DB es un archivo SQLite cifrado con SQLCipher 4. pyrekordbox 0.4.4 trae la clave embebida: no hay `download-key` ni archivo de clave. Ojo: la loguea en DEBUG; `app_logging` fija el logger `pyrekordbox` en INFO para que nunca llegue al log.
 
 ### Ubicación de la base de datos de Rekordbox 6
 
@@ -156,14 +156,14 @@ Rekordbox en Windows guarda las rutas con separador Unix al inicio: `/C/Users/us
 ```bash
 pip install pyinstaller
 pyinstaller rb_exporter.spec
-# El bundle queda en dist/RB Exporter.app
+# El bundle queda en dist/List Buddy.app (Intel o arm64 según la Mac que buildea; mínimo macOS 13)
 ```
 
 El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **No se puede cross-compilar:** el `.app` solo se puede generar desde una Mac, y el `.exe` de Windows solo desde Windows.
 
 #### Checklist para que el .app funcione correctamente
 
-1. **SQLCipher:** `sqlcipher3-wheels` incluye el `.dylib`. El spec ya hace `collect_dynamic_libs('sqlcipher3')`. Si el .app abre pero falla al leer la DB, verificar que `libsqlcipher.dylib` esté en `dist/RB Exporter.app/Contents/Frameworks/`.
+1. **SQLCipher:** `sqlcipher3-wheels` incluye el `.dylib`. El spec ya hace `collect_dynamic_libs('sqlcipher3')`. Si el .app abre pero falla al leer la DB, verificar que `libsqlcipher.dylib` esté en `dist/List Buddy.app/Contents/Frameworks/`.
 
 2. **Hidden imports de pyrekordbox:** el spec ya declara:
    ```python
@@ -175,7 +175,7 @@ El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **
    ```
    Si aparece `ModuleNotFoundError` en runtime, agregar el módulo faltante aquí.
 
-3. **Clave de desencriptado en el bundle:** pyrekordbox guarda la clave en `~/.pyrekordbox/` (o similar). En una app empaquetada, la ruta puede no existir. Verificar dónde busca la clave en runtime y si es necesario incluir un runtime hook que la precargue.
+3. **Clave de desencriptado en el bundle:** viene dentro del código de pyrekordbox (no hay archivo externo); alcanza con que `pyrekordbox` entre al bundle.
 
 4. **Ícono:** crear `icon.icns` (macOS). Descomentar `icon='icon.icns'` en el spec antes de buildear.
 
@@ -183,15 +183,15 @@ El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **
    - **Sin firma** (solo para el propio usuario): click derecho → Abrir → Confirmar en el diálogo.
    - **Con firma ad-hoc** (para distribuir a conocidos sin Developer ID):
      ```bash
-     codesign --force --deep --sign - "dist/RB Exporter.app"
+     codesign --force --deep --sign - "dist/List Buddy.app"
      ```
    - **Con Developer ID** (distribución pública sin Mac App Store):
      ```bash
      codesign --force --deep --options runtime \
        --sign "Developer ID Application: Tu Nombre (TEAMID)" \
-       "dist/RB Exporter.app"
-     xcrun notarytool submit "dist/RB Exporter.zip" --apple-id ... --password ... --team-id ...
-     xcrun stapler staple "dist/RB Exporter.app"
+       "dist/List Buddy.app"
+     xcrun notarytool submit "dist/List Buddy.zip" --apple-id ... --password ... --team-id ...
+     xcrun stapler staple "dist/List Buddy.app"
      ```
 
 6. **Arquitectura:** por defecto PyInstaller empaqueta para la arquitectura del sistema donde se corre. Para crear un **Universal Binary** (arm64 + x86_64):
@@ -246,7 +246,7 @@ Para este proyecto, **seguir con PyInstaller** salvo que surja un problema grave
 
 ```bash
 pyinstaller rb_exporter.spec
-# El ejecutable queda en dist/RB Exporter.exe
+# El ejecutable queda en dist/listBuddy/listBuddy.exe
 ```
 
 - `icon.ico` para el ícono (descomentar línea en spec).

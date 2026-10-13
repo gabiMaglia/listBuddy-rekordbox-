@@ -106,19 +106,19 @@ if is_mac:
 
     app = BUNDLE(
         coll,
-        name='listBuddy.app',
+        name='List Buddy.app',
         icon='icon.icns',
         bundle_identifier='com.gabrielmaglia.listbuddy',
         info_plist={
             'NSPrincipalClass': 'NSApplication',
             'NSAppleScriptEnabled': False,
-            'CFBundleName': 'listBuddy',
-            'CFBundleDisplayName': 'listBuddy',
-            'CFBundleShortVersionString': '1.1',
-            'CFBundleVersion': '1.1.0',
+            'CFBundleName': 'List Buddy',
+            'CFBundleDisplayName': 'List Buddy',
+            'CFBundleShortVersionString': '1.0.0',
+            'CFBundleVersion': '1.0.0',
             'NSHighResolutionCapable': True,
-            'LSMinimumSystemVersion': '10.14',
-            'NSHumanReadableCopyright': '© 2024 Gabriel Maglia. GPL v3.',
+            'LSMinimumSystemVersion': '13.0',  # mínimo de Qt 6.11 (minos de QtCore)
+            'NSHumanReadableCopyright': '© 2025-2026 Gabriel Maglia. GPL v3.',
         },
     )
 
