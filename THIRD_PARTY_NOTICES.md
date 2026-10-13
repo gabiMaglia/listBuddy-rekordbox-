@@ -31,6 +31,7 @@ respectivos dueños.
 | six | 1.17.0 | MIT | `licenses/six.txt` |
 | typing_extensions | 4.15.0 | PSF-2.0 | `licenses/typing_extensions.txt` |
 | Python (intérprete y biblioteca estándar) | 3.14 | PSF-2.0 | `licenses/Python.txt` |
+| Íconos Feather (varios trazos de `icons.py` derivan de ellos) | — | MIT | `licenses/Feather.txt` |
 | Fuente Sora | — | SIL Open Font License 1.1 | `fonts/OFL-Sora.txt` |
 | Fuente Public Sans | — | SIL Open Font License 1.1 | `fonts/OFL-PublicSans.txt` |
 | Fuente JetBrains Mono | — | SIL Open Font License 1.1 | `fonts/OFL-JetBrainsMono.txt` |
