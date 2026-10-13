@@ -41,3 +41,34 @@ def test_empty_or_corrupt_existing_png_is_regenerated_atomically() -> None:
         "print(a, b, [f.name for f in d.iterdir() if f.suffix != '.png'])\n"
     )
     assert out == "True True []"
+
+
+def test_failed_midway_write_leaves_previous_file_intact_and_no_tmp() -> None:
+    # El previo es ilegible como imagen (así se fuerza el intento de reescritura);
+    # el guardado escribe un parcial en la ruta que le den y falla.
+    out = run(
+        "import icons, os\n"
+        "d = base / 'listbuddy-qss'; d.mkdir()\n"
+        "p = d / ('tick-' + styles.THEMES['dark']['on_accent'].lstrip('#') + '.png')\n"
+        "p.write_bytes(b'previous-bytes')\n"
+        "class P:\n"
+        "    def save(self, path, fmt):\n"
+        "        open(path, 'wb').write(b'partial'); return False\n"
+        "icons.pixmap = lambda *a, **k: P()\n"
+        "calls = []; real = os.replace\n"
+        "os.replace = lambda *a: (calls.append(a), real(*a))[1]\n"
+        "qss = styles.load_qss('dark')\n"
+        "print(p.read_bytes() == b'previous-bytes', [f.name for f in d.iterdir() if f.suffix == '.tmp'], calls, 'image: url(' not in qss.split('settings_check::indicator:checked')[-1])\n"
+    )
+    assert out == "True [] [] True"
+
+
+def test_successful_write_goes_through_os_replace() -> None:
+    out = run(
+        "import os\n"
+        "calls = []; real = os.replace\n"
+        "os.replace = lambda *a: (calls.append(a), real(*a))[1]\n"
+        "styles.load_qss('dark')\n"
+        "print(len(calls) == 1 and str(calls[0][0]).endswith('.tmp'))\n"
+    )
+    assert out == "True"
