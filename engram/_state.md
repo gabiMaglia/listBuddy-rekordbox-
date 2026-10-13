@@ -1,8 +1,8 @@
 # STATE — listBuddy · actualizado: 2026-10-13
 
-**Sprint:** 1 — Reskin «Mezcla Cálida» → CERRADO (mergeado a main 6328dfb, pusheado por el PO)
-**Rama activa:** `main` @ a2f406f (+T-067 Key·BPM y T-079 SSL/certifi, QA OK; push pendiente del PO). `feat/reskin` y `feat/menores` locales, ya mergeadas.
-**En curso:** nada. Reskin T-061..T-066 + T-068..T-078 Done con QA; PO probó la app en vivo: «anda bárbaro».
+**Sprint:** 1 — Reskin «Mezcla Cálida» + menores (T-067, T-079) → CERRADO
+**Rama activa:** `main` = origin/main (pusheado por el PO; incluye a2f406f T-067/T-079). `feat/reskin` y `feat/menores` locales, ya mergeadas.
+**En curso:** nada. T-061..T-079 Done con QA; PO probó la app en vivo («anda bárbaro»), última corrida con faulthandler sin crash.
 **Bloqueos:** T-026 (cuenta Apple Developer). `gh` sin autenticar (PRs).
 **Sin probar:** Windows (todo el reskin: fuentes, íconos SVG, DPI, header compacto, QMessageBox) y el `.app` real.
 **Próximo paso sugerido:**

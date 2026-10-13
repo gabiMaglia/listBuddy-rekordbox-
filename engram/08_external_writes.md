@@ -9,3 +9,4 @@
 | 2026-10-11 | claude.ai Artifacts | Subir capturas de T-061 y tablero de evidencia (v9) | mismo canvas | T-061 | PO |
 | 2026-10-12 | claude.ai Artifacts | Tableros «Fuentes» y «Rotos» (v11) | mismo canvas | T-071 | PO (pidió opciones) |
 | 2026-10-12 | GitHub (origin) | `git push origin main` 6328dfb (merge del reskin) — ejecutado POR EL PO; el del Orquestador lo bloqueó el clasificador de permisos | gabiMaglia/listBuddy-rekordbox- @ 6328dfb | T-061..T-078 | PO («si tenés el OK») |
+| 2026-10-13 | GitHub (origin) | `git push origin main` hasta 36e8955 (merge T-067/T-079 + engram) — ejecutado POR EL PO | gabiMaglia/listBuddy-rekordbox- @ 36e8955 | T-067, T-079 | PO («ok») |
