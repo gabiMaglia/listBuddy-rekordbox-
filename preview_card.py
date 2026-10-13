@@ -19,8 +19,12 @@ ROW_HEIGHT = 38
 # Anchos compartidos con las filas (ui._make_row_widget) para que la cabecera de columnas alinee.
 IDX_W = 56
 CHIP_W = 68
+KEYBPM_W = 84   # «10B · 127.5» en mono 11 px cabe con aire
 WARN_W = 16
 ROW_GAP = 12
+# Por debajo de este ancho de fila la columna KEY · BPM se oculta (cabecera y filas): a 820 px de
+# ventana la fila mide ~460 px y el título perdería un tercio de su ancho (T-067).
+KEYBPM_MIN_ROW_W = 560
 ROWS_VISIBLE_HEIGHT = 190   # ≈ 5 filas de 38 px (D2): las demás se alcanzan con el scroll interno
 
 
@@ -116,8 +120,10 @@ class PreviewGroupCard(QWidget):
         bar_w = self.scroll_bar_width if len(data.tracks) * ROW_HEIGHT > ROWS_VISIBLE_HEIGHT else 0
         cl.setContentsMargins(14, 6, 14 + bar_w, 6)
         cl.setSpacing(ROW_GAP)
+        self.keybpm_head: QLabel | None = None
         for text, width, stretch in (
-            ("NÚMERO", IDX_W, 0), ("TÍTULO — ARTISTA", 0, 1), ("FORMATO", CHIP_W, 0),
+            ("NÚMERO", IDX_W, 0), ("TÍTULO — ARTISTA", 0, 1), ("KEY · BPM", KEYBPM_W, 0),
+            ("FORMATO", CHIP_W, 0),
         ):
             lbl = QLabel(text)
             lbl.setObjectName("card_col_label")
@@ -127,6 +133,8 @@ class PreviewGroupCard(QWidget):
                 lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
             apply_caps_tracking(lbl, 11)
             cl.addWidget(lbl, stretch)
+            if text == "KEY · BPM":
+                self.keybpm_head = lbl
         root.addWidget(self.cols)
 
         self.scroll = QScrollArea()
@@ -147,6 +155,12 @@ class PreviewGroupCard(QWidget):
 
         self.cols.setVisible(self._expanded)
         self.scroll.setVisible(self._expanded)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if self.keybpm_head is not None:
+            bar = self.scroll_bar_width if self.scroll.verticalScrollBar().isVisible() else 0
+            self.keybpm_head.setVisible(self.width() - bar >= KEYBPM_MIN_ROW_W)
 
     # ── piezas de la cabecera ───────────────────────────────────────────
     def _status_icon(self, name: str, color_token: str) -> QLabel:
