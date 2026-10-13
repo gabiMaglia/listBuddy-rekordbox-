@@ -271,6 +271,16 @@ QPushButton#close_dialog_btn {
 }
 QPushButton#close_dialog_btn:hover { background: @{row_line}; }
 
+/* About + visor de licencias */
+QDialog#about_dialog QLabel { color: @{text}; background: transparent; }
+QLabel#about_meta { color: @{muted}; font-size: 12px; }
+QLabel#about_body { font-size: 12px; }
+QTextBrowser#legal_text, QPlainTextEdit#legal_text {
+    background: @{inset}; color: @{text}; border: 1px solid @{line}; border-radius: 8px;
+    padding: 8px 12px; font-size: 12px; selection-background-color: @{sel_bg};
+}
+QPlainTextEdit#legal_text { font-family: "JetBrains Mono"; }
+
 /* ── Título de diálogos ── */
 QLabel#dialog_title { font-family: "Sora"; font-size: 17px; font-weight: 600; background: transparent; }
 

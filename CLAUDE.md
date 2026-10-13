@@ -35,6 +35,8 @@ audio_decode.py      → buffer_to_mono (helper de decode compartido).
 footer.py            → FooterBar (reproductor, destino, exportar, progreso).
 ui_components.py     → PlaylistCard, PlaylistGroup, SeekBar, WaveformSeek, ElidedLabel, FileRow, ClickableLabel.
 styles.py            → Tokens de diseño dark/light + load_qss().
+about_dialog.py      → «Acerca de» (avisos GPL) + visor de LICENSE y THIRD_PARTY_NOTICES.md.
+licenses/            → Textos completos de licencias de terceros (regenerar con scripts/collect_licenses.py).
 rb_exporter.spec     → Spec de PyInstaller para empaquetar (produce "listBuddy" ejecutable).
 requirements.txt     → Dependencias pineadas exactas.
 plans/               → Planes de implementación autocontenidos para ejecutar con Sonnet.
