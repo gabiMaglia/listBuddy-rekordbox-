@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12] nerv-orquestador → nerv-desktop T-079 → T-067 · Niv A (ambos)
+- PO: «encará los menores». Rama nueva `feat/menores` desde main (6328dfb + cierre a1a5937). Recon del Orquestador con datos reales en las filas del backlog (campos de pyrekordbox verificados con `dir()`; certifi no instalado).
+- Entrega: T-079 primero (chico), después T-067. Advisory: criterios del backlog = plan. TDD, commits chicos, capturas en T-067. **Pedido explícito a QA después: `engram/qa/<T-ID>.md`** (lección de este cierre).
+- Archivos a leer: `engram/03_backlog.md` (T-067, T-079) · `update_checker.py`, `requirements.txt`, `rb_exporter.spec` · `preview_worker.py`, `db.py`, `traktor_db.py`, `preview_card.py`, `ui.py` (`_make_row_widget`), `ui_components.py` (FileRow), `CLAUDE.md` · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos · cómo probar · capturas.
+
 ### [2026-10-12] CIERRE DE SESIÓN (P-5)
 - Hecho: reskin «Mezcla Cálida» completo (T-061..T-066, T-068..T-078: header/footer/playlists/vista previa/diálogos, Sora, relocate por playlist, crash Traktor→Rekordbox, tema 22× más rápido, suite 8 min → ~1 min) con QA en todos; merge a main 6328dfb, push hecho por el PO (el clasificador de permisos bloqueó el push del Orquestador).
 - Próximo paso: T-025 (buildear y probar el `.app` con todo el reskin) y regularizar QA de T-027/T-029.
