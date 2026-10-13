@@ -1,0 +1,18 @@
+bringing up nodes...
+
+....                                                                     [100%]
+== mutacion (a): guardar directo al destino
+
+tests/test_tick_robust_t078.py:18: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_tick_robust_t078.py::test_successful_write_goes_through_os_replace
+FAILED tests/test_tick_robust_t078.py::test_failed_midway_write_leaves_previous_file_intact_and_no_tmp
+FAILED tests/test_tick_robust_t078.py::test_empty_or_corrupt_existing_png_is_regenerated_atomically
+== mutacion (b): sin unlink del tmp
+E         - True [] [] True
+E         + True ['tick-1a1408.png.54339.tmp'] [] True
+
+tests/test_tick_robust_t078.py:63: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_tick_robust_t078.py::test_failed_midway_write_leaves_previous_file_intact_and_no_tmp
+== restaurado
