@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 from pathlib import Path
+from collections.abc import Sequence
 from typing import ClassVar, List
 
-from PySide6.QtCore import QPoint, QRectF, Qt, Signal
+import icons
+import styles
+from preview_worker import TrackRow
+from row_blocks import NONE, border_sides, corner_radii
+
+from PySide6.QtCore import QEvent, QPoint, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFontMetrics,
     QMouseEvent,
     QPainter,
     QPainterPath,
-    QPalette,
-    QPixmap,
+    QPen,
 )
 from PySide6.QtWidgets import (
     QDialog,
@@ -20,51 +25,72 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QPushButton,
     QSizePolicy,
+    QStackedLayout,
     QVBoxLayout,
     QWidget,
 )
 
 
-# ──────────────────────── Theme-specific inline styles ───────────────────
-# Usamos setStyleSheet() inline en lugar de unpolish/polish para evitar que
-# Qt invalide el área de paint del parent y cause flicker en los siblings.
+# ───────────────────────── Botón Mantenimiento del header (T-062) ──
 
-_CARD_STYLES: dict[str, dict[str, str]] = {
-    "dark": {
-        "card_on":   (
-            "QWidget#playlist_card {"
-            " background: rgba(206,125,230,30);"
-            " border: 1.5px solid #b053d4;"
-            " border-radius: 9px;"
-            "}"
-        ),
-        "order_on":  "color: #ce7de6;",
-        "check_on":  (
-            "background: #ce7de6;"
-            " border: 1.5px solid #b053d4;"
-            " color: #1e0d29;"
-            " border-radius: 6px;"
-        ),
-    },
-    "light": {
-        "card_on":   (
-            "QWidget#playlist_card {"
-            " background: rgba(140,56,191,20);"
-            " border: 1.5px solid #7828ab;"
-            " border-radius: 9px;"
-            "}"
-        ),
-        "order_on":  "color: #8c38bf;",
-        "check_on":  (
-            "background: #8c38bf;"
-            " border: 1.5px solid #7828ab;"
-            " color: #fefefe;"
-            " border-radius: 6px;"
-        ),
-    },
-}
+def broken_badge_text(n: int) -> str:
+    """Texto del badge de Mantenimiento; vacío = sin badge."""
+    if n <= 0:
+        return ""
+    return "1 roto" if n == 1 else f"{n} rotos"
+
+
+class MaintenanceButton(QPushButton):
+    """Botón del header: ícono + «Mantenimiento» + badge de rotos.
+
+    Los hijos son QLabel transparentes al mouse para que todo el botón sea
+    clickeable; sizeHint sale del layout porque QPushButton ignora sus hijos.
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("maint_btn")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedHeight(34)
+        self.setAccessibleName("Mantenimiento")
+        lo = QHBoxLayout(self)
+        lo.setContentsMargins(12, 0, 12, 0)
+        lo.setSpacing(8)
+        self._icon = QLabel()
+        self._icon.setObjectName("maint_icon")
+        self._text = QLabel("Mantenimiento")
+        self._text.setObjectName("maint_text")
+        self._badge = QLabel()
+        self._badge.setObjectName("maint_badge")
+        self._badge.setFixedHeight(18)   # píldora chica: el radio del QSS es la mitad
+        self._badge.setVisible(False)
+        for w in (self._icon, self._text, self._badge):
+            w.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            lo.addWidget(w)
+        lo.setAlignment(self._badge, Qt.AlignmentFlag.AlignVCenter)
+
+    def icon_label(self) -> QLabel:
+        return self._icon
+
+    def set_broken(self, n: int) -> None:
+        txt = broken_badge_text(n)
+        self._badge.setText(txt)
+        self._badge.setVisible(bool(txt))
+        self.setAccessibleDescription(txt)
+
+    def set_compact(self, compact: bool) -> None:
+        self._text.setVisible(not compact)
+        self.setToolTip("Mantenimiento" if compact else "")
+
+    def sizeHint(self) -> QSize:
+        return self.layout().sizeHint()
+
+    def minimumSizeHint(self) -> QSize:
+        return self.layout().sizeHint()
 
 
 # ───────────────────────── Custom title bar (T-010, Windows-only chrome) ──
@@ -129,88 +155,60 @@ class ClickableLabel(QLabel):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._draw_pause_bars = False
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
         super().mousePressEvent(event)
 
-    def set_pause_icon(self, active: bool) -> None:
-        """
-        T-015: el glyph Unicode de pausa (⏸, U+23F8) no existe en la fuente
-        base de UI de Windows — el fallback de fuente cae a Segoe UI Emoji,
-        que pinta el ícono con sus propios colores (celeste), ignorando el
-        `color: @{on_accent}` del QSS. Ni siquiera el variation selector
-        U+FE0E (fuerza presentación de texto) lo evita en Qt. Con `active`
-        se dibuja la pausa a mano en paintEvent, con el color de paleta que
-        el QSS ya resolvió para este QLabel — sin fuente de por medio, así
-        que no puede volver a pintarse "a color" en ninguna plataforma.
-        """
-        self._draw_pause_bars = active
-        if active:
-            self.setText("")
-        self.update()
 
-    def paintEvent(self, event) -> None:
-        if not self._draw_pause_bars:
-            super().paintEvent(event)
-            return
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        color = self.palette().color(QPalette.ColorRole.WindowText)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(color)
-        w, h = self.width(), self.height()
-        bar_w = max(3, round(w * 0.13))
-        bar_h = round(h * 0.36)
-        gap = max(3, round(w * 0.11))
-        total_w = bar_w * 2 + gap
-        x0 = (w - total_w) // 2
-        y0 = (h - bar_h) // 2
-        radius = bar_w * 0.35
-        painter.drawRoundedRect(x0, y0, bar_w, bar_h, radius, radius)
-        painter.drawRoundedRect(x0 + bar_w + gap, y0, bar_w, bar_h, radius, radius)
+# ─────────────────────────────────── Etiqueta con elipsis (footer, T-063) ────
 
+class ElidedLabel(QLabel):
+    """QLabel con elipsis (inicio o final) y tooltip = texto completo."""
 
-# ──────────────────────────── Rack-head con espectrograma de fondo ────────
-
-class RackHead(QWidget):
-    """
-    Banner del rack con un espectrograma tenue pintado detrás del contenido.
-    super().paintEvent() dibuja el fondo del QSS; encima va el pixmap clippeado
-    al borde redondeado. Los hijos (nota, brand, VU) pintan después, arriba.
-    """
-
-    _RADIUS = 12.0
-
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        mode: Qt.TextElideMode = Qt.TextElideMode.ElideRight,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
-        self._spectro: QPixmap | None = None
+        self._mode = mode
+        self._full = ""
+        # Ignored: el layout no le pide el ancho del texto completo.
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.setMinimumWidth(0)
 
-    def set_spectrogram(self, pixmap: QPixmap | None) -> None:
-        self._spectro = pixmap
-        self.update()
+    def set_full_text(self, text: str) -> None:
+        self._full = text
+        self.setToolTip(text)
+        self._apply()
 
-    def paintEvent(self, event) -> None:
-        super().paintEvent(event)               # fondo + borde del QSS
-        if self._spectro is None:
-            return
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        path = QPainterPath()
-        rect = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
-        path.addRoundedRect(rect, self._RADIUS, self._RADIUS)
-        p.setClipPath(path)
-        scaled = self._spectro.scaled(
-            self.size(),
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
+    def full_text(self) -> str:
+        return self._full
+
+    def set_mode(self, mode: Qt.TextElideMode) -> None:
+        self._mode = mode
+        self._apply()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._apply()
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
+            self._apply()
+
+    def _apply(self) -> None:
+        width = self.width() - 2
+        shown = (
+            self.fontMetrics().elidedText(self._full, self._mode, width)
+            if width > 0 else self._full
         )
-        p.drawPixmap(0, 0, scaled)
+        if shown != self.text():
+            self.setText(shown)
 
-
-# ──────────────────────────────────────── File row (clickable) ───────────
 
 class FileRow(QWidget):
     """
@@ -227,15 +225,93 @@ class FileRow(QWidget):
         raw_path: str,
         exists: bool,
         parent: QWidget | None = None,
+        block_pos: str = NONE,
     ) -> None:
         super().__init__(parent)
         self._raw_path = raw_path
         self._exists = exists
+        self.track: TrackRow | None = None   # el dato de la fila (lo fija MainWindow)
+        self.block_pos = block_pos if not exists else NONE
         self.setObjectName("output_file_row")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setProperty("file_missing", "false" if exists else "true")
         if exists:
             self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def paintEvent(self, event) -> None:
+        # Estilo D: los rotos contiguos se pintan como un solo bloque; el fondo y
+        # el borde van acá porque QSS no puede dar radio por esquina según el vecino.
+        if not self._exists:
+            theme = PlaylistCard._theme
+            self._paint_block(styles.token(theme, "broken_bg"), styles.token(theme, "danger"))
+        else:
+            # Separador de 1 px pintado acá: un border-bottom QSS pelearía con el bloque (T6).
+            QPainter(self).fillRect(
+                0, self.height() - 1, self.width(), 1,
+                QColor(styles.token(PlaylistCard._theme, "row_line")),
+            )
+        super().paintEvent(event)
+
+    def _paint_block(self, fill_hex: str, border_hex: str) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = float(self.width()), float(self.height())
+        tl, tr, br, bl = (float(r) for r in corner_radii(self.block_pos))
+        # Medio píxel adentro: el trazo de 1 px queda entero dentro del widget.
+        x0, y0, x1, y1 = 0.5, 0.5, w - 0.5, h - 0.5
+        top_b, right_b, bottom_b, left_b = border_sides(self.block_pos)
+
+        def corner(
+            path: QPainterPath, cx: float, cy: float, r: float, start: float, sweep: float = -90,
+        ) -> None:
+            # Qt mide los ángulos en sentido antihorario: -90 recorre la esquina en horario.
+            if r:
+                path.arcTo(QRectF(cx, cy, 2 * r, 2 * r), start, sweep)
+
+        shape = QPainterPath()
+        shape.moveTo(x0 + tl, y0)
+        shape.lineTo(x1 - tr, y0)
+        corner(shape, x1 - 2 * tr, y0, tr, 90)
+        shape.lineTo(x1, y1 - br)
+        corner(shape, x1 - 2 * br, y1 - 2 * br, br, 0)
+        shape.lineTo(x0 + bl, y1)
+        corner(shape, x0, y1 - 2 * bl, bl, 270)
+        shape.lineTo(x0, y0 + tl)
+        corner(shape, x0, y0, tl, 180)
+        shape.closeSubpath()
+        p.fillPath(shape, QColor(fill_hex))
+
+        edge = QColor(border_hex)
+        edge.setAlphaF(0.38)
+        pen = QPen(edge)
+        pen.setWidthF(1.0)
+        p.setPen(pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        if all((top_b, right_b, bottom_b, left_b)):
+            p.drawPath(shape)
+            return
+        # Bloque abierto: solo los lados exteriores (sin línea entre filas del bloque).
+        open_path = QPainterPath()
+        if top_b:  # START: izquierda -> arriba -> derecha
+            open_path.moveTo(x0, y1 + 1)
+            open_path.lineTo(x0, y0 + tl)
+            corner(open_path, x0, y0, tl, 180)
+            open_path.lineTo(x1 - tr, y0)
+            corner(open_path, x1 - 2 * tr, y0, tr, 90)
+            open_path.lineTo(x1, y1 + 1)
+        elif bottom_b:  # END
+            open_path.moveTo(x0, y0 - 1)
+            open_path.lineTo(x0, y1 - bl)
+            corner(open_path, x0, y1 - 2 * bl, bl, 180, 90)
+            open_path.lineTo(x1 - br, y1)
+            corner(open_path, x1 - 2 * br, y1 - 2 * br, br, 270, 90)
+            open_path.lineTo(x1, y0 - 1)
+        else:  # MIDDLE
+            open_path.moveTo(x0, y0 - 1)
+            open_path.lineTo(x0, y1 + 1)
+            open_path.moveTo(x1, y0 - 1)
+            open_path.lineTo(x1, y1 + 1)
+        p.drawPath(open_path)
 
     def mousePressEvent(self, event) -> None:
         if self._exists and event.button() == Qt.MouseButton.LeftButton:
@@ -245,11 +321,8 @@ class FileRow(QWidget):
     def set_playing(self, playing: bool) -> None:
         if playing:
             theme = PlaylistCard._theme
-            accent = "#ce7de6" if theme == "dark" else "#8c38bf"
-            soft = (
-                "rgba(206,125,230,28)" if theme == "dark"
-                else "rgba(140,56,191,22)"
-            )
+            accent = styles.token(theme, "accent")
+            soft = styles.token(theme, "sel_bg")
             self.setStyleSheet(
                 "QWidget#output_file_row {"
                 f" background: {soft};"
@@ -269,7 +342,7 @@ class SeekBar(QWidget):
         super().__init__(parent)
         self._pos = 0
         self._dur = 0
-        self._accent = QColor(206, 125, 230)
+        self._accent = QColor(styles.token("dark", "accent"))
         self.setFixedHeight(14)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -330,6 +403,58 @@ class SeekBar(QWidget):
             )
 
 
+def bar_heights(peaks: Sequence[float], n: int, floor: float = 0.12) -> list[float]:
+    """n alturas 0..1 por max-pool de los picos; sin picos, barras planas al piso."""
+    if n <= 0:
+        return []
+    if not peaks:
+        return [floor] * n
+    total = len(peaks)
+    out: list[float] = []
+    for i in range(n):
+        a = i * total // n
+        b = max(a + 1, (i + 1) * total // n)
+        out.append(max(floor, max(peaks[a:b])))
+    return out
+
+
+class WaveformSeek(SeekBar):
+    """SeekBar con forma de onda: mismo click/arrastre, barras en vez de riel."""
+
+    _BAR, _GAP = 3, 2
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setFixedHeight(32)
+        self._peaks: Sequence[float] = ()
+        self._rest = QColor(styles.token("dark", "line"))
+
+    def set_peaks(self, peaks: Sequence[float] | None) -> None:
+        self._peaks = peaks or ()
+        self.update()
+
+    def set_colors(self, played_hex: str, rest_hex: str) -> None:
+        self._accent = QColor(played_hex)
+        self._rest = QColor(rest_hex)
+        self.update()
+
+    def paintEvent(self, _event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        step = self._BAR + self._GAP
+        n = max(1, (self.width() + self._GAP) // step)
+        heights = bar_heights(self._peaks, n)
+        frac = (self._pos / self._dur) if self._dur > 0 else 0.0
+        mid = self.height() / 2
+        p.setPen(Qt.PenStyle.NoPen)
+        for i, level in enumerate(heights):
+            x = i * step
+            h = max(2.0, level * (self.height() - 2))
+            # La barra cuenta como reproducida si su centro ya fue pasado.
+            p.setBrush(self._accent if (x + self._BAR / 2) / self.width() <= frac else self._rest)
+            p.drawRect(QRectF(x, mid - h / 2, self._BAR, h))
+
+
 class PlaylistCard(QWidget):
     toggled: Signal = Signal(object)
 
@@ -361,62 +486,48 @@ class PlaylistCard(QWidget):
         )
 
         layout = QHBoxLayout(self)
-        # T-015: densidad — reducido de (12,9,13,9)/spacing 12 para que entren
-        # más playlists sin scroll en la mayoría de los casos (con ~35 igual
-        # puede hacer falta scrollear, ver nota en el handoff de T-015).
-        layout.setContentsMargins(11, 6, 12, 6)
+        layout.setContentsMargins(10, 8, 10, 8)
         layout.setSpacing(10)
 
-        # Large mono order number
-        self._order_label = QLabel(str(index + 1).zfill(2))
+        # Checkbox a la izquierda (diseño F1)
+        self._check = QLabel()
+        self._check.setObjectName("card_check")
+        self._check.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._check.setFixedSize(18, 18)
+        layout.addWidget(self._check)
+
+        # Dos etiquetas de Nº apiladas: el estilo lo da la QSS por objectName y
+        # alternar es setCurrentWidget (sin unpolish/polish, ver _refresh).
+        self._num_holder = QWidget()
+        self._num_holder.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._num_holder.setFixedWidth(30)
+        self._num_stack = QStackedLayout(self._num_holder)
+        self._num_stack.setContentsMargins(0, 0, 0, 0)
+        align = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        self._pos_label = QLabel(str(index + 1).zfill(2))
+        self._pos_label.setObjectName("card_pos")
+        self._pos_label.setAlignment(align)
+        self._order_label = QLabel("")
         self._order_label.setObjectName("card_order")
-        self._order_label.setFixedWidth(30)
-        self._order_label.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        layout.addWidget(self._order_label)
+        self._order_label.setAlignment(align)
+        self._num_stack.addWidget(self._pos_label)
+        self._num_stack.addWidget(self._order_label)
+        self._num_stack.setCurrentWidget(self._pos_label)
+        layout.addWidget(self._num_holder)
 
-        # Name + meta tag
-        info = QWidget()
-        info.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        info_layout = QVBoxLayout(info)
-        info_layout.setContentsMargins(0, 0, 0, 0)
-        info_layout.setSpacing(2)
-
-        # Nombre completo guardado aparte: el label muestra una versión
-        # recortada con "…" según el ancho real disponible (recalculada en
-        # resizeEvent), para que un nombre largo nunca fuerce el contenedor
-        # a ser más ancho que la columna — sin esto, el QScrollArea de la
-        # lista queda desplazable horizontalmente (sin barra visible, porque
-        # el policy la oculta, pero el desplazamiento sigue existiendo).
+        # Nombre completo aparte: el label muestra una versión recortada con «…»
+        # según el ancho real (resizeEvent); sin esto un nombre largo ensancha el
+        # contenedor y el QScrollArea queda desplazable en horizontal.
         self._full_name = str(playlist.Name)
         self._name_label = QLabel(self._full_name)
         self._name_label.setObjectName("card_name")
         self._name_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self._name_label.setToolTip(self._full_name)
-        info_layout.addWidget(self._name_label)
+        layout.addWidget(self._name_label, 1)
 
-        meta_row = QWidget()
-        meta_row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        meta_layout = QHBoxLayout(meta_row)
-        meta_layout.setContentsMargins(0, 0, 0, 0)
-        meta_layout.setSpacing(5)
-
-        tag_text = f"{count} tracks" if count > 0 else "vacía"
-        self._tag = QLabel(tag_text)
+        self._tag = QLabel(f"{count} tracks" if count > 0 else "vacía")
         self._tag.setObjectName("card_tag")
-        meta_layout.addWidget(self._tag)
-        meta_layout.addStretch(1)
-        info_layout.addWidget(meta_row)
-
-        layout.addWidget(info, 1)
-
-        # Check indicator
-        self._check = QLabel()
-        self._check.setObjectName("card_check")
-        self._check.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._check.setFixedSize(19, 19)
-        layout.addWidget(self._check)
+        layout.addWidget(self._tag)
 
         if self._empty:
             effect = QGraphicsOpacityEffect(self)
@@ -447,18 +558,16 @@ class PlaylistCard(QWidget):
         todos los siblings dentro del mismo QScrollArea.
         """
         on = self._checked
-        s  = _CARD_STYLES.get(self._theme, _CARD_STYLES["dark"])
-
+        s = styles.card_styles(self._theme)
         if on:
             self.setStyleSheet(s["card_on"])
-            self._order_label.setStyleSheet(s["order_on"])
             self._check.setStyleSheet(s["check_on"])
+            self._num_stack.setCurrentWidget(self._order_label)
         else:
             # Vaciar inline stylesheet → retoma el QSS global
             self.setStyleSheet("")
-            self._order_label.setStyleSheet("")
             self._check.setStyleSheet("")
-
+            self._num_stack.setCurrentWidget(self._pos_label)
         self._check.setText("✓" if on else "")
 
     # ─────────────────────────────────────────────────────────────────────
@@ -470,8 +579,16 @@ class PlaylistCard(QWidget):
             self.toggled.emit(self)
         super().mousePressEvent(event)
 
-    def set_order_num(self, s: str) -> None:
-        self._order_label.setText(s)
+    @property
+    def name(self) -> str:
+        return self._full_name
+
+    def set_numbers(self, position: int, order: int | None) -> None:
+        """position: lugar en la lista (se ve sin marcar); order: rango de
+        exportación (se ve marcada). Qué etiqueta se muestra lo decide _refresh."""
+        self._pos_label.setText(f"{position:02d}")
+        if order is not None:
+            self._order_label.setText(f"{order:02d}")
 
     def setChecked(self, value: bool) -> None:
         if not self._empty:
@@ -499,9 +616,10 @@ class PlaylistGroup(QWidget):
         h_layout.setContentsMargins(12, 8, 12, 8)
         h_layout.setSpacing(8)
 
-        icon = QLabel("▸")
-        icon.setObjectName("group_icon")
-        h_layout.addWidget(icon)
+        self._chevron = QLabel()
+        self._chevron.setObjectName("group_icon")
+        h_layout.addWidget(self._chevron)
+        self.set_theme(PlaylistCard._theme)
 
         title = QLabel(name)
         title.setObjectName("group_title")
@@ -516,6 +634,9 @@ class PlaylistGroup(QWidget):
         self._body_layout.setContentsMargins(6, 4, 6, 6)
         self._body_layout.setSpacing(4)
         layout.addWidget(self._body)
+
+    def set_theme(self, theme: str) -> None:
+        self._chevron.setPixmap(icons.pixmap("chevron_right", styles.token(theme, "accent"), 14))
 
     def add_card(self, card: PlaylistCard) -> None:
         self._body_layout.addWidget(card)
@@ -538,6 +659,23 @@ def _fmt_size(num_bytes: int) -> str:
             return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} {unit}"
         size /= 1024
     return f"{size:.1f} GB"
+
+
+class _ElideLinesDelegate(QStyledItemDelegate):
+    """Qt solo elide bien texto de una línea: acá cada línea del ítem se recorta con «…»."""
+
+    _H_PADDING = 9 * 2 + 8  # padding del QSS + margen de texto del estilo
+
+    def initStyleOption(self, option: QStyleOptionViewItem, index) -> None:
+        super().initStyleOption(option, index)
+        width = max(option.rect.width() - self._H_PADDING, 0)
+        # option.fontMetrics ignora el font-size del QSS; el widget sí lo tiene aplicado.
+        fm = QFontMetrics(option.widget.font()) if option.widget is not None else option.fontMetrics
+        # Qt reemplaza el \n del ítem por U+2028 en option.text.
+        option.text = "\u2028".join(
+            fm.elidedText(line, Qt.TextElideMode.ElideRight, width)
+            for line in option.text.replace("\n", "\u2028").split("\u2028")
+        )
 
 
 class RelocateDialog(QDialog):
@@ -584,6 +722,8 @@ class RelocateDialog(QDialog):
 
         self._list = QListWidget()
         self._list.setObjectName("relocate_list")
+        self._list.setItemDelegate(_ElideLinesDelegate(self._list))
+        self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         for cand in request.candidates:
             hint_parts = []
             if cand.matched_artist or cand.matched_title:

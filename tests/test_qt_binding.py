@@ -16,6 +16,7 @@ def _project_py_files() -> list[Path]:
     return [
         p for p in PROJECT_ROOT.rglob("*.py")
         if not _EXCLUDED_DIRS.intersection(p.relative_to(PROJECT_ROOT).parts)
+        and not p.relative_to(PROJECT_ROOT).parts[0].startswith(".venv")  # .venv-1 etc.: ruido del entorno
     ]
 
 
@@ -48,9 +49,10 @@ _SIGNAL_OWNERS = [
     ("relocate_core", "BaseRelocateWorker", "ask_user"),
     ("update_checker", "UpdateCheckWorker", "update_available"),
     ("audio_player", "AudioPlayer", "position_changed"),
-    ("spectro_worker", "SpectrogramWorker", "ready"),
+    ("waveform_worker", "WaveformWorker", "ready"),
     ("ui_components", "SeekBar", "seek_requested"),
-    ("ui", "ExportWidget", "clicked"),
+    ("ui_components", "WaveformSeek", "seek_requested"),
+    ("footer", "FooterBar", "export_clicked"),
 ]
 
 

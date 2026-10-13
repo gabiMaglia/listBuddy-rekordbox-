@@ -1,0 +1,35 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_settings_path_is_injected_and_repo_ini_untouched _____________
+
+    def test_settings_path_is_injected_and_repo_ini_untouched() -> None:
+        repo_ini = PROJECT_ROOT / ".rbe_settings.ini"
+        before = repo_ini.stat().st_mtime_ns if repo_ini.exists() else None
+>       out = run(
+            "w, tmp = make()\n"
+            "w.settings.setValue('probe', 1); w.settings.sync()\n"
+            "print(w.settings.fileName() == str(tmp), tmp.exists())\n"
+        )
+
+tests/test_header.py:17: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+code = "w, tmp = make()\nw.settings.setValue('probe', 1); w.settings.sync()\nprint(w.settings.fileName() == str(tmp), tmp.exists())\n"
+
+    def run(code: str):
+        r = run_isolated(BOOT + code)
+>       assert r.returncode == 0, r.stderr[-2000:]
+E       AssertionError: Traceback (most recent call last):
+E           File "<string>", line 14, in <module>
+E             w, tmp = make()
+E                      ~~~~^^
+E           File "<string>", line 11, in make
+E             w = ui.MainWindow(settings_path=tmp, **kw)
+E         TypeError: MainWindow.__init__() got an unexpected keyword argument 'settings_path'
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/.venv/bin/python', '-c', '\nimport pathlib, tempf...dow(settings_path=tmp, **kw)\nTypeError: MainWindow.__init__() got an unexpected keyword argument \'settings_path\'\n').returncode
+
+tests/test_header.py:10: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_header.py::test_settings_path_is_injected_and_repo_ini_untouched

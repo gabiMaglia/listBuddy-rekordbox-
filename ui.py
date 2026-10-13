@@ -1,30 +1,30 @@
 """
 ui.py — listBuddy MainWindow
 Layout: header-bar (title + controls) → two-column body
-  Left  : rack-head · destination · playlist cards · progress · export
+  Left  : playlist cards
   Right : output preview (groups + scrollable file list)
+  Footer: player · destination · export · progress (footer.py)
 """
 from __future__ import annotations
 
 import itertools
-import math
 import os
 import sys
 from io import BytesIO
+from functools import partial
 from pathlib import Path
+from typing import Any, Callable, Literal
 
 from PySide6.QtCore import (
-    Qt, QTimer, QUrl, QSettings, Signal,
+    QPoint, QSize, Qt, QTimer, QUrl, QSettings,
     QPropertyAnimation, QEasingCurve,
 )
 from PySide6.QtGui import (
     QAction,
-    QColor,
     QDesktopServices,
-    QImage,
+    QIcon,
     QKeySequence,
     QMouseEvent,
-    QPainter,
     QPixmap,
     QShortcut,
 )
@@ -39,9 +39,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
-    QMessageBox,
+    QMenu,
     QPlainTextEdit,
-    QProgressBar,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -54,22 +53,31 @@ from PySide6.QtMultimedia import QMediaDevices
 from db import get_playlist_tree as rb_get_playlist_tree
 from db import open_database as rb_open_database
 from db import playlist_song_count as rb_song_count
+import dialogs
+import icons
+from branding import APP_NAME
+from preview_card import (
+    CHIP_W, IDX_W, ROW_GAP, ROW_HEIGHT, WARN_W, PreviewGroupCard,
+)
+from row_blocks import ALL_BROKEN, NONE, block_positions, broken_notice_text, ext_chip_text
+from playlist_filter import matches
+from styles import apply_title_tracking, status_style, token
 from worker import ExportWorker
 from ui_components import (
     ClickableLabel,
     FileRow,
+    MaintenanceButton,
     PlaylistCard,
     PlaylistGroup,
-    RackHead,
     RelocateDialog,
     RestoreBackupDialog,
-    SeekBar,
     TitleBar,
 )
 from preview_worker import PreviewWorker, GroupData, TrackRow
 from audio_player import AudioPlayer
-from spectro_worker import SpectrogramWorker
-from relocate_core import BackupInfo, RestoreBackupWorker, list_backups
+from footer import FooterBar
+from waveform_worker import WaveformWorker
+from relocate_core import BackupInfo, RelocateScope, RestoreBackupWorker, list_backups
 from traktor_relocate import RelocateWorker, is_traktor_running
 from rekordbox_relocate import RekordboxRelocateWorker, is_rekordbox_running
 from update_checker import UpdateCheckWorker, UpdateInfo
@@ -118,130 +126,23 @@ class _ResizeGrip(QWidget):
         super().mousePressEvent(event)
 
 
-# ─────────────────────────────────────────── VU bars (decorative) ────────
-
-class VuBars(QWidget):
-    _BASE = [10, 16, 22, 26, 19, 12, 24, 17, 9, 14]
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._phase = 0.0
-        self._live = False
-        self._accent = QColor(206, 125, 230)
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._tick)
-        self.setFixedSize(54, 26)
-
-    def set_accent(self, hex_color: str) -> None:
-        self._accent = QColor(hex_color)
-        self.update()
-
-    def set_live(self, live: bool) -> None:
-        self._live = live
-        if live:
-            self._timer.start(55)
-        else:
-            self._timer.stop()
-            self._phase = 0.0
-            self.update()
-
-    def _tick(self) -> None:
-        self._phase += 0.20
-        self.update()
-
-    def paintEvent(self, _event) -> None:
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        n = len(self._BASE)
-        h = self.height()
-        bar_w = max(2, self.width() // n - 2)
-
-        c = QColor(self._accent)
-        c.setAlphaF(0.70)
-
-        for i, base_h in enumerate(self._BASE):
-            if self._live:
-                scale = 0.35 + 0.65 * abs(math.sin(self._phase + i * 0.72))
-            else:
-                scale = 0.25 + 0.12 * abs(math.sin(i * 0.9))
-            bh = max(2, int(base_h * scale))
-            x = i * (bar_w + 2)
-            y = h - bh
-            p.fillRect(x, y, bar_w, bh, c)
-
-
-# ────────────────────────────────────── Export button with badge ──────────
-
-class ExportWidget(QWidget):
-    clicked = Signal()
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setObjectName("export_widget")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setMinimumHeight(50)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._enabled = True
-
-        lo = QHBoxLayout(self)
-        lo.setContentsMargins(14, 0, 18, 0)
-        lo.setSpacing(10)
-        lo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self._badge = QLabel("00")
-        self._badge.setObjectName("export_badge")
-        self._badge.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        lo.addWidget(self._badge)
-
-        self._text = QLabel("Exportar en orden")
-        self._text.setObjectName("export_text")
-        self._text.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        lo.addWidget(self._text)
-
-    def mousePressEvent(self, event: QMouseEvent) -> None:
-        if self._enabled and event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit()
-        super().mousePressEvent(event)
-
-    def set_count(self, n: int) -> None:
-        self._badge.setText(str(n).zfill(2))
-
-    def set_label(self, text: str) -> None:
-        self._text.setText(text)
-
-    def setEnabled(self, val: bool) -> None:  # type: ignore[override]
-        self._enabled = val
-        self.setCursor(
-            Qt.CursorShape.ArrowCursor if not val else Qt.CursorShape.PointingHandCursor
-        )
-        prop = "true" if not val else "false"
-        self.setProperty("export_disabled", prop)
-        self._badge.setProperty("export_disabled", prop)
-        self._text.setProperty("export_disabled", prop)
-        for w in (self, self._badge, self._text):
-            w.style().unpolish(w)
-            w.style().polish(w)
-
-    def isEnabled(self) -> bool:  # type: ignore[override]
-        return self._enabled
-
-
 # ─────────────────────────────────────────────── Donation dialog ──────────
 
 class DonationDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("donation_dialog")
-        self.setWindowTitle("Apoyar — listBuddy")
+        self.setWindowTitle(f"Apoyar — {APP_NAME}")
         self.setFixedSize(310, 400)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(14)
 
-        title = QLabel("¿Te sirvió listBuddy?")
+        title = QLabel(f"¿Te sirvió {APP_NAME}?")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size:15px; font-weight:700;")
+        title.setObjectName("dialog_title")
+        apply_title_tracking(title, 17)
         layout.addWidget(title)
 
         sub = QLabel("Podés invitarme un café en Ko-fi.\nContribución 100 % voluntaria.")
@@ -292,9 +193,9 @@ class DonationDialog(QDialog):
 # ─────────────────────────────────────────────────── MainWindow ──────────
 
 class MainWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, settings_path: Path | None = None) -> None:
         super().__init__()
-        self.setWindowTitle("listBuddy")
+        self.setWindowTitle(APP_NAME)
         # T-016: frameless + chrome propio, solo Windows. macOS conserva el
         # frame nativo (sin tocar) — ver nota de compatibilidad en
         # TitleBar/_build_header. Resize por bordes vía _ResizeGrip
@@ -310,6 +211,7 @@ class MainWindow(QMainWindow):
         self._db = None
         self._worker: ExportWorker | None = None
         self._all_cards: list[PlaylistCard] = []
+        self._groups: list[PlaylistGroup] = []
         self._source: str = "rekordbox"  # "rekordbox" | "traktor"
         self._preview_worker: PreviewWorker | None = None
         self._relocate_worker: RelocateWorker | RekordboxRelocateWorker | None = None
@@ -333,16 +235,22 @@ class MainWindow(QMainWindow):
         self._audio.playing_changed.connect(self._on_playing_changed)
         self._audio.error.connect(self._on_audio_error)
         self._audio.position_changed.connect(self._on_position_changed)
-        self._audio.track_changed.connect(lambda _p: self._seek_row.setVisible(True))
         self._audio.track_finished.connect(self._on_track_finished)
         self._playing_path: str = ""        # raw_path del track sonando
+        self._is_playing: bool = False
+        # (widget, ícono, token de color, tamaño): se re-tiñen al cambiar de tema
+        self._themed_icons: list[tuple[QWidget, str, str, int]] = []
         self._playing_row: FileRow | None = None
-        self._play_order: list[tuple[str, FileRow]] = []   # (raw_path, row) en orden
 
-        # ── Espectrograma de fondo ───────────────────────────────────────
-        self._spectro_worker: SpectrogramWorker | None = None
-        self._spectro_gen: int = 0
-        self._spectro_cache: dict[str, QPixmap] = {}
+        # ── Forma de onda del footer ─────────────────────────────────────
+        self._wave_worker: WaveformWorker | None = None
+        self._wave_gen: int = 0
+        self._wave_cache: dict[str, list[float]] = {}
+        # Cancelados pero con el hilo aún vivo: se sueltan en su `finished`.
+        self._live_wave_workers: set[WaveformWorker] = set()
+
+        self._export_state: Literal["idle", "running", "cancelling"] = "idle"
+        self._last_export_dest: str = ""
 
         # Cache de metadata de tracks: evita re-queries SQLAlchemy (N+1 problem)
         # key: "<source>:<playlist_name>"  value: list[TrackRow] sin exists flags
@@ -360,9 +268,12 @@ class MainWindow(QMainWindow):
 
         # Cola de grupos pendientes de render + generation counter
         self._render_queue: list[GroupData] = []
+        # Grupos ya dibujados: el cambio de tema los re-encola (T-070).
+        self._rendered_groups: list[GroupData] = []
+        self._broken_total: int = 0
         self._render_gen: int = 0   # se incrementa al limpiar; invalida batches stale
 
-        settings_path = Path(__file__).parent / ".rbe_settings.ini"
+        settings_path = settings_path or Path(__file__).parent / ".rbe_settings.ini"
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
         self._theme = str(self.settings.value("theme", "dark"))
         from ui_components import PlaylistCard as _PC
@@ -372,7 +283,6 @@ class MainWindow(QMainWindow):
         self._rb_db_path = str(self.settings.value("rb_db_path", "") or "")
         self._tk_collection_path = str(self.settings.value("tk_collection_path", "") or "")
         self._auto_advance = self.settings.value("auto_advance", True, type=bool)
-        self._spectro_enabled = self.settings.value("spectrogram_enabled", True, type=bool)
         self._saved_device_id = str(self.settings.value("audio_device_id", "") or "")
         self._media_devices = QMediaDevices(self)
         self._media_devices.audioOutputsChanged.connect(self._refresh_audio_devices)
@@ -385,11 +295,13 @@ class MainWindow(QMainWindow):
         root_layout.setSpacing(0)
 
         root_layout.addWidget(self._build_header())
+        root_layout.addWidget(self._build_update_strip())
 
         self._stack = QStackedWidget()
         self._stack.addWidget(self._build_body())             # 0 = principal
         self._stack.addWidget(self._build_settings_page())    # 1 = configuración
         root_layout.addWidget(self._stack, 1)
+        root_layout.addWidget(self._build_footer())
 
         self.setCentralWidget(central)
         if _IS_WINDOWS:
@@ -412,17 +324,14 @@ class MainWindow(QMainWindow):
         if app:
             app.setStyleSheet(load_qss(self._theme))
         self._sync_theme_toggle(self._theme)
-        self._vu_bars.set_accent(
-            "#ce7de6" if self._theme == "dark" else "#8c38bf"
-        )
-        self._seek_bar.set_accent(
-            "#ce7de6" if self._theme == "dark" else "#8c38bf"
-        )
+        self._sync_source_buttons()
+        QTimer.singleShot(0, self._fit_header)  # el ancho final llega tras el show
+        self._footer.apply_theme(self._theme)
 
         self._apply_saved_audio_device()
         last_dest = str(self.settings.value("last_dest_folder", "") or "")
         if last_dest:
-            self.folder_edit.setText(last_dest)
+            self._footer.set_dest(last_dest)
 
         self._load_playlists()
 
@@ -432,6 +341,24 @@ class MainWindow(QMainWindow):
         self._start_update_check()
 
     # ──────────────────────────────────────── Widget builders ────────────
+
+    def _build_update_strip(self) -> QWidget:
+        """T-021 (I-8): aviso de actualización en franja propia bajo el header (D2)."""
+        strip = QWidget()
+        strip.setObjectName("update_strip")
+        strip.setFixedHeight(28)
+        strip.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        lo = QHBoxLayout(strip)
+        lo.setContentsMargins(20, 0, 20, 0)
+        self._update_banner = ClickableLabel("")
+        self._update_banner.setObjectName("update_banner")
+        self._update_banner.setToolTip("Ver la nueva versión en GitHub")
+        self._update_banner.clicked.connect(self._open_update_link)
+        lo.addWidget(self._update_banner)
+        lo.addStretch(1)
+        strip.setVisible(False)
+        self._update_strip = strip
+        return strip
 
     def _build_header(self) -> QWidget:
         """
@@ -445,69 +372,60 @@ class MainWindow(QMainWindow):
         """
         bar = TitleBar()
         bar.setObjectName("header_bar")
-        bar.setFixedHeight(46)
+        bar.setFixedHeight(56)
         bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._header_bar = bar
         lo = QHBoxLayout(bar)
-        lo.setContentsMargins(14, 0, 12, 0)
-        lo.setSpacing(12)
+        lo.setContentsMargins(20, 0, 20, 0)
+        lo.setSpacing(12)  # T2: con 20 px el header no entra a 820 px
 
-        # ── Izquierda: nombre + eyebrow ──────────────────────────────────
+        # ── Izquierda: marca única + selector de fuente ──────────────────
         brand = QWidget()
         brand.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        bl = QVBoxLayout(brand)
+        bl = QHBoxLayout(brand)
         bl.setContentsMargins(0, 0, 0, 0)
-        bl.setSpacing(0)
-        engine_lbl = QLabel("EXPORT ENGINE")
-        engine_lbl.setObjectName("header_eyebrow")
-        title_lbl = QLabel("listBuddy")
+        bl.setSpacing(10)
+        logo = QLabel()
+        self._tint_icon(logo, "logo", "accent", 22)
+        title_lbl = QLabel(APP_NAME)
         title_lbl.setObjectName("header_title")
-        bl.addWidget(engine_lbl)
+        apply_title_tracking(title_lbl, 20)
+        bl.addWidget(logo)
         bl.addWidget(title_lbl)
         lo.addWidget(brand)
-
-        # T-021 (I-8): aviso discreto de actualización disponible — oculto por
-        # default, solo se muestra si UpdateCheckWorker confirma una versión
-        # más nueva en GitHub. Clickeable, abre la página del release.
-        self._update_banner = ClickableLabel("")
-        self._update_banner.setObjectName("update_banner")
-        self._update_banner.setToolTip("Ver la nueva versión en GitHub")
-        self._update_banner.setVisible(False)
-        self._update_banner.clicked.connect(self._open_update_link)
-        lo.addWidget(self._update_banner)
-
-        # Atributos dummy para _update_now_playing (no se agregan al layout)
-        self._header_artist = QLabel("")
-        self._header_track = QLabel("")
+        lo.addWidget(self._build_source_switcher())
 
         lo.addStretch(1)
 
         # ── Derecha: controles ───────────────────────────────────────────
-        self._settings_btn = QPushButton("⚙")
+        self._maint_btn = MaintenanceButton()
+        self._tint_icon(self._maint_btn.icon_label(), "wrench", "text", 16)
+        lo.addWidget(self._maint_btn)
+        self._build_maintenance_menu()
+
+        self._settings_btn = QPushButton()
+        self._tint_icon(self._settings_btn, "gear", "muted", 16)
         self._settings_btn.setObjectName("settings_btn")
         self._settings_btn.setToolTip("Configuración")
+        self._settings_btn.setAccessibleName("Configuración")
         self._settings_btn.setCheckable(True)
         self._settings_btn.clicked.connect(self._toggle_settings)
+
+        self._theme_btn = QPushButton()
+        self._theme_btn.setObjectName("theme_btn")
+        self._theme_btn.setToolTip("Cambiar tema")
+        self._theme_btn.setAccessibleName("Cambiar tema")
+        self._theme_btn.clicked.connect(
+            lambda: self._apply_theme("light" if self._theme == "dark" else "dark")
+        )
+
+        self._donate_btn = QPushButton(" Apoyar")
+        self._tint_icon(self._donate_btn, "heart", "muted", 15)
+        self._donate_btn.setObjectName("donate_btn")
+        self._donate_btn.clicked.connect(self._show_donation)
         lo.addWidget(self._settings_btn)
-
-        donate_btn = QPushButton("♥  Apoyar")
-        donate_btn.setObjectName("donate_btn")
-        donate_btn.clicked.connect(self._show_donation)
-        lo.addWidget(donate_btn)
-
-        toggle = QWidget()
-        toggle.setObjectName("theme_toggle")
-        t_lo = QHBoxLayout(toggle)
-        t_lo.setContentsMargins(2, 2, 2, 2)
-        t_lo.setSpacing(0)
-        self._sun_btn = QPushButton("☀")
-        self._sun_btn.setObjectName("theme_sun")
-        self._moon_btn = QPushButton("🌙")
-        self._moon_btn.setObjectName("theme_moon")
-        self._sun_btn.clicked.connect(lambda: self._apply_theme("light"))
-        self._moon_btn.clicked.connect(lambda: self._apply_theme("dark"))
-        t_lo.addWidget(self._sun_btn)
-        t_lo.addWidget(self._moon_btn)
-        lo.addWidget(toggle)
+        lo.addWidget(self._theme_btn)
+        lo.addWidget(self._donate_btn)
 
         # T-016: botones propios de minimizar/maximizar/cerrar — solo en
         # Windows, donde la ventana es frameless y el frame nativo (que
@@ -530,7 +448,8 @@ class MainWindow(QMainWindow):
             self._max_btn.setToolTip("Maximizar/restaurar")
             self._max_btn.setCursor(Qt.CursorShape.ArrowCursor)
             self._max_btn.clicked.connect(self._toggle_maximize_restore)
-            self._close_btn = QPushButton("✕")
+            self._close_btn = QPushButton()
+            self._tint_icon(self._close_btn, "close", "muted", 14)
             self._close_btn.setObjectName("winctl_close")
             self._close_btn.setToolTip("Cerrar")
             self._close_btn.setCursor(Qt.CursorShape.ArrowCursor)
@@ -589,8 +508,26 @@ class MainWindow(QMainWindow):
         left.setGeometry(0, m, m, max(0, h - 2 * m))
         right.setGeometry(max(0, w - m), m, m, max(0, h - 2 * m))
 
+    def _fit_header(self) -> None:
+        """Si el header no entra a lo ancho, Mantenimiento y Apoyar quedan en solo ícono (D3)."""
+        bar = self._header_bar
+        self._set_header_compact(False)  # medir siempre contra el ancho completo
+        bar.layout().invalidate()
+        self._set_header_compact(bar.layout().sizeHint().width() > bar.width())
+        self._maint_btn.layout().activate()  # su sizeHint sale de este layout interno
+        bar.layout().invalidate()
+        bar.layout().activate()  # aplicar ya la geometría nueva (sin esperar al próximo evento)
+
+    def _set_header_compact(self, compact: bool) -> None:
+        self._maint_btn.set_compact(compact)
+        self._donate_btn.setText("" if compact else " Apoyar")
+        self._donate_btn.setToolTip("Apoyar" if compact else "")
+        self._donate_btn.setAccessibleName("Apoyar")
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        if hasattr(self, "_donate_btn"):  # puede llegar antes de armar el header
+            self._fit_header()
         if self._grips:
             self._reposition_grips()
             for grip in self._grips:
@@ -601,8 +538,8 @@ class MainWindow(QMainWindow):
         body.setObjectName("body_widget")
         body.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         lo = QHBoxLayout(body)
-        lo.setContentsMargins(18, 18, 18, 18)
-        lo.setSpacing(16)
+        lo.setContentsMargins(0, 0, 0, 0)
+        lo.setSpacing(0)
         lo.addWidget(self._build_left_col())
         lo.addWidget(self._build_right_col(), 1)
         return body
@@ -612,95 +549,42 @@ class MainWindow(QMainWindow):
     def _build_left_col(self) -> QWidget:
         col = QWidget()
         col.setObjectName("left_col")
-        col.setFixedWidth(344)
+        col.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        col.setFixedWidth(320)
         lo = QVBoxLayout(col)
         lo.setContentsMargins(0, 0, 0, 0)
-        lo.setSpacing(14)
+        lo.setSpacing(0)
 
-        lo.addWidget(self._build_rack_head())
-        lo.addWidget(self._build_seek_row())
-        lo.addWidget(self._build_source_switcher())
-        lo.addWidget(self._build_relocate_row())
-        lo.addWidget(self._build_dest_section())
         lo.addWidget(self._build_playlists_header())
+        help_lbl = QLabel("Marcá las que querés exportar")
+        help_lbl.setObjectName("playlists_help")
+        lo.addWidget(help_lbl)
+        lo.addWidget(self._build_playlist_search())
+        self._no_results = QLabel("")
+        self._no_results.setObjectName("playlist_no_results")
+        self._no_results.setVisible(False)
+        lo.addWidget(self._no_results)
         lo.addWidget(self._build_playlist_scroll(), 1)
-        lo.addWidget(self._build_progress_section())
-        lo.addWidget(self._build_export_widget())
         return col
 
-    def _build_rack_head(self) -> QWidget:
-        """lb-rackhead: logo (play/pause) + brand + VU bars + espectrograma."""
-        rack = RackHead()
-        rack.setObjectName("rack_head")
-        rack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self._rack_head = rack
-        lo = QHBoxLayout(rack)
-        lo.setContentsMargins(14, 12, 14, 12)
-        lo.setSpacing(11)
-
-        logo = ClickableLabel("♪")
-        logo.setObjectName("brand_logo_text")
-        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo.setFixedSize(34, 34)
-        logo.setToolTip("Reproducir / pausar")
-        logo.clicked.connect(self._audio.toggle)
-        self._play_toggle = logo
-        lo.addWidget(logo)
-
-        brand_block = QWidget()
-        brand_block.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        bl = QVBoxLayout(brand_block)
-        bl.setContentsMargins(0, 0, 0, 0)
-        bl.setSpacing(0)
-        self._brand_name_lbl = QLabel("listBuddy")
-        self._brand_name_lbl.setObjectName("brand_name")
-        bl.addWidget(self._brand_name_lbl)
-
-        self._rack_np_title = QLabel("")
-        self._rack_np_title.setObjectName("rack_np_title")
-        self._rack_np_title.setVisible(False)
-        bl.addWidget(self._rack_np_title)
-
-        self._rack_np_artist = QLabel("")
-        self._rack_np_artist.setObjectName("rack_np_artist")
-        self._rack_np_artist.setVisible(False)
-        bl.addWidget(self._rack_np_artist)
-
-        lo.addWidget(brand_block, 1)
-
-        self._vu_bars = VuBars()
-        lo.addWidget(self._vu_bars)
-        return rack
-
-    def _build_seek_row(self) -> QWidget:
-        row = QWidget()
-        row.setObjectName("seek_row")
-        row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        lo = QHBoxLayout(row)
-        lo.setContentsMargins(2, 0, 2, 0)
-        lo.setSpacing(8)
-
-        self._time_cur = QLabel("0:00")
-        self._time_cur.setObjectName("seek_time")
-        lo.addWidget(self._time_cur)
-
-        self._seek_bar = SeekBar()
-        self._seek_bar.seek_requested.connect(self._audio.seek)
-        lo.addWidget(self._seek_bar, 1)
-
-        self._time_total = QLabel("0:00")
-        self._time_total.setObjectName("seek_time")
-        lo.addWidget(self._time_total)
-
-        row.setVisible(False)          # oculto hasta que cargue un track
-        self._seek_row = row
-        return row
+    def _build_footer(self) -> QWidget:
+        f = FooterBar()
+        f.play_clicked.connect(self._audio.toggle)
+        f.seek_requested.connect(self._audio.seek)
+        f.change_dest_clicked.connect(self._choose_folder)
+        f.dest_changed.connect(self._on_path_changed)
+        f.export_clicked.connect(self._on_export_clicked)
+        f.finder_clicked.connect(self._open_dest_in_finder)
+        f.apply_theme(self._theme)
+        self._footer = f
+        return f
 
     def _build_source_switcher(self) -> QWidget:
         """Segmented control: Rekordbox | Traktor."""
         wrap = QWidget()
         wrap.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         wrap.setObjectName("source_switcher")
+        wrap.setFixedHeight(36)  # 30 del botón + 2 de margen + 1 de borde por lado
         lo = QHBoxLayout(wrap)
         lo.setContentsMargins(2, 2, 2, 2)
         lo.setSpacing(0)
@@ -719,71 +603,86 @@ class MainWindow(QMainWindow):
         lo.addWidget(self._src_tk_btn, 1)
         return wrap
 
-    def _build_relocate_row(self) -> QWidget:
-        """
-        F-07/F-08 (ADR-001/ADR-002): botón de relocate, visible con
-        cualquier fuente activa (Traktor o Rekordbox — ver ADR-002 punto 5,
-        reusa el mismo botón/checkbox en vez de duplicar UI por motor).
-        """
-        # D-08 (verificación en vivo de T-019): con relocate_btn +
-        # restore_backup_btn + el checkbox los tres en una sola fila
-        # horizontal, el ancho fijo de 344px de la columna corta el texto de
-        # todo. Se apilan en dos filas: botones lado a lado arriba, checkbox
-        # (con su texto largo) en su propia fila abajo con todo el ancho.
-        row = QWidget()
-        row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        outer = QVBoxLayout(row)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(8)
+    def _sync_source_buttons(self) -> None:
+        """Marca el botón activo (propiedad + punto ámbar); el inactivo lleva un
+        ícono transparente del mismo tamaño para que el ancho no salte."""
+        accent = token(self._theme, "accent")
+        for btn, src in ((self._src_rb_btn, "rekordbox"), (self._src_tk_btn, "traktor")):
+            active = self._source == src
+            btn.setProperty("src_active", "true" if active else "false")
+            if active:
+                btn.setIcon(icons.icon("dot", accent, 10))
+            else:
+                blank = QPixmap(10, 10)
+                blank.fill(Qt.GlobalColor.transparent)
+                btn.setIcon(QIcon(blank))
+            btn.setIconSize(QSize(10, 10))
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
 
-        btn_row = QWidget()
-        btn_row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        rl = QHBoxLayout(btn_row)
-        rl.setContentsMargins(0, 0, 0, 0)
-        rl.setSpacing(8)
-
-        self.relocate_btn = QPushButton("🔧  Reparar enlaces rotos…")
-        self.relocate_btn.setObjectName("relocate_btn")
-        self.relocate_btn.clicked.connect(self._start_relocate)
-        rl.addWidget(self.relocate_btn, 1)
-
-        # B-4 (T-019): el backup existe (retención N=10/N=5) pero vive en una
-        # carpeta oculta del sistema — sin este botón, restaurarlo a mano es
-        # inviable para un usuario no técnico. Botón secundario, más chico,
-        # al lado del de reparar (mismo criterio visual que browse_btn).
-        self.restore_backup_btn = QPushButton("↩  Restaurar copia de seguridad…")
-        self.restore_backup_btn.setObjectName("restore_backup_btn")
-        self.restore_backup_btn.clicked.connect(self._open_restore_backup_dialog)
-        rl.addWidget(self.restore_backup_btn, 1)
-
-        outer.addWidget(btn_row)
-
-        self.relocate_auto_chk = QCheckBox(
-            "Resolver automáticamente con la mejor coincidencia (sin preguntar)"
+    def _build_maintenance_menu(self) -> None:
+        """Menú del botón Mantenimiento (D-08: sale de la columna de 344 px)."""
+        menu = QMenu(self)
+        menu.setToolTipsVisible(True)
+        self._act_relocate = menu.addAction("Reparar enlaces rotos…")
+        self._act_relocate.triggered.connect(self._on_relocate_action)
+        self._act_restore = menu.addAction("Restaurar copia de seguridad…")
+        self._act_restore.triggered.connect(self._open_restore_backup_dialog)
+        menu.addSeparator()
+        self._act_auto = menu.addAction(
+            "Resolver automáticamente con la mejor coincidencia"
         )
-        self.relocate_auto_chk.setObjectName("relocate_auto_chk")
-        self.relocate_auto_chk.setChecked(False)
-        self.relocate_auto_chk.setToolTip(
+        self._act_auto.setCheckable(True)
+        self._act_auto.setChecked(False)  # D4: siempre apagado al arrancar, no se persiste
+        self._act_auto.setToolTip(
             "Con >1 candidato, aplica directo el de mejor score sin mostrar\n"
             "el modal de desambiguación. El log marca cada uno como '(auto)'.\n"
             "Riesgo: un nombre de archivo idéntico para canciones distintas\n"
             "podría auto-resolver al candidato equivocado (backup reversible)."
         )
-        outer.addWidget(self.relocate_auto_chk)
-
-        self._relocate_row = row
+        self._maint_menu = menu
+        self._relocate_state: Literal["idle", "running", "cancelling"] = "idle"
+        # Popup propio y no setMenu: setMenu agrega un indicador que el diseño no tiene.
+        self._maint_btn.clicked.connect(self._show_maintenance_menu)
         self._update_relocate_tooltip()
-        return row
+
+    def _show_maintenance_menu(self) -> None:
+        self._maint_menu.popup(
+            self._maint_btn.mapToGlobal(QPoint(0, self._maint_btn.height() + 4))
+        )
+
+    def _on_relocate_action(self) -> None:
+        if self._relocate_state == "idle":
+            self._start_relocate()
+        elif self._relocate_state == "running":
+            self._cancel_relocate()
+
+    def _set_relocate_state(self, state: Literal["idle", "running", "cancelling"]) -> None:
+        self._relocate_state = state
+        text, enabled = {
+            "idle": ("Reparar enlaces rotos…", True),
+            "running": ("Cancelar", True),
+            "cancelling": ("Cancelando…", False),
+        }[state]
+        self._act_relocate.setText(text)
+        self._act_relocate.setEnabled(enabled)
+
+    def _set_maintenance_enabled(self, enabled: bool) -> None:
+        self._act_relocate.setEnabled(enabled)
+        self._act_restore.setEnabled(enabled)
+
+    def _auto_resolve_enabled(self) -> bool:
+        return self._act_auto.isChecked()
 
     def _update_relocate_tooltip(self) -> None:
         """Tooltip del botón de relocate según la fuente activa (Traktor/Rekordbox)."""
         if self._source == "traktor":
-            self.relocate_btn.setToolTip(
+            self._act_relocate.setToolTip(
                 "Busca los archivos con link roto en una carpeta/disco y repara\n"
                 "la colección de Traktor (collection.nml)."
             )
         else:
-            self.relocate_btn.setToolTip(
+            self._act_relocate.setToolTip(
                 "Busca los archivos con link roto en una carpeta/disco y repara\n"
                 "la librería de Rekordbox 6 (master.db). Rekordbox debe estar\n"
                 "cerrado — se hace backup automático antes de escribir."
@@ -796,90 +695,52 @@ class MainWindow(QMainWindow):
         self._track_meta_cache.clear()
         self._exists_cache.clear()
         # Update button states
-        self._src_rb_btn.setProperty("src_active", "true" if source == "rekordbox" else "false")
-        self._src_tk_btn.setProperty("src_active", "true" if source == "traktor" else "false")
-        for btn in (self._src_rb_btn, self._src_tk_btn):
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
+        self._sync_source_buttons()
         self._update_relocate_tooltip()
         self._load_playlists()
-
-    def _build_dest_section(self) -> QWidget:
-        wrap = QWidget()
-        wrap.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        wl = QVBoxLayout(wrap)
-        wl.setContentsMargins(0, 0, 0, 0)
-        wl.setSpacing(7)
-
-        ey = QLabel("CARPETA DE DESTINO")
-        ey.setObjectName("eyebrow")
-        wl.addWidget(ey)
-
-        dest_row = QWidget()
-        dest_row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        dr = QHBoxLayout(dest_row)
-        dr.setContentsMargins(0, 0, 0, 0)
-        dr.setSpacing(8)
-
-        path_row = QWidget()
-        path_row.setObjectName("path_row_widget")
-        path_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        pr = QHBoxLayout(path_row)
-        pr.setContentsMargins(12, 0, 8, 0)
-        pr.setSpacing(8)
-
-        fi = QLabel()
-        fi.setObjectName("path_folder_icon")
-        fi.setPixmap(
-            self.style().standardIcon(
-                self.style().StandardPixmap.SP_DirIcon
-            ).pixmap(16, 16)
-        )
-        pr.addWidget(fi)
-
-        self.folder_edit = QLineEdit()
-        self.folder_edit.setObjectName("folder_edit")
-        self.folder_edit.setPlaceholderText("Elegí dónde exportar…")
-        self.folder_edit.textChanged.connect(self._on_path_changed)
-        pr.addWidget(self.folder_edit, 1)
-
-        dr.addWidget(path_row, 1)
-
-        browse_btn = QPushButton("Elegir…")
-        browse_btn.setObjectName("browse_btn")
-        browse_btn.clicked.connect(self._choose_folder)
-        dr.addWidget(browse_btn)
-
-        wl.addWidget(dest_row)
-        return wrap
 
     def _build_playlists_header(self) -> QWidget:
         row = QWidget()
         row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         rl = QHBoxLayout(row)
-        rl.setContentsMargins(0, 0, 0, 0)
-        rl.setSpacing(8)
+        rl.setContentsMargins(16, 16, 12, 4)
+        rl.setSpacing(10)
 
-        ey = QLabel("PLAYLISTS")
-        ey.setObjectName("eyebrow")
-        rl.addWidget(ey)
+        title = QLabel("Playlists")
+        title.setObjectName("playlists_title")
+        apply_title_tracking(title, 17)
+        rl.addWidget(title)
 
-        self.count_pill = QLabel("0 / 0")
+        self.count_pill = QLabel("0/0")
         self.count_pill.setObjectName("count_pill")
         rl.addWidget(self.count_pill)
         rl.addStretch(1)
 
         self.all_btn = QPushButton("Todas")
         self.all_btn.setObjectName("all_btn")
-        self.all_btn.clicked.connect(lambda: self._set_all(True))
+        self.all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.all_btn.clicked.connect(lambda: self._set_all(True, only_visible=True))
         rl.addWidget(self.all_btn)
 
         self.none_btn = QPushButton("Ninguna")
         self.none_btn.setObjectName("none_btn")
-        self.none_btn.clicked.connect(lambda: self._set_all(False))
+        self.none_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.none_btn.clicked.connect(lambda: self._set_all(False, only_visible=True))
         rl.addWidget(self.none_btn)
-
         return row
+
+    def _build_playlist_search(self) -> QWidget:
+        wrap = QWidget()
+        wrap.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        wl = QHBoxLayout(wrap)
+        wl.setContentsMargins(12, 0, 12, 8)
+        self.playlist_search = QLineEdit()
+        self.playlist_search.setObjectName("playlist_search")
+        self.playlist_search.setPlaceholderText("Buscar playlist")
+        self.playlist_search.setAccessibleName("Buscar playlist")
+        self.playlist_search.textChanged.connect(lambda _t: self._apply_filter())
+        wl.addWidget(self.playlist_search)
+        return wrap
 
     def _build_playlist_scroll(self) -> QScrollArea:
         scroll = QScrollArea()
@@ -892,56 +753,12 @@ class MainWindow(QMainWindow):
         self.playlist_container = QWidget()
         self.playlist_container.setObjectName("scroll_content")
         self.playlist_container_layout = QVBoxLayout(self.playlist_container)
-        self.playlist_container_layout.setContentsMargins(6, 5, 6, 5)
-        # T-015: densidad — de 5 a 4 (junto con el padding/spacing reducido de
-        # PlaylistCard) para que entren más playlists sin scroll.
-        self.playlist_container_layout.setSpacing(4)
+        self.playlist_container_layout.setContentsMargins(8, 0, 8, 8)
+        self.playlist_container_layout.setSpacing(2)
         self.playlist_container_layout.addStretch(1)
 
         scroll.setWidget(self.playlist_container)
         return scroll
-
-    def _build_progress_section(self) -> QWidget:
-        self.progress_section = QWidget()
-        self.progress_section.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.progress_section.setVisible(False)
-        pl = QVBoxLayout(self.progress_section)
-        pl.setContentsMargins(0, 0, 0, 0)
-        pl.setSpacing(5)
-
-        label_row = QWidget()
-        label_row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        lr = QHBoxLayout(label_row)
-        lr.setContentsMargins(0, 0, 0, 0)
-        lr.setSpacing(6)
-        self.prog_label = QLabel("Copiando y numerando…")
-        self.prog_label.setObjectName("prog_label")
-        self.prog_pct = QLabel("0%")
-        self.prog_pct.setObjectName("prog_pct")
-
-        self._finder_btn = QPushButton("Abrir en Finder")
-        self._finder_btn.setObjectName("finder_btn")
-        self._finder_btn.setVisible(False)
-
-        lr.addWidget(self.prog_label, 1)
-        lr.addWidget(self._finder_btn)
-        lr.addWidget(self.prog_pct)
-        pl.addWidget(label_row)
-
-        self.progress = QProgressBar()
-        self.progress.setObjectName("progress")
-        self.progress.setTextVisible(False)
-        self.progress.setValue(0)
-        pl.addWidget(self.progress)
-
-        return self.progress_section
-
-    def _build_export_widget(self) -> ExportWidget:
-        self.export_btn = ExportWidget()
-        self.export_btn.set_count(0)
-        self.export_btn.setEnabled(False)
-        self.export_btn.clicked.connect(self._start_export)
-        return self.export_btn
 
     # ── Right column ─────────────────────────────────────────────────────
 
@@ -950,23 +767,49 @@ class MainWindow(QMainWindow):
         col.setObjectName("right_col")
         col.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         lo = QVBoxLayout(col)
-        lo.setContentsMargins(0, 0, 0, 0)
-        lo.setSpacing(10)
+        lo.setContentsMargins(20, 16, 20, 0)
+        lo.setSpacing(12)
 
-        # Eyebrow + status
+        # Título + subtítulo + aviso de rotos + estado
         head_row = QWidget()
         head_row.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         hl = QHBoxLayout(head_row)
         hl.setContentsMargins(0, 0, 0, 0)
         hl.setSpacing(8)
-        ey = QLabel("SALIDA · VISTA PREVIA")
-        ey.setObjectName("output_eyebrow")
-        hl.addWidget(ey)
-        hl.addSpacing(14)
+        title = QLabel("Vista previa de la salida")
+        title.setObjectName("preview_title")
+        apply_title_tracking(title, 17)
+        sub = QLabel("Así van a quedar las carpetas en el destino")
+        sub.setObjectName("preview_subtitle")
+        # Subtítulo bajo el título (no en línea como el diseño): en la columna angosta
+        # chocaba con el aviso y el estado y se recortaba.
+        tb = QVBoxLayout()
+        tb.setContentsMargins(0, 0, 0, 0)
+        tb.setSpacing(2)
+        tb.addWidget(title)
+        tb.addWidget(sub)
+        hl.addLayout(tb)
+        hl.addStretch(1)
+
+        # Aviso «N enlaces rotos»: sigue al total de la vista previa (_set_broken_total).
+        self._broken_notice = QWidget()
+        self._broken_notice.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        bn = QHBoxLayout(self._broken_notice)
+        bn.setContentsMargins(0, 0, 0, 0)
+        bn.setSpacing(6)
+        bn_icon = QLabel()
+        bn_icon.setObjectName("broken_notice_icon")
+        self._tint_icon(bn_icon, "warning", "danger", 14)
+        self._broken_notice_label = QLabel("")
+        self._broken_notice_label.setObjectName("broken_notice_label")
+        bn.addWidget(bn_icon)
+        bn.addWidget(self._broken_notice_label)
+        self._broken_notice.setVisible(False)
+        hl.addWidget(self._broken_notice)
+
         self.output_status = QLabel("en espera")
         self.output_status.setObjectName("output_status_tag")
         hl.addWidget(self.output_status)
-        hl.addStretch(1)
 
         # T-015: "cerrar todas" — reusa _set_all(False), el mismo handler que
         # ya usa el botón "Ninguna" del árbol izquierdo (ui.py _build_playlists_header).
@@ -988,29 +831,6 @@ class MainWindow(QMainWindow):
         panel_lo.setContentsMargins(0, 0, 0, 0)
         panel_lo.setSpacing(0)
 
-        # Panel header — destination path
-        self.output_head = QWidget()
-        self.output_head.setObjectName("output_head")
-        self.output_head.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        oh = QHBoxLayout(self.output_head)
-        oh.setContentsMargins(14, 10, 14, 10)
-        oh.setSpacing(8)
-        fi = QLabel()
-        fi.setObjectName("output_folder_icon")
-        fi.setPixmap(
-            self.style().standardIcon(
-                self.style().StandardPixmap.SP_DirIcon
-            ).pixmap(15, 15)
-        )
-        self.output_path_label = QLabel("Sin carpeta seleccionada")
-        self.output_path_label.setObjectName("output_path_label")
-        self.output_path_label.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
-        )
-        oh.addWidget(fi)
-        oh.addWidget(self.output_path_label, 1)
-        panel_lo.addWidget(self.output_head)
-
         # Preview scroll (idle/selecting)
         self.preview_scroll = QScrollArea()
         self.preview_scroll.setObjectName("preview_scroll")
@@ -1024,8 +844,8 @@ class MainWindow(QMainWindow):
         self.preview_container = QWidget()
         self.preview_container.setObjectName("preview_container")
         self.preview_layout = QVBoxLayout(self.preview_container)
-        self.preview_layout.setContentsMargins(12, 10, 12, 10)
-        self.preview_layout.setSpacing(10)
+        self.preview_layout.setContentsMargins(0, 0, 0, 20)
+        self.preview_layout.setSpacing(14)
         self.preview_scroll.setWidget(self.preview_container)
         panel_lo.addWidget(self.preview_scroll, 1)
 
@@ -1060,6 +880,7 @@ class MainWindow(QMainWindow):
         back.clicked.connect(lambda: self._toggle_settings(False))
         title = QLabel("Configuración")
         title.setObjectName("settings_title")
+        apply_title_tracking(title, 17)
         tl.addWidget(back)
         tl.addWidget(title)
         tl.addStretch(1)
@@ -1111,11 +932,6 @@ class MainWindow(QMainWindow):
         self._auto_advance_chk.setChecked(self._auto_advance)
         self._auto_advance_chk.toggled.connect(self._on_auto_advance_toggled)
         play_box.addWidget(self._auto_advance_chk)
-        self._spectro_chk = QCheckBox("Espectrograma de fondo en el banner")
-        self._spectro_chk.setObjectName("settings_check")
-        self._spectro_chk.setChecked(self._spectro_enabled)
-        self._spectro_chk.toggled.connect(self._on_spectro_toggled)
-        play_box.addWidget(self._spectro_chk)
 
         # ── LIBRERÍAS ──────────────────────────────────────────────────────
         lib_box = section("LIBRERÍAS")
@@ -1216,15 +1032,6 @@ class MainWindow(QMainWindow):
         self._auto_advance = checked
         self.settings.setValue("auto_advance", checked)
 
-    def _on_spectro_toggled(self, checked: bool) -> None:
-        self._spectro_enabled = checked
-        self.settings.setValue("spectrogram_enabled", checked)
-        if not checked:
-            self._cancel_spectro()
-            self._rack_head.set_spectrogram(None)
-        elif self._audio.current_path():
-            self._start_spectrogram(self._audio.current_path())
-
     # ── Library paths ───────────────────────────────────────────────────────
 
     def _browse_rb_path(self) -> None:
@@ -1294,6 +1101,12 @@ class MainWindow(QMainWindow):
             self._show_not_installed(str(e))
             return
 
+        self._populate_playlists(tree, playlist_song_count)
+        src_label = "Traktor" if self._source == "traktor" else "Rekordbox"
+        self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
+
+    def _populate_playlists(self, tree: list[dict], song_count: Callable[[Any], int]) -> None:
+        """Arma carpetas y filas desde el árbol; separado de la carga para testearlo sin DB."""
         card_index = 0
         layout = self.playlist_container_layout
 
@@ -1302,12 +1115,12 @@ class MainWindow(QMainWindow):
             pl = node["playlist"]
             if pl.is_folder:
                 grp = PlaylistGroup(pl.Name)
+                self._groups.append(grp)
                 layout.insertWidget(layout.count() - 1, grp)
                 for child in node["children"]:
                     add_node(child, grp)
             else:
-                count = playlist_song_count(pl)
-                card = PlaylistCard(pl, count, index=card_index)
+                card = PlaylistCard(pl, song_count(pl), index=card_index)
                 card.toggled.connect(self._on_card_toggled)
                 card_index += 1
                 self._all_cards.append(card)
@@ -1320,18 +1133,44 @@ class MainWindow(QMainWindow):
             add_node(node)
 
         self._update_order_numbers()
+        self._apply_filter()  # el texto del campo sobrevive a recargas (cambio de fuente)
         self._preview_debounce.start()
-        src_label = "Traktor" if self._source == "traktor" else "Rekordbox"
-        self._log(f"♪ {len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
+
+    def _apply_filter(self) -> None:
+        """Muestra/oculta filas por nombre; solo de vista: no toca marcas, orden ni contador."""
+        query = self.playlist_search.text()
+        active = bool(query.strip())
+        # Layout y repintado una sola vez al final: mostrar cientos de filas de
+        # golpe (al borrar la consulta) costaba ~0,8 s con 300 playlists.
+        layout = self.playlist_container_layout
+        layout.setEnabled(False)
+        self.playlist_container.setUpdatesEnabled(False)
+        try:
+            for card in self._all_cards:
+                card.setVisible(matches(card.name, query))
+            for grp in self._groups:
+                grp.setVisible(not active or any(not c.isHidden() for c in grp.cards()))
+        finally:
+            self.playlist_container.setUpdatesEnabled(True)
+            layout.setEnabled(True)
+        none_visible = bool(self._all_cards) and all(c.isHidden() for c in self._all_cards)
+        self._no_results.setText(f"Sin resultados para «{query.strip()}»")
+        self._no_results.setVisible(active and none_visible)
 
     def _clear_playlist_area(self) -> None:
         self._all_cards.clear()
+        self._groups.clear()
         layout = self.playlist_container_layout
-        for i in reversed(range(layout.count())):
-            item = layout.itemAt(i)
-            w = item.widget() if item else None
+        # takeAt y no itemAt+setParent(None): sacar el widget por debajo del layout
+        # corrompía el heap de PySide6 y reventaba (SIGSEGV) el widget siguiente (T-076).
+        # El stretch final (sin widget) se conserva.
+        stretch = layout.takeAt(layout.count() - 1) if layout.count() else None
+        while layout.count():
+            w = layout.takeAt(0).widget()
             if w:
                 w.setParent(None)  # type: ignore[arg-type]
+        if stretch is not None:
+            layout.addItem(stretch)
 
     def _show_not_installed(self, detail: str) -> None:
         """Show a friendly 'not installed' placeholder in the playlist area."""
@@ -1373,26 +1212,18 @@ class MainWindow(QMainWindow):
         self._update_order_numbers()
 
     def _update_order_numbers(self) -> None:
-        selected: list[PlaylistCard] = []
-        selectable = 0
-        for card in self._all_cards:
-            if not card._empty:
-                selectable += 1
+        selectable = sum(1 for c in self._all_cards if not c._empty)
+        order = 0
+        for position, card in enumerate(self._all_cards, start=1):
             if card.isChecked():
-                selected.append(card)
-
-        sel_pos = 0
-        for i, card in enumerate(self._all_cards):
-            if card.isChecked():
-                card.set_order_num(str(sel_pos + 1).zfill(2))
-                sel_pos += 1
+                order += 1
+                card.set_numbers(position, order)
             else:
-                card.set_order_num(str(i + 1).zfill(2))
+                card.set_numbers(position, None)
 
-        n = len(selected)
-        self.count_pill.setText(f"{n} / {selectable}")
-        self.export_btn.set_count(n)
-        self.export_btn.setEnabled(n > 0)
+        n = order
+        self.count_pill.setText(f"{n}/{selectable}")
+        self._footer.set_export_count(n)
 
         if n == 0:
             self.output_status.setText("en espera")
@@ -1455,20 +1286,37 @@ class MainWindow(QMainWindow):
 
     # ─────────────────────────────────────────────────────────────────────
 
-    def _clear_preview_layout(self) -> None:
+    def _set_broken_total(self, n: int) -> None:
+        self._broken_total = n
+        self._maint_btn.set_broken(n)
+        notice = getattr(self, "_broken_notice", None)
+        if notice is not None:
+            self._broken_notice_label.setText(broken_notice_text(n))
+            notice.setVisible(n > 0)
+        # El badge cambia el ancho del header: sin re-medir, Sora (más ancha) lo recortaba.
+        self._fit_header()
+
+    def _clear_preview_layout(self, immediate: bool = False) -> None:
+        """`immediate` destruye ya los widgets (no deleteLater): el cambio de tema
+        necesita que no existan cuando Qt re-pulea (T-070)."""
         self._render_gen += 1          # invalida cualquier batch en vuelo
+        self._rendered_groups.clear()
+        self._set_broken_total(0)
         self._render_queue.clear()
         # Las filas se destruyen acá (deleteLater); soltar la ref al row sonando
         # para no tocar un objeto C++ borrado en el próximo click (→ abort de Qt).
         self._playing_row = None
-        self._play_order.clear()
         lo = self.preview_layout
         while lo.count():
             item = lo.takeAt(0)
             w = item.widget()
             if w:
                 self._stop_fade_anim(w)   # T-029: parar el fade ANTES de borrar
-                w.deleteLater()
+                if immediate:
+                    from shiboken6 import delete
+                    delete(w)
+                else:
+                    w.deleteLater()
 
     def _cancel_preview_worker(self) -> None:
         if self._preview_worker and self._preview_worker.isRunning():
@@ -1589,6 +1437,8 @@ class MainWindow(QMainWindow):
 
     def _queue_group(self, data: GroupData) -> None:
         """Recibe el grupo del worker y lo encola para render diferido."""
+        # Cuenta al llegar el grupo, no al renderizar las filas en lotes.
+        self._set_broken_total(self._broken_total + data.missing_count)
         self._render_queue.append(data)
         if len(self._render_queue) == 1:               # primer grupo: arrancar el pump
             QTimer.singleShot(0, self._pump_render_queue)
@@ -1598,6 +1448,7 @@ class MainWindow(QMainWindow):
         if not self._render_queue:
             return
         data = self._render_queue.pop(0)
+        self._rendered_groups.append(data)
         gen  = self._render_gen
         lo   = self.preview_layout
 
@@ -1614,25 +1465,55 @@ class MainWindow(QMainWindow):
         if last and last.spacerItem():
             lo.removeItem(last)
 
-        # Renderizar cabecera del grupo y añadir con fade-in
-        grp, files_layout = self._render_group_header(data)
-        lo.addWidget(grp)
+        # T-015: ✕ destilda el mismo checkbox del árbol (`data.card`, que setChecked()
+        # no avisa por señal: _close_group_card actualiza los números a mano).
+        card = PreviewGroupCard(data, self._theme)
+        if data.card is not None:
+            card.close_requested.connect(partial(self._close_group_card, data.card))
+        card.repair_requested.connect(partial(self._on_card_repair, False, data))
+        card.auto_resolve_requested.connect(partial(self._on_card_repair, True, data))
+        lo.addWidget(card)
         lo.addStretch(1)
-        self._animate_fade_in(grp, duration=180)
+        self._animate_fade_in(card, duration=180)
 
-        # Filas: en lotes de 15 para no bloquear el event loop
-        self._batch_rows(list(data.tracks), files_layout, gen, batch=15)
+        # Filas: en lotes de 15 para no bloquear el event loop. Una carpeta 100 % rota
+        # nace colapsada y no crea sus filas hasta que se expande (D4).
+        positions = block_positions([t.exists for t in data.tracks])
+        rows = list(zip(data.tracks, positions))
+        if card.state == ALL_BROKEN:
+            card.expand_toggled.connect(partial(self._on_card_expand, card, rows, gen))
+        else:
+            self._batch_rows(rows, card.files_layout, gen, batch=15,
+                             reserve_note=data.missing_count > 0)
 
         # Continuar con el siguiente grupo en el próximo tick
         if self._render_queue:
             QTimer.singleShot(0, self._pump_render_queue)
 
+    def _on_card_expand(
+        self, card: PreviewGroupCard, rows: list[tuple[TrackRow, str]], gen: int, on: bool,
+    ) -> None:
+        if not on or card.rows_built or gen != self._render_gen:
+            return                       # contraer no destruye; una generación vieja no dibuja
+        card.rows_built = True
+        self._batch_rows(list(rows), card.files_layout, gen, batch=15, reserve_note=True)
+
+    def _on_card_repair(self, auto: bool, data: GroupData) -> None:
+        """Botonera de la tarjeta (D1 del PO): actúa SOLO sobre los rotos de esa carpeta."""
+        if self._relocate_state != "idle":
+            return
+        paths = frozenset(t.raw_path for t in data.tracks if not t.exists and t.raw_path)
+        if not paths:
+            return                       # alcance vacío: nunca degradar a «toda la librería»
+        self._start_relocate(scope=RelocateScope(data.name, paths), auto_resolve=auto)
+
     def _batch_rows(
         self,
-        remaining: list[TrackRow],
+        remaining: list[tuple[TrackRow, str]],
         layout: QVBoxLayout,
         gen: int,
         batch: int = 15,
+        reserve_note: bool = False,
     ) -> None:
         """Añade `batch` filas al layout y se re-programa si quedan más."""
         if gen != self._render_gen:
@@ -1641,9 +1522,11 @@ class MainWindow(QMainWindow):
             if not remaining:
                 layout.addStretch(1)
                 return
-            layout.addWidget(self._make_row_widget(remaining.pop(0)))
+            track, pos = remaining.pop(0)
+            layout.addWidget(self._make_row_widget(track, pos, reserve_note))
         if remaining:
-            QTimer.singleShot(0, lambda: self._batch_rows(remaining, layout, gen, batch))
+            QTimer.singleShot(
+                0, lambda: self._batch_rows(remaining, layout, gen, batch, reserve_note))
         else:
             layout.addStretch(1)
 
@@ -1683,93 +1566,16 @@ class MainWindow(QMainWindow):
         el.addStretch(1)
         lo.addWidget(empty)
 
-    def _render_group_header(self, data: GroupData) -> tuple[QWidget, QVBoxLayout]:
-        """
-        Crea el widget del grupo con la cabecera y el scroll vacío.
-        Devuelve (grp_widget, files_layout) para que _batch_rows llene las filas.
-        Rápido: solo ~10 widgets, sin I/O.
-        """
-        grp = QWidget()
-        grp.setObjectName("output_grp")
-        grp.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        gl = QVBoxLayout(grp)
-        # Bottom margin exposes the group's rounded corners below the scroll area
-        gl.setContentsMargins(0, 0, 0, 8)
-        gl.setSpacing(0)
-
-        head = QWidget()
-        head.setObjectName("output_grp_head")
-        head.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        hl = QHBoxLayout(head)
-        hl.setContentsMargins(13, 9, 13, 9)
-        hl.setSpacing(8)
-
-        has_missing = data.missing_count > 0
-        badge = QLabel(
-            f"{str(data.order).zfill(2)} ⚠" if has_missing else str(data.order).zfill(2)
-        )
-        badge.setObjectName("output_grp_badge_warn" if has_missing else "output_grp_badge")
-        badge.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        hl.addWidget(badge)
-
-        folder_ic = QLabel()
-        folder_ic.setObjectName("output_grp_folder_icon")
-        folder_ic.setPixmap(
-            self.style().standardIcon(
-                self.style().StandardPixmap.SP_DirIcon
-            ).pixmap(14, 14)
-        )
-        hl.addWidget(folder_ic)
-
-        fname_lbl = QLabel(f"{data.name} /")
-        fname_lbl.setObjectName("output_grp_fname")
-        hl.addWidget(fname_lbl, 1)
-
-        cnt_lbl = QLabel(f"{data.total_count} archivos")
-        cnt_lbl.setObjectName("output_grp_cnt")
-        hl.addWidget(cnt_lbl)
-
-        # T-015: atajo al mismo checkbox del árbol izquierdo — no es una
-        # lógica de "cerrado" nueva, solo destilda `data.card` (poblado en
-        # _extract_preview_data). setChecked() por sí solo NO emite `toggled`
-        # (confirmado en PlaylistCard.setChecked — solo _refresh()), por eso
-        # _close_group_card llama _update_order_numbers() a mano, igual que
-        # ya hace _set_all() para el mismo caso.
-        if data.card is not None:
-            close_btn = QPushButton("✕")
-            close_btn.setObjectName("output_grp_close_btn")
-            close_btn.setToolTip("Sacar esta playlist de la cola (destilda en la lista)")
-            close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            close_btn.clicked.connect(
-                lambda _checked=False, card=data.card: self._close_group_card(card)
-            )
-            hl.addWidget(close_btn)
-
-        gl.addWidget(head)
-
-        inner_scroll = QScrollArea()
-        inner_scroll.setObjectName("grp_inner_scroll")
-        inner_scroll.setWidgetResizable(True)
-        inner_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        inner_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        inner_scroll.setFixedHeight(160)
-        inner_scroll.viewport().setObjectName("grp_inner_scroll_vp")
-
-        files_widget = QWidget()
-        files_widget.setObjectName("grp_files_container")
-        files_layout = QVBoxLayout(files_widget)
-        files_layout.setContentsMargins(0, 2, 0, 4)
-        files_layout.setSpacing(0)
-
-        inner_scroll.setWidget(files_widget)
-        gl.addWidget(inner_scroll)
-
-        return grp, files_layout
-
-    def _make_row_widget(self, track: TrackRow) -> QWidget:
-        """Crea una única fila de archivo. Llamado desde _batch_rows."""
+    def _make_row_widget(
+        self, track: TrackRow, block_pos: str = NONE, reserve_note: bool = False,
+    ) -> QWidget:
+        """Una fila de archivo. Llamado desde _batch_rows. `reserve_note`: en una carpeta con
+        rotas, las sanas reservan el hueco del ícono de aviso para que el artista y el chip alineen."""
         missing = not track.exists
-        row = FileRow(track.raw_path, track.exists)
+        flag = "true" if missing else "false"
+        row = FileRow(track.raw_path, track.exists, block_pos=block_pos)
+        row.track = track
+        row.setMinimumHeight(ROW_HEIGHT)   # rotas y sanas miden lo mismo: el alto del scroll depende de eso (T-074)
         if track.exists:
             row.clicked.connect(self._play_track)
         # Re-aplicar highlight si esta fila corresponde al track sonando
@@ -1777,34 +1583,40 @@ class MainWindow(QMainWindow):
             row.set_playing(True)
             self._playing_row = row
         rl = QHBoxLayout(row)
-        rl.setContentsMargins(13, 4, 13, 4)
-        rl.setSpacing(7)
+        rl.setContentsMargins(14, 0, 14, 0)
+        rl.setSpacing(ROW_GAP)
 
-        idx_lbl = QLabel("✗" if missing else track.num[-2:])
-        idx_lbl.setObjectName("output_file_idx")
-        idx_lbl.setProperty("file_missing", "true" if missing else "false")
+        def label(name: str, text: str) -> QLabel:
+            lbl = QLabel(text)
+            lbl.setObjectName(name)
+            lbl.setProperty("file_missing", flag)
+            return lbl
+
+        idx_lbl = label("output_file_idx", track.num)
+        idx_lbl.setFixedWidth(IDX_W)
         rl.addWidget(idx_lbl)
-
-        name_lbl = QLabel(f"{track.num} - {track.title}")
-        name_lbl.setObjectName("output_file_name")
-        name_lbl.setProperty("file_missing", "true" if missing else "false")
-        rl.addWidget(name_lbl, 1)
-
+        # Ignored: un título largo se recorta en vez de ensanchar la columna (T8).
+        name_lbl = label("output_file_name", track.title)
+        name_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        rl.addWidget(name_lbl, 3)
         if track.artist:
-            ar_lbl = QLabel(f"— {track.artist}")
-            ar_lbl.setObjectName("output_file_artist")
-            ar_lbl.setProperty("file_missing", "true" if missing else "false")
-            rl.addWidget(ar_lbl)
-
+            ar_lbl = label("output_file_artist", f"— {track.artist}")
+            ar_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+            rl.addWidget(ar_lbl, 2)
+        if missing:
+            warn = label("output_file_warn", "")
+            warn.setFixedWidth(WARN_W)
+            warn.setPixmap(icons.pixmap("warning", token(PlaylistCard._theme, "danger"), 16))
+            warn.setAccessibleName("Enlace roto")
+            warn.setToolTip("Enlace roto")
+            rl.addWidget(warn)
+        elif reserve_note:
+            rl.addSpacing(WARN_W + ROW_GAP)
         if track.ext:
-            ext_lbl = QLabel(track.ext)
-            ext_lbl.setObjectName("output_file_ext")
-            ext_lbl.setProperty("file_missing", "true" if missing else "false")
-            rl.addWidget(ext_lbl)
-
-        if track.exists and track.raw_path:
-            self._play_order.append((track.raw_path, row))
-
+            chip = label("output_file_ext", ext_chip_text(track.ext))
+            chip.setFixedWidth(CHIP_W)
+            chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            rl.addWidget(chip, 0, Qt.AlignmentFlag.AlignVCenter)
         return row
 
     # ──────────────────────────────────── Audio playback ─────────────────
@@ -1832,6 +1644,7 @@ class MainWindow(QMainWindow):
         row: FileRow | None,
         raw_path: str,
         allow_toggle: bool = True,
+        track: TrackRow | None = None,
     ) -> None:
         # Click en la fila que ya suena → pausa/reanuda en vez de reiniciar
         if allow_toggle and raw_path and raw_path == self._playing_path \
@@ -1857,52 +1670,44 @@ class MainWindow(QMainWindow):
             self._set_row_playing(row, True)
             self._playing_row = row
 
-        self._update_now_playing(row)
-        self._start_spectrogram(resolved)
+        self._update_now_playing(track or getattr(row, "track", None))
+        self._start_waveform(resolved)
 
-    def _update_now_playing(self, row: FileRow | None = None) -> None:
-        """Extrae título y artista del FileRow activo y los muestra en el header."""
-        title = artist = ""
-        if row is not None:
-            try:
-                lo = row.layout()
-                if lo:
-                    for i in range(lo.count()):
-                        w = lo.itemAt(i).widget()
-                        if not w:
-                            continue
-                        obj = w.objectName()
-                        if obj == "output_file_name":
-                            # Formato: "001 - Title"  →  extraer Title
-                            txt = w.text()
-                            parts = txt.split(" - ", 1)
-                            title = parts[1] if len(parts) > 1 else txt
-                        elif obj == "output_file_artist":
-                            artist = w.text().lstrip("— ").strip()
-            except RuntimeError:
-                pass
-        self._header_track.setText(title)
-        self._header_artist.setText(artist)
-        playing = bool(title)
-        self._brand_name_lbl.setVisible(not playing)
-        self._rack_np_title.setText(title)
-        self._rack_np_artist.setText(artist)
-        self._rack_np_title.setVisible(playing)
-        self._rack_np_artist.setVisible(playing and bool(artist))
+    def _update_now_playing(self, track: TrackRow | None = None) -> None:
+        """Título y artista del footer salen del dato de la pista, no de las filas."""
+        self._footer.set_now_playing(
+            track.title if track else "", track.artist if track else "",
+        )
 
     def _on_playing_changed(self, playing: bool) -> None:
-        # T-015: ⏸ (U+23F8) no tiene glyph en la fuente base de UI de Windows;
-        # el fallback cae a Segoe UI Emoji, que pinta el ícono a color (celeste)
-        # ignorando el `color:` del QSS — se probó con variation selector U+FE0E
-        # (fuerza presentación de texto) y Qt lo ignora igual, así que se dibuja
-        # a mano con QPainter (ver ClickableLabel.set_pause_icon). ▶/♪ sí
-        # respetan el color del QSS como texto normal, no hace falta tocarlos.
-        if playing:
-            self._play_toggle.set_pause_icon(True)
-        else:
-            self._play_toggle.set_pause_icon(False)
-            self._play_toggle.setText("▶" if self._playing_path else "♪")
-        self._vu_bars.set_live(playing)
+        self._is_playing = playing
+        self._refresh_play_glyph()
+
+    def _refresh_play_glyph(self) -> None:
+        """Ícono del play: nota en reposo, play con un track cargado, pausa sonando."""
+        name = "pause" if self._is_playing else ("play" if self._playing_path else "note")
+        self._footer.set_play_glyph(name)
+
+    def _tint_icon(self, widget: QWidget, name: str, color_token: str, size: int) -> None:
+        """Pone un ícono SVG y lo registra para re-teñirlo con el tema."""
+        self._themed_icons.append((widget, name, color_token, size))
+        self._apply_icon(widget, name, color_token, size)
+
+    def _apply_icon(self, widget: QWidget, name: str, color_token: str, size: int) -> None:
+        color = token(self._theme, color_token)
+        if isinstance(widget, QPushButton):
+            widget.setIcon(icons.icon(name, color, size))
+            widget.setIconSize(QSize(size, size))
+        elif isinstance(widget, QLabel):
+            widget.setPixmap(icons.pixmap(name, color, size))
+
+    def _retint_icons(self) -> None:
+        from shiboken6 import isValid
+        # El preview recrea widgets: descartar los que Qt ya destruyó.
+        self._themed_icons = [t for t in self._themed_icons if isValid(t[0])]
+        for widget, name, color_token, size in self._themed_icons:
+            self._apply_icon(widget, name, color_token, size)
+        self._refresh_play_glyph()
 
     def _on_space(self) -> None:
         # No robar la barra espaciadora cuando se está escribiendo o sobre un botón
@@ -1912,74 +1717,84 @@ class MainWindow(QMainWindow):
             return
         self._audio.toggle()
 
+    def _playable_tracks(self) -> list[TrackRow]:
+        """Pistas reproducibles en orden de cola, leídas de los DATOS y no de las filas:
+        el cambio de tema destruye las filas y las reconstruye por lotes (T-070), pero
+        `_apply_theme` repone estos grupos de forma síncrona, así que nunca quedan
+        vacíos (T-072)."""
+        return [
+            t for g in (*self._rendered_groups, *self._render_queue)
+            for t in g.tracks if t.exists and t.raw_path
+        ]
+
+    def _row_for(self, raw_path: str) -> FileRow | None:
+        for row in self.preview_container.findChildren(FileRow):
+            try:
+                if row._raw_path == raw_path:
+                    return row
+            except RuntimeError:
+                continue
+        return None   # aún no dibujada: _make_row_widget la resalta cuando aparezca
+
     def _on_track_finished(self) -> None:
         """Reproduce el siguiente track existente de la cola, si lo hay."""
-        if not self._auto_advance or not self._play_order:
+        if not self._auto_advance:
             return
-        idx = next(
-            (i for i, (rp, _) in enumerate(self._play_order)
-             if rp == self._playing_path),
-            -1,
-        )
-        if idx == -1 or idx + 1 >= len(self._play_order):
+        queue = self._playable_tracks()
+        idx = next((i for i, t in enumerate(queue) if t.raw_path == self._playing_path), -1)
+        if idx == -1 or idx + 1 >= len(queue):
             return
-        next_path, next_row = self._play_order[idx + 1]
-        self._play_file_row(next_row, next_path, allow_toggle=False)
-
-    @staticmethod
-    def _fmt_ms(ms: int) -> str:
-        s = max(0, ms // 1000)
-        return f"{s // 60}:{s % 60:02d}"
+        nxt = queue[idx + 1]
+        self._play_file_row(self._row_for(nxt.raw_path), nxt.raw_path,
+                            allow_toggle=False, track=nxt)
 
     def _on_position_changed(self, pos: int, dur: int) -> None:
-        self._seek_bar.set_progress(pos, dur)
-        self._time_cur.setText(self._fmt_ms(pos))
-        self._time_total.setText(self._fmt_ms(dur))
+        self._footer.set_position(pos, dur)
 
     def _on_audio_error(self, msg: str) -> None:
         self._playing_path = ""
-        self._play_toggle.set_pause_icon(False)
-        self._play_toggle.setText("♪")
+        self._is_playing = False
+        self._refresh_play_glyph()
         self._set_row_playing(self._playing_row, False)
         self._playing_row = None
         self._update_now_playing(None)
-        QMessageBox.warning(self, "Reproducción de audio", msg)
+        self._cancel_waveform()
+        self._footer.set_peaks(None)
+        dialogs.warning(self, "Reproducción de audio", msg)
 
-    # ── Espectrograma de fondo ─────────────────────────────────────────────
+    # ── Forma de onda del footer ───────────────────────────────────────────
 
-    def _cancel_spectro(self) -> None:
-        if self._spectro_worker and self._spectro_worker.isRunning():
+    def _start_waveform(self, resolved: str) -> None:
+        self._cancel_waveform()
+        cached = self._wave_cache.get(resolved)
+        if cached is not None:
+            self._footer.set_peaks(cached)
+            return
+        self._footer.set_peaks(None)          # onda plana mientras decodifica
+        self._wave_gen += 1
+        worker = WaveformWorker(resolved, self._wave_gen)
+        worker.ready.connect(lambda peaks, gen, p=resolved: self._on_wave_ready(p, peaks, gen))
+        worker.finished.connect(lambda w=worker: self._live_wave_workers.discard(w))
+        self._live_wave_workers.add(worker)   # vivo hasta que el hilo termine
+        self._wave_worker = worker
+        worker.start()
+
+    def _cancel_waveform(self) -> None:
+        worker = self._wave_worker
+        if worker is not None:
             try:
-                self._spectro_worker.ready.disconnect()
-            except TypeError:
+                worker.ready.disconnect()
+            except (RuntimeError, TypeError):
                 pass
-            self._spectro_worker.cancel()
+            worker.cancel()
 
-    def _start_spectrogram(self, resolved_path: str) -> None:
-        if not self._spectro_enabled:
-            self._rack_head.set_spectrogram(None)
-            return
-        if resolved_path in self._spectro_cache:
-            self._rack_head.set_spectrogram(self._spectro_cache[resolved_path])
-            return
-
-        self._cancel_spectro()
-        self._spectro_gen += 1
-        accent = (206, 125, 230) if self._theme == "dark" else (140, 56, 191)
-        w = max(120, self._rack_head.width())
-        h = max(40, self._rack_head.height())
-        self._spectro_worker = SpectrogramWorker(
-            resolved_path, w, h, accent, self._spectro_gen
-        )
-        self._spectro_worker.ready.connect(self._on_spectro_ready)
-        self._spectro_worker.start()
-
-    def _on_spectro_ready(self, img: QImage, generation: int) -> None:
-        if generation != self._spectro_gen:
-            return                      # resultado stale → descartar
-        px = QPixmap.fromImage(img)
-        self._spectro_cache[self._audio.current_path()] = px
-        self._rack_head.set_spectrogram(px)
+    def _on_wave_ready(self, path: str, peaks: object, generation: int) -> None:
+        if generation != self._wave_gen:
+            return                            # resultado stale → descartar
+        self._wave_cache[path] = list(peaks)  # type: ignore[call-overload]
+        while len(self._wave_cache) > 32:
+            self._wave_cache.pop(next(iter(self._wave_cache)))
+        self._footer.set_peaks(self._wave_cache[path])
 
     def closeEvent(self, event) -> None:
         # I-1: cerrar la ventana con un relocate corriendo cancelaba sin
@@ -1993,7 +1808,9 @@ class MainWindow(QMainWindow):
                 return
 
         self._audio.stop()
-        self._cancel_spectro()
+        self._cancel_waveform()
+        for w in list(self._live_wave_workers):
+            w.wait(1500)
         self._cancel_preview_worker()
         if self._worker and self._worker.isRunning():
             self._worker.requestInterruption()
@@ -2018,23 +1835,21 @@ class MainWindow(QMainWindow):
     def _choose_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Elegí la carpeta de destino")
         if folder:
-            self.folder_edit.setText(folder)
+            self._footer.set_dest(folder)
 
     def _on_path_changed(self, text: str) -> None:
         if text.strip():
-            display = text if len(text) <= 52 else "…" + text[-50:]
-            self.output_path_label.setText(display)
             self.settings.setValue("last_dest_folder", text.strip())
-        else:
-            self.output_path_label.setText("Sin carpeta seleccionada")
 
-    def _set_all(self, checked: bool) -> None:
+    def _set_all(self, checked: bool, only_visible: bool = False) -> None:
         for card in self._all_cards:
+            if only_visible and card.isHidden():
+                continue
             card.setChecked(checked)
         self._update_order_numbers()
 
     def _close_group_card(self, card: PlaylistCard) -> None:
-        """T-015: botón '✕' del header de un grupo en el preview — destilda
+        """T-015: botón de cerrar del header de un grupo en el preview — destilda
         el checkbox real de esa playlist en el árbol izquierdo (mismo efecto
         que destildarla ahí a mano)."""
         card.setChecked(False)
@@ -2047,33 +1862,25 @@ class MainWindow(QMainWindow):
 
     def _start_export(self) -> None:
         if self._relocate_worker and self._relocate_worker.isRunning():
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Relocate en curso",
                 "Esperá a que termine la reparación de enlaces antes de exportar.",
             )
             return
-        output = self.folder_edit.text().strip()
+        output = self._footer.dest_text().strip()
         if not output:
-            QMessageBox.warning(self, "Falta carpeta", "Elegí primero una carpeta de destino.")
+            dialogs.warning(self, "Falta carpeta", "Elegí primero una carpeta de destino.")
             return
         selected = self._selected_playlists()
         if not selected:
-            QMessageBox.warning(self, "Sin selección", "Marcá al menos una playlist.")
+            dialogs.warning(self, "Sin selección", "Marcá al menos una playlist.")
             return
 
-        # Cambiar botón a modo Cancelar
-        self.export_btn.set_label("✕  Cancelar")
-        self.export_btn.clicked.disconnect()
-        self.export_btn.clicked.connect(self._cancel_export)
-
-        self.progress_section.setVisible(True)
-        self.progress.setValue(0)
-        self.prog_label.setText("Copiando y numerando…")
-        self.prog_pct.setText("0%")
-        self._finder_btn.setVisible(False)
+        self._last_export_dest = output
+        self._set_export_state("running")
+        self._footer.begin_progress("Copiando y numerando…")
         self.output_status.setText("exportando…")
         self._set_status_style("active")
-        self._vu_bars.set_live(True)
         self.preview_scroll.setVisible(False)
         self.log_view.setVisible(True)
         self.log_view.clear()
@@ -2085,29 +1892,29 @@ class MainWindow(QMainWindow):
         self._worker.finished_ok.connect(self._on_finished)
         self._worker.start()
 
+    def _set_export_state(self, state: Literal["idle", "running", "cancelling"]) -> None:
+        self._export_state = state
+        self._footer.set_export_mode(state)
+
+    def _on_export_clicked(self) -> None:
+        if self._export_state == "idle":
+            self._start_export()
+        elif self._export_state == "running":
+            self._cancel_export()
+
     def _cancel_export(self) -> None:
         if self._worker and self._worker.isRunning():
-            self.export_btn.set_label("Cancelando…")
-            self.export_btn.setEnabled(False)
+            self._set_export_state("cancelling")
             self._worker.requestInterruption()
 
+    def _open_dest_in_finder(self) -> None:
+        QDesktopServices.openUrl(QUrl.fromLocalFile(self._last_export_dest))
+
     def _on_progress(self, done: int, total: int) -> None:
-        self.progress.setMaximum(total)
-        self.progress.setValue(done)
-        pct = int(done / total * 100) if total > 0 else 0
-        self.prog_pct.setText(f"{pct}%")
+        self._footer.set_progress(done, total)
 
     def _on_finished(self, copied: int, missing: int, skipped: int, status: str) -> None:
-        # ── Resetear botón ────────────────────────────────────────────────
-        self.export_btn.set_label("Exportar en orden")
-        try:
-            self.export_btn.clicked.disconnect()
-        except TypeError:
-            pass
-        self.export_btn.clicked.connect(self._start_export)
-        self.export_btn.setEnabled(True)
-
-        self._vu_bars.set_live(False)
+        self._set_export_state("idle")
 
         # ── Resumen ───────────────────────────────────────────────────────
         parts: list[str] = []
@@ -2120,46 +1927,32 @@ class MainWindow(QMainWindow):
         summary = " · ".join(parts) if parts else "Nada que copiar"
 
         if status == "cancelled":
-            self.prog_label.setText(f"Cancelado — {summary}")
-            self.prog_pct.setText("⏹")
+            self._footer.end_progress(f"Cancelado — {summary}", "⏹")
             self.output_status.setText("cancelado")
             self._set_status_style("warn")
         elif status == "error":
-            self.prog_label.setText(summary or "Error durante la exportación")
-            self.prog_pct.setText("✗")
+            self._footer.end_progress(summary or "Error durante la exportación", "✗")
             self.output_status.setText("error ✗")
             self._set_status_style("error")
         elif missing > 0 and copied == 0:
-            self.prog_label.setText(summary)
-            self.prog_pct.setText("⚠")
+            self._footer.end_progress(summary, "⚠")
             self.output_status.setText("sin copias ⚠")
             self._set_status_style("warn")
         elif missing > 0:
-            self.prog_label.setText(summary)
-            self.prog_pct.setText("⚠")
+            self._footer.end_progress(summary, "⚠")
             self.output_status.setText("parcial ⚠")
             self._set_status_style("warn")
         else:
-            self.prog_label.setText(summary)
-            self.prog_pct.setText("✓")
+            self._footer.end_progress(summary, "✓")
             self.output_status.setText("exportado ✓")
             self._set_status_style("ok")
 
         self._log(f"\n{'⏹' if status == 'cancelled' else '✓'}  {summary}")
 
         # ── Botón "Abrir en Finder" ───────────────────────────────────────
-        output_path = Path(self.folder_edit.text().strip())
+        output_path = Path(self._last_export_dest)
         if copied > 0 and output_path.exists():
-            self._finder_btn.setVisible(True)
-            try:
-                self._finder_btn.clicked.disconnect()
-            except TypeError:
-                pass
-            self._finder_btn.clicked.connect(
-                lambda: QDesktopServices.openUrl(
-                    QUrl.fromLocalFile(str(output_path))
-                )
-            )
+            self._footer.set_finder_visible(True)
 
         self.log_view.setVisible(False)
         self.preview_scroll.setVisible(True)
@@ -2168,35 +1961,13 @@ class MainWindow(QMainWindow):
 
     def _set_status_style(self, variant: str) -> None:
         """Colorea el tag output_status según el resultado (ok/warn/error/active)."""
-        dark = self._theme == "dark"
-        styles: dict[str, str] = {
-            "ok": (
-                "color: #ce7de6; border-color: rgba(206,125,230,0.3);" if dark
-                else "color: #8c38bf; border-color: rgba(140,56,191,0.3);"
-            ),
-            "warn": (
-                "color: #e6a93a; border-color: rgba(230,169,58,0.3);" if dark
-                else "color: #a06000; border-color: rgba(160,96,0,0.3);"
-            ),
-            "error": (
-                "color: #e65a5a; border-color: rgba(230,90,90,0.3);" if dark
-                else "color: #c03030; border-color: rgba(192,48,48,0.3);"
-            ),
-            "active": "",
-        }
-        base = (
-            "font-family: 'SF Mono','Menlo',monospace; font-size: 10px;"
-            " border: 1px solid; border-radius: 4px; padding: 2px 7px; background: transparent;"
-        )
-        extra = styles.get(variant, "")
-        self.output_status.setStyleSheet(base + extra if extra else "")
+        self.output_status.setStyleSheet(status_style(self._theme, variant))
 
     def _hide_progress_section(self) -> None:
-        self.progress_section.setVisible(False)
-        self._finder_btn.setVisible(False)
-        self.progress.setValue(0)
-        self.prog_label.setText("Copiando y numerando…")
-        self.prog_pct.setText("0%")
+        # Un timer de 8 s de una corrida anterior no debe ocultar la actual.
+        if self._footer.progress_active():
+            return
+        self._footer.hide_progress()
         self.output_status.setStyleSheet("")
 
     def _log(self, text: str) -> None:
@@ -2236,7 +2007,10 @@ class MainWindow(QMainWindow):
         candidate = base / "master.db"
         return "master.db", candidate if candidate.exists() else None
 
-    def _confirm_relocate_start(self, search_root: str, auto_resolve: bool) -> bool:
+    def _confirm_relocate_start(
+        self, search_root: str, auto_resolve: bool,
+        scope: RelocateScope | None = None,
+    ) -> bool:
         """
         B-2: diálogo de confirmación previo a arrancar el relocate — hoy el
         flujo iba directo de "elegir carpeta" a "arrancar y escribe" (cero
@@ -2257,9 +2031,22 @@ class MainWindow(QMainWindow):
             else f"la carpeta 'listBuddy_backups' junto a tu {target_name}"
         )
 
-        lines = [
-            f"Esto va a modificar el archivo de tu librería de {app_name}:",
-            target_display,
+        if scope is not None:
+            n = len(scope.paths)
+            head = [
+                f"Esto va a reparar los enlaces rotos de la carpeta «{scope.name}» "
+                f"({n} pista{'s' if n != 1 else ''}) en tu librería de {app_name}:",
+                target_display,
+                "",
+                "Si alguna de estas pistas también está en otras playlists, queda "
+                "reparada en todas: es la misma entrada de tu librería.",
+            ]
+        else:
+            head = [
+                f"Esto va a modificar el archivo de tu librería de {app_name}:",
+                target_display,
+            ]
+        lines = head + [
             "",
             "Se crea un backup automático antes de escribir, en:",
             backups_display,
@@ -2267,7 +2054,13 @@ class MainWindow(QMainWindow):
             f"Cerrá {app_name} antes de continuar — si sigue abierto, la "
             "reparación se cancela sin escribir nada.",
         ]
-        if auto_resolve:
+        if auto_resolve and scope is not None:
+            lines += [
+                "",
+                "⚠ Vas a aplicar la mejor coincidencia en las pistas con más de un "
+                "candidato, sin preguntar una por una. Solo en esta carpeta.",
+            ]
+        elif auto_resolve:
             lines += [
                 "",
                 "⚠ Tenés activado \"Resolver automáticamente…\": vas a aplicar "
@@ -2276,13 +2069,11 @@ class MainWindow(QMainWindow):
             ]
         lines += ["", "¿Continuar?"]
 
-        resp = QMessageBox.question(
+        yes = dialogs.question(
             self, f"Reparar enlaces rotos — {app_name}",
             "\n".join(lines),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
         )
-        return resp == QMessageBox.StandardButton.Yes
+        return yes
 
     def _confirm_relocate_interrupt(self, action_label: str) -> bool:
         """
@@ -2297,25 +2088,28 @@ class MainWindow(QMainWindow):
         """
         done = self._relocate_progress_done
         total = self._relocate_progress_total
-        resp = QMessageBox.question(
+        yes = dialogs.question(
             self, "¿Perder el trabajo hecho?",
             f"Ya se revisaron {done} de {total or done} enlace(s) roto(s) "
             "en esta sesión. Nada se guarda hasta el final: si continuás, "
             "se pierden todas las decisiones ya tomadas y vas a tener que "
             f"volver a repasarlas.\n\n{action_label} de todos modos?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
         )
-        return resp == QMessageBox.StandardButton.Yes
+        return yes
 
-    def _start_relocate(self) -> None:
+    def _start_relocate(
+        self, scope: RelocateScope | None = None, auto_resolve: bool | None = None,
+    ) -> None:
+        """Relocate global (menú, sin argumentos) o, con `scope` (T-073), solo
+        de las pistas de una playlist. Con alcance el tilde del menú no se
+        lee: `auto_resolve` viene explícito y la confirmación siempre se pide."""
         if self._source == "traktor" and self._db is None:
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Sin librería", "Cargá la librería de Traktor primero."
             )
             return
         if self._worker and self._worker.isRunning():
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Exportación en curso",
                 "Esperá a que termine la exportación actual antes de reparar enlaces.",
             )
@@ -2335,20 +2129,18 @@ class MainWindow(QMainWindow):
         if not search_root:
             return
 
-        auto_resolve = self.relocate_auto_chk.isChecked()
-        if not self._confirm_relocate_start(search_root, auto_resolve):
+        if scope is None:
+            if auto_resolve is None:
+                auto_resolve = self._auto_resolve_enabled()
+        else:
+            auto_resolve = bool(auto_resolve)
+        if not self._confirm_relocate_start(search_root, auto_resolve, scope):
             return
 
         # T-007: cambiar botón a modo Cancelar (mismo patrón que export_btn).
-        self.relocate_btn.setText("✕  Cancelar")
-        self.relocate_btn.clicked.disconnect()
-        self.relocate_btn.clicked.connect(self._cancel_relocate)
+        self._set_relocate_state("running")
 
-        self.progress_section.setVisible(True)
-        self.progress.setValue(0)
-        self.prog_label.setText("Buscando enlaces rotos…")
-        self.prog_pct.setText("0%")
-        self._finder_btn.setVisible(False)
+        self._footer.begin_progress("Buscando enlaces rotos…")
         self.output_status.setText("reparando…")
         self._set_status_style("active")
         self.preview_scroll.setVisible(False)
@@ -2365,16 +2157,19 @@ class MainWindow(QMainWindow):
         self._relocate_progress_done = 0
         self._relocate_progress_total = 0
 
+        if scope is not None:
+            self._log(f"→ Alcance: carpeta «{scope.name}» ({len(scope.paths)} pista(s))")
         if self._source == "traktor":
             self._log(f"→ NML: {self._db.path}")
             self._relocate_worker = RelocateWorker(
                 self._db.path, Path(search_root), auto_resolve=auto_resolve,
+                scope=scope,
             )
         else:
             self._log("→ Librería: Rekordbox 6 (master.db)")
             self._relocate_worker = RekordboxRelocateWorker(
                 Path(self._rb_db_path) if self._rb_db_path else None,
-                Path(search_root), auto_resolve=auto_resolve,
+                Path(search_root), auto_resolve=auto_resolve, scope=scope,
             )
         self._relocate_worker.log.connect(self._log)
         self._relocate_worker.progress.connect(self._on_progress)
@@ -2412,8 +2207,7 @@ class MainWindow(QMainWindow):
             "Cancelar la reparación"
         ):
             return
-        self.relocate_btn.setText("Cancelando…")
-        self.relocate_btn.setEnabled(False)
+        self._set_relocate_state("cancelling")
         self._relocate_worker.requestInterruption()
 
     def _on_relocate_finished(
@@ -2425,13 +2219,7 @@ class MainWindow(QMainWindow):
         self._relocate_progress_total = 0
 
         # ── Resetear botón (mismo patrón que _on_finished/export_btn) ──────
-        self.relocate_btn.setText("🔧  Reparar enlaces rotos…")
-        try:
-            self.relocate_btn.clicked.disconnect()
-        except TypeError:
-            pass
-        self.relocate_btn.clicked.connect(self._start_relocate)
-        self.relocate_btn.setEnabled(True)
+        self._set_relocate_state("idle")
 
         parts: list[str] = []
         if repaired:
@@ -2445,14 +2233,13 @@ class MainWindow(QMainWindow):
         if status == "blocked":
             is_traktor = self._relocate_source == "traktor"
             app_name = "Traktor" if is_traktor else "Rekordbox"
-            self.prog_label.setText(f"Bloqueado — {app_name} está abierto")
-            self.prog_pct.setText("⚠")
+            self._footer.end_progress(f"Bloqueado — {app_name} está abierto", "⚠")
             self.output_status.setText("bloqueado ⚠")
             self._set_status_style("warn")
             self.log_view.setVisible(False)
             self.preview_scroll.setVisible(True)
             if is_traktor:
-                QMessageBox.warning(
+                dialogs.warning(
                     self, "Traktor está abierto",
                     "Cerrá Traktor antes de reparar enlaces.\n\n"
                     "Traktor reescribe collection.nml entero al salir o guardar "
@@ -2460,7 +2247,7 @@ class MainWindow(QMainWindow):
                     "que si queda abierto pisaría las reparaciones.",
                 )
             else:
-                QMessageBox.warning(
+                dialogs.warning(
                     self, "Rekordbox está abierto",
                     "Cerrá Rekordbox antes de reparar enlaces.\n\n"
                     "La base de datos (master.db) queda bloqueada a nivel de "
@@ -2469,13 +2256,11 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(8000, self._hide_progress_section)
             return
         elif status == "cancelled":
-            self.prog_label.setText(f"Cancelado — {summary}")
-            self.prog_pct.setText("⏹")
+            self._footer.end_progress(f"Cancelado — {summary}", "⏹")
             self.output_status.setText("cancelado")
             self._set_status_style("warn")
         elif status == "error":
-            self.prog_label.setText(summary or "Error durante el relocate")
-            self.prog_pct.setText("✗")
+            self._footer.end_progress(summary or "Error durante el relocate", "✗")
             self.output_status.setText("error ✗")
             self._set_status_style("error")
             # El relocate ESCRIBE sobre la librería del usuario: un fallo de
@@ -2495,15 +2280,13 @@ class MainWindow(QMainWindow):
             )
             if log_path is not None:
                 detail += f"\n\nRevisá el detalle del error en el log:\n{log_path}"
-            QMessageBox.critical(self, f"Error al reparar enlaces — {app_name}", detail)
+            dialogs.critical(self, f"Error al reparar enlaces — {app_name}", detail)
         elif unresolved > 0:
-            self.prog_label.setText(summary)
-            self.prog_pct.setText("⚠")
+            self._footer.end_progress(summary, "⚠")
             self.output_status.setText("parcial ⚠")
             self._set_status_style("warn")
         else:
-            self.prog_label.setText(summary)
-            self.prog_pct.setText("✓")
+            self._footer.end_progress(summary, "✓")
             self.output_status.setText("reparado ✓")
             self._set_status_style("ok")
 
@@ -2535,14 +2318,14 @@ class MainWindow(QMainWindow):
     def _open_restore_backup_dialog(self) -> None:
         """Entrypoint del botón "↩ Restaurar copia de seguridad…"."""
         if self._worker and self._worker.isRunning():
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Exportación en curso",
                 "Esperá a que termine la exportación actual antes de "
                 "restaurar un backup.",
             )
             return
         if self._relocate_worker and self._relocate_worker.isRunning():
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Reparación en curso",
                 "Esperá a que termine la reparación de enlaces antes de "
                 "restaurar un backup.",
@@ -2554,7 +2337,7 @@ class MainWindow(QMainWindow):
         target_name, target_path = self._relocate_target_info()
         if target_path is None:
             app_name = "Traktor" if self._source == "traktor" else "Rekordbox"
-            QMessageBox.warning(
+            dialogs.warning(
                 self, "Sin ubicación conocida",
                 f"No se pudo determinar dónde vive tu {target_name} de "
                 f"{app_name} — no hay carpeta de backups para mostrar.",
@@ -2588,7 +2371,7 @@ class MainWindow(QMainWindow):
             else is_rekordbox_running()
         )
         if is_running:
-            QMessageBox.warning(
+            dialogs.warning(
                 self, f"{app_name} está abierto",
                 f"Cerrá {app_name} antes de restaurar un backup — la "
                 "restauración reemplaza el archivo real y una app abierta "
@@ -2600,21 +2383,18 @@ class MainWindow(QMainWindow):
             backup.timestamp.strftime("%d/%m/%Y %H:%M:%S")
             if backup.timestamp is not None else backup.path.name
         )
-        resp = QMessageBox.question(
+        yes = dialogs.question(
             self, f"Restaurar copia de seguridad — {app_name}",
             f"Esto va a reemplazar tu {target_name} actual con la copia "
             f"del {when} — ¿seguro?\n\n"
             f"Archivo que se sobrescribe:\n{target_path}\n\n"
             "Tus otros backups no se tocan y siguen disponibles si te "
             "equivocás de copia.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
         )
-        if resp != QMessageBox.StandardButton.Yes:
+        if not yes:
             return
 
-        self.restore_backup_btn.setEnabled(False)
-        self.relocate_btn.setEnabled(False)
+        self._set_maintenance_enabled(False)
         self.output_status.setText("restaurando…")
         self._set_status_style("active")
 
@@ -2626,13 +2406,12 @@ class MainWindow(QMainWindow):
 
     def _on_restore_backup_finished(self, ok: bool, error_msg: str, target_name: str) -> None:
         app_name = "Traktor" if self._source == "traktor" else "Rekordbox"
-        self.restore_backup_btn.setEnabled(True)
-        self.relocate_btn.setEnabled(True)
+        self._set_maintenance_enabled(True)
 
         if ok:
             self.output_status.setText("restaurado ✓")
             self._set_status_style("ok")
-            QMessageBox.information(
+            dialogs.information(
                 self, "Backup restaurado",
                 f"Tu {target_name} de {app_name} fue reemplazado por la "
                 f"copia elegida.\n\nAbrí {app_name} para confirmar que todo "
@@ -2641,7 +2420,7 @@ class MainWindow(QMainWindow):
         else:
             self.output_status.setText("error ✗")
             self._set_status_style("error")
-            QMessageBox.critical(
+            dialogs.critical(
                 self, "No se pudo restaurar el backup",
                 f"Algo falló al restaurar sobre tu {target_name}:\n\n"
                 f"{error_msg}\n\n"
@@ -2657,38 +2436,37 @@ class MainWindow(QMainWindow):
         from styles import load_qss
         from ui_components import PlaylistCard as _PC
         _PC.set_theme(theme)
+        # app.setStyleSheet re-pulea cada widget recorriendo sus hijos (≈1,7 ms por
+        # widget de fila a profundidad 15): con la vista previa llena eran ~4 s.
+        # Se destruyen las filas antes y se re-encolan después (T-070).
+        pending = self._rendered_groups + self._render_queue
+        if pending:
+            self._clear_preview_layout(immediate=True)
         app = QApplication.instance()
         if app:
             app.setStyleSheet(load_qss(theme))
+        for grp in self.findChildren(PlaylistGroup):
+            grp.set_theme(theme)
         # Refresh cards so their inline stylesheets use new theme colors
         for card in self._all_cards:
             if card.isChecked():
                 card._refresh()
         self._sync_theme_toggle(theme)
-        self._vu_bars.set_accent(
-            "#ce7de6" if theme == "dark" else "#8c38bf"
-        )
-        self._seek_bar.set_accent("#ce7de6" if theme == "dark" else "#8c38bf")
+        self._sync_source_buttons()
+        self._footer.apply_theme(theme)
+        self._retint_icons()
         # Re-tint del highlight de la fila sonando con el accent del nuevo tema
         self._set_row_playing(self._playing_row, True)
-        # El espectrograma cacheado está tintado con el accent viejo → recalcular
-        self._spectro_cache.clear()
-        current = self._audio.current_path()
-        if current:
-            self._rack_head.set_spectrogram(None)
-            self._start_spectrogram(current)
+        for data in pending:
+            self._queue_group(data)
         try:
             self.theme_action.setChecked(theme == "light")
         except Exception:
             pass
 
     def _sync_theme_toggle(self, theme: str) -> None:
-        is_light = theme == "light"
-        self._sun_btn.setProperty("active", "true" if is_light else "false")
-        self._moon_btn.setProperty("active", "true" if not is_light else "false")
-        for btn in (self._sun_btn, self._moon_btn):
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
+        # D5b: el ícono muestra el tema ACTUAL (luna en dark, sol en light).
+        self._apply_icon(self._theme_btn, "moon" if theme == "dark" else "sun", "muted", 16)
 
     def _show_donation(self) -> None:
         DonationDialog(self).exec()
@@ -2708,7 +2486,7 @@ class MainWindow(QMainWindow):
     def _on_update_available(self, info: UpdateInfo) -> None:
         self._update_url = info.url
         self._update_banner.setText(f"🔔  Nueva versión {info.version} disponible")
-        self._update_banner.setVisible(True)
+        self._update_strip.setVisible(True)
 
     def _open_update_link(self) -> None:
         if self._update_url:

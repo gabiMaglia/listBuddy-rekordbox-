@@ -7,7 +7,7 @@ _PRELUDE = """
     import numpy as np
     from PySide6.QtCore import QByteArray
     from PySide6.QtMultimedia import QAudioBuffer, QAudioFormat
-    import spectro_worker as sw
+    import audio_decode as ad
 
     def make(raw, fmt, ch):
         f = QAudioFormat()
@@ -29,7 +29,7 @@ def _run(body: str) -> str:
 def test_int16_mono_is_normalized() -> None:
     out = _run("""
     raw = np.array([16384, -16384], np.int16).tobytes()
-    print(sw._buffer_to_mono(make(raw, SF.Int16, 1)).tolist())
+    print(ad.buffer_to_mono(make(raw, SF.Int16, 1)).tolist())
     """)
     assert out == "[0.5, -0.5]"
 
@@ -37,7 +37,7 @@ def test_int16_mono_is_normalized() -> None:
 def test_int16_stereo_is_downmixed() -> None:
     out = _run("""
     raw = np.array([16384, 0, -16384, 0], np.int16).tobytes()
-    print(sw._buffer_to_mono(make(raw, SF.Int16, 2)).tolist())
+    print(ad.buffer_to_mono(make(raw, SF.Int16, 2)).tolist())
     """)
     assert out == "[0.25, -0.25]"
 
@@ -45,7 +45,7 @@ def test_int16_stereo_is_downmixed() -> None:
 def test_uint8_offset_is_removed() -> None:
     out = _run("""
     raw = np.array([192, 64], np.uint8).tobytes()
-    print(sw._buffer_to_mono(make(raw, SF.UInt8, 1)).tolist())
+    print(ad.buffer_to_mono(make(raw, SF.UInt8, 1)).tolist())
     """)
     assert out == "[0.25, -0.25]"
 
@@ -54,8 +54,8 @@ def test_unknown_format_returns_none() -> None:
     # El mismo buffer con formato conocido SÍ decodifica: el None viene de la rama
     # "formato desconocido", no de un lookup de enums roto que devuelva None siempre.
     out = _run("""
-    unknown = sw._buffer_to_mono(make(b"\\x00\\x00", SF.Unknown, 1))
-    known = sw._buffer_to_mono(make(b"\\x00\\x00", SF.Int16, 1))
+    unknown = ad.buffer_to_mono(make(b"\\x00\\x00", SF.Unknown, 1))
+    known = ad.buffer_to_mono(make(b"\\x00\\x00", SF.Int16, 1))
     print(unknown, known is not None)
     """)
     assert out == "None True"
@@ -65,16 +65,6 @@ def test_odd_length_buffer_is_trimmed() -> None:
     # Decode cortado a mitad de muestra: se descarta el byte suelto en vez de tirar.
     out = _run("""
     raw = np.array([16384], np.int16).tobytes() + b"\\x01"
-    print(sw._buffer_to_mono(make(raw, SF.Int16, 1)).tolist())
+    print(ad.buffer_to_mono(make(raw, SF.Int16, 1)).tolist())
     """)
     assert out == "[0.5]"
-
-
-def test_render_returns_pyside6_qimage() -> None:
-    out = _run("""
-    from PySide6.QtGui import QImage
-    w = sw.SpectrogramWorker("x.mp3", 8, 4, (1, 2, 3), 0)
-    img = w._render(np.ones((3, 5), np.float32))
-    print(isinstance(img, QImage), img.width(), img.height(), img.pixelColor(0, 0).alpha())
-    """)
-    assert out == "True 8 4 150"

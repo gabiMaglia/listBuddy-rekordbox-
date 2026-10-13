@@ -1,0 +1,47 @@
+
+tests/test_relocate_scope.py:33: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_relocate_scope.py::TestRelocateScope::test_none_scope_contains_everything
+FAILED tests/test_relocate_scope.py::TestRelocateScope::test_scope_contains_only_its_paths
+FAILED tests/test_relocate_scope.py::TestRelocateScope::test_empty_scope_contains_nothing_it_is_not_global
+FAILED tests/test_relocate_scope.py::TestRelocateScope::test_scope_is_immutable
+FAILED tests/test_relocate_scope.py::TestRelocateScope::test_base_worker_stores_the_scope
+    def _run_traktor(nml: Path, search: Path, scope, monkeypatch) -> tuple[list, list[str]]:
+        monkeypatch.setattr(tr, "is_traktor_running", lambda: False)
+>       w = tr.RelocateWorker(nml, search, auto_resolve=True, scope=scope)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: RelocateWorker.__init__() got an unexpected keyword argument 'scope'
+
+tests/test_relocate_scope.py:104: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_relocate_scope.py::TestTraktorFindBrokenScoped::test_only_scoped_entries_are_returned
+FAILED tests/test_relocate_scope.py::TestTraktorFindBrokenScoped::test_empty_scope_returns_nothing
+FAILED tests/test_relocate_scope.py::TestTraktorFindBrokenScoped::test_out_of_scope_entries_never_hit_the_disk
+FAILED tests/test_relocate_scope.py::TestTraktorWorkerScoped::test_only_the_scoped_track_is_repaired_the_other_is_untouched
+FAILED tests/test_relocate_scope.py::TestTraktorWorkerScoped::test_scope_with_no_matching_track_writes_nothing_and_makes_no_backup
+FAILED tests/test_relocate_scope.py::TestTraktorWorkerScoped::test_playlists_section_follows_the_repaired_entry
+FAILED tests/test_relocate_scope.py::TestTraktorWorkerScoped::test_track_in_two_playlists_is_repaired_for_both
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: RekordboxRelocateWorker.__init__() got an unexpected keyword argument 'scope'
+
+tests/test_relocate_scope.py:239: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_relocate_scope.py::TestRekordboxFindBrokenScoped::test_only_scoped_content_is_returned
+FAILED tests/test_relocate_scope.py::TestRekordboxFindBrokenScoped::test_empty_scope_returns_nothing
+FAILED tests/test_relocate_scope.py::TestRekordboxFindBrokenScoped::test_out_of_scope_content_never_hits_the_disk
+FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_only_the_scoped_track_is_repaired_the_other_is_untouched
+FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_scope_with_no_matching_track_commits_nothing_and_makes_no_backup
+FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_no_scope_repairs_everything_like_before
+FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_same_content_in_two_playlists_is_one_repair
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/.venv/bin/python', '-c', '\nimport pathlib, tempf...^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: MainWindow._start_relocate() got an unexpected keyword argument \'scope\'\n').returncode
+
+tests/test_relocate_scope.py:366: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_scoped_auto_resolve_confirms_with_count_name_and_shared_note
+FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_answering_no_starts_nothing
+FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_cancelling_the_folder_picker_asks_nothing_and_starts_nothing
+FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_scoped_run_asks_even_with_the_menu_tick_off_and_ignores_the_tick
+FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_traktor_gets_the_scope_too
+FAILED tests/test_relocate_scope.py::TestStartRelocateScoped::test_nothing_is_persisted_in_the_ini

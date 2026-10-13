@@ -1,0 +1,12 @@
+1 _playable_tracks sin _render_queue (T-072): ROJO ['test_advance_right_after_theme_switch_is_not_lost', 'test_advance_crosses_to_the_next_folder_after_theme_switch']
+3 _apply_theme no vacía el preview antes de setStyleSheet (T-070): ROJO ['test_no_rows_are_alive_while_the_stylesheet_is_applied', 'test_preview_comes_back_after_a_theme_switch']
+4 carpeta 100 % rota crea filas aun colapsada (D4): ROJO ['test_card_all_broken_is_collapsed_with_message_and_autoresolve']
+5 group_state: >= → >: ROJO ['test_group_state_covers_every_case - Assert...']
+6a alcance con TODAS las pistas del grupo: ROJO ['test_card_repair_button_scopes_the_relocate_to_that_folders_broken_tra', 'test_card_with_nothing_broken_in_the_data_never_starts_a_global_reloca']
+6b scope=None (global): ROJO ['test_card_repair_button_scopes_the_relocate_to_that_folders_broken_tra', 'test_card_autoresolve_always_asks_with_count_and_folder_name_and_ignor']
+6c ignora auto: ROJO ['test_card_autoresolve_always_asks_with_count_and_folder_name_and_ignor']
+7 fila rota sin nota ni ícono: ROJO ['test_broken_row_has_icon_with_name_note_and_keeps_its_number', 'test_broken_row_text_does_not_depend_only_on_color']
+8 QTimer.singleShot en preview_card.py: ROJO ['test_new_card_module_has_no_animations_or_delayed_widget_callbacks']
+9 cola vuelve a depender de filas (_row_for sin dato, avance usa solo filas): ROJO ['test_advance_right_after_theme_switch_is_not_lost', 'test_advance_crosses_to_the_next_folder_after_theme_switch']
+Mutación 2 (sin _stop_fade_anim): ver T-065_guard_t029.txt (NO reproduce en este entorno).
+Cada mutación restaurada con git checkout.
