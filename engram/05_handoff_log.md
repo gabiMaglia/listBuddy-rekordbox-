@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12] nerv-orquestador → nerv-qa T-079 (A) + T-067 (A)
+- `nerv-gate.sh` (~/Documents/NERV/bin) PASS con NERV_TEST_CMD: files == diff (22), nivel A computado, handoff P-1 completo, **proof of red OK**, suite verde. Primer gate oficial del proyecto en esta máquina.
+- Notas: `/releases/latest` da 404 porque el repo público no tiene releases ni tags (verificado con curl) → no es defecto de T-079; anotado para T-025. T-067 oculta la columna con fila < 560 px (ventana ≲ 920 px) para cumplir el criterio 4; con un solo dato muestra «9A · —» / «— · 128» (interpretación del implementador).
+- Entrega: veredicto por ticket + **`engram/qa/T-079.md` y `engram/qa/T-067.md`** con §Plan · §GAP · §Casos · §Defectos (obligatorio, P-4).
+- Archivos a leer: `engram/03_backlog.md` (T-067, T-079) · diff `main..HEAD` en `feat/menores` · `engram/evidence/T-067/*.png`, `engram/evidence/T-079_ssl_check.txt`.
+
 ### [2026-10-12] nerv-orquestador → nerv-desktop T-079 → T-067 · Niv A (ambos)
 - PO: «encará los menores». Rama nueva `feat/menores` desde main (6328dfb + cierre a1a5937). Recon del Orquestador con datos reales en las filas del backlog (campos de pyrekordbox verificados con `dir()`; certifi no instalado).
 - Entrega: T-079 primero (chico), después T-067. Advisory: criterios del backlog = plan. TDD, commits chicos, capturas en T-067. **Pedido explícito a QA después: `engram/qa/<T-ID>.md`** (lección de este cierre).
