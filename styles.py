@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -129,15 +130,31 @@ def status_style(theme: str, variant: str) -> str:
 
 
 def _tick_url(tokens: Dict[str, str]) -> str:
-    """QSS solo acepta imágenes por ruta: el tilde se rasteriza una vez por color."""
+    """QSS solo acepta imágenes por ruta: el tilde se rasteriza una vez por color.
+
+    Devuelve '' si no se puede escribir: el checkbox queda sin tilde, pero la app arranca.
+    """
     import icons
+    from PySide6.QtGui import QImage
 
     color = tokens['on_accent']
-    path = Path(tempfile.gettempdir()) / 'listbuddy-qss' / f"tick-{color.lstrip('#')}.png"
-    if not path.exists():
+    try:
+        path = Path(tempfile.gettempdir()) / 'listbuddy-qss' / f"tick-{color.lstrip('#')}.png"
+        # exists() no alcanza: un PNG vacío o cortado se tiene que regenerar.
+        if path.exists() and not QImage(str(path)).isNull():
+            return path.as_posix()
         path.parent.mkdir(parents=True, exist_ok=True)
-        icons.pixmap('check', color, 18).save(str(path), 'PNG')
-    return path.as_posix()
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        try:
+            if not icons.pixmap('check', color, 18).save(str(tmp), 'PNG'):
+                raise OSError('no se pudo escribir el PNG del tilde')
+            os.replace(tmp, path)
+        finally:
+            tmp.unlink(missing_ok=True)
+        return path.as_posix()
+    except OSError as exc:
+        _log.warning('tilde del checkbox desactivado: %s', exc)
+        return ''
 
 
 def load_qss(name: str = 'dark') -> str:
@@ -150,6 +167,8 @@ def load_qss(name: str = 'dark') -> str:
         qss = qss.replace(f'@{{{k}}}', v)
     # El tilde va como regla extra: la ruta de la imagen no es un token de diseño.
     tick = _tick_url(tokens)
+    if not tick:
+        return qss
     return qss + f"\nQCheckBox#settings_check::indicator:checked {{ image: url({tick}); }}\n"
 
 
