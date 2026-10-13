@@ -231,12 +231,19 @@ class FileRow(QWidget):
         self._raw_path = raw_path
         self._exists = exists
         self.track: TrackRow | None = None   # el dato de la fila (lo fija MainWindow)
+        self.keybpm_label: QWidget | None = None   # se oculta si la fila es angosta (T-067)
         self.block_pos = block_pos if not exists else NONE
         self.setObjectName("output_file_row")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setProperty("file_missing", "false" if exists else "true")
         if exists:
             self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if self.keybpm_label is not None:
+            from preview_card import KEYBPM_MIN_ROW_W   # import diferido: preview_card importa este módulo
+            self.keybpm_label.setVisible(self.width() >= KEYBPM_MIN_ROW_W)
 
     def paintEvent(self, event) -> None:
         # Estilo D: los rotos contiguos se pintan como un solo bloque; el fondo y
