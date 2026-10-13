@@ -85,7 +85,7 @@ from rekordbox_relocate import RekordboxRelocateWorker, is_rekordbox_running
 from update_checker import UpdateCheckWorker, UpdateInfo
 
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
-_APP_VERSION = "1.1.0"
+_APP_VERSION = "1.0.0"
 
 # T-016: header/frameless custom, retoma T-010 (revertido, ver D-06 en
 # engram/03_backlog.md) con un mecanismo seguro. T-010 crasheaba el proceso

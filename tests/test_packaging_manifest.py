@@ -35,3 +35,15 @@ def test_spec_windows_branch_is_onedir() -> None:
 def test_spec_bundles_fonts_and_qtsvg() -> None:
     assert "('fonts', 'fonts')" in _SPEC
     assert "'PySide6.QtSvg'" in _SPEC
+
+
+def test_bundle_version_matches_app_version() -> None:
+    ui_src = (PROJECT_ROOT / "ui.py").read_text(encoding="utf-8")
+    version = re.search(r'^_APP_VERSION = "([^"]+)"', ui_src, re.M).group(1)
+    assert f"'CFBundleVersion': '{version}'" in _SPEC
+    assert f"'CFBundleShortVersionString': '{version}'" in _SPEC
+
+
+def test_mac_bundle_uses_visible_brand_name() -> None:
+    assert "name='List Buddy.app'" in _SPEC
+    assert "'CFBundleDisplayName': 'List Buddy'" in _SPEC

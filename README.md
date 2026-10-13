@@ -35,17 +35,25 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 - 🎛 **Dos fuentes** — Rekordbox 6 y Traktor Pro 3/4, con un switch para cambiar entre ellas.
 - 🔢 **Exportación numerada** — cada playlist va a su carpeta, con prefijo de orden y nombre `Artista - Título`.
 - 🔊 **Reproductor integrado** — clickeá cualquier pista para escucharla. Soporta mp3, wav, aiff, mp4/m4a, **flac** y wma (backend FFmpeg de Qt).
-- 📊 **Espectrograma de fondo** — se dibuja tenue detrás del banner mientras suena la pista (calculado en background, nunca bloquea).
+- 📊 **Forma de onda** — en el reproductor de abajo; clickeala para saltar a cualquier punto.
+- 🎹 **Key · BPM** — tonalidad y tempo de cada pista en la vista previa.
 - ⏯ **Controles** — play/pausa desde la nota ♪ o con la **barra espaciadora**, barra de progreso con seek, y auto-avance al siguiente track.
 - ⚠️ **Detección de archivos faltantes** — las pistas cuyo archivo no está en disco se marcan en rojo y no se pueden reproducir.
 - 🔧 **Reparar enlaces rotos (relocate)** — si moviste tu música de carpeta o disco, listBuddy busca cada archivo faltante por nombre en la ubicación que le indiques y **repara el enlace en tu propia librería** (Rekordbox `master.db` o Traktor `collection.nml`). Siempre hace un **backup automático** antes de escribir, y ante varios candidatos te pregunta cuál es (con un checkbox opcional para resolver todo automáticamente por mejor coincidencia).
-- ⚙️ **Configuración** — selector de dispositivo de salida de audio, toggles de auto-avance y espectrograma, y override de la ruta de la librería.
+- ⚙️ **Configuración** — selector de dispositivo de salida de audio, auto-avance y override de la ruta de la librería.
 - 🌗 **Tema claro / oscuro** estilo macOS.
 - ⚡ **Sin congelamientos** — las operaciones pesadas (existencia de archivos, decodificación, copia) corren en hilos separados.
 
+## Descargar
+
+Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
+
+- **macOS 13 o posterior.** Abrí el `.dmg` y arrastrá **List Buddy** a Aplicaciones.
+- **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente.
+
 ## Requisitos
 
-- **Python 3.11+**
+- **Python 3.11+** (solo para correrlo desde el código fuente)
 - **Rekordbox 6** y/o **Traktor Pro 3/4** instalados, con su librería configurada.
 - El programa correspondiente debe estar **cerrado** al usar listBuddy (la librería queda bloqueada si está abierto).
 
@@ -59,17 +67,8 @@ source .venv/bin/activate          # Windows: .\.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Primera vez con Rekordbox: bajar la clave de desencriptado
-
-Rekordbox 6 cifra su base de datos con SQLCipher. Antes de la primera ejecución, corré
-una vez:
-
-```bash
-python -m pyrekordbox download-key
-```
-
-Esto descarga la clave y la guarda localmente. *(Traktor usa un XML sin cifrar, así que
-no necesita este paso.)*
+Rekordbox 6 cifra su base de datos con SQLCipher; pyrekordbox ya trae lo necesario para
+abrirla, no hace falta ningún paso extra.
 
 ## Ejecutar
 
@@ -120,7 +119,7 @@ encontrado), podés reparar los enlaces sin salir de listBuddy:
 ### Configuración (⚙ en el header)
 
 - **Dispositivo de salida de audio** — elegí por qué salida suena la previsualización.
-- **Auto-avance** y **espectrograma** — toggles on/off.
+- **Auto-avance** — on/off.
 - **Librerías** — si tu `master.db` (Rekordbox) o `collection.nml` (Traktor) están en una
   ubicación no estándar (disco externo, varias versiones), configurá la ruta acá. El botón
   **Auto** vuelve a la autodetección.
@@ -158,18 +157,15 @@ Si algo falla, listBuddy escribe un log rotativo que podés adjuntar para diagno
 
 ## Tests
 
-listBuddy tiene tests de correctitud para las piezas que **escriben sobre tu
-librería** (el encoder/decoder de rutas de Traktor, el matching de candidatos, el
-backup + poda, la escritura atómica y la sincronización COLLECTION↔PLAYLISTS).
-Son la red de seguridad contra corromper datos al reparar enlaces.
+Cubren sobre todo las piezas que **escriben sobre tu librería** (rutas de Traktor,
+matching, backup + poda, escritura atómica, sincronización COLLECTION↔PLAYLISTS) y la
+interfaz Qt, que corre en procesos aislados.
 
 ```bash
 pip install -r requirements-dev.txt
 pytest
 ```
 
-> Cobertura acotada a lógica pura (sin UI Qt ni DB real). La rama macOS del
-> encoder queda sin verificar contra un NML real de macOS (deuda conocida).
 
 ## Estructura del proyecto
 
@@ -182,11 +178,12 @@ traktor_relocate.py  # RelocateWorker (QThread): repara enlaces rotos del NML de
 rekordbox_relocate.py# RekordboxRelocateWorker (QThread): repara enlaces del master.db
 preview_worker.py    # PreviewWorker (QThread): chequeo de existencia en background
 audio_player.py      # AudioPlayer (QMediaPlayer + FFmpeg)
-spectro_worker.py    # SpectrogramWorker (QThread): decodifica + STFT con numpy
+waveform_worker.py   # WaveformWorker (QThread): picos de la forma de onda
 db.py                # acceso a la librería de Rekordbox (pyrekordbox)
 traktor_db.py        # parser de la colección NML de Traktor
 rekordbox_export.py  # lógica base validada (acceso a DB + copia)
 app_logging.py       # logging a archivo + manejo global de excepciones
+about_dialog.py      # «Acerca de»: licencia, garantía y avisos de terceros
 styles.py + qss/     # design system (tokens + hojas QSS dark/light)
 rb_exporter.spec     # spec de PyInstaller
 scripts/make_icon.py # generador del ícono
@@ -206,10 +203,26 @@ el menú **Ayuda → Donar en Ko-fi…** dentro de la app.
 
 ## Licencia
 
-GNU General Public License v3.0 — ver [LICENSE](LICENSE).
+GNU General Public License v3.0 o posterior — ver [LICENSE](LICENSE).
 
 En resumen: podés usar, modificar y redistribuir este software libremente, siempre que
 cualquier versión redistribuida también sea de código abierto bajo GPL v3.
+
+Los componentes de terceros que viajan en el ejecutable (Qt/PySide6, FFmpeg, SQLCipher,
+pyrekordbox y otros) tienen sus propias licencias: ver
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) y la carpeta [licenses/](licenses/).
+También están en la app, en **Ayuda → Acerca de List Buddy**.
+
+## Avisos
+
+- **Sin garantía.** List Buddy se ofrece tal cual. La reparación de enlaces escribe sobre
+  tu librería real: siempre hace backup, pero tené tu propia copia.
+- **Compatibilidad.** Lee formatos de Rekordbox y Traktor que sus fabricantes no
+  documentan; una actualización de esos programas puede romperlo sin aviso.
+- **Tu música.** List Buddy solo copia archivos que ya están en tu disco. Sos responsable
+  de tener los derechos sobre lo que copiás.
+- **Privacidad.** No recolecta datos. La única conexión a internet es al arrancar, para
+  consultar en GitHub si hay una versión nueva.
 
 ---
 

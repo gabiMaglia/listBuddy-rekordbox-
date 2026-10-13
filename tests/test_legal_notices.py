@@ -94,3 +94,23 @@ def test_viewer_degrades_to_link_when_file_is_missing() -> None:
         "print('ok')\n"
     )
     assert r.returncode == 0 and "ok" in r.stdout, r.stderr[-2000:]
+
+
+def test_rekordbox_key_never_reaches_the_log_file(tmp_path, monkeypatch) -> None:
+    import logging
+
+    import app_logging
+
+    monkeypatch.setattr(app_logging, "log_dir", lambda: tmp_path)
+    path = app_logging.setup_logging("test")
+    try:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logging.getLogger("pyrekordbox.db6.database").debug("Key: %s", "402fd-secreto")
+        for h in logging.getLogger().handlers:
+            h.flush()
+        assert "402fd-secreto" not in path.read_text(encoding="utf-8")
+    finally:
+        for h in logging.getLogger().handlers:
+            h.close()
+        logging.getLogger().handlers.clear()
+        logging.getLogger().setLevel(logging.WARNING)
