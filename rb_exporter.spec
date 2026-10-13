@@ -19,12 +19,14 @@ block_cipher = None
 is_mac = sys.platform == "darwin"
 
 pyrekordbox_datas = collect_data_files('pyrekordbox')
+# cacert.pem de certifi: sin él el chequeo de updates falla el SSL en el bundle.
+certifi_datas = collect_data_files('certifi')
 
 a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=collect_dynamic_libs('sqlcipher3'),
-    datas=pyrekordbox_datas + [('qss', 'qss'), ('fonts', 'fonts')],
+    datas=pyrekordbox_datas + certifi_datas + [('qss', 'qss'), ('fonts', 'fonts')],
     # Nota: los módulos locales del relocate (traktor_relocate, rekordbox_relocate,
     # traktor_db, worker, preview_worker, etc.) NO van acá — se importan de forma
     # estática desde main.py → ui.py (`from traktor_relocate import ...`), así que
@@ -48,6 +50,7 @@ a = Analysis(
         'PySide6.QtMultimedia',
         'PySide6.QtSvg',
         'numpy',
+        'certifi',
     ],
     hookspath=[],
     hooksconfig={},

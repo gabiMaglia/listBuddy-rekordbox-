@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import ssl
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -42,6 +43,23 @@ class UpdateInfo:
     """Datos mínimos que necesita la UI para armar el aviso discreto."""
     version: str   # ej. "1.2.0" (ya sin el prefijo "v")
     url: str       # link a la página del release (o al listado general si falta)
+
+
+def _build_ssl_context() -> ssl.SSLContext:
+    """
+    Contexto TLS con el bundle de CA de certifi (T-079). El Python de Homebrew
+    y el bundle PyInstaller no encuentran CA raíz del sistema y el chequeo
+    moría con CERTIFICATE_VERIFY_FAILED. La verificación NUNCA se desactiva:
+    si certifi falta o su bundle no se puede leer, se usa el contexto por
+    defecto (igual de estricto) para no romper el arranque.
+    """
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception as exc:  # noqa: BLE001 — ImportError u OSError del cafile
+        _log.info("certifi no disponible, uso CA por defecto (%s)", type(exc).__name__)
+        return ssl.create_default_context()
 
 
 def _parse_version(raw: str) -> tuple[int, ...] | None:
@@ -98,7 +116,9 @@ class UpdateCheckWorker(QThread):
                     "User-Agent": "listBuddy-update-check",
                 },
             )
-            with urllib.request.urlopen(request, timeout=_REQUEST_TIMEOUT_SECONDS) as resp:
+            with urllib.request.urlopen(
+                request, timeout=_REQUEST_TIMEOUT_SECONDS, context=_build_ssl_context()
+            ) as resp:
                 payload = json.loads(resp.read().decode("utf-8"))
 
             tag_name = payload.get("tag_name")
