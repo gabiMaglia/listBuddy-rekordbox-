@@ -41,7 +41,7 @@ def test_healthy_row_shows_number_title_artist_chip_and_no_prefix() -> None:
         "print([txt('output_file_idx'), txt('output_file_name'), txt('output_file_artist'),\n"
         "       txt('output_file_ext'), txt('output_file_note'), len(row.findChildren(QLabel))])\n"
     )
-    assert out == "['003', 'Glace Circle', '— DJOKO', 'MP3', None, 4]"
+    assert out == "['003', 'Glace Circle', '— DJOKO', 'MP3', None, 5]"  # +KEY · BPM (T-067)
 
 
 def test_broken_row_has_the_named_icon_and_keeps_its_number_without_a_note() -> None:
@@ -361,7 +361,7 @@ def test_column_header_shows_the_three_labels_aligned_with_the_row_columns() -> 
         "      x(labs['TÍTULO — ARTISTA']) == x(row.findChild(QLabel, 'output_file_name')),\n"
         "      x(labs['FORMATO']) == x(row.findChild(QLabel, 'output_file_ext')))\n"
     )
-    assert out == "['FORMATO', 'NÚMERO', 'TÍTULO — ARTISTA'] True True True True"
+    assert out == "['FORMATO', 'KEY · BPM', 'NÚMERO', 'TÍTULO — ARTISTA'] True True True True"  # T-067
 
 
 def test_format_header_stays_aligned_when_the_inner_scrollbar_takes_width() -> None:
