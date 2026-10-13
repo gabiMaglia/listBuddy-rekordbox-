@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-13] CIERRE (mini, P-5) · T-067 + T-079
+- Hecho: columna Key·BPM (Rekordbox BPM/100 + Key.ScaleName, Traktor INFO@KEY/TEMPO@BPM; oculta bajo ~920 px) y chequeo de updates con CA de certifi (verificación SSL siempre activa). Gate oficial PASS con proof of red; QA con artefactos `engram/qa/T-067.md`, `T-079.md`; merge a main a2f406f. Push: lo hace el PO.
+- Hallazgo: el repo público no tiene releases/tags → `/releases/latest` = 404; el aviso de «Nueva versión» no funcionará hasta publicar uno (T-025).
+- Próximo paso: T-025 (`.app` + primer release). Quien retoma: nerv-orquestador → nerv-desktop.
+
 ### [2026-10-12] nerv-orquestador → nerv-qa T-079 (A) + T-067 (A)
 - `nerv-gate.sh` (~/Documents/NERV/bin) PASS con NERV_TEST_CMD: files == diff (22), nivel A computado, handoff P-1 completo, **proof of red OK**, suite verde. Primer gate oficial del proyecto en esta máquina.
 - Notas: `/releases/latest` da 404 porque el repo público no tiene releases ni tags (verificado con curl) → no es defecto de T-079; anotado para T-025. T-067 oculta la columna con fila < 560 px (ventana ≲ 920 px) para cumplir el criterio 4; con un solo dato muestra «9A · —» / «— · 128» (interpretación del implementador).
