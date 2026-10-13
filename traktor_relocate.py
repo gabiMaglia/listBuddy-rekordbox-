@@ -54,9 +54,11 @@ from relocate_core import (
     BaseRelocateWorker,
     Candidate,
     RelocateRequest,
+    RelocateScope,
     build_basename_index,
     check_disk_space_for_backup,
     find_candidates,
+    scope_contains,
 )
 from traktor_db import (
     _WINDOWS_DRIVE_RE,
@@ -165,6 +167,7 @@ def find_broken_entries(
     should_stop: Callable[[], bool] | None = None,
     on_progress: Callable[[int, int], None] | None = None,
     progress_every: int = _DETECT_PROGRESS_EVERY,
+    scope: RelocateScope | None = None,
 ) -> list[tuple[ET.Element, BrokenTrack]]:
     """
     Recorre <COLLECTION><ENTRY> y devuelve los que no resuelven a un archivo
@@ -191,6 +194,10 @@ def find_broken_entries(
     con señales — a diferencia del walk, acá el total SÍ se conoce de
     entrada (cantidad de ENTRY), así que se reporta como (hechos, total) en
     vez de un conteo indeterminado.
+
+    T-073: `scope` limita la detección a las pistas de una playlist (por
+    `str(file_path)`, igual que el `raw_path` de la vista previa). El filtro
+    va ANTES del `.exists()`: lo que está fuera del alcance no toca disco.
     """
     broken: list[tuple[ET.Element, BrokenTrack]] = []
     entries = collection_el.findall("ENTRY")
@@ -204,7 +211,7 @@ def find_broken_entries(
             dir_attr = loc.get("DIR", "")
             file_attr = loc.get("FILE", "")
             file_path = _location_to_path(volume, dir_attr, file_attr)
-            if not file_path.exists():
+            if scope_contains(scope, str(file_path)) and not file_path.exists():
                 original_key = _location_to_key(volume, dir_attr, file_attr)
                 title = entry.get("TITLE", "") or file_attr
                 artist = entry.get("ARTIST", "") or ""
@@ -370,8 +377,9 @@ def write_atomic(tree: ET.ElementTree, nml_path: Path) -> None:
 class RelocateWorker(BaseRelocateWorker):
     def __init__(
         self, nml_path: Path, search_root: Path, auto_resolve: bool = False,
+        scope: RelocateScope | None = None,
     ) -> None:
-        super().__init__(search_root, auto_resolve=auto_resolve)
+        super().__init__(search_root, auto_resolve=auto_resolve, scope=scope)
         self._nml_path = nml_path
         self._key_index: dict[str, list[ET.Element]] = {}
 
@@ -448,6 +456,7 @@ class RelocateWorker(BaseRelocateWorker):
             collection_el,
             should_stop=self.isInterruptionRequested,
             on_progress=lambda done, total: self.progress.emit(done, total),
+            scope=self._scope,
         )
         if self.isInterruptionRequested():
             self._emit_cancelled(0, 0, 0)

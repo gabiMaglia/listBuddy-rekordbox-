@@ -3,6 +3,161 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12] nerv-orquestador → nerv-desktop T-078 · Niv A
+- T-077 Done (QA, 7ff4167). QA halló que el tilde PNG puede impedir el arranque (temp no escribible) → T-078 antes del merge (decisión del Orquestador: no se mergea un fallo de arranque introducido en la rama).
+- Entrega: T-078 (criterios del backlog = plan). Test primero, commit chico, suite completa. Dejar «En revisión QA».
+- Archivos a leer: `engram/03_backlog.md` (T-078) · `styles.py` (`_tick_url`, `load_qss`, `apply_theme`) · `main.py`.
+
+### [2026-10-12] nerv-orquestador → nerv-qa T-077 · Niv A
+- Gate P-12.1 PASS (Orquestador): tree limpio, suite verde, ini intacto; captura de Sí/No revisada («No» por defecto en confirmación destructiva).
+- Para la auditoría: `dialogs.py` nuevo reemplaza los helpers estándar de QMessageBox en `ui.py` y `app_logging.py` (verificar que no quede ninguno). El tilde del checkbox se genera como PNG en el temp del sistema desde `load_qss` → verificar que sea robusto (temp no escribible, bundle) y que no dependa de estado previo. Stubs de 4 tests adaptados a `ui.dialogs.*`: verificar que no se debilitó ninguna aserción.
+- Archivos a leer: `engram/03_backlog.md` (T-077) · diff `61f5ca6..HEAD` · `engram/qa/T-077/*.png`.
+- Se espera: veredicto con evidencia por criterio.
+
+### [2026-10-12] nerv-orquestador → nerv-desktop T-077 · Niv A
+- T-074/T-075/T-076/T-066 Done (QA, ff91170). PO: «hacé el ticket chico» antes del merge.
+- Entrega: T-077 (Advisory: criterios del backlog = plan). TDD, commits chicos, capturas dark+light, suite completa. Dejar «En revisión QA».
+- Archivos a leer: `engram/03_backlog.md` (T-077) · `ui.py` (QMessageBox, página de ajustes, diálogo de relocate), `qss/app.qss`, `icons.py` · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · cómo probar · capturas.
+
+### [2026-10-12] nerv-orquestador → nerv-qa T-076 (S) + T-074 (A) + T-075 (A) + T-066 (A)
+- Gate P-12.1 PASS (Orquestador): tree limpio, suite completa verde en 1:48 con `-n 4` (antes 6–8 min), `.rbe_settings.ini` intacto, pytest-xdist 3.8.0 instalado.
+- T-076: crash del PO al cambiar Traktor→Rekordbox; implementador lo reprodujo 6/6 y lo atribuye a `itemAt`+`setParent(None)` en `_clear_playlist_area` (repro mínimo PySide6 en evidencia). Verificar: el test falla sin el fix (mutación), la ráfaga de repro en evidencia, y búsqueda del mismo patrón en todo el proyecto. Salvedad declarada: stack no idéntico al del PO.
+- T-074: cambio de PO (sin nota, filas 38 px). T-066: verificar capturas de cada modal/QMessageBox y el indicador del menú. Observación del Orquestador: QMessageBox muestra «Yes/No» en inglés (preexistente, viola la convención rioplatense de CLAUDE.md) → se abrirá ticket aparte, no es defecto de T-066.
+- T-075: verificar que no se debilitó ni borró ningún test (diff de tests/), qué tests quedaron en proceso frío y por qué, y que el aislamiento de binding se mantiene.
+- Archivos a leer: `engram/03_backlog.md` (T-074, T-075, T-076, T-066) · `engram/plans/T-061.md` (decisión del PO sobre la nota) · diff `0f8e82d..HEAD` · `engram/plans/design/evidence/T-076_*`, `T-074_*`, `T-066_*` · `CLAUDE.md` §Tests.
+- Se espera: veredicto por ticket con evidencia, defectos con archivo:línea.
+
+### [2026-10-12] nerv-orquestador → nerv-desktop T-075 → T-074 → T-066 · Niv A (los tres)
+- T-065 Done (QA, 3dbbe2a). PO: la nota en segunda línea queda; «metele» a D-09 (→ T-075) y «dale» a T-066 + T-074 + indicador del auto-resolver (sumado a T-066).
+- Entrega, en orden: T-075 (suite rápida, primero porque acelera lo demás) → T-074 → T-066. Advisory: los criterios del backlog son el plan. TDD donde haya lógica, commits chicos por ticket, capturas dark+light en T-074/T-066. Dejar los tres «En revisión QA».
+- Archivos a leer: `engram/03_backlog.md` (T-075, T-074, T-066, D-09) · `tests/` (conftest, `_window_boot.py`, patrón de subproceso de T-033) · `preview_card.py` · `ui.py` (página de ajustes, menú Mantenimiento, diálogos) · `engram/plans/T-061.md` (tokens y reglas transversales) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · capturas · cifras de T-075.
+
+### [2026-10-12] nerv-orquestador → nerv-qa T-065 · Niv S · re-auditoría (iteración 1)
+- Fix entregado (8aaae8e, 673eae8, 1035a85): FORMATO visible y alineado (también con scroll interno), artista alineado entre sana/rota; tests nuevos con rojo previo (`T-065_qa1_rojo.txt`). Cambio visual: en filas rotas la nota va bajo el título (fila de 48 px). Gate rápido del Orquestador: tree limpio, tests de preview verdes, ini intacto; suite completa corrida por el implementador.
+- Entrega: re-auditar SOLO el defecto de `engram/qa/T-065.md` y la deuda de alineación, más no-regresión de lo ya verificado. Registrar veredicto.
+- Archivos a leer: `engram/qa/T-065.md` · diff `8a9c6c3..HEAD` · capturas `T-065_after_*`.
+
+### [2026-10-12] nerv-orquestador → nerv-desktop T-065 · Niv S · iteración 1 de 2 (rechazo QA)
+- QA: T-072 APROBADO (Done); T-065 RECHAZADO (`engram/qa/T-065.md`): «FORMATO» invisible en la cabecera de columnas (`preview_card.py:111-118`, ancho 0 + stretch 0 + política Ignored) y sin test que afirme las 3 columnas.
+- Entrega: (1) test que falle primero afirmando que las 3 etiquetas de la cabecera son visibles con ancho > 0 y alineadas con sus columnas de fila; fix. (2) Incluido a pedido del Orquestador (deuda no bloqueante de QA): el artista de las filas rotas debe alinear con el de las sanas (hoy x≈1218 vs x≈1410 en `T-065_after_dark_980_expanded.png`; la nota «· archivo no encontrado» + ícono no deben correr la columna) — test de geometría. Capturas regeneradas dark+light 980/820. Suite completa una vez al final.
+- Archivos a leer: `engram/qa/T-065.md` · `preview_card.py`, `ui_components.py` (FileRow) · `engram/plans/T-061.md` (decisiones del PO de T-065, D6).
+- Se espera (retorno estructurado): estado · archivos tocados · cómo probar · capturas.
+
+### [2026-10-12] nerv-orquestador → nerv-qa T-065 + T-072 · Niv S
+- T-073 Done (QA en worktree, a17b09f). Gate P-12.1 de T-065/T-072 PASS (Orquestador): tree limpio, suite completa verde, `.rbe_settings.ini` intacto. Agente implementador detenido.
+- Para la auditoría: decisiones del PO sobre T-065 (D1 botonera POR CARPETA con scope de T-073 + global en menú; D2–D6) al final de `engram/plans/T-061.md`. Excepción P-18 aceptada para los tests de caracterización (cada uno con mutación). Declarado por el implementador: el guard de T-029 no reproduce el crash en PySide6 6.11.1/macOS (mejor esfuerzo). Observación del Orquestador: la cabecera de columnas de la tarjeta no muestra «FORMATO» (D6 lo pide).
+- Archivos a leer: `engram/plans/T-061.md` (§T-065, CÓMO — T-065, decisiones del PO) · `engram/03_backlog.md` (T-065, T-072) · diff `bc254d8..2740a5e` · `engram/plans/design/evidence/T-065_*`, `T-072_*`.
+- Se espera: veredicto por ticket con evidencia por criterio, defectos con archivo:línea.
+
+### [2026-10-12 18:30] nerv-orquestador → nerv-desktop T-073 (S) → T-065+T-072 (S) · CÓMO T-073 + ajuste CÓMO T-065 + implementación
+- PO decidió D1 de T-065 distinto a lo propuesto: botonera POR CARPETA (alcance = esa playlist) + global en el menú. Requiere relocate con scope → T-073 nuevo (escribe sobre la librería del usuario). D2–D6 sí; T1–T11 y excepción P-18 aprobadas.
+- Entrega, en orden: (1) CÓMO de T-073 con writing-plans en `engram/plans/T-073.md` (## QUÉ: «No requerido (Strong)»), estampado; (2) ajustar `## CÓMO — T-065` a D1 y re-estampar; (3) implementar T-073; (4) implementar T-065+T-072. Volver al Orquestador después de (2) SOLO si el plan de T-073 necesita una decisión del PO; si no, seguir.
+- Archivos a leer: `engram/plans/T-061.md` (§T-065, CÓMO — T-065, decisiones del PO al final) · `engram/03_backlog.md` (T-065, T-072, T-073) · `engram/02_architecture.md` (ADR-001, ADR-002) · `relocate_core.py`, `traktor_relocate.py`, `rekordbox_relocate.py`, `ui.py` (`_start_relocate`) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · capturas.
+
+### [2026-10-12 17:45] nerv-orquestador → nerv-desktop T-065 (+T-072) · Niv S · fase CÓMO (P-19.2)
+- T-064 Done (QA, 7509152). PO: «dale» a T-065. Se pliega T-072 (auto-avance perdido durante el re-render de tema) porque vive en el mismo código (`_clear_preview_layout`, `_play_order`, cola de render).
+- Entrega: SOLO el CÓMO de T-065 (+ tarea para T-072) con `superpowers:writing-plans`, como `## CÓMO — T-065` al final de `engram/plans/T-061.md`, estampado. Sin código. Respetar: estilo D de filas rotas (T-071, ya implementado en `row_blocks.py`/`FileRow`), sin regresión de T-029 ni de T-070 (re-encolado al cambiar tema, 185 ms). Decisiones para el PO como D1..Dn; técnicas como T1..Tn.
+- Archivos a leer: `engram/plans/T-061.md` (QUÉ §Estructura → Vista previa, §T-065, §Correcciones ronda 1, decisiones previas) · `engram/03_backlog.md` (T-065, T-072, T-029) · `engram/plans/T-070.md` · `engram/plans/design/T-061-mezcla-calida.dc.html` (main) · `ui.py` (`_build_right_col`, `_queue_group`, `_make_row_widget`, `_clear_preview_layout`, `_on_track_finished`), `ui_components.py` (FileRow), `row_blocks.py`, `preview_worker.py` · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · decisiones para el PO.
+
+### [2026-10-12 17:10] nerv-orquestador → nerv-qa T-064 · Niv S
+- Gate P-12.1 PASS (Orquestador): tree limpio, suite verde (311), `.rbe_settings.ini` intacto, captura 980 dark revisada (numeración de dos estilos, filas planas, buscador, «vacía»). Suite tarda ~5–6 min por subprocesos de Qt → deuda D-09, no defecto de T-064.
+- Archivos a leer: `engram/plans/T-061.md` (§T-064, CÓMO — T-064, decisiones del PO de T-064 al final) · `engram/03_backlog.md` (T-064) · diff `fdd26ff..HEAD` · `engram/plans/design/evidence/T-064_*`.
+- Se espera: veredicto con evidencia por criterio, defectos con archivo:línea.
+
+### [2026-10-12 15:40] nerv-orquestador → nerv-desktop T-064 · Niv S · fase implementación
+- CÓMO estampado (6a5a9e3). PO: D1–D4 sí; D5 = carpetas sin checkbox (spec/CLAUDE.md corregidos). T1–T8 aprobadas; excepción P-18 para 3 tests de caracterización.
+- Entrega: Tasks 0–5 del CÓMO de T-064 en `feat/reskin`, ejecución INLINE, TDD, commits chicos, evidencia dark+light. Dejar T-064 «En revisión QA».
+- Archivos a leer: `engram/plans/T-061.md` (§T-064, CÓMO — T-064, decisiones del PO al final) · `engram/03_backlog.md` (T-064) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · capturas.
+
+### [2026-10-12 15:00] nerv-orquestador → nerv-desktop T-064 · Niv S · fase CÓMO (P-19.2)
+- T-063/T-068 Done (QA, 7d2498d). PO revisó la app en vivo y decidió la numeración (opción 3).
+- Entrega: SOLO el CÓMO de T-064 con `superpowers:writing-plans`, como `## CÓMO — T-064` al final de `engram/plans/T-061.md`, estampado. Sin código. Decisiones para el PO como D1..Dn, técnicas como T1..Tn.
+- Archivos a leer: `engram/plans/T-061.md` (QUÉ §Estructura → Columna izquierda, §T-064, decisiones del PO incl. la de T-064) · `engram/03_backlog.md` (T-064) · `engram/plans/design/T-061-mezcla-calida.dc.html` (aside) · `ui.py` (`_build_left_col`, `_build_playlists_header`, `_build_playlist_scroll`, `_load_playlists`, `_update_order_numbers`), `ui_components.py` (PlaylistCard, PlaylistGroup) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · decisiones para el PO.
+
+### [2026-10-12 14:20] nerv-orquestador → nerv-qa T-063 (S) + T-068 (S)
+- Pendiente desde el 2026-10-11: T-063/T-068 quedaron «En revisión QA» y se frenaron para la prueba manual del PO (OK del PO: «el resto está perfecto»; sus pulidos → T-069/T-071, ya Done). Gate P-12.1 del Orquestador PASS al entregar (cc24364..481de4e) y suite verde hoy.
+- Ojo: el código posterior (T-069/T-070/T-071) tocó `footer.py`, `ui.py` y QSS → auditar los criterios de T-063 contra el HEAD actual, no solo contra 481de4e. T-068: excepción P-18 aceptada por el Orquestador (no-vacuidad por mutación, 8 rojos en `evidence/T-068_mutacion.txt`).
+- Archivos a leer: `engram/plans/T-061.md` (§T-063, CÓMO — T-063, decisiones del PO) · `engram/03_backlog.md` (T-063, T-068) · diff `d39570a..481de4e` + estado actual · `engram/plans/design/evidence/T-063_*`, `T-068_mutacion.txt`.
+- Se espera: veredicto por ticket con evidencia por criterio.
+
+### [2026-10-12 13:30] nerv-orquestador → nerv-qa T-069 (A) + T-070 (S) + T-071 (A)
+- Gate P-12.1 PASS (Orquestador) para los tres: tree limpio, suite verde, `.rbe_settings.ini` md5 intacto, sin referencias a Fraunces. Capturas revisadas (header Sora, píldora de rotos, bloques D en housepost/techDeFondo).
+- Para la auditoría: T-070 — PO aceptó 185 ms (registrado en `engram/plans/T-070.md`); el implementador NO mutó el guard → hacer la mutación; verificar el riesgo declarado de auto-avance de pista durante el re-render (≈cientos de ms). T-071 — no existe diálogo «Acerca de» (no aplica); commits sin rojo aislado (red-first declarado).
+- Archivos a leer: `engram/03_backlog.md` (T-069, T-070, T-071) · `engram/plans/T-070.md` · `engram/plans/T-061.md` §Correcciones del PO — ronda 1 · diff `743c125..HEAD` · `engram/plans/design/evidence/T-069_*`, `T-070_*`, `T-071_*`.
+- Se espera: veredicto por ticket con evidencia por criterio, defectos con archivo:línea.
+
+### [2026-10-12 12:10] nerv-orquestador → nerv-desktop T-071 · Niv A
+- T-069/T-070 entregados (gate PASS: tree limpio, suite verde, ini intacto; T-070 4130 → 185 ms, aceptación del PO pendiente). QA de T-069/T-070/T-071 se corre junta al final para no auditar con la rama en movimiento.
+- Entrega: T-071 (Advisory: criterios del backlog = plan): Fraunces → Sora; filas rotas en bloque agrupado (opción D); marca visible «List Buddy». Migrar `engram/plans/design/capture.py` a ini temporal (caveat de T-070).
+- Archivos a leer: `engram/03_backlog.md` (T-071) · `engram/plans/T-061.md` §Correcciones del PO — ronda 1 · `engram/plans/design/` (canvas no accesible: la spec escrita es la fuente) · `fonts/README.md`, `styles.py`, `qss/app.qss`, `ui.py`, `ui_components.py`, `rb_exporter.spec` · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · capturas.
+
+### [2026-10-12 10:00] nerv-orquestador → nerv-desktop T-069 (Niv A) + T-070 (Niv S)
+- PO probó la app en vivo (T-063): picker OK, «el resto perfecto». Pidió pulidos chicos (T-069) y reportó lentitud al cambiar de tema en macOS (T-070). Fuente de marca/títulos y estilo de filas rotas → opciones renderizadas en paralelo (Orquestador), NO tocar Fraunces ni el estilo de filas rotas en este handoff.
+- Entrega: T-069 (Advisory: criterios = plan) y T-070 (Strong: CÓMO con writing-plans estampado en `engram/plans/T-070.md` antes de corregir; la investigación/medición previa con systematic-debugging SÍ se hace antes del plan).
+- Archivos a leer: `engram/03_backlog.md` (T-069, T-070) · `footer.py`, `ui_components.py` (MaintenanceButton), `qss/app.qss`, `ui.py` (`_apply_theme`, `_retint_icons`), `styles.py` · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · capturas · cifras de T-070.
+
+### [2026-10-11 23:40] nerv-orquestador → nerv-desktop T-063 · Niv S · relanzamiento Tasks 2–8
+- Ejecución anterior PARCIAL (cortada por el sistema; delegaba en subagentes anidados y devolvía antes de terminar). Hecho y verificado por el Orquestador: re-estampado D4 (044a68c, ebf7af3), Task 0 (58166fc), Task 1/T-068 (2024d26; mutación 8 rojos en `evidence/T-068_mutacion.txt`; excepción P-18 aplicada). Suite verde, tree limpio. Agente anterior detenido.
+- Entrega: Tasks 2–8 del CÓMO de T-063, ejecución INLINE (sin subagentes anidados, sin monitores), sin devolver el control hasta T-063 + T-068 en «En revisión QA» o un bloqueo concreto.
+- Archivos a leer: `engram/plans/T-061.md` (§T-063, CÓMO — T-063 desde Task 2, decisiones del PO al final) · `engram/03_backlog.md` (T-063, T-068) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · rutas de capturas.
+
+### [2026-10-11 22:50] nerv-orquestador → nerv-desktop T-063 (+T-068) · Niv S · fase implementación
+- CÓMO estampado (9a2999d). PO: D1/D2/D3/D5/D6 sí; D4 sí con cambio (0 playlists → «Exportar playlists»). T1–T8 aprobadas. Excepción P-18 aceptada para T-068 (no-vacuidad por mutación, 8 rojos).
+- Entrega: ajustar el CÓMO por D4 y re-estampar; después Tasks 0–8 en `feat/reskin`, TDD, commits chicos, evidencia a 820 px dark+light, verificación manual de la onda con audio real si el test offscreen no corre. Dejar T-063 y T-068 «En revisión QA».
+- Archivos a leer: `engram/plans/T-061.md` (§T-063, CÓMO — T-063, decisiones del PO al final) · `engram/03_backlog.md` (T-063, T-068) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · rutas de capturas.
+
+### [2026-10-11 22:20] nerv-orquestador → nerv-desktop T-063 (+T-068) · Niv S · fase CÓMO (P-19.2)
+- T-062 Done (QA Strong, 7521dac). PO pidió seguir con T-063 (footer de A). Se pliega T-068 (test de `_set_relocate_state("idle")` en `_on_relocate_finished`, mutación viva de QA T-062).
+- Entrega: SOLO el CÓMO de T-063 (+ tarea para T-068) con `superpowers:writing-plans`, como `## CÓMO — T-063` al final de `engram/plans/T-061.md`, estampado. Sin código. Decisiones para el PO como D1..Dn.
+- Archivos a leer: `engram/plans/T-061.md` (QUÉ §Estructura/Footer, §T-063, decisiones del PO de T-061/T-062) · `engram/03_backlog.md` (T-063, T-068) · `engram/plans/design/T-061-mezcla-calida.dc.html` (footer) · `ui.py` (rack head, `_build_seek_row`, `_build_dest_section`, `_build_progress_section`, `_build_export_widget`), `audio_player.py`, `spectro_worker.py`, `ui_components.py` (SeekBar) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · decisiones para el PO.
+
+### [2026-10-11 21:45] nerv-orquestador → nerv-qa T-062 · Niv S
+- Gate P-12.1 PASS (Orquestador): tree limpio, diff 032b1aa..HEAD == declarados, suite verde, `.rbe_settings.ini` intacto. Capturas 820 px revisadas.
+- Notas del Orquestador para la auditoría: el badge «30 rotos» de las capturas está FORZADO por `capture_t062.py` (`_set_broken_total(30)`) → el criterio del conteo real se valida por tests, no por la foto. La barra «Ver/Ayuda» es preexistente (QMenuBar en offscreen). No bloqueante (→ T-066): la acción checkable «Resolver automáticamente…» no muestra indicador cuando está apagada.
+- Archivos a leer: `engram/plans/T-061.md` (§T-062 + decisiones del PO de T-062) · `engram/03_backlog.md` (T-062, D-08) · diff `032b1aa..HEAD` · `engram/plans/design/evidence/T-062_*`.
+- Se espera: veredicto con evidencia por criterio, defectos con archivo:línea.
+
+### [2026-10-11 20:55] nerv-orquestador → nerv-desktop T-062 · Niv S · fase implementación
+- CÓMO estampado (ddcf551). PO: D1/D2/D3/D5 sí, **D4 NO** (auto-resolver no se persiste; Gherkin corregido). T1–T4 aprobadas por el Orquestador.
+- Entrega: primero ajustar el CÓMO quitando lo de D4 y re-estampar; después ejecutar Tasks 0–7 en `feat/reskin`, TDD, commits chicos, evidencia a 820 px dark+light. Dejar T-062 «En revisión QA».
+- Archivos a leer: `engram/plans/T-061.md` (§T-062, CÓMO — T-062, decisiones del PO al final) · `engram/03_backlog.md` (T-062, D-08) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · rutas de capturas.
+
+### [2026-10-11 20:30] nerv-orquestador → nerv-desktop T-062 · Niv S · fase CÓMO (P-19.2)
+- T-061 Done (QA Strong, f2bb26c). PO pidió seguir con T-062 (header de A).
+- Entrega: SOLO el CÓMO de T-062 con `superpowers:writing-plans`, como `## CÓMO — T-062` al final de `engram/plans/T-061.md`, estampado. Sin código. Incluir captura a 820 px de ancho (criterio de §T-062) y cierre de D-08.
+- Archivos a leer: `engram/plans/T-061.md` (QUÉ §Estructura/Header, §T-062, CÓMO de T-061 como referencia de convenciones) · `engram/03_backlog.md` (T-062, D-08) · `engram/plans/design/T-061-mezcla-calida.dc.html` (header) · `ui.py` (`_build_header`, `_build_rack_head`, `_build_source_switcher`, `_build_relocate_row`) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · decisiones que necesiten OK del PO.
+
+### [2026-10-11 20:05] nerv-orquestador → nerv-qa T-061 · Niv S
+- Gate determinista P-12.1 PASS (lo corrió el Orquestador): tree limpio, diff == declarados, suite verde. Iteración 1 devuelta por el Orquestador (Nº sin marcar 1.16:1 por `row_line` como texto; badge Exportar 1.00:1 por WA_TranslucentBackground; hueco de test) → corregida en 7ecf448 y re-medida con PIL: 6.96/7.01 y 9.10/6.10.
+- Entrega: auditoría Strong contra §T-061 de `engram/plans/T-061.md` (criterios Gherkin + decisiones del PO D1–D5, sin build).
+- Archivos a leer: `engram/plans/T-061.md` · `engram/03_backlog.md` (T-061) · diff `e1d9274..HEAD` en `feat/reskin` · `engram/plans/design/evidence/T-061_*`.
+- Se espera: veredicto APROBADO/RECHAZADO con evidencia por criterio · defectos con archivo:línea.
+
+### [2026-10-11 19:20] nerv-orquestador → nerv-desktop T-061 · Niv S · fase implementación
+- CÓMO estampado (4c45ab4). PO aprobó D1–D5 y vetó el build (Task 6 Step 6 → test estático del spec; build real en T-025). Ejecución: subagent-driven.
+- Entrega: ejecutar Tasks 0–6 del CÓMO de T-061 en `feat/reskin`, TDD (rojo primero), commits chicos, capturas antes/después en dark y light. Dejar T-061 «En revisión QA», NO «Done».
+- Archivos a leer: `engram/plans/T-061.md` (QUÉ + CÓMO + decisiones del PO al final) · `engram/03_backlog.md` (T-061) · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar · rutas de las capturas.
+
+### [2026-10-11 18:56] nerv-orquestador → nerv-desktop T-061 · Niv S · fase CÓMO (P-19.2)
+- Entrega: SOLO el plan CÓMO de T-061 con `superpowers:writing-plans`, escrito en `engram/plans/T-061.md` (sección `## CÓMO — T-061`) y estampado (aprobado por · rol · fecha). **Sin código.** El paso de elección de ejecución vuelve al Orquestador (P-9).
+- Contexto: reskin «Mezcla Cálida» elegido por el PO sobre canvas renderizado (header+footer de A, cuerpo de F1, paleta cálida). Contraste de la paleta ya verificado por el Orquestador: mín. 6.24 dark / 5.24 light.
+- Archivos a leer: `engram/03_backlog.md` (T-061) · `engram/plans/T-061.md` (QUÉ + §T-061) · `engram/plans/design/T-061-mezcla-calida.dc.html` · `styles.py`, `qss/dark.qss`, `qss/light.qss`, `ui.py`, `ui_components.py`, `rb_exporter.spec` · `~/.nerv/playbook.md` §Desktop.
+- Se espera (retorno estructurado): estado · archivos tocados · riesgos/caveats · cómo probar.
+
 ### 2026-08-01 CIERRE (P-5) · nerv-qa → nerv-orquestador T-023 + T-024 · APROBADOS
 - QA Strong APROBÓ ambos. T-023: `_boot_volume_name()` (traktor_db.py:181-225) deriva el volumen vía `diskutil info -plist /`, cacheado con `lru_cache` (1 invocación por proceso, no por pista) y con fallback si falla; `VOLUMEID` se sincroniza solo dentro de la ENTRY reparada (traktor_relocate.py:281-297). T-024: `_DARWIN_PROCESS_PATTERN` (traktor_relocate.py:96) verificado en vivo con el patrón exacto del código → PID 26702, exit 0; `-x` es full-match, sin falso positivo con `crashpad_handler`.
 - Gate determinista P-12.1: PASS (declarados == `git diff --name-only`, tree limpio, 111/111 tests). Corrido por el Orquestador ANTES de gastar tokens de QA.

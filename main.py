@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import sys
 
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication
 
 from app_logging import install_excepthook, setup_logging
 from ui import MainWindow, _APP_VERSION
-from styles import apply_theme
+from styles import apply_theme, register_fonts
 
 
 def main() -> None:
@@ -21,6 +22,9 @@ def main() -> None:
     install_excepthook()
 
     app = QApplication(sys.argv)
+    # Antes del tema: la QSS referencia las familias por nombre.
+    register_fonts()
+    app.setFont(QFont('Public Sans', 13))
     apply_theme(app, 'dark')
     win = MainWindow()
     win.show()

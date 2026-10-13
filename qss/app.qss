@@ -1,0 +1,394 @@
+/* ================================================================
+   listBuddy — app.qss   (tokens substituted by styles.load_qss)
+   ================================================================ */
+
+/* ── Reset ── */
+QWidget {
+    background: transparent;
+    color: @{text};
+    font-family: "Public Sans";
+    font-size: 13px;
+}
+QMainWindow { background: @{bg}; }
+QDialog     { background: @{bg}; color: @{text}; }
+
+/* ── Menu bar ── */
+QMenuBar {
+    background: @{header}; color: @{muted};
+    border-bottom: 1px solid @{row_line}; padding: 2px 6px;
+}
+QMenuBar::item { padding: 4px 10px; border-radius: 6px; }
+QMenuBar::item:selected { background: @{surface2}; color: @{text}; }
+QMenu {
+    background: @{surface}; color: @{text};
+    border: 1px solid @{line}; border-radius: 8px; padding: 4px;
+}
+QMenu::item { padding: 6px 18px 6px 12px; border-radius: 6px; }
+QMenu::item:selected { background: @{sel_bg}; color: @{text}; }
+QToolTip {
+    background: @{surface}; color: @{text};
+    border: 1px solid @{line}; border-radius: 6px; padding: 4px 8px;
+}
+
+/* ── Scrollbars ── */
+QScrollBar:vertical   { width: 5px; background: transparent; margin: 0; }
+QScrollBar::handle:vertical { background: @{line}; border-radius: 3px; min-height: 24px; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }
+QScrollBar:horizontal { height: 0; }
+
+/* ── Header bar ── */
+QWidget#header_bar { background: @{header}; border-bottom: 1px solid @{line}; }
+QLabel#header_title { font-family: "Sora"; font-size: 20px; font-weight: 700; color: @{text}; background: transparent; }
+QLabel#header_np_track {
+    font-size: 12px; font-weight: 600; color: @{text}; background: transparent;
+}
+QLabel#header_np_artist {
+    font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent;
+}
+QWidget#update_strip { background: @{bg}; border-bottom: 1px solid @{row_line}; }
+QLabel#update_banner {
+    background: @{sel_bg}; border: 1px solid @{accent}; border-radius: 8px;
+    color: @{accent}; font-size: 11px; font-weight: 600; padding: 3px 10px;
+}
+QLabel#update_banner:hover { background: @{surface2}; }
+
+/* ── Header controls (T-062) ── */
+QWidget#source_switcher { background: @{inset}; border: 1px solid @{line}; border-radius: 8px; }
+QPushButton#source_btn_rb, QPushButton#source_btn_tk {
+    background: transparent; border: none; border-radius: 6px; color: @{muted};
+    font-size: 13px; font-weight: 500; padding: 0 14px; min-height: 30px; max-height: 30px;
+}
+QPushButton#source_btn_rb[src_active="true"], QPushButton#source_btn_tk[src_active="true"] {
+    background: @{surface2}; color: @{text}; font-weight: 600;
+}
+QPushButton#settings_btn, QPushButton#theme_btn {
+    background: transparent; border: 1px solid @{line}; border-radius: 8px; color: @{muted};
+    min-width: 34px; max-width: 34px; min-height: 34px; max-height: 34px; padding: 0;
+}
+QPushButton#settings_btn:hover, QPushButton#theme_btn:hover { background: @{surface2}; color: @{text}; }
+QPushButton#settings_btn:checked { background: @{sel_bg}; border-color: @{accent}; color: @{accent}; }
+QPushButton#donate_btn {
+    background: transparent; border: none; border-radius: 8px; color: @{muted};
+    font-size: 13px; font-weight: 500; padding: 0 12px; min-height: 34px; max-height: 34px;
+}
+QPushButton#donate_btn:hover { background: @{surface2}; color: @{text}; }
+
+/* ── Window controls (T-010, Windows-only frameless chrome) ── */
+QWidget#winctl_group { background: transparent; }
+QPushButton#winctl_min, QPushButton#winctl_max, QPushButton#winctl_close {
+    background: transparent; border: none; border-radius: 6px;
+    color: @{muted}; font-size: 12px;
+    min-width: 34px; max-width: 34px; min-height: 30px; max-height: 30px; padding: 0;
+}
+QPushButton#winctl_min:hover, QPushButton#winctl_max:hover { background: @{surface2}; color: @{text}; }
+QPushButton#winctl_close:hover { background: @{danger_soft}; color: @{danger}; }
+
+/* ── Body ── */
+QWidget#body_widget { background: @{bg}; }
+
+QLabel#brand_sub {
+    font-family: "JetBrains Mono"; font-size: 11px;
+    letter-spacing: 1px; color: @{muted}; background: transparent;
+}
+
+/* ── Source switcher ── */
+
+/* ── Columna de playlists (T-064) ── */
+QWidget#left_col { background: @{surface}; border-right: 1px solid @{line}; }
+QLabel#playlists_title { font-family: "Sora"; font-size: 17px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#count_pill {
+    font-family: "JetBrains Mono"; font-size: 12px; color: @{link};
+    background: transparent; border: none; padding: 0;
+}
+QPushButton#all_btn, QPushButton#none_btn {
+    background: transparent; border: none; color: @{muted};
+    font-size: 12px; padding: 2px 4px;
+}
+QPushButton#all_btn:hover, QPushButton#none_btn:hover { color: @{text}; }
+QLabel#playlists_help { font-size: 12px; color: @{muted}; padding: 0 16px 10px 16px; background: transparent; }
+QLineEdit#playlist_search {
+    background: @{bg}; border: 1px solid @{line}; border-radius: 8px;
+    color: @{text}; font-size: 13px; padding: 8px 10px;
+    placeholder-text-color: @{muted};
+}
+QLineEdit#playlist_search:focus { border-color: @{accent}; }
+QLabel#playlist_no_results { font-size: 12px; color: @{muted}; padding: 4px 16px; background: transparent; }
+
+QScrollArea#playlist_scroll { background: transparent; border: none; }
+QWidget#playlist_scroll_vp  { background: transparent; }
+QWidget#scroll_content      { background: transparent; }
+
+/* ── Playlist card (fila plana) — OFF state (ON state via inline setStyleSheet) ── */
+QWidget#playlist_card {
+    background: transparent;
+    border: 1.5px solid transparent;
+    border-radius: 8px;
+}
+/* Nº sin marcar = posición en la lista; marcado = orden de exportación (T-064, decisión del PO) */
+QLabel#card_pos {
+    font-family: "JetBrains Mono"; font-size: 11px; font-weight: 400;
+    color: @{muted}; background: transparent;
+}
+QLabel#card_order {
+    font-family: "JetBrains Mono"; font-size: 17px; font-weight: 700;
+    color: @{link}; background: transparent;
+}
+QLabel#card_name { font-size: 13px; font-weight: 500; color: @{text}; background: transparent; }
+QLabel#card_tag {
+    font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent;
+}
+QLabel#card_check {
+    background: @{inset}; border: 1.5px solid @{line}; border-radius: 6px;
+    color: transparent; font-size: 12px; font-weight: 700;
+}
+
+/* ── Folder group ── */
+QWidget#playlist_group { background: @{surface}; border: 1.5px solid @{line}; border-radius: 12px; }
+QWidget#group_header {
+    background: @{surface2}; border-bottom: 1.5px solid @{line};
+    border-top-left-radius: 12px; border-top-right-radius: 12px;
+}
+QLabel#group_icon  { color: @{accent}; background: transparent; }
+QLabel#group_title { font-size: 13px; font-weight: 600; color: @{text}; background: transparent; }
+QWidget#group_body { background: transparent; }
+
+/* ── Output panel ── */
+QLabel#preview_title    { font-family: "Sora"; font-size: 17px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#preview_subtitle { font-size: 12px; color: @{muted}; background: transparent; }
+QLabel#broken_notice_label { font-size: 12px; color: @{danger}; background: transparent; }
+QLabel#broken_notice_icon  { background: transparent; }
+QLabel#output_status_tag {
+    font-family: "JetBrains Mono"; font-size: 11px; color: @{accent};
+    border: 1px solid @{line}; border-radius: 6px; padding: 2px 7px; background: transparent;
+}
+QWidget#output_panel { background: transparent; border: none; }
+
+/* Preview scroll: las tarjetas van directo sobre bg */
+QScrollArea#preview_scroll { background: @{bg}; border: none; }
+QWidget#preview_scroll_vp  { background: @{bg}; }
+QWidget#preview_container  { background: @{bg}; }
+QWidget#preview_empty      { background: transparent; }
+
+/* Preview cards (T-065) */
+QWidget#preview_card { background: @{surface}; border: 1px solid @{line}; border-radius: 12px; }
+QWidget#preview_card_head { background: transparent; }
+QWidget#preview_card_head[state="all_broken"] {
+    background: @{broken_bg}; border-top-left-radius: 12px; border-top-right-radius: 12px;
+}
+QWidget#preview_card_head[state="all_broken"][expanded="false"] {
+    border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;
+}
+QLabel#card_folder_icon, QLabel#card_status_icon { background: transparent; }
+QLabel#card_title { font-family: "JetBrains Mono"; font-size: 13px; font-weight: 500; color: @{text}; background: transparent; }
+QLabel#card_count { font-size: 12px; color: @{muted}; background: transparent; }
+QLabel#card_status { font-size: 12px; background: transparent; }
+QLabel#card_status[state="ok"] { color: @{ok}; }
+QLabel#card_status[state="partial"], QLabel#card_status[state="all_broken"] { color: @{danger}; }
+QPushButton#card_repair_btn, QPushButton#card_auto_btn {
+    background: transparent; border: 1px solid @{line}; border-radius: 8px;
+    color: @{link}; font-size: 12px; padding: 4px 10px;
+}
+QPushButton#card_repair_btn:hover, QPushButton#card_auto_btn:hover { background: @{surface2}; }
+QPushButton#card_expand_btn {
+    background: transparent; border: none; border-radius: 8px; padding: 0px;
+    min-width: 28px; max-width: 28px; min-height: 28px; max-height: 28px;
+}
+QPushButton#card_expand_btn:hover { background: @{surface2}; }
+QPushButton#card_close_btn {
+    background: transparent; border: none; border-radius: 8px; padding: 0px;
+    min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px;
+}
+QPushButton#card_close_btn:hover { background: @{row_line}; }
+QWidget#card_cols { background: transparent; border-top: 1px solid @{line}; border-bottom: 1px solid @{line}; }
+QLabel#card_col_label { font-size: 11px; font-weight: 600; color: @{muted}; background: transparent; }
+QScrollArea#card_scroll { background: @{surface}; border: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
+QWidget#card_scroll_vp { background: @{surface}; }
+
+/* T-015: cerrar (destildar) todas las playlists de la cola */
+QPushButton#close_all_btn {
+    background: transparent; border: 1.5px solid @{line}; border-radius: 8px;
+    color: @{muted}; font-size: 11px; font-weight: 600;
+    padding: 2px 10px; min-height: 24px; max-height: 24px;
+}
+QPushButton#close_all_btn:hover { background: @{surface2}; color: @{text}; }
+
+/* Contenedor de filas de la tarjeta */
+QWidget#grp_files_container  { background: @{surface}; }
+
+/* File rows */
+QWidget#output_file_row { background: transparent; }
+QWidget#output_file_row[file_missing="false"]:hover { background: @{surface2}; }
+QLabel#output_file_idx  { font-family: "JetBrains Mono"; font-size: 12px; font-weight: 400; color: @{muted}; background: transparent; }
+QLabel#output_file_name   { font-family: "Public Sans"; font-size: 13px; font-weight: 500; color: @{text}; background: transparent; }
+QLabel#output_file_artist { font-family: "Public Sans"; font-size: 13px; color: @{muted}; background: transparent; }
+QLabel#output_file_ext    {
+    font-family: "JetBrains Mono"; font-size: 11px; color: @{chip_text};
+    background: @{surface2}; border-radius: 6px; padding: 2px 7px;
+}
+QLabel#output_file_more   { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; padding: 5px 13px 7px; }
+
+/* Missing files */
+/* El fondo y el borde del bloque de rotos los pinta FileRow.paintEvent (estilo D). */
+QWidget#output_file_row[file_missing="true"]    { background: transparent; }
+QLabel#output_file_idx[file_missing="true"]     { color: @{danger}; }
+QLabel#output_file_name[file_missing="true"]    { color: @{danger}; }
+QLabel#output_file_artist[file_missing="true"]  { color: @{danger}; }
+QLabel#output_file_warn[file_missing="true"]    { background: transparent; }
+QLabel#output_file_ext[file_missing="true"]     { color: @{danger}; background: @{broken_chip}; }
+
+/* Empty / loading */
+QLabel#output_empty_icon  { background: transparent; }
+QLabel#output_empty_title { font-size: 13px; font-weight: 500; color: @{muted}; background: transparent; }
+QLabel#output_empty_sub   { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; }
+QLabel#preview_loading    { font-family: "JetBrains Mono"; font-size: 12px; color: @{muted}; background: transparent; padding: 24px; }
+
+/* Log view */
+QPlainTextEdit#log_view {
+    background: @{inset}; border: none; color: @{muted};
+    font-family: "JetBrains Mono"; font-size: 12px;
+    padding: 8px 14px; selection-background-color: @{sel_bg};
+}
+
+/* Not-installed */
+QWidget#not_installed_card  { background: @{surface}; border: 1.5px solid @{line}; border-radius: 12px; }
+QLabel#not_installed_icon   { background: transparent; }
+QLabel#not_installed_title  { font-size: 14px; font-weight: 700; color: @{text}; background: transparent; }
+QLabel#not_installed_sub    { font-size: 12px; color: @{muted}; background: transparent; }
+
+/* Donation dialog */
+QDialog#donation_dialog QLabel { color: @{text}; background: transparent; }
+QPushButton#kofi_btn {
+    background: @{accent}; color: @{on_accent}; border: none; border-radius: 8px;
+    padding: 10px 20px; font-size: 13px; font-weight: 700;
+}
+QPushButton#kofi_btn:hover { background: @{link}; }
+QPushButton#close_dialog_btn {
+    background: @{surface2}; color: @{text}; border: 1.5px solid @{line};
+    border-radius: 8px; padding: 8px 18px; font-size: 13px; font-weight: 600;
+}
+QPushButton#close_dialog_btn:hover { background: @{row_line}; }
+
+/* ── Título de diálogos ── */
+QLabel#dialog_title { font-family: "Sora"; font-size: 17px; font-weight: 600; background: transparent; }
+
+/* ── Settings ── */
+
+QWidget#settings_page { background: @{bg}; }
+QWidget#settings_scroll_vp { background: transparent; }
+QPushButton#settings_back {
+    background: @{surface2}; border: 1.5px solid @{line}; border-radius: 8px;
+    color: @{text}; font-size: 12px; font-weight: 600; padding: 5px 13px;
+}
+QPushButton#settings_back:hover { background: @{row_line}; }
+QLabel#settings_title { font-family: "Sora"; font-size: 17px; font-weight: 600; color: @{text}; background: transparent; }
+
+QWidget#settings_card { background: @{surface}; border: 1.5px solid @{row_line}; border-radius: 12px; }
+QLabel#settings_section {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.4px; color: @{accent}; background: transparent;
+}
+QLabel#settings_label { font-size: 12px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#settings_helper { font-size: 11px; color: @{muted}; background: transparent; }
+
+QComboBox#settings_combo {
+    background: @{inset}; border: 1.5px solid @{line}; border-radius: 8px;
+    color: @{text}; font-size: 12px; padding: 7px 11px;
+}
+QComboBox#settings_combo:hover { border-color: @{accent}; }
+QComboBox#settings_combo::drop-down { border: none; width: 22px; }
+QComboBox#settings_combo QAbstractItemView {
+    background: @{surface2}; border: 1.5px solid @{line}; border-radius: 8px;
+    color: @{text}; selection-background-color: @{sel_bg}; outline: none;
+}
+
+QCheckBox#settings_check { font-size: 12px; color: @{text}; background: transparent; spacing: 9px; }
+QCheckBox#settings_check::indicator {
+    width: 18px; height: 18px; border-radius: 6px;
+    border: 1.5px solid @{line}; background: @{inset};
+}
+QCheckBox#settings_check::indicator:checked {
+    background: @{accent}; border-color: @{accent}; image: none;
+}
+
+QLineEdit#settings_path {
+    background: @{inset}; border: 1.5px solid @{line}; border-radius: 8px;
+    color: @{muted}; font-family: "JetBrains Mono"; font-size: 11px; padding: 7px 11px;
+}
+QPushButton#settings_path_btn {
+    background: @{surface2}; border: 1.5px solid @{line}; border-radius: 8px;
+    color: @{text}; font-size: 12px; font-weight: 600; padding: 6px 12px;
+}
+QPushButton#settings_path_btn:hover { background: @{row_line}; }
+
+QPushButton#maint_btn { background: transparent; border: 1px solid @{line}; border-radius: 8px; }
+QPushButton#maint_btn:hover { background: @{surface2}; border-color: @{accent}; }
+QLabel#maint_text { color: @{text}; font-size: 13px; background: transparent; }
+QLabel#maint_icon { background: transparent; }
+QLabel#maint_badge {
+    font-family: "JetBrains Mono"; font-size: 11px; font-weight: 600;
+    padding: 0 8px; border-radius: 9px; background: @{danger_soft}; color: @{danger};
+}
+
+/* ── Footer (T-063) ── */
+QWidget#footer_bar { background: @{header}; border-top: 1px solid @{line}; }
+QPushButton#footer_play { background: @{accent}; border: none; border-radius: 20px; }
+QPushButton#footer_play:hover { background: @{link}; }
+QLabel#footer_title { font-size: 13px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#footer_artist { font-size: 12px; color: @{muted}; background: transparent; }
+QLabel#footer_time { font-family: "JetBrains Mono"; font-size: 12px; color: @{muted}; background: transparent; }
+QWidget#footer_dest { background: @{inset}; border: 1px solid @{line}; border-radius: 8px; }
+QLabel#footer_dest_path { font-family: "JetBrains Mono"; font-size: 12px; color: @{text}; background: transparent; }
+QLabel#footer_dest_path[empty="true"] { color: @{muted}; }
+QLabel#footer_dest_icon { background: transparent; }
+QPushButton#footer_dest_change { background: @{surface2}; color: @{text}; border: none; border-radius: 6px; padding: 0 8px; font-size: 12px; }
+QPushButton#footer_dest_change:hover { background: @{row_line}; }
+QPushButton#footer_export { background: @{accent}; color: @{on_accent}; border: none; border-radius: 8px; padding: 0 20px; font-size: 14px; font-weight: 700; }
+QPushButton#footer_export:hover { background: @{link}; }
+QPushButton#footer_export:disabled { background: @{surface2}; color: @{muted}; }
+QLabel#footer_prog_label { font-family: "JetBrains Mono"; font-size: 12px; color: @{muted}; background: transparent; }
+QLabel#footer_prog_pct { font-family: "JetBrains Mono"; font-size: 12px; font-weight: 600; color: @{link}; background: transparent; }
+QPushButton#footer_finder { background: @{surface2}; color: @{text}; border: none; border-radius: 6px; padding: 0 8px; font-size: 12px; }
+QProgressBar#footer_prog_bar { background: @{inset}; border: none; border-radius: 3px; max-height: 6px; min-height: 6px; }
+QProgressBar#footer_prog_bar::chunk { background: @{accent}; border-radius: 3px; }
+QWidget#footer_progress { background: transparent; }
+
+/* ── Modales de relocate / restaurar backup ── */
+QDialog#relocate_dialog, QDialog#restore_backup_dialog { background: @{bg}; }
+QLabel#relocate_title { font-family: "Sora"; font-size: 17px; font-weight: 600; color: @{text}; background: transparent; }
+QLabel#relocate_sub { font-size: 13px; color: @{muted}; background: transparent; }
+QLabel#relocate_orig { font-family: "JetBrains Mono"; font-size: 11px; color: @{muted}; background: transparent; }
+QListWidget#relocate_list {
+    background: @{inset}; border: 1.5px solid @{line}; border-radius: 8px;
+    color: @{text}; font-size: 12px; padding: 4px; outline: none;
+}
+QListWidget#relocate_list::item { padding: 7px 9px; border-radius: 6px; }
+QListWidget#relocate_list::item:hover { background: @{surface2}; }
+QListWidget#relocate_list::item:selected { background: @{sel_bg}; color: @{text}; }
+QPushButton#relocate_use_btn {
+    background: @{accent}; color: @{on_accent}; border: none; border-radius: 8px;
+    padding: 8px 18px; font-size: 13px; font-weight: 700;
+}
+QPushButton#relocate_use_btn:hover { background: @{link}; }
+QPushButton#relocate_skip_btn {
+    background: @{surface2}; color: @{text}; border: 1.5px solid @{line};
+    border-radius: 8px; padding: 8px 18px; font-size: 13px; font-weight: 600;
+}
+QPushButton#relocate_skip_btn:hover { background: @{row_line}; }
+
+/* ── QMessageBox (advertencias, errores, confirmaciones) ── */
+QMessageBox { background: @{bg}; }
+QMessageBox QLabel { color: @{text}; font-size: 13px; background: transparent; }
+QMessageBox QPushButton {
+    background: @{surface2}; color: @{text}; border: 1.5px solid @{line};
+    border-radius: 8px; padding: 7px 18px; min-width: 64px; font-size: 13px; font-weight: 600;
+}
+QMessageBox QPushButton:hover { background: @{row_line}; }
+QMessageBox QPushButton:default {
+    background: @{accent}; color: @{on_accent}; border: none; font-weight: 700;
+}
+QMessageBox QPushButton:default:hover { background: @{link}; }
+
+/* ── Ítem tildable del menú (Resolver automáticamente): se ve apagado y encendido ── */
+QMenu::indicator { width: 16px; height: 16px; margin-left: 6px; border-radius: 6px; }
+QMenu::indicator:non-exclusive:unchecked { border: 1.5px solid @{muted}; background: transparent; }
+QMenu::indicator:non-exclusive:checked { border: 1.5px solid @{accent}; background: @{accent}; }

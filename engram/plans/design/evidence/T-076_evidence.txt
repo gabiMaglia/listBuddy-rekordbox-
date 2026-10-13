@@ -1,0 +1,37 @@
+T-076 SIGSEGV al construir widget desde un slot de clic (PO, 2026-10-12 18:21)
+
+Reporte: Python-2026-10-12-182319.ips, hilo principal:
+  QPushButton.mouseReleaseEvent -> slot Python -> X.__init__ -> type_call -> Sbk_QWidget_Init
+  -> SignalManager::retrieveMetaObject (deref 0x0). El PO venia de «Traktor -> Rekordbox»
+  (clic en el selector del header = _switch_source -> _load_playlists -> _populate_playlists).
+
+REPRODUCIDO (app real, offscreen, PYTHONFAULTHANDLER=1, ini temporal, libreria real solo lectura):
+  T-076_app_repro.py  (clic alternado en los botones Traktor/Rekordbox, 100 ms de pump)
+  Antes del fix: SIGSEGV en 6/6 corridas dentro de las primeras ~3 iteraciones, siempre en la
+  construccion de un widget (PlaylistCard.__init__ lineas 472/486/491/499/502/505/526,
+  icons.pixmap, _show_preview_empty, _make_row_widget...). El frame que cae NO es la causa: el heap
+  ya estaba corrupto de la recarga anterior.
+  Descartado por bisecta: fade-in (QPropertyAnimation/QGraphicsOpacityEffect), efecto de opacidad
+  de tarjetas vacias, hilo del PreviewWorker, GC (gc.disable() no cambia nada), marcar playlists.
+
+CAUSA RAIZ (reproducida sin codigo del proyecto, T-076_min_repro.py, solo PySide6 6.11.1):
+  recorrer un layout con `itemAt(i)` y hacer `widget.setParent(None)` sobre cada hijo corrompe el
+  heap; la siguiente construccion de un QWidget revienta. Variantes:
+    itemAt + setParent(None)              -> SIGSEGV (con o sin retener el item)
+    itemAt + removeWidget + deleteLater   -> OK
+    takeAt(0) + setParent(None)           -> OK
+    takeAt(0) + deleteLater               -> OK
+  Sitio: ui.py MainWindow._clear_playlist_area (lo llama _load_playlists en cada cambio de
+  fuente, recarga de rutas y «no instalado»).
+
+FIX: _clear_playlist_area saca con takeAt(0) (conserva el stretch final).
+  Test nuevo (falla antes, 3/3): tests/test_playlist_area_reload.py
+  Despues del fix: T-076_app_repro.py 40 iteraciones x 3 semillas OK; barrido con preview,
+  marcas y clics de expandir (12 iteraciones x 6 corridas) OK.
+
+P-15 fase 2: grep de `itemAt(` / `setParent(None)` / `removeWidget` en todo el proyecto:
+  unico `setParent(None)` era este; los `itemAt` restantes (ui.py ~1452, ~1532, ui_components ~645)
+  son de lectura o van con removeWidget+deleteLater (variante OK arriba).
+Limite: no se pudo reproducir el stack exacto (QWidget() desnudo) bit a bit; el crash del PO y el
+repro comparten sintoma (Sbk_QWidget_Init en un slot de clic tras recarga) y se cierra con el mismo
+fix; si el PO vuelve a ver un SIGSEGV, reabrir.

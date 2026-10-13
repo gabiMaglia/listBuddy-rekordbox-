@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mezcla A + F1</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&amp;family=Public+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 100%; height: 800px; display: flex; flex-direction: column; background: {{t.bg}}; color: {{t.text}}; font-family: 'Public Sans', system-ui, sans-serif; font-size: 13px; line-height: 1.4">
+
+<header style="height: 56px; flex: 0 0 56px; display: flex; align-items: center; gap: 20px; padding: 0 20px; background: {{t.header}}; border-bottom: 1px solid {{t.line}}">
+<div style="display: flex; align-items: center; gap: 10px">
+<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="2" y="9" width="3" height="10" rx="1" fill="{{t.accent}}"></rect><rect x="7" y="4" width="3" height="15" rx="1" fill="{{t.accent}}"></rect><rect x="12" y="7" width="3" height="12" rx="1" fill="{{t.accent}}"></rect><rect x="17" y="12" width="3" height="7" rx="1" fill="{{t.accent}}"></rect></svg>
+<span style="font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 600; letter-spacing: -0.01em">listBuddy</span>
+</div>
+<div role="group" aria-label="Fuente de la librería" style="display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: {{t.inset}}; border: 1px solid {{t.line}}">
+<button style="font: inherit; cursor: pointer; height: 30px; padding: 0 14px; border: 0; border-radius: 6px; background: {{t.surface2}}; color: {{t.text}}; font-weight: 600; display: flex; align-items: center; gap: 8px"><span style="width: 6px; height: 6px; border-radius: 3px; background: {{t.accent}}"></span>Rekordbox</button>
+<button style="font: inherit; cursor: pointer; height: 30px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; color: {{t.muted}}; font-weight: 500">Traktor</button>
+</div>
+<div style="flex: 1 1 auto"></div>
+<button style="font: inherit; cursor: pointer; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid {{t.line}}; background: transparent; color: {{t.text}}; display: flex; align-items: center; gap: 8px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"></path></svg>
+Mantenimiento
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: {{t.dangerSoft}}; color: {{t.danger}}">30 rotos</span>
+</button>
+<button aria-label="Ajustes" style="font: inherit; cursor: pointer; width: 34px; height: 34px; border-radius: 8px; border: 1px solid {{t.line}}; background: transparent; color: {{t.muted}}; display: grid; place-items: center">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"></path></svg>
+</button>
+<button aria-label="Cambiar tema" style="font: inherit; cursor: pointer; width: 34px; height: 34px; border-radius: 8px; border: 1px solid {{t.line}}; background: transparent; color: {{t.muted}}; display: grid; place-items: center">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"></path></svg>
+</button>
+<button style="font: inherit; cursor: pointer; height: 34px; padding: 0 12px; border-radius: 8px; border: 0; background: transparent; color: {{t.muted}}; display: flex; align-items: center; gap: 6px">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg>
+Apoyar
+</button>
+</header>
+
+<div style="flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 320px minmax(0, 1fr)">
+
+<aside style="display: flex; flex-direction: column; min-height: 0; border-right: 1px solid {{t.line}}; background: {{t.surface}}">
+<div style="padding: 16px 16px 4px; display: flex; align-items: baseline; gap: 10px">
+<h2 style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 17px; font-weight: 500">Playlists</h2>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{t.link}}">3/8</span>
+<div style="flex: 1 1 auto"></div>
+<button style="font: inherit; cursor: pointer; border: 0; background: transparent; color: {{t.muted}}; font-size: 12px; padding: 2px 4px">Todas</button>
+<button style="font: inherit; cursor: pointer; border: 0; background: transparent; color: {{t.muted}}; font-size: 12px; padding: 2px 4px">Ninguna</button>
+</div>
+<div style="padding: 0 16px 10px; font-size: 12px; color: {{t.muted}}">Marcá las que querés exportar</div>
+<div style="padding: 0 12px 8px">
+<input type="text" placeholder="Buscar playlist" aria-label="Buscar playlist" style="font: inherit; box-sizing: border-box; width: 100%; border-radius: 8px; padding: 8px 10px; border: 1px solid {{t.line}}; background: {{t.bg}}; color: {{t.text}}">
+</div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 8px; display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{playlists}}" as="p" hint-placeholder-count="8">
+<label style="display: grid; grid-template-columns: 18px 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: {{p.bg}}; cursor: pointer">
+<input type="checkbox" checked="{{p.on}}" aria-label="Marcar {{p.name}}" style="width: 16px; height: 16px; margin: 0; accent-color: {{t.accent}}">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: {{p.numColor}}">{{p.n}}</span>
+<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: {{p.weight}}">{{p.name}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: {{t.muted}}">{{p.count}} tracks</span>
+</label>
+</sc-for>
+</div>
+</aside>
+
+<main style="display: flex; flex-direction: column; min-height: 0; min-width: 0">
+<div style="display: flex; align-items: baseline; gap: 14px; padding: 16px 20px 10px">
+<h2 style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 17px; font-weight: 500">Vista previa de la salida</h2>
+<span style="font-size: 12px; color: {{t.muted}}">Así van a quedar las carpetas en el destino</span>
+<span style="margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: {{t.danger}}">
+<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2 14.3 13H1.7z M8 6.2v3.3M8 11.6h.01"></path></svg>
+30 enlaces rotos
+</span>
+</div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 20px 20px; display: flex; flex-direction: column; gap: 14px">
+
+<section style="border: 1px solid {{t.line}}; border-radius: 12px; background: {{t.surface}}; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid {{t.line}}">
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="{{t.muted}}" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 4.5A1.5 1.5 0 0 1 3 3h3l1.5 1.5H13A1.5 1.5 0 0 1 14.5 6v6A1.5 1.5 0 0 1 13 13.5H3A1.5 1.5 0 0 1 1.5 12z"></path></svg>
+<span style="font-family: 'JetBrains Mono', monospace; font-weight: 500">01 MinimalDeepWarm</span>
+<span style="font-size: 12px; color: {{t.muted}}">132 archivos</span>
+<span style="margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: {{t.ok}}">
+<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3 3 7-7"></path></svg>
+todo ok</span>
+</div>
+<div style="display: grid; grid-template-columns: 40px 64px minmax(0, 1fr) 20px 56px; align-items: center; gap: 12px; padding: 0 14px; min-height: 30px; border-bottom: 1px solid {{t.line}}; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: {{t.muted}}">
+<span>Nº</span><span>Key · BPM</span><span>Título — Artista</span><span></span><span>Formato</span>
+</div>
+<sc-for list="{{rows1}}" as="r" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 40px 64px minmax(0, 1fr) 20px 56px; align-items: center; gap: 12px; padding: 0 14px; min-height: 38px; border-bottom: 1px solid {{t.rowLine}}">
+<span style="font-family: 'JetBrains Mono', monospace; color: {{t.muted}}">{{r.num}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: {{t.muted}}">{{r.meta}}</span>
+<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap"><span style="font-weight: 500">{{r.title}}</span><span style="color: {{t.muted}}"> — {{r.artist}}</span></span>
+<span></span>
+<span style="justify-self: start; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 7px; border-radius: 5px; background: {{t.surface2}}; color: {{t.chipText}}">{{r.ext}}</span>
+</div>
+</sc-for>
+<div style="padding: 8px 14px; font-size: 12px; color: {{t.muted}}">… y 127 más</div>
+</section>
+
+<section style="border: 1px solid {{t.line}}; border-radius: 12px; background: {{t.surface}}; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid {{t.line}}">
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="{{t.muted}}" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 4.5A1.5 1.5 0 0 1 3 3h3l1.5 1.5H13A1.5 1.5 0 0 1 14.5 6v6A1.5 1.5 0 0 1 13 13.5H3A1.5 1.5 0 0 1 1.5 12z"></path></svg>
+<span style="font-family: 'JetBrains Mono', monospace; font-weight: 500">02 housepost</span>
+<span style="font-size: 12px; color: {{t.muted}}">19 archivos</span>
+<span style="margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: {{t.danger}}">
+<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2 14.3 13H1.7z M8 6.2v3.3M8 11.6h.01"></path></svg>
+3 rotos</span>
+<button style="font: inherit; cursor: pointer; padding: 4px 10px; font-size: 12px; border-radius: 8px; border: 1px solid {{t.line}}; background: transparent; color: {{t.link}}">Reparar enlaces</button>
+</div>
+<sc-for list="{{rows2}}" as="r" hint-placeholder-count="6">
+<div style="display: grid; grid-template-columns: 40px 64px minmax(0, 1fr) 20px 56px; align-items: center; gap: 12px; padding: 0 14px; min-height: 38px; border-bottom: 1px solid {{t.rowLine}}; background: {{r.bg}}; color: {{r.color}}">
+<span style="font-family: 'JetBrains Mono', monospace; color: {{r.numColor}}">{{r.num}}</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: {{r.numColor}}">{{r.meta}}</span>
+<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap"><span style="font-weight: 500">{{r.title}}</span><span style="color: {{r.artistColor}}"> — {{r.artist}}</span><span style="font-size: 11px">{{r.note}}</span></span>
+<sc-if value="{{r.broken}}" hint-placeholder-val="{{ false }}">
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Enlace roto"><path d="M8 2.2 14.3 13H1.7z M8 6.2v3.3M8 11.6h.01"></path></svg>
+</sc-if>
+<sc-if value="{{r.ok}}" hint-placeholder-val="{{ true }}"><span></span></sc-if>
+<span style="justify-self: start; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 7px; border-radius: 5px; background: {{r.chipBg}}; color: {{r.chipColor}}">{{r.ext}}</span>
+</div>
+</sc-for>
+<div style="padding: 8px 14px; font-size: 12px; color: {{t.muted}}">… y 13 más</div>
+</section>
+
+<section style="border: 1px solid {{t.line}}; border-radius: 12px; background: {{t.surface}}; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: {{t.brokenBg}}">
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="{{t.danger}}" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 4.5A1.5 1.5 0 0 1 3 3h3l1.5 1.5H13A1.5 1.5 0 0 1 14.5 6v6A1.5 1.5 0 0 1 13 13.5H3A1.5 1.5 0 0 1 1.5 12z"></path></svg>
+<span style="font-family: 'JetBrains Mono', monospace; font-weight: 500">03 techDeFondo</span>
+<span style="font-size: 12px; color: {{t.muted}}">27 archivos</span>
+<span style="margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: {{t.danger}}">
+<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2 14.3 13H1.7z M8 6.2v3.3M8 11.6h.01"></path></svg>
+27 rotos — ningún archivo se encuentra. ¿Cambió el disco?</span>
+<button style="font: inherit; cursor: pointer; padding: 4px 10px; font-size: 12px; border-radius: 8px; border: 1px solid {{t.line}}; background: transparent; color: {{t.link}}">Auto-resolver</button>
+<button aria-label="Expandir carpeta" style="font: inherit; cursor: pointer; width: 28px; height: 28px; border-radius: 8px; border: 0; background: transparent; color: {{t.muted}}; display: grid; place-items: center">
+<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"></path></svg>
+</button>
+</div>
+</section>
+
+</div>
+</main>
+</div>
+
+<footer style="flex: 0 0 76px; height: 76px; display: flex; align-items: center; gap: 20px; padding: 0 20px; border-top: 1px solid {{t.line}}; background: {{t.header}}">
+<button aria-label="Pausar" style="font: inherit; cursor: pointer; width: 40px; height: 40px; border-radius: 20px; border: 0; background: {{t.accent}}; color: {{t.onAccent}}; display: grid; place-items: center; flex: 0 0 auto">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="5" height="16" rx="1"></rect><rect x="14" y="4" width="5" height="16" rx="1"></rect></svg>
+</button>
+<div style="display: flex; flex-direction: column; gap: 2px; width: 220px; min-width: 0">
+<span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Glace Circle (Original Mix)</span>
+<span style="color: {{t.muted}}; font-size: 12px">DJOKO · 7A · 130</span>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{t.muted}}">2:41</span>
+<div aria-hidden="true" style="flex: 1 1 auto; height: 32px; display: flex; align-items: center; gap: 2px; overflow: hidden">
+<sc-for list="{{wave}}" as="w" hint-placeholder-count="80">
+<span style="flex: 1 1 0; height: {{w.h}}; border-radius: 1px; background: {{w.c}}"></span>
+</sc-for>
+</div>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{t.muted}}">6:58</span>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 6px 0 12px; border-radius: 8px; border: 1px solid {{t.line}}; background: {{t.inset}}; max-width: 340px; min-width: 0">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{t.muted}}" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left">/Volumes/MUSIC/LISTAS2026/MAC/Traktor/</span>
+<button style="font: inherit; cursor: pointer; height: 28px; padding: 0 10px; border-radius: 6px; border: 0; background: {{t.surface2}}; color: {{t.text}}; font-size: 12px; flex: 0 0 auto">Cambiar</button>
+</div>
+<button style="font: inherit; cursor: pointer; height: 44px; padding: 0 20px; border-radius: 8px; border: 0; background: {{t.accent}}; color: {{t.onAccent}}; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 10px; flex: 0 0 auto">
+Exportar 3 playlists
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+</button>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"paleta":{"editor":"enum","options":["grafito","calido"],"default":"grafito"},"light":{"editor":"boolean","default":false},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+const light = this.props.light ?? false;
+const paleta = this.props.paleta ?? 'grafito';
+const P = {
+grafito: {
+dark: { bg: '#0e0f11', header: '#131518', surface: '#16181b', surface2: '#24272c', inset: '#0b0c0e', line: '#2a2e33', rowLine: '#202328',
+text: '#eceae4', muted: '#a3a29b', accent: '#f2a93b', onAccent: '#1a1206', link: '#f2b552', selBg: 'rgba(242, 169, 59, 0.10)',
+danger: '#ff7a69', dangerSoft: 'rgba(255, 122, 105, 0.14)', brokenBg: 'rgba(255, 122, 105, 0.07)', brokenChip: 'rgba(255, 122, 105, 0.16)', ok: '#6fcf8e', chipText: '#c4c2bb' },
+light: { bg: '#efeee9', header: '#f7f6f2', surface: '#fbfaf7', surface2: '#ebe9e3', inset: '#f3f1ec', line: '#dcd9d1', rowLine: '#ebe9e3',
+text: '#1b1c1e', muted: '#5d5c57', accent: '#9a5200', onAccent: '#ffffff', link: '#8a4a00', selBg: 'rgba(154, 82, 0, 0.09)',
+danger: '#b3261e', dangerSoft: 'rgba(179, 38, 30, 0.10)', brokenBg: 'rgba(179, 38, 30, 0.05)', brokenChip: 'rgba(179, 38, 30, 0.12)', ok: '#1e7a45', chipText: '#4a4945' }
+},
+calido: {
+dark: { bg: '#161513', header: '#1e1c19', surface: '#1e1c19', surface2: '#282520', inset: '#121110', line: '#3a362f', rowLine: '#2b2823',
+text: '#f2ede4', muted: '#aca59a', accent: '#f0a93b', onAccent: '#1a1408', link: '#f0b24d', selBg: '#2a251b',
+danger: '#f2a79a', dangerSoft: '#3a2823', brokenBg: '#2a1e1b', brokenChip: '#3a2823', ok: '#9fd6ad', chipText: '#c9c1b4' },
+light: { bg: '#f3efe7', header: '#fbf9f4', surface: '#fbf9f4', surface2: '#ebe6db', inset: '#f3efe7', line: '#d6cfc1', rowLine: '#ebe6db',
+text: '#1c1915', muted: '#5b554b', accent: '#8a5700', onAccent: '#ffffff', link: '#7a4e00', selBg: '#f6e8cf',
+danger: '#8a2a1a', dangerSoft: '#f1d2ca', brokenBg: '#f9e5df', brokenChip: '#f1d2ca', ok: '#1f6b3a', chipText: '#4a443b' }
+}
+};
+const t = (P[paleta] || P.grafito)[light ? 'light' : 'dark'];
+const pl = [['01','MinimalDeepWarm',132,true],['02','housepost',19,true],['03','techDeFondo',27,true],['04','tech1',41,false],['05','techhouse2',14,false],['06','marerook',22,false],['07','rollers',35,false],['08','warmup',18,false]];
+const playlists = pl.map(([n, name, count, on]) => ({ n, name, count, on, bg: on ? t.selBg : 'transparent', numColor: on ? t.link : t.muted, weight: on ? 500 : 400 }));
+const rows1 = [
+{ num: '001', meta: '9A · 120', title: 'Brooklyn Te…', artist: 'Prunk, Chris Stussy', ext: 'WAV' },
+{ num: '002', meta: '', title: "Awareness (Kerri's Dark Dub)", artist: 'Ananda Project, Mia', ext: 'AIF' },
+{ num: '003', meta: '7A · 130', title: 'Glace Circle (Original Mix)', artist: 'DJOKO', ext: 'WAV' },
+{ num: '004', meta: '12A · 125', title: 'Stay Together', artist: 'Kylin Tyce', ext: 'WAV' },
+{ num: '005', meta: '', title: 'Pollock (Aron Volta Remix)', artist: 'Kevin Toro, AWSI', ext: 'WAV' }
+];
+const r2 = (num, meta, title, artist, ext, broken) => ({ num, meta, title, artist, ext, broken, ok: !broken,
+bg: broken ? t.brokenBg : 'transparent', color: broken ? t.danger : t.text, numColor: broken ? t.danger : t.muted,
+artistColor: broken ? t.danger : t.muted, note: broken ? ' · archivo no encontrado' : '',
+chipBg: broken ? t.brokenChip : t.surface2, chipColor: broken ? t.danger : t.chipText });
+const rows2 = [
+r2('001','','I Want You','Paris Avenue','FLAC',false),
+r2('002','','Electric Shock 2005','Soul Seekerz','FLAC',false),
+r2('003','','Tobacco (Original Mix)','Mendo, Angel Heredia','AIFF',true),
+r2('004','','Werk (Move Your Body)','Nic Fanciulli','AIFF',true),
+r2('005','7A · 125','Sax Hustler','Joeski','WAV',true),
+r2('006','',"C'mon Get It On (Freemasons Remix)",'Studio B','FLAC',false)
+];
+const wave = Array.from({ length: 96 }, (_, i) => {
+const v = 0.35 + 0.3 * Math.abs(Math.sin(i * 0.37)) + 0.25 * Math.abs(Math.sin(i * 1.13 + 1));
+return { h: Math.round(v * 30) + 'px', c: i < 38 ? t.accent : t.line };
+});
+return { light, t, playlists, rows1, rows2, wave };
+}
+}
+</script>
+</body>
+</html>

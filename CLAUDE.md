@@ -13,7 +13,7 @@ Sos un experto en Python, empaquetado de apps de escritorio para macOS/Windows, 
 ### Flujo de usuario
 
 1. La app abre la DB de Rekordbox 6 al iniciar (requiere que RB esté cerrado).
-2. Muestra un árbol de carpetas y playlists con checkboxes tri-estado.
+2. Muestra las playlists agrupadas en carpetas plegables; solo las playlists tienen checkbox (las carpetas no se marcan).
 3. El usuario elige carpeta de destino, marca playlists, y exporta.
 4. Un `QThread` copia los archivos con nombre `001 - Artist - Title.mp3`, mostrando progreso y log.
 
@@ -30,8 +30,10 @@ rekordbox_export.py  → Lógica base validada. NO modificar sin causa mayor.
 traktor_db.py        → Parser de colección NML de Traktor Pro 3/4. open_collection(), get_playlist_tree().
 preview_worker.py    → PreviewWorker (QThread). Existence checks en background; emite GroupData.
 audio_player.py      → AudioPlayer (QMediaPlayer+FFmpeg). play/pause/seek; señales playing_changed, position_changed, track_finished.
-spectro_worker.py    → SpectrogramWorker (QThread). QAudioDecoder + numpy STFT → QImage tenue de fondo.
-ui_components.py     → PlaylistCard, PlaylistGroup, SeekBar, FileRow, RackHead, ClickableLabel.
+waveform_worker.py   → WaveformWorker (QThread). Picos de la onda del footer.
+audio_decode.py      → buffer_to_mono (helper de decode compartido).
+footer.py            → FooterBar (reproductor, destino, exportar, progreso).
+ui_components.py     → PlaylistCard, PlaylistGroup, SeekBar, WaveformSeek, ElidedLabel, FileRow, ClickableLabel.
 styles.py            → Tokens de diseño dark/light + load_qss().
 rb_exporter.spec     → Spec de PyInstaller para empaquetar (produce "listBuddy" ejecutable).
 requirements.txt     → Dependencias pineadas exactas.
@@ -270,3 +272,16 @@ pyinstaller rb_exporter.spec
 - Los errores de apertura de DB deben siempre mostrar un mensaje claro al usuario vía `QMessageBox`, nunca stacktrace crudo.
 - `ExportWorker` corre en un `QThread` — nunca actualizar widgets de Qt directamente desde `run()`, siempre via signals.
 - El conteo de progreso usa `total_songs` acumulado antes del loop; no recalcular mid-flight.
+
+---
+
+## Tests (T-075)
+
+```bash
+python -m pytest -q          # ~45 s: pytest.ini fija -n 4 (pytest-xdist, requirements-dev.txt)
+python -m pytest -q -n 0     # en serie, ~2-2,5 min (para depurar un test)
+```
+
+- Los tests de Qt corren en un intérprete **aparte** del de pytest (aislamiento de binding, T-033: PyQt6 sigue instalado en el venv y nunca deben convivir dos Qt en un proceso).
+- Los que arrancan con `BOOT` (`tests/_window_boot.py`) reutilizan un único intérprete Qt por worker de pytest (`tests/_qt_warm_worker.py`): entre snippets cierra las ventanas, frena timers, restaura los atributos de módulos y clases del proyecto y vuelve al tema dark.
+- Siguen con un proceso nuevo por test (`cold=True` o sin `BOOT`): los de `test_fade_lifecycle.py` (miran SIGSEGV/stderr), `test_fonts_icons.py`, `test_styles_static.py`, `test_contrast.py`, `test_audio_decode.py`, `test_playlist_order.py`, `test_excepthook_slot.py`, `test_qt_binding.py` (necesitan import/arranque limpio o miran el estado del proceso).

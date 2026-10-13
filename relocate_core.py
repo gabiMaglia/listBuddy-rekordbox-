@@ -128,6 +128,20 @@ class Candidate:
     match_type: str = "exact"
 
 
+@dataclass(frozen=True)
+class RelocateScope:
+    """T-073: limita un relocate a las pistas de UNA playlist.
+
+    `paths` son los `raw_path` de la vista previa. Un alcance vacío significa
+    «nada», nunca «todo»: el global es `scope=None`."""
+    name: str
+    paths: frozenset[str]
+
+
+def scope_contains(scope: RelocateScope | None, raw_path: str) -> bool:
+    return scope is None or raw_path in scope.paths
+
+
 @dataclass
 class RelocateRequest:
     """
@@ -507,8 +521,12 @@ class BaseRelocateWorker(QThread):
     finished_ok = Signal(int, int, int, str)  # (reparadas, salteadas, sin_match, status)
     # status: "ok" | "cancelled" | "error" | "blocked"
 
-    def __init__(self, search_root: Path, auto_resolve: bool = False) -> None:
+    def __init__(
+        self, search_root: Path, auto_resolve: bool = False,
+        scope: RelocateScope | None = None,
+    ) -> None:
         super().__init__()
+        self._scope = scope
         self._search_root = search_root
         self._auto_resolve = auto_resolve
         self._answer_event = threading.Event()
@@ -557,6 +575,8 @@ class BaseRelocateWorker(QThread):
         con el finalize propio del motor (backup + escritura/commit).
         """
         total = len(broken)
+        if self._scope is not None:
+            self.log.emit(f"📁  Alcance: solo la carpeta «{self._scope.name}».")
         self.log.emit(f"🔍  {total} enlace(s) roto(s) en la {self._broken_scope_noun()}.")
         if total == 0:
             self.finished_ok.emit(0, 0, 0, "ok")

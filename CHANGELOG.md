@@ -3,6 +3,11 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 Versionado [SemVer](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+### Changed
+- Columna de playlists rediseñada (320 px), búsqueda por nombre, numeración marcada/no marcada diferenciada.
+
 ## [1.1.0] — 2026-07-24
 
 Primera versión que **escribe** sobre la librería del usuario (antes era solo
