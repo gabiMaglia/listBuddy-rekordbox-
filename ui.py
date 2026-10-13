@@ -54,6 +54,7 @@ from db import get_playlist_tree as rb_get_playlist_tree
 from db import key_bpm_of
 from db import open_database as rb_open_database
 from db import playlist_song_count as rb_song_count
+from about_dialog import AboutDialog
 import dialogs
 import icons
 from branding import APP_NAME
@@ -319,6 +320,10 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.theme_action)
         help_menu = self.menuBar().addMenu("Ayuda")
         help_menu.addAction("☕  Donar en Ko-fi…").triggered.connect(self._show_donation)
+        # AboutRole: en macOS Qt lo muda al menú de la app, donde se lo espera.
+        about_action = help_menu.addAction(f"Acerca de {APP_NAME}…")
+        about_action.setMenuRole(QAction.MenuRole.AboutRole)
+        about_action.triggered.connect(self._show_about)
 
         from styles import load_qss
         app = QApplication.instance()
@@ -2479,6 +2484,9 @@ class MainWindow(QMainWindow):
 
     def _show_donation(self) -> None:
         DonationDialog(self).exec()
+
+    def _show_about(self) -> None:
+        AboutDialog(_APP_VERSION, self._theme, self).exec()
 
     # ── T-021 (I-8): chequeo de actualización ───────────────────────────────
 

@@ -26,7 +26,12 @@ a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=collect_dynamic_libs('sqlcipher3'),
-    datas=pyrekordbox_datas + certifi_datas + [('qss', 'qss'), ('fonts', 'fonts')],
+    # LICENSE + avisos de terceros + licenses/: la GPL/LGPL y las MIT/BSD piden
+    # que los textos viajen con el binario; el diálogo «Acerca de» los lee.
+    datas=pyrekordbox_datas + certifi_datas + [
+        ('qss', 'qss'), ('fonts', 'fonts'),
+        ('LICENSE', '.'), ('THIRD_PARTY_NOTICES.md', '.'), ('licenses', 'licenses'),
+    ],
     # Nota: los módulos locales del relocate (traktor_relocate, rekordbox_relocate,
     # traktor_db, worker, preview_worker, etc.) NO van acá — se importan de forma
     # estática desde main.py → ui.py (`from traktor_relocate import ...`), así que
