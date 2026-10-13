@@ -10,3 +10,4 @@ prueba/
 _*.png
 .DS_Store
 *.DS_Store
+.venv-build/
