@@ -1,14 +1,12 @@
-# STATE — listBuddy · actualizado: 2026-08-01
+# STATE — listBuddy · actualizado: 2026-10-12
 
-**Sprint:** 0 — Alta del proyecto + producción
-**Rama activa:** `main` @ `256d926` — **T-023/T-024 y T-028 MERGEADOS y pusheados a origin/main por orden explícita del PO (2026-08-01), sin PR (`gh` sigue sin autenticar en la Mac).** 129 tests verdes sobre main. App verificada arrancando desde main.
-**En curso:** Primera sesión en la Mac del PO → se atacaron los tickets "SOLO EN MAC". **T-023 y T-024 Done (QA Strong APROBADO)**: ambos confirmados como bugs REALES en vivo antes de codear, no hipótesis. T-023 — el NML real usa 3 volúmenes (`Macintosh HD` 3965, `MUSIC` 1763 externo, `NO NAME` 36) y el hardcode hacía del relocate un no-op silencioso para las 1763 de `MUSIC`; ahora el volumen se deriva vía `diskutil` + ruta. T-024 — `pgrep -ix Traktor` daba exit 1 con Traktor Pro 4 abierto (PID 26702), el guard nunca disparaba en macOS y Traktor pisaba las reparaciones al cerrar; ahora el patrón cubre Pro 3 y 4. Tests 90 → 111, verdes.
-**Bloqueos:** T-026 Bloqueado (el PO va a sacar la cuenta de Apple Developer, 99 USD/año; se desbloquea con la aprobación de Apple). `gh auth login` pendiente para PRs.
-**T-028 (Done, QA Strong):** matching de relocate tolerante a prefijo numérico `NN - ` y a extensión, en los dos motores (relocate_core compartido). Un match normalizado NUNCA auto-resuelve — siempre modal (guard validado por mutación). **Diagnóstico medido sobre la librería real (Rekordbox, 563 rotas): 401 YA eran recuperables con el matcher viejo — el bloqueo del PO era la RAÍZ DE BÚSQUEDA, no el matcher (92 de esas viven fuera de /Volumes/MUSIC, 87 en ~/Documents/Batea/Sets/MINIMALDEEPWARM); +25 suma T-028 (24 extensión .aiff→.aif, 1 prefijo); 138 no están en esta Mac.** Pendiente: que el PO corra el relocate con raíz que cubra ambas ubicaciones.
+**Sprint:** 1 — Reskin «Mezcla Cálida» → CERRADO (mergeado a main 6328dfb, pusheado por el PO)
+**Rama activa:** `main` (= origin/main @ 6328dfb). `feat/reskin` local, ya mergeada (sin push).
+**En curso:** nada. Reskin T-061..T-066 + T-068..T-078 Done con QA; PO probó la app en vivo: «anda bárbaro».
+**Bloqueos:** T-026 (cuenta Apple Developer). `gh` sin autenticar (PRs).
+**Sin probar:** Windows (todo el reskin: fuentes, íconos SVG, DPI, header compacto, QMessageBox) y el `.app` real.
 **Próximo paso sugerido:**
-1. **T-027 (NUEVO, prioridad alta, Niv S)** — falso positivo de "roto" en volúmenes externos en macOS: `_location_to_path` (traktor_db.py:160-177) no antepone `/Volumes/<VOL>`, así que TODA pista en disco externo aparece rota aunque esté sana. Verificado con archivo real y existente en `/Volumes/MUSIC/LISTAS2026/...`. Con el auto-resolver de T-003 encendido, reescribiría entradas sanas. Es el complemento de detección de T-023 (que arregla la escritura) — conviene cerrarlo antes de T-025.
-2. T-025 (buildear/probar el .app real + icon.icns + que el bundle escriba sobre Rekordbox). Ojo con el punto que levantó QA: verificar que `diskutil` siga disponible desde el bundle firmado/sandboxeado.
-3. T-026 cuando llegue la cuenta de Apple. Mientras tanto T-025 cierra con firma ad-hoc (`codesign --sign -`), válida solo en la Mac del PO.
-4. B-1 (Windows): buildear el `.exe` real y correr el checklist de 8 pasos de engram/07_production_readiness.md — sigue sin hacerse.
-5. Menor: T-022 parte 3 (tests de unicode en nombres de archivo).
+1. T-025 — buildear el `.app` en la Mac: fuentes/íconos/`dialogs.py` dentro del bundle, tilde PNG (T-078), `diskutil`; decidir si el bundle se llama «List Buddy».
+2. Regularizar QA de T-027 y T-029 (mergeados sin veredicto) y B-1 (Windows: `.exe` + checklist de 07_production_readiness.md).
+3. Menores: T-067 (Key·BPM), chequeo SSL de actualizaciones (CERTIFICATE_VERIFY_FAILED), «¿» faltante en «… de todos modos?».
 **Preguntas abiertas al PO:** 0

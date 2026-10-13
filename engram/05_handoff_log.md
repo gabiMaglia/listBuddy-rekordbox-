@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-12] CIERRE DE SESIÓN (P-5)
+- Hecho: reskin «Mezcla Cálida» completo (T-061..T-066, T-068..T-078: header/footer/playlists/vista previa/diálogos, Sora, relocate por playlist, crash Traktor→Rekordbox, tema 22× más rápido, suite 8 min → ~1 min) con QA en todos; merge a main 6328dfb, push hecho por el PO (el clasificador de permisos bloqueó el push del Orquestador).
+- Próximo paso: T-025 (buildear y probar el `.app` con todo el reskin) y regularizar QA de T-027/T-029.
+- Quien retoma: nerv-orquestador → nerv-desktop (T-025).
+
 ### [2026-10-12] nerv-orquestador → nerv-desktop T-078 · Niv A
 - T-077 Done (QA, 7ff4167). QA halló que el tilde PNG puede impedir el arranque (temp no escribible) → T-078 antes del merge (decisión del Orquestador: no se mergea un fallo de arranque introducido en la rama).
 - Entrega: T-078 (criterios del backlog = plan). Test primero, commit chico, suite completa. Dejar «En revisión QA».
