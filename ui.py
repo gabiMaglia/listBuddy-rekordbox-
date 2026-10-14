@@ -8,7 +8,6 @@ Layout: header-bar (title + controls) → two-column body
 from __future__ import annotations
 
 import itertools
-import os
 import sys
 from io import BytesIO
 from functools import partial
@@ -315,6 +314,10 @@ class MainWindow(QMainWindow):
             lambda checked: self._apply_theme("light" if checked else "dark")
         )
         view_menu.addAction(self.theme_action)
+        self._reload_action = QAction("Recargar librería", self)
+        self._reload_action.setShortcut(QKeySequence("Ctrl+R"))
+        self._reload_action.triggered.connect(self._reload_library)
+        view_menu.addAction(self._reload_action)
         help_menu = self.menuBar().addMenu("Ayuda")
         help_menu.addAction("☕  Donar en Ko-fi…").triggered.connect(self._show_donation)
         # AboutRole: en macOS Qt lo muda al menú de la app, donde se lo espera.
@@ -645,6 +648,7 @@ class MainWindow(QMainWindow):
         )
         self._maint_menu = menu
         self._relocate_state: Literal["idle", "running", "cancelling"] = "idle"
+        self._maintenance_locked = False  # restauración en curso
         # Popup propio y no setMenu: setMenu agrega un indicador que el diseño no tiene.
         self._maint_btn.clicked.connect(self._show_maintenance_menu)
         self._sync_maintenance_for_source()
@@ -662,6 +666,7 @@ class MainWindow(QMainWindow):
 
     def _set_relocate_state(self, state: Literal["idle", "running", "cancelling"]) -> None:
         self._relocate_state = state
+        self._sync_busy_locks()
         text, enabled = {
             "idle": ("Reparar enlaces rotos…", True),
             "running": ("Cancelar", True),
@@ -670,7 +675,23 @@ class MainWindow(QMainWindow):
         self._act_relocate.setText(text)
         self._act_relocate.setEnabled(enabled and self._repair_supported())
 
+    def _is_maintenance_busy(self) -> bool:
+        """Hay una reparación o una restauración en curso."""
+        return (
+            getattr(self, "_relocate_state", "idle") != "idle"
+            or getattr(self, "_maintenance_locked", False)
+        )
+
+    def _sync_busy_locks(self) -> None:
+        """Mientras se repara/restaura no se cambia de fuente ni se recarga la librería."""
+        free = not self._is_maintenance_busy()
+        self._src_rb_btn.setEnabled(free)
+        self._src_tk_btn.setEnabled(free)
+        self._reload_action.setEnabled(free)
+
     def _set_maintenance_enabled(self, enabled: bool) -> None:
+        self._maintenance_locked = not enabled
+        self._sync_busy_locks()
         ok = enabled and self._repair_supported()
         self._act_relocate.setEnabled(ok)
         self._act_restore.setEnabled(ok)
@@ -708,7 +729,7 @@ class MainWindow(QMainWindow):
         )
 
     def _switch_source(self, source: str) -> None:
-        if source == self._source:
+        if source == self._source or self._is_maintenance_busy():
             return
         self._source = source
         self._track_meta_cache.clear()
@@ -1095,6 +1116,12 @@ class MainWindow(QMainWindow):
         if self._source == "traktor":
             self._reload_after_path_change()
 
+    def _reload_library(self) -> None:
+        """Ver → Recargar librería: vuelve a leer la fuente activa desde disco."""
+        if self._is_maintenance_busy():
+            return
+        self._reload_after_path_change()
+
     def _reload_after_path_change(self) -> None:
         self._track_meta_cache.clear()
         self._exists_cache.clear()
@@ -1105,6 +1132,8 @@ class MainWindow(QMainWindow):
     def _load_playlists(self) -> None:
         """Load playlists from the active source (Rekordbox or Traktor)."""
         self._clear_playlist_area()
+        self._src_rb_btn.setToolTip("")
+        self._db = None  # una carga fallida no puede dejar la librería de la otra fuente
 
         try:
             if self._source == "traktor":
@@ -1134,8 +1163,12 @@ class MainWindow(QMainWindow):
         src_label = "Traktor" if self._source == "traktor" else "Rekordbox"
         self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
         if self._source == "rekordbox":
-            self._log(f"XML exportado el {self._db.exported_at:%d/%m/%Y %H:%M}.")
+            stamp = f"{self._db.exported_at:%d/%m/%Y %H:%M}"
+            self._log(f"XML exportado el {stamp}.")
+            self._src_rb_btn.setToolTip(f"XML exportado el {stamp}")
 
+    # Seam de test: los tests con BOOT reemplazan `_load_playlists` por un no-op
+    # y llaman a esta referencia para ejercitar la carga real.
     _load_playlists_real = _load_playlists
 
     def _populate_playlists(self, tree: list[dict], song_count: Callable[[Any], int]) -> None:
@@ -2181,8 +2214,8 @@ class MainWindow(QMainWindow):
         self._log(f"→ Buscando en: {search_root}")
 
         # Se fija la fuente activa al arrancar (no self._source en vivo):
-        # el usuario no puede tocar el selector de fuente mientras hay un
-        # relocate corriendo, pero el mensaje de "blocked" al terminar debe
+        # el selector de fuente queda bloqueado mientras hay un relocate
+        # (`_sync_busy_locks`); igual el mensaje de "blocked" al terminar debe
         # referirse a la app que efectivamente se chequeó, no a la que esté
         # seleccionada en ese momento.
         self._relocate_source = self._source
