@@ -39,6 +39,8 @@ Primera versión pública. Reúne todo el trabajo previo: las versiones internas
 - Diseño «Mezcla Cálida» en tema oscuro y claro, con fuentes propias (Sora,
   Public Sans, JetBrains Mono) y diálogos en español rioplatense.
 - Aviso discreto cuando hay una versión nueva en GitHub.
+- Aviso legal y descargo de responsabilidad (`DISCLAIMER.md`, Ayuda → Aviso legal),
+  resumido al primer arranque y recordado en cada confirmación antes de escribir.
 - «Acerca de» con licencia, falta de garantía, marcas y avisos de terceros
   (`THIRD_PARTY_NOTICES.md`, `licenses/`).
 - Log rotativo en disco para diagnosticar fallas.

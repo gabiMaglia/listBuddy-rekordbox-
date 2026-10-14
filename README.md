@@ -220,7 +220,13 @@ Los componentes de terceros que viajan en el ejecutable (Qt/PySide6, FFmpeg, num
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) y la carpeta [licenses/](licenses/).
 También están en la app, en **Ayuda → Acerca de List Buddy**.
 
-## Avisos
+## Aviso legal
+
+**Usás List Buddy bajo tu exclusiva responsabilidad. No nos hacemos cargo de la pérdida o
+corrupción de librerías, playlists, cue points, metadatos ni archivos de música.** Hacé tu
+propia copia de seguridad antes de reparar o restaurar. El texto completo está en
+[DISCLAIMER.md](DISCLAIMER.md) y en la app (**Ayuda → Aviso legal**); la app te lo muestra
+resumido la primera vez que la abrís.
 
 - **Sin garantía.** List Buddy se ofrece tal cual. La reparación de enlaces de Traktor
   escribe sobre tu librería real: siempre hace backup, pero tené tu propia copia.
