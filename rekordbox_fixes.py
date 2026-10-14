@@ -7,6 +7,7 @@ URI `Location` original del XML → ruta nueva en disco.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -40,11 +41,16 @@ class FixStore:
     def save(self, mapping: dict[str, str]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_name(self.path.name + ".tmp")
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({"version": _VERSION, "fixes": mapping}, f, ensure_ascii=False, indent=1)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, self.path)
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"version": _VERSION, "fixes": mapping}, f, ensure_ascii=False, indent=1)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, self.path)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                tmp.unlink(missing_ok=True)
+            raise
 
     def merge(self, new: dict[str, str]) -> dict[str, str]:
         merged = self.load()
