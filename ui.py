@@ -50,10 +50,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtMultimedia import QMediaDevices
 
-from db import get_playlist_tree as rb_get_playlist_tree
+import rekordbox_xml
 from db import key_bpm_of
-from db import open_database as rb_open_database
-from db import playlist_song_count as rb_song_count
 from about_dialog import AboutDialog
 import dialogs
 import icons
@@ -282,7 +280,8 @@ class MainWindow(QMainWindow):
         _PC.set_theme(self._theme)
 
         # ── Configuración persistida ─────────────────────────────────────
-        self._rb_db_path = str(self.settings.value("rb_db_path", "") or "")
+        self._rb_xml_path = str(self.settings.value("rb_xml_path", "") or "")
+        self._rb_db_path = ""  # relocate de Rekordbox: se borra en la Task 3 de T-080
         self._tk_collection_path = str(self.settings.value("tk_collection_path", "") or "")
         self._auto_advance = self.settings.value("auto_advance", True, type=bool)
         self._saved_device_id = str(self.settings.value("audio_device_id", "") or "")
@@ -942,15 +941,15 @@ class MainWindow(QMainWindow):
         # ── LIBRERÍAS ──────────────────────────────────────────────────────
         lib_box = section("LIBRERÍAS")
         helper = QLabel(
-            "Normalmente se detectan solas. Configurá la ruta solo si tu librería "
-            "está en una ubicación no estándar (disco externo, varias versiones, etc.)."
+            "Traktor se detecta solo. Para Rekordbox elegí el rekordbox.xml que "
+            "exportaste desde Rekordbox (Archivo → Exportar colección en formato xml)."
         )
         helper.setObjectName("settings_helper")
         helper.setWordWrap(True)
         lib_box.addWidget(helper)
 
         self._rb_path_edit = self._add_path_row(
-            lib_box, "Rekordbox · master.db", self._rb_db_path,
+            lib_box, "Rekordbox · rekordbox.xml", self._rb_xml_path,
             self._browse_rb_path, self._clear_rb_path,
         )
         self._tk_path_edit = self._add_path_row(
@@ -1042,20 +1041,20 @@ class MainWindow(QMainWindow):
 
     def _browse_rb_path(self) -> None:
         f, _ = QFileDialog.getOpenFileName(
-            self, "Elegí el master.db de Rekordbox", "",
-            "Rekordbox DB (master.db *.db);;Todos los archivos (*)",
+            self, "Elegí el rekordbox.xml exportado", "",
+            "Rekordbox XML (*.xml);;Todos los archivos (*)",
         )
         if f:
-            self._rb_db_path = f
-            self.settings.setValue("rb_db_path", f)
+            self._rb_xml_path = f
+            self.settings.setValue("rb_xml_path", f)
             self._rb_path_edit.setText(f)
             if self._source == "rekordbox":
                 self._reload_after_path_change()
 
     def _clear_rb_path(self) -> None:
-        self._rb_db_path = ""
-        self.settings.setValue("rb_db_path", "")
-        self._rb_path_edit.setText("(automático)")
+        self._rb_xml_path = ""
+        self.settings.setValue("rb_xml_path", "")
+        self._rb_path_edit.setText("(sin elegir)")
         if self._source == "rekordbox":
             self._reload_after_path_change()
 
@@ -1101,15 +1100,25 @@ class MainWindow(QMainWindow):
                 tree = get_playlist_tree(col)
                 self._db = col
             else:
-                tree = rb_get_playlist_tree(rb_open_database(self._rb_db_path or None))
-                playlist_song_count = rb_song_count
+                xml_path = Path(self._rb_xml_path) if self._rb_xml_path else None
+                lib = rekordbox_xml.open_library(xml_path)
+                tree = rekordbox_xml.get_playlist_tree(lib)
+                playlist_song_count = rekordbox_xml.playlist_song_count
+                self._db = lib
         except RuntimeError as e:
-            self._show_not_installed(str(e))
+            action = None
+            if self._source == "rekordbox":
+                action = ("Elegir rekordbox.xml…", self._browse_rb_path)
+            self._show_not_installed(str(e), action)
             return
 
         self._populate_playlists(tree, playlist_song_count)
         src_label = "Traktor" if self._source == "traktor" else "Rekordbox"
         self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
+        if self._source == "rekordbox":
+            self._log(f"XML exportado el {self._db.exported_at:%d/%m/%Y %H:%M}.")
+
+    _load_playlists_real = _load_playlists
 
     def _populate_playlists(self, tree: list[dict], song_count: Callable[[Any], int]) -> None:
         """Arma carpetas y filas desde el árbol; separado de la carga para testearlo sin DB."""
@@ -1178,11 +1187,13 @@ class MainWindow(QMainWindow):
         if stretch is not None:
             layout.addItem(stretch)
 
-    def _show_not_installed(self, detail: str) -> None:
+    def _show_not_installed(
+        self, detail: str, action: tuple[str, Callable[[], None]] | None = None,
+    ) -> None:
         """Show a friendly 'not installed' placeholder in the playlist area."""
         self._clear_playlist_area()
 
-        app_name = "Traktor Pro 3 / 4" if self._source == "traktor" else "Rekordbox 6"
+        app_name = "Traktor Pro 3 / 4" if self._source == "traktor" else "Rekordbox"
         card = QWidget()
         card.setObjectName("not_installed_card")
         card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -1206,6 +1217,14 @@ class MainWindow(QMainWindow):
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sub.setWordWrap(True)
         cl.addWidget(sub)
+
+        if action is not None:
+            text, slot = action
+            btn = QPushButton(text)
+            btn.setObjectName("not_installed_btn")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(slot)
+            cl.addWidget(btn, 0, Qt.AlignmentFlag.AlignCenter)
 
         self.playlist_container_layout.insertWidget(
             self.playlist_container_layout.count() - 1, card
@@ -1385,7 +1404,7 @@ class MainWindow(QMainWindow):
             from rekordbox_export import get_songs as _rb_get_songs
             from db import order_playlist_songs
 
-            # pyrekordbox devuelve Songs desordenada: mismo orden que el export.
+            # mismo orden que el export.
             def _get_songs(pl):  # type: ignore[misc]
                 return order_playlist_songs(_rb_get_songs(pl))
 
