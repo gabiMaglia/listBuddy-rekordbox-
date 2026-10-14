@@ -171,7 +171,7 @@ fixes (I-1/I-2/I-4 se aplican dos veces por la duplicación).
 
 **Contexto:** Leer y escribir master.db exige descifrarlo con la clave que pyrekordbox trae embebida. El EULA de rekordbox (2025/03/04) prohíbe eludir tecnología de AlphaTheta (§2.2(b)) y la ingeniería inversa (§2.2(g)); distribuir la clave dentro del ejecutable es además la figura de «trafficking» de la DMCA §1201. Para un producto que se quiere vender, es el riesgo legal principal.
 
-**Decisión:** Rekordbox se lee solo del `rekordbox.xml` que el usuario exporta (formato publicado por AlphaTheta para terceros, `xml_format_list.pdf`). List Buddy no escribe nada de Rekordbox: la reparación de enlaces y la restauración de backups quedan solo para Traktor; para Rekordbox se indica usar Reubicar de Rekordbox. pyrekordbox, sqlcipher3 y sus dependencias salen del proyecto y del bundle.
+**Decisión:** Rekordbox se lee solo del `rekordbox.xml` que el usuario exporta (formato publicado por AlphaTheta para terceros, `xml_format_list.pdf`). List Buddy no escribe nada de Rekordbox: la reparación de enlaces y la restauración de backups quedan solo para Traktor; para Rekordbox se indica usar Reubicar de Rekordbox (ver Addendum T-081, que lo complementa: List Buddy ahora repara por su cuenta sin escribir archivos de Rekordbox). pyrekordbox, sqlcipher3 y sus dependencias salen del proyecto y del bundle.
 
 **Consecuencias:** + sin clave, sin SQLCipher, bundle más chico, funciona con Rekordbox abierto, soporta 6 y 7 por igual. − el usuario reexporta el XML cuando cambia sus playlists; se pierde el relocate de Rekordbox. Traktor sin cambios (NML en texto plano, sin cifrado).
 
