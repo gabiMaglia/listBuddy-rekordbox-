@@ -7,7 +7,7 @@ después de cambiar cualquier versión de `requirements.txt` y revisar que
 THIRD_PARTY_NOTICES.md siga diciendo las mismas versiones.
 
 Los textos estándar (GPL-3.0, LGPL-3.0, LGPL-2.1, MPL-2.0, Apache-2.0) y los
-de componentes nativos sin dist-info (Python, SQLCipher, OpenSSL) están
+de componentes nativos sin dist-info (Python, OpenSSL) están
 versionados a mano en `licenses/` y este script no los toca.
 
     python scripts/collect_licenses.py
@@ -22,19 +22,8 @@ OUT = ROOT / "licenses"
 
 # distribución de PyPI → nombre del archivo en licenses/
 PACKAGES: dict[str, str] = {
-    "pyrekordbox": "pyrekordbox.txt",
-    "sqlcipher3-wheels": "sqlcipher3.txt",
-    "SQLAlchemy": "SQLAlchemy.txt",
     "numpy": "numpy.txt",
     "certifi": "certifi.txt",
-    "bidict": "bidict.txt",
-    "construct": "construct.txt",
-    "packaging": "packaging.txt",
-    "psutil": "psutil.txt",
-    "python-dateutil": "python-dateutil.txt",
-    "six": "six.txt",
-    "typing_extensions": "typing_extensions.txt",
-    "greenlet": "greenlet.txt",
 }
 
 

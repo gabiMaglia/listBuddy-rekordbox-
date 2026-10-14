@@ -144,7 +144,7 @@ def test_at_980_the_column_shows_in_header_and_rows_with_room_for_the_title() ->
     assert out == "True True True True"
 
 
-def test_claude_md_documents_bpm_x100() -> None:
+def test_claude_md_documents_xml_source() -> None:
     text = (PROJECT_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
     assert "BeatCount" not in text
-    assert "BPM×100" in text or "BPM ×100" in text
+    assert "rekordbox.xml" in text and "AverageBpm" in text

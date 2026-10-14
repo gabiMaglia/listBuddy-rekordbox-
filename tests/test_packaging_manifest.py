@@ -47,3 +47,11 @@ def test_bundle_version_matches_app_version() -> None:
 def test_mac_bundle_uses_visible_brand_name() -> None:
     assert "name='List Buddy.app'" in _SPEC
     assert "'CFBundleDisplayName': 'List Buddy'" in _SPEC
+
+
+def test_rekordbox_db_stack_is_not_shipped() -> None:
+    assert not any(r.lower().startswith(("pyrekordbox", "sqlcipher3")) for r in _REQS)
+    excludes = _SPEC.split("excludes=", 1)[1].split("]", 1)[0]
+    for mod in ("'pyrekordbox'", "'sqlcipher3'", "'sqlalchemy'"):
+        assert mod in excludes, mod
+    assert "collect_data_files('pyrekordbox')" not in _SPEC
