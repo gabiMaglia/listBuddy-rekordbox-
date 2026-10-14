@@ -125,3 +125,80 @@ def test_preview_card_hides_repair_buttons_when_not_supported() -> None:
 
 def test_rekordbox_relocate_module_is_gone() -> None:
     assert not (PROJECT_ROOT / "rekordbox_relocate.py").exists()
+
+
+# ───────────────────────── revisión final de la rama ─────────────────────────
+
+def test_failed_load_clears_stale_db_and_blocks_restore_on_the_xml() -> None:
+    out = run(BOOT + LOAD +
+        "w, s = make(); w._source = 'rekordbox'; w._rb_xml_path = str(xml); orig(w)\n"
+        "assert type(w._db).__name__ == 'RekordboxXmlLibrary'\n"
+        "w._source = 'traktor'; w._tk_collection_path = '/no/existe/collection.nml'; orig(w)\n"
+        "calls = []\n"
+        "ui.list_backups = lambda *a, **k: calls.append(a) or []\n"
+        "ui.dialogs.warning = lambda *a, **k: None\n"
+        "w._sync_maintenance_for_source(); w._open_restore_backup_dialog()\n"
+        "print(w._db is None, w._relocate_target_info(), calls)\n")
+    assert out == "True ('collection.nml', None) []"
+
+
+def run_lines(code: str) -> list[str]:
+    r = run_isolated(code)
+    assert r.returncode == 0, r.stderr[-3000:]
+    return r.stdout.strip().splitlines()
+
+
+def test_source_selector_is_locked_while_relocating() -> None:
+    lines = run_lines(BOOT +
+        "w, s = make(); w._source = 'traktor'; w._sync_maintenance_for_source()\n"
+        "w._set_relocate_state('running')\n"
+        "locked = (w._src_rb_btn.isEnabled(), w._src_tk_btn.isEnabled())\n"
+        "w._src_rb_btn.click(); w._switch_source('rekordbox'); app.processEvents()\n"
+        "print(locked, w._source, w._act_relocate.isEnabled(), w._act_relocate.text())\n"
+        "w._set_relocate_state('cancelling')\n"
+        "print(w._src_rb_btn.isEnabled())\n"
+        "w._set_relocate_state('idle')\n"
+        "print(w._src_rb_btn.isEnabled(), w._src_tk_btn.isEnabled())\n")
+    assert lines[-3:] == ["(False, False) traktor True Cancelar", "False", "True True"]
+
+
+def test_source_selector_is_locked_while_restoring() -> None:
+    out = run(BOOT +
+        "w, s = make(); w._source = 'traktor'\n"
+        "w._set_maintenance_enabled(False)\n"
+        "a = w._src_rb_btn.isEnabled(); w._switch_source('rekordbox')\n"
+        "w._set_maintenance_enabled(True)\n"
+        "print(a, w._source, w._src_rb_btn.isEnabled())\n")
+    assert out == "False traktor True"
+
+
+def test_reload_action_in_view_menu_clears_caches_and_reloads() -> None:
+    lines = run_lines(BOOT +
+        "w, s = make(); calls = []\n"
+        "w._load_playlists = lambda: calls.append(1)\n"
+        "w._track_meta_cache['x'] = []; w._exists_cache['y'] = True\n"
+        "a = w._reload_action\n"
+        "print(a.text(), bool(a.shortcut().toString()), [m.title() for m in a.associatedObjects() if hasattr(m, 'title')])\n"
+        "a.trigger()\n"
+        "print(calls, w._track_meta_cache, w._exists_cache)\n")
+    assert lines[-2:] == ["Recargar librería True ['Ver']", "[1] {} {}"]
+
+
+def test_reload_action_is_disabled_while_relocating_or_restoring() -> None:
+    out = run(BOOT +
+        "w, s = make(); a = w._reload_action\n"
+        "w._set_relocate_state('running'); r1 = a.isEnabled(); w._set_relocate_state('idle')\n"
+        "w._set_maintenance_enabled(False); r2 = a.isEnabled(); w._set_maintenance_enabled(True)\n"
+        "print(r1, r2, a.isEnabled())\n")
+    assert out == "False False True"
+
+
+def test_rekordbox_button_tooltip_shows_export_date() -> None:
+    out = run(BOOT + LOAD +
+        "import datetime\n"
+        "w, s = make(); w._source = 'rekordbox'; w._rb_xml_path = str(xml); orig(w)\n"
+        "exp = w._db.exported_at.strftime('%d/%m/%Y %H:%M')\n"
+        "print(w._src_rb_btn.toolTip() == f'XML exportado el {exp}')\n"
+        "w._source = 'traktor'; w._tk_collection_path = '/no/existe.nml'; orig(w)\n"
+        "print(w._src_rb_btn.toolTip() == '')\n")
+    assert out == "True"
