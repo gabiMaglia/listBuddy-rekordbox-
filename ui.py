@@ -70,6 +70,7 @@ from styles import apply_title_tracking, status_style, token
 from worker import ExportWorker
 from ui_components import (
     ClickableLabel,
+    WrapLabel,
     FileRow,
     MaintenanceButton,
     PlaylistCard,
@@ -1292,10 +1293,9 @@ class MainWindow(QMainWindow):
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(title)
 
-        sub = QLabel(detail)
+        sub = WrapLabel(detail)
         sub.setObjectName("not_installed_sub")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub.setWordWrap(True)
         cl.addWidget(sub)
 
         if action is not None:
