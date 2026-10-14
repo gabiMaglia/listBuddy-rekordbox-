@@ -4,28 +4,18 @@ rekordbox_export.py
 Copia las pistas de cada playlist de Rekordbox a carpetas separadas,
 añadiendo un prefijo numérico según el orden de la playlist.
 
-Requiere: pip install pyrekordbox
+Requiere: el rekordbox.xml exportado (Archivo → Exportar colección en formato xml).
 
 Uso:
-  python rekordbox_export.py
-  python rekordbox_export.py --output "D:\\Mis Playlists"
-  python rekordbox_export.py --playlist "Tech House Set"
-  python rekordbox_export.py --dry-run
+  python rekordbox_export.py rekordbox.xml --output "D:\\Mis Playlists"
+  python rekordbox_export.py rekordbox.xml --playlist "Tech House Set"
+  python rekordbox_export.py rekordbox.xml --dry-run
 """
 
 import shutil
 import sys
 import argparse
 from pathlib import Path
-
-
-def check_dependencies():
-    try:
-        import pyrekordbox  # noqa
-    except ImportError:
-        print("❌ Falta la librería 'pyrekordbox'. Instalala con:")
-        print("   pip install pyrekordbox")
-        sys.exit(1)
 
 
 def sanitize(name: str) -> str:
@@ -50,18 +40,8 @@ def resolve_path(raw_path: str) -> Path | None:
     return path if path.exists() else None
 
 
-def get_all_playlists(db):
-    """Retorna lista de playlists ignorando carpetas."""
-    results = []
-    for pl in db.get_playlist():
-        # Attribute 0 = playlist, 1 = folder
-        if pl.Attribute == 0:
-            results.append(pl)
-    return results
-
-
 def get_songs(playlist):
-    """Devuelve las canciones de la playlist (compatible con distintas versiones de pyrekordbox)."""
+    """Devuelve las canciones de la playlist (compatible con RbxPlaylist y otras fuentes)."""
     for attr in ("Songs", "songs", "items"):
         if attr in dir(playlist):
             return list(getattr(playlist, attr))
@@ -72,12 +52,12 @@ def get_songs(playlist):
 
 
 def get_content(song):
-    """Devuelve el objeto DjmdContent del song (compatible con distintas versiones)."""
+    """Devuelve el contenido (RbxTrack) del song (compatible con distintas versiones)."""
     return getattr(song, "Content", None) or getattr(song, "content", None)
 
 
 def get_artist(content) -> str:
-    """Intenta varios nombres de campo para el artista según versión de pyrekordbox."""
+    """Intenta varios nombres de campo para el artista según la fuente."""
     for field in ("ArtistName", "Artist", "artist_name", "artist"):
         val = getattr(content, field, None)
         if val:
@@ -137,29 +117,33 @@ def export_playlist(playlist, output_root: Path, dry_run: bool = False):
 
 
 def main():
-    check_dependencies()
-
     parser = argparse.ArgumentParser(description="Exporta playlists de Rekordbox a carpetas ordenadas.")
+    parser.add_argument("xml", help="rekordbox.xml exportado desde Rekordbox")
     parser.add_argument("--output",   default="rekordbox_export", help="Carpeta de destino")
     parser.add_argument("--playlist", help="Nombre exacto de una playlist (omitir = todas)")
     parser.add_argument("--dry-run",  action="store_true", help="Muestra lo que haría sin copiar")
     args = parser.parse_args()
 
-    from pyrekordbox import Rekordbox6Database
-    print("🔓 Abriendo base de datos de Rekordbox...")
+    from rekordbox_xml import get_playlist_tree, open_library
     try:
-        db = Rekordbox6Database()
-    except Exception as e:
-        print(f"❌ No se pudo abrir la base de datos: {e}")
-        print("   Asegurate de tener Rekordbox cerrado e instalado normalmente.")
+        lib = open_library(Path(args.xml))
+    except RuntimeError as e:
+        print(f"❌ {e}")
         sys.exit(1)
+
+    def flat(nodes):
+        for n in nodes:
+            if n["playlist"].is_folder:
+                yield from flat(n["children"])
+            else:
+                yield n["playlist"]
 
     output_root = Path(args.output)
     print(f"📁 Carpeta de destino: {output_root.resolve()}")
     if args.dry_run:
         print("⚡ Modo dry-run: no se copian archivos\n")
 
-    playlists = get_all_playlists(db)
+    playlists = list(flat(get_playlist_tree(lib)))
 
     if args.playlist:
         playlists = [p for p in playlists if p.Name.lower() == args.playlist.lower()]

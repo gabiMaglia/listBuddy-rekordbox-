@@ -34,7 +34,8 @@ class PreviewGroupCard(QWidget):
     expand_toggled = Signal(bool)      # chevron del estado all_broken
     close_requested = Signal()         # ✕ de T-015
 
-    def __init__(self, data: GroupData, theme: str, parent: QWidget | None = None) -> None:
+    def __init__(self, data: GroupData, theme: str, parent: QWidget | None = None,
+                 can_repair: bool = True) -> None:
         super().__init__(parent)
         self.setObjectName("preview_card")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -82,14 +83,16 @@ class PreviewGroupCard(QWidget):
         elif self.state == rb.PARTIAL:
             top.addWidget(self._status_icon("warning", "danger"))
             top.addWidget(self._status_label(rb_text=broken_badge_text(n_broken)))
-            top.addWidget(self._action_btn(
-                "card_repair_btn", "Reparar enlaces", "Reparar enlaces de esta carpeta…",
-                self._on_repair_clicked))
+            if can_repair:
+                top.addWidget(self._action_btn(
+                    "card_repair_btn", "Reparar enlaces", "Reparar enlaces de esta carpeta…",
+                    self._on_repair_clicked))
         elif self.state == rb.ALL_BROKEN:
             top.addWidget(self._status_icon("warning", "danger"))
-            top.addWidget(self._action_btn(
-                "card_auto_btn", "Auto-resolver", "Auto-resolver esta carpeta…",
-                self._on_auto_clicked))
+            if can_repair:
+                top.addWidget(self._action_btn(
+                    "card_auto_btn", "Auto-resolver", "Auto-resolver esta carpeta…",
+                    self._on_auto_clicked))
             self.expand_btn = QPushButton()
             self.expand_btn.setObjectName("card_expand_btn")
             self.expand_btn.setCursor(Qt.CursorShape.PointingHandCursor)

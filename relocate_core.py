@@ -1,16 +1,16 @@
 """
 relocate_core.py
 ------------------
-Orquestador y matching COMPARTIDOS entre `RelocateWorker` (Traktor,
-traktor_relocate.py) y `RekordboxRelocateWorker` (Rekordbox,
-rekordbox_relocate.py) — T-017 / D-05.
+Orquestador y matching del relocate (`RelocateWorker` de Traktor,
+traktor_relocate.py) — T-017 / D-05. Rekordbox ya no se repara desde la app
+(T-080).
 
 D-05 (engram/07_production_readiness.md): el loop `run()` de ambos workers
 era ~90% idéntico (decidir 0/1/N candidatos, `ask_user`/modal, chequeo de
 cancelación, progreso, logging), duplicado en dos archivos. El núcleo de
 matching (`Candidate`/`RelocateRequest`/`build_basename_index`/
 `find_candidates`) ya vivía compartido, pero importado por nombre de archivo
-concreto (`rekordbox_relocate` -> `traktor_relocate`), acoplamiento que la
+concreto (motor de Rekordbox -> `traktor_relocate`), acoplamiento que la
 auditoría señaló como parte del mismo problema ("el módulo de Rekordbox
 depende del de Traktor por el *nombre del archivo*, no por un módulo
 compartido neutral"). Este módulo es ese punto neutral: ninguno de los dos
@@ -18,7 +18,7 @@ motores concretos lo importa al revés, y las piezas de matching se movieron
 acá para evitar el import circular que hubiera resultado de dejarlas en
 traktor_relocate.py mientras ese archivo pasa a heredar de acá.
 
-Qué VIVE acá (no depende del formato de la librería, NML vs SQLCipher):
+Qué VIVE acá (no depende del formato concreto de la librería):
   - Matching puro: `Candidate`, `RelocateRequest`, `build_basename_index`,
     `find_candidates` (movidos tal cual desde traktor_relocate.py, sin
     cambios de lógica — `traktor_relocate.py` los re-exporta para no romper
@@ -32,8 +32,7 @@ Qué VIVE acá (no depende del formato de la librería, NML vs SQLCipher):
     (`_run_resolution`) — indexar disco, recorrer `broken`, decidir 0/1/N
     candidatos, esperar `ask_user`, chequear interrupción, progreso y log.
 
-Qué NO vive acá (sigue en cada motor, `traktor_relocate.py`/
-`rekordbox_relocate.py`): chequeo R-0x de proceso corriendo, abrir/parsear la
+Qué NO vive acá (sigue en cada motor, `traktor_relocate.py`): chequeo R-0x de proceso corriendo, abrir/parsear la
 librería, encontrar los tracks rotos, aplicar UNA reparación concreta
 (`_apply_one`, override por subclase) y el paso final de backup + escritura
 atómica/commit (sync de PLAYLISTS incluido, solo aplica a Traktor).
@@ -75,13 +74,13 @@ def check_disk_space_for_backup(
     Chequeo de espacio libre ANTES de intentar copiar el backup — mismo
     patrón que `worker.py` ya usa para el export (`shutil.disk_usage`,
     comparar contra el tamaño estimado, abortar con mensaje en GB). El
-    write path sobre la librería del usuario (NML/master.db) es MÁS
+    write path sobre la librería del usuario (el NML de Traktor) es MÁS
     riesgoso que copiar mp3s del export y hasta T-018 no tenía esta
     protección (B-3). Compara el tamaño de `src` contra el espacio libre
     en `write_dir` (por default `src.parent`: misma carpeta donde vive
     `listBuddy_backups/`, mismo filesystem). Lanza `OSError` — el llamador
     la trata igual que cualquier otro fallo de backup (abortar sin
-    escribir, ver `backup_collection`/`backup_master_db`).
+    escribir, ver `backup_collection`).
 
     Si no se puede ni siquiera `stat()` el origen, no aborta acá: deja que
     el intento de copia real falle con su propio error específico.
@@ -91,7 +90,7 @@ def check_disk_space_for_backup(
     (`restore_backup`, B-4) escribe en la carpeta del archivo real, no en
     la del backup, y el mensaje debe hablar de "la restauración", no "el
     backup". Los llamados existentes (`backup_collection`/
-    `backup_master_db`) no pasan estos parámetros y mantienen el
+    no pasan estos parámetros y mantienen el
     comportamiento exacto de antes.
     """
     try:
@@ -167,12 +166,11 @@ class ResolutionResult:
 # ─────────────────────────────────────────── Restaurar backup (B-4, T-019) ─
 #
 # Todo lo de acá abajo es un flujo NUEVO y separado del backup-al-escribir
-# (`backup_collection`/`backup_master_db`, que siguen viviendo en cada motor
+# (`backup_collection`, que sigue viviendo en el motor
 # concreto): esto es para cuando el USUARIO quiere volver atrás, no para
 # cuando la app escribe. No se duplica el formato de nombre de archivo — se
-# reusa tal cual (`collection.YYYYMMDD-HHMMSS.nml` / `master.YYYYMMDD-HHMMSS.db`,
-# mismo `_BACKUP_DIR_NAME`), así que un backup creado por cualquiera de los
-# dos motores aparece acá sin adaptar nada.
+# reusa tal cual (`collection.YYYYMMDD-HHMMSS.nml`, mismo `_BACKUP_DIR_NAME`),
+# así que un backup creado por el motor de Traktor aparece acá sin adaptar nada.
 
 @dataclass
 class BackupInfo:
@@ -192,8 +190,8 @@ _BACKUP_TS_FORMAT = "%Y%m%d-%H%M%S"
 
 def _parse_backup_timestamp(filename: str) -> datetime | None:
     """
-    Los nombres son `{prefijo}.{timestamp}.{ext}` (`collection.<ts>.nml`,
-    `master.<ts>.db`) — exactamente 3 partes separadas por '.' porque el
+    Los nombres son `{prefijo}.{timestamp}.{ext}` (`collection.<ts>.nml`)
+    — genérico en el prefijo y la extensión — exactamente 3 partes separadas por '.' porque el
     timestamp usa '-' como separador interno, no '.'. Si no matchea ese
     shape o el timestamp no parsea, devuelve None en vez de lanzar: un
     archivo con nombre inesperado no debe romper el listado completo.
@@ -210,10 +208,10 @@ def _parse_backup_timestamp(filename: str) -> datetime | None:
 def list_backups(target_path: Path, glob_pattern: str) -> list[BackupInfo]:
     """
     Lista los backups disponibles para `target_path` (el archivo real que la
-    app repara: `collection.nml` o `master.db`), buscando en
+    app repara: `collection.nml`), buscando en
     `<carpeta-de-target_path>/listBuddy_backups/` con el mismo patrón de
     nombre que ya usa `_prune_backups` en cada motor (`"collection.*.nml"` /
-    `"master.*.db"`). Orden: más reciente primero (por timestamp parseado
+    `"collection.*.nml"`). Orden: más reciente primero (por timestamp parseado
     del nombre; los que no parsean van al final). Devuelve lista vacía si
     la carpeta de backups no existe todavía — es responsabilidad del
     llamador (UI) mostrar "no hay copias de seguridad" en ese caso, no de
@@ -236,7 +234,7 @@ def list_backups(target_path: Path, glob_pattern: str) -> list[BackupInfo]:
 def restore_backup(backup_path: Path, target_path: Path) -> None:
     """
     Restaura `backup_path` SOBRE `target_path` (B-4) — la dirección opuesta
-    a `backup_collection`/`backup_master_db` (que copian el archivo real
+    a `backup_collection` (que copia el archivo real
     HACIA el backup). Mismas garantías de atomicidad que el resto del write
     path (ADR-001 punto 2, `write_atomic`): se copia a un `.tmp` en la
     MISMA carpeta que `target_path`, `flush + fsync`, y recién entonces
@@ -279,8 +277,8 @@ def restore_backup(backup_path: Path, target_path: Path) -> None:
 class RestoreBackupWorker(QThread):
     """
     QThread mínimo para B-4: `restore_backup` copia un archivo binario
-    completo (hasta cientos de MB para `master.db`, ver I-7) — igual que el
-    resto de la app (ExportWorker, RelocateWorker/RekordboxRelocateWorker),
+    completo (puede ser grande, ver I-7) — igual que el
+    resto de la app (ExportWorker, RelocateWorker),
     nunca corre en el hilo de UI para no congelar la ventana durante la
     copia. Sin progreso incremental a propósito: es una copia de UN
     archivo (no un `os.walk` de una librería entera), la barra indeterminada
@@ -489,13 +487,13 @@ class BaseRelocateWorker(QThread):
     Orquestador COMÚN del loop de resolución (T-017/D-05): indexar disco,
     recorrer `broken`, decidir 0/1/N candidatos, esperar `ask_user`,
     chequear interrupción, emitir progreso y log. Ni sabe ni le importa si
-    la librería es un NML o un master.db — eso lo maneja cada subclase.
+    el formato de la librería — eso lo maneja cada subclase.
 
     Contrato con la subclase (hooks a implementar, todos síncronos y
     livianos salvo `_apply_one`, que puede tocar disco/DB):
       - `_broken_scope_noun()`  -> "colección" | "librería" (texto del log
         de conteo inicial).
-      - `_write_target_name()` -> "NML" | "master.db" (texto del log de
+      - `_write_target_name()` -> "NML" (texto del log de
         cancelación).
       - `_engine_name()`       -> "Traktor" | "Rekordbox" (prefijo del log
         de archivo en el resumen final).
@@ -667,27 +665,11 @@ class BaseRelocateWorker(QThread):
 
         return ResolutionResult(repaired=repaired, skipped=skipped, unresolved=unresolved)
 
-    def _cancel_extra_note(self, repaired: int) -> str:
-        """
-        Nota opcional agregada al log de cancelación cuando el motor
-        concreto ya escribió algo a disco pese a que `_write_target_name()`
-        sigue intacto (I-6): el mensaje base dice "nada se escribió", cierto
-        para Traktor (todo vive en el `ElementTree` en memoria hasta
-        `write_atomic`), pero FALSO para Rekordbox si `repaired > 0` — los
-        ANLZ de las pistas ya procesadas se escriben a disco por pista,
-        antes del commit final de `master.db` (ADR-002 punto 3). Vacío por
-        default; Rekordbox lo overridea.
-        """
-        return ""
-
     def _emit_cancelled(self, repaired: int, skipped: int, unresolved: int) -> None:
         msg = (
             f"\n⏹  Relocate cancelado — {self._write_target_name()} intacto, "
             "nada se escribió."
         )
-        note = self._cancel_extra_note(repaired)
-        if note:
-            msg += f"\n   {note}"
         self.log.emit(msg)
         self.finished_ok.emit(repaired, skipped, unresolved, "cancelled")
 

@@ -25,7 +25,7 @@ Decisiones (ver ADR-001 en engram/02_architecture.md, no rediseñar):
 
 T-017 (D-05): el orquestador del loop de resolución (indexar disco, decidir
 0/1/N candidatos, ask_user + espera, cancelación, progreso, log) vivía acá
-duplicado con rekordbox_relocate.py — se extrajo a
+duplicado con el antiguo motor de Rekordbox (borrado en T-080) — se extrajo a
 `relocate_core.BaseRelocateWorker` (refactor puro, sin cambio de
 comportamiento observable). `RelocateWorker` ahora solo implementa lo
 específico de Traktor: chequeo R-03, parseo/escritura del NML, encontrar
@@ -34,8 +34,7 @@ PLAYLISTS). `Candidate`/`RelocateRequest`/`build_basename_index`/
 `find_candidates` también se movieron a relocate_core.py (evita el import
 circular que resultaría de dejarlos acá mientras este módulo pasa a heredar
 de esa base) y se re-exportan acá tal cual, sin cambio de lógica, para no
-romper imports existentes (tests/test_traktor_relocate.py,
-rekordbox_relocate.py).
+romper imports existentes (tests/test_traktor_relocate.py).
 """
 from __future__ import annotations
 

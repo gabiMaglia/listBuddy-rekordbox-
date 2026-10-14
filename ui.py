@@ -8,7 +8,6 @@ Layout: header-bar (title + controls) → two-column body
 from __future__ import annotations
 
 import itertools
-import os
 import sys
 from io import BytesIO
 from functools import partial
@@ -50,10 +49,9 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtMultimedia import QMediaDevices
 
-from db import get_playlist_tree as rb_get_playlist_tree
+import rekordbox_xml
 from db import key_bpm_of
-from db import open_database as rb_open_database
-from db import playlist_song_count as rb_song_count
+from about_dialog import AboutDialog
 import dialogs
 import icons
 from branding import APP_NAME
@@ -80,11 +78,10 @@ from footer import FooterBar
 from waveform_worker import WaveformWorker
 from relocate_core import BackupInfo, RelocateScope, RestoreBackupWorker, list_backups
 from traktor_relocate import RelocateWorker, is_traktor_running
-from rekordbox_relocate import RekordboxRelocateWorker, is_rekordbox_running
 from update_checker import UpdateCheckWorker, UpdateInfo
 
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
-_APP_VERSION = "1.1.0"
+_APP_VERSION = "1.0.0"
 
 # T-016: header/frameless custom, retoma T-010 (revertido, ver D-06 en
 # engram/03_backlog.md) con un mecanismo seguro. T-010 crasheaba el proceso
@@ -215,7 +212,7 @@ class MainWindow(QMainWindow):
         self._groups: list[PlaylistGroup] = []
         self._source: str = "rekordbox"  # "rekordbox" | "traktor"
         self._preview_worker: PreviewWorker | None = None
-        self._relocate_worker: RelocateWorker | RekordboxRelocateWorker | None = None
+        self._relocate_worker: RelocateWorker | None = None
         self._relocate_source: str = "rekordbox"  # fuente activa al arrancar el relocate en curso
         # I-1: progreso conocido del relocate en curso (último valor de la
         # signal `progress`) — usado para decidir si hace falta confirmar
@@ -281,7 +278,7 @@ class MainWindow(QMainWindow):
         _PC.set_theme(self._theme)
 
         # ── Configuración persistida ─────────────────────────────────────
-        self._rb_db_path = str(self.settings.value("rb_db_path", "") or "")
+        self._rb_xml_path = str(self.settings.value("rb_xml_path", "") or "")
         self._tk_collection_path = str(self.settings.value("tk_collection_path", "") or "")
         self._auto_advance = self.settings.value("auto_advance", True, type=bool)
         self._saved_device_id = str(self.settings.value("audio_device_id", "") or "")
@@ -317,8 +314,16 @@ class MainWindow(QMainWindow):
             lambda checked: self._apply_theme("light" if checked else "dark")
         )
         view_menu.addAction(self.theme_action)
+        self._reload_action = QAction("Recargar librería", self)
+        self._reload_action.setShortcut(QKeySequence("Ctrl+R"))
+        self._reload_action.triggered.connect(self._reload_library)
+        view_menu.addAction(self._reload_action)
         help_menu = self.menuBar().addMenu("Ayuda")
         help_menu.addAction("☕  Donar en Ko-fi…").triggered.connect(self._show_donation)
+        # AboutRole: en macOS Qt lo muda al menú de la app, donde se lo espera.
+        about_action = help_menu.addAction(f"Acerca de {APP_NAME}…")
+        about_action.setMenuRole(QAction.MenuRole.AboutRole)
+        about_action.triggered.connect(self._show_about)
 
         from styles import load_qss
         app = QApplication.instance()
@@ -643,9 +648,10 @@ class MainWindow(QMainWindow):
         )
         self._maint_menu = menu
         self._relocate_state: Literal["idle", "running", "cancelling"] = "idle"
+        self._maintenance_locked = False  # restauración en curso
         # Popup propio y no setMenu: setMenu agrega un indicador que el diseño no tiene.
         self._maint_btn.clicked.connect(self._show_maintenance_menu)
-        self._update_relocate_tooltip()
+        self._sync_maintenance_for_source()
 
     def _show_maintenance_menu(self) -> None:
         self._maint_menu.popup(
@@ -660,17 +666,51 @@ class MainWindow(QMainWindow):
 
     def _set_relocate_state(self, state: Literal["idle", "running", "cancelling"]) -> None:
         self._relocate_state = state
+        self._sync_busy_locks()
         text, enabled = {
             "idle": ("Reparar enlaces rotos…", True),
             "running": ("Cancelar", True),
             "cancelling": ("Cancelando…", False),
         }[state]
         self._act_relocate.setText(text)
-        self._act_relocate.setEnabled(enabled)
+        self._act_relocate.setEnabled(enabled and self._repair_supported())
+
+    def _is_maintenance_busy(self) -> bool:
+        """Hay una reparación o una restauración en curso."""
+        return (
+            getattr(self, "_relocate_state", "idle") != "idle"
+            or getattr(self, "_maintenance_locked", False)
+        )
+
+    def _sync_busy_locks(self) -> None:
+        """Mientras se repara/restaura no se cambia de fuente ni se recarga la librería."""
+        free = not self._is_maintenance_busy()
+        self._src_rb_btn.setEnabled(free)
+        self._src_tk_btn.setEnabled(free)
+        self._reload_action.setEnabled(free)
 
     def _set_maintenance_enabled(self, enabled: bool) -> None:
-        self._act_relocate.setEnabled(enabled)
-        self._act_restore.setEnabled(enabled)
+        self._maintenance_locked = not enabled
+        self._sync_busy_locks()
+        ok = enabled and self._repair_supported()
+        self._act_relocate.setEnabled(ok)
+        self._act_restore.setEnabled(ok)
+
+    _REKORDBOX_REPAIR_HINT = (
+        "Con Rekordbox, List Buddy solo lee el XML exportado y no modifica tu librería.\n"
+        "Para reparar enlaces usá Reubicar en Rekordbox (Archivo → Mostrar todos los\n"
+        "archivos que faltan → Reubicar automáticamente) y volvé a exportar el XML."
+    )
+
+    def _repair_supported(self) -> bool:
+        return self._source == "traktor"
+
+    def _sync_maintenance_for_source(self) -> None:
+        ok = self._repair_supported()
+        self._act_relocate.setEnabled(ok and self._relocate_state != "cancelling")
+        self._act_restore.setEnabled(ok)
+        self._act_auto.setEnabled(ok)
+        self._update_relocate_tooltip()
 
     def _auto_resolve_enabled(self) -> bool:
         return self._act_auto.isChecked()
@@ -683,21 +723,20 @@ class MainWindow(QMainWindow):
                 "la colección de Traktor (collection.nml)."
             )
         else:
-            self._act_relocate.setToolTip(
-                "Busca los archivos con link roto en una carpeta/disco y repara\n"
-                "la librería de Rekordbox 6 (master.db). Rekordbox debe estar\n"
-                "cerrado — se hace backup automático antes de escribir."
-            )
+            self._act_relocate.setToolTip(self._REKORDBOX_REPAIR_HINT)
+        self._act_restore.setToolTip(
+            self._REKORDBOX_REPAIR_HINT if not self._repair_supported() else ""
+        )
 
     def _switch_source(self, source: str) -> None:
-        if source == self._source:
+        if source == self._source or self._is_maintenance_busy():
             return
         self._source = source
         self._track_meta_cache.clear()
         self._exists_cache.clear()
         # Update button states
         self._sync_source_buttons()
-        self._update_relocate_tooltip()
+        self._sync_maintenance_for_source()
         self._load_playlists()
 
     def _build_playlists_header(self) -> QWidget:
@@ -937,16 +976,17 @@ class MainWindow(QMainWindow):
         # ── LIBRERÍAS ──────────────────────────────────────────────────────
         lib_box = section("LIBRERÍAS")
         helper = QLabel(
-            "Normalmente se detectan solas. Configurá la ruta solo si tu librería "
-            "está en una ubicación no estándar (disco externo, varias versiones, etc.)."
+            "Traktor se detecta solo. Para Rekordbox elegí el rekordbox.xml que "
+            "exportaste desde Rekordbox (Archivo → Exportar colección en formato xml)."
         )
         helper.setObjectName("settings_helper")
         helper.setWordWrap(True)
         lib_box.addWidget(helper)
 
         self._rb_path_edit = self._add_path_row(
-            lib_box, "Rekordbox · master.db", self._rb_db_path,
+            lib_box, "Rekordbox · rekordbox.xml", self._rb_xml_path,
             self._browse_rb_path, self._clear_rb_path,
+            empty_text="(sin elegir)", clear_text="Quitar",
         )
         self._tk_path_edit = self._add_path_row(
             lib_box, "Traktor · collection.nml", self._tk_collection_path,
@@ -958,7 +998,10 @@ class MainWindow(QMainWindow):
         outer.addWidget(scroll, 1)
         return page
 
-    def _add_path_row(self, box, label_text, value, on_browse, on_clear) -> QLineEdit:
+    def _add_path_row(
+        self, box, label_text, value, on_browse, on_clear,
+        empty_text: str = "(automático)", clear_text: str = "Auto",
+    ) -> QLineEdit:
         lbl = QLabel(label_text)
         lbl.setObjectName("settings_label")
         box.addWidget(lbl)
@@ -967,7 +1010,7 @@ class MainWindow(QMainWindow):
         rl = QHBoxLayout(row)
         rl.setContentsMargins(0, 0, 0, 0)
         rl.setSpacing(8)
-        edit = QLineEdit(value or "(automático)")
+        edit = QLineEdit(value or empty_text)
         edit.setObjectName("settings_path")
         edit.setReadOnly(True)
         rl.addWidget(edit, 1)
@@ -975,7 +1018,7 @@ class MainWindow(QMainWindow):
         browse.setObjectName("settings_path_btn")
         browse.clicked.connect(on_browse)
         rl.addWidget(browse)
-        auto = QPushButton("Auto")
+        auto = QPushButton(clear_text)
         auto.setObjectName("settings_path_btn")
         auto.clicked.connect(on_clear)
         rl.addWidget(auto)
@@ -1037,20 +1080,20 @@ class MainWindow(QMainWindow):
 
     def _browse_rb_path(self) -> None:
         f, _ = QFileDialog.getOpenFileName(
-            self, "Elegí el master.db de Rekordbox", "",
-            "Rekordbox DB (master.db *.db);;Todos los archivos (*)",
+            self, "Elegí el rekordbox.xml exportado", "",
+            "Rekordbox XML (*.xml);;Todos los archivos (*)",
         )
         if f:
-            self._rb_db_path = f
-            self.settings.setValue("rb_db_path", f)
+            self._rb_xml_path = f
+            self.settings.setValue("rb_xml_path", f)
             self._rb_path_edit.setText(f)
             if self._source == "rekordbox":
                 self._reload_after_path_change()
 
     def _clear_rb_path(self) -> None:
-        self._rb_db_path = ""
-        self.settings.setValue("rb_db_path", "")
-        self._rb_path_edit.setText("(automático)")
+        self._rb_xml_path = ""
+        self.settings.setValue("rb_xml_path", "")
+        self._rb_path_edit.setText("(sin elegir)")
         if self._source == "rekordbox":
             self._reload_after_path_change()
 
@@ -1073,6 +1116,12 @@ class MainWindow(QMainWindow):
         if self._source == "traktor":
             self._reload_after_path_change()
 
+    def _reload_library(self) -> None:
+        """Ver → Recargar librería: vuelve a leer la fuente activa desde disco."""
+        if self._is_maintenance_busy():
+            return
+        self._reload_after_path_change()
+
     def _reload_after_path_change(self) -> None:
         self._track_meta_cache.clear()
         self._exists_cache.clear()
@@ -1083,6 +1132,8 @@ class MainWindow(QMainWindow):
     def _load_playlists(self) -> None:
         """Load playlists from the active source (Rekordbox or Traktor)."""
         self._clear_playlist_area()
+        self._src_rb_btn.setToolTip("")
+        self._db = None  # una carga fallida no puede dejar la librería de la otra fuente
 
         try:
             if self._source == "traktor":
@@ -1096,15 +1147,29 @@ class MainWindow(QMainWindow):
                 tree = get_playlist_tree(col)
                 self._db = col
             else:
-                tree = rb_get_playlist_tree(rb_open_database(self._rb_db_path or None))
-                playlist_song_count = rb_song_count
+                xml_path = Path(self._rb_xml_path) if self._rb_xml_path else None
+                lib = rekordbox_xml.open_library(xml_path)
+                tree = rekordbox_xml.get_playlist_tree(lib)
+                playlist_song_count = rekordbox_xml.playlist_song_count
+                self._db = lib
         except RuntimeError as e:
-            self._show_not_installed(str(e))
+            action = None
+            if self._source == "rekordbox":
+                action = ("Elegir rekordbox.xml…", self._browse_rb_path)
+            self._show_not_installed(str(e), action)
             return
 
         self._populate_playlists(tree, playlist_song_count)
         src_label = "Traktor" if self._source == "traktor" else "Rekordbox"
         self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
+        if self._source == "rekordbox":
+            stamp = f"{self._db.exported_at:%d/%m/%Y %H:%M}"
+            self._log(f"XML exportado el {stamp}.")
+            self._src_rb_btn.setToolTip(f"XML exportado el {stamp}")
+
+    # Seam de test: los tests con BOOT reemplazan `_load_playlists` por un no-op
+    # y llaman a esta referencia para ejercitar la carga real.
+    _load_playlists_real = _load_playlists
 
     def _populate_playlists(self, tree: list[dict], song_count: Callable[[Any], int]) -> None:
         """Arma carpetas y filas desde el árbol; separado de la carga para testearlo sin DB."""
@@ -1173,11 +1238,13 @@ class MainWindow(QMainWindow):
         if stretch is not None:
             layout.addItem(stretch)
 
-    def _show_not_installed(self, detail: str) -> None:
+    def _show_not_installed(
+        self, detail: str, action: tuple[str, Callable[[], None]] | None = None,
+    ) -> None:
         """Show a friendly 'not installed' placeholder in the playlist area."""
         self._clear_playlist_area()
 
-        app_name = "Traktor Pro 3 / 4" if self._source == "traktor" else "Rekordbox 6"
+        app_name = "Traktor Pro 3 / 4" if self._source == "traktor" else "Rekordbox"
         card = QWidget()
         card.setObjectName("not_installed_card")
         card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -1201,6 +1268,14 @@ class MainWindow(QMainWindow):
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sub.setWordWrap(True)
         cl.addWidget(sub)
+
+        if action is not None:
+            text, slot = action
+            btn = QPushButton(text)
+            btn.setObjectName("not_installed_btn")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(slot)
+            cl.addWidget(btn, 0, Qt.AlignmentFlag.AlignCenter)
 
         self.playlist_container_layout.insertWidget(
             self.playlist_container_layout.count() - 1, card
@@ -1380,7 +1455,7 @@ class MainWindow(QMainWindow):
             from rekordbox_export import get_songs as _rb_get_songs
             from db import order_playlist_songs
 
-            # pyrekordbox devuelve Songs desordenada: mismo orden que el export.
+            # mismo orden que el export.
             def _get_songs(pl):  # type: ignore[misc]
                 return order_playlist_songs(_rb_get_songs(pl))
 
@@ -1472,7 +1547,7 @@ class MainWindow(QMainWindow):
 
         # T-015: ✕ destilda el mismo checkbox del árbol (`data.card`, que setChecked()
         # no avisa por señal: _close_group_card actualiza los números a mano).
-        card = PreviewGroupCard(data, self._theme)
+        card = PreviewGroupCard(data, self._theme, can_repair=self._repair_supported())
         if data.card is not None:
             card.close_requested.connect(partial(self._close_group_card, data.card))
         card.repair_requested.connect(partial(self._on_card_repair, False, data))
@@ -1505,6 +1580,8 @@ class MainWindow(QMainWindow):
 
     def _on_card_repair(self, auto: bool, data: GroupData) -> None:
         """Botonera de la tarjeta (D1 del PO): actúa SOLO sobre los rotos de esa carpeta."""
+        if not self._repair_supported():
+            return
         if self._relocate_state != "idle":
             return
         paths = frozenset(t.raw_path for t in data.tracks if not t.exists and t.raw_path)
@@ -1987,34 +2064,11 @@ class MainWindow(QMainWindow):
     def _relocate_target_info(self) -> tuple[str, Path | None]:
         """
         B-2: qué archivo se va a modificar, para mostrarlo completo en el
-        diálogo de confirmación previo. Traktor siempre lo sabe (`self._db`
-        ya está cargado — se valida arriba en `_start_relocate`). Rekordbox
-        puede estar en modo autodetección (`self._rb_db_path` vacío): se
-        intenta resolver la ruta por defecto vía `pyrekordbox.config`
-        (lectura liviana de `options.json`, no abre la DB SQLCipher) solo
-        para mostrarla; si falla, se muestra un texto descriptivo en vez de
-        una ruta. Devuelve (nombre_de_archivo, ruta_o_None).
+        diálogo de confirmación previo. Solo Traktor: `self._db` ya está
+        cargado (se valida arriba en `_start_relocate`).
+        Devuelve (nombre_de_archivo, ruta_o_None).
         """
-        if self._source == "traktor":
-            path = Path(self._db.path) if self._db is not None else None
-            return "collection.nml", path
-        if self._rb_db_path:
-            return "master.db", Path(self._rb_db_path)
-        # `pyrekordbox.config.get_config("rekordbox6", "db_path")` devuelve
-        # `{}` en instalaciones donde el config cache de pyrekordbox nunca se
-        # pobló (confirmado: no se popula ni abriendo Rekordbox6Database()) —
-        # no es una API confiable para esto. Mismo patrón que ya usa
-        # rekordbox_relocate.py (`db.db_directory / "master.db"`) pero sin
-        # abrir la DB SQLCipher solo para mostrar una ruta: se resuelve la
-        # ubicación estándar documentada en CLAUDE.md directamente.
-        if sys.platform.startswith("win"):
-            base = Path(os.environ.get("APPDATA", "")) / "Pioneer" / "rekordbox"
-        elif sys.platform == "darwin":
-            base = Path.home() / "Library" / "Pioneer" / "rekordbox"
-        else:
-            return "master.db", None
-        candidate = base / "master.db"
-        return "master.db", candidate if candidate.exists() else None
+        return "collection.nml", Path(self._db.path) if self._db is not None else None
 
     def _confirm_relocate_start(
         self, search_root: str, auto_resolve: bool,
@@ -2030,7 +2084,7 @@ class MainWindow(QMainWindow):
         advertencia específica — un click de distancia de miles de
         reescrituras silenciosas merece su propia confirmación explícita.
         """
-        app_name = "Traktor" if self._source == "traktor" else "Rekordbox"
+        app_name = "Traktor"
         target_name, target_path = self._relocate_target_info()
         target_display = str(target_path) if target_path else (
             f"{target_name} (ubicación autodetectada de {app_name})"
@@ -2112,7 +2166,9 @@ class MainWindow(QMainWindow):
         """Relocate global (menú, sin argumentos) o, con `scope` (T-073), solo
         de las pistas de una playlist. Con alcance el tilde del menú no se
         lee: `auto_resolve` viene explícito y la confirmación siempre se pide."""
-        if self._source == "traktor" and self._db is None:
+        if not self._repair_supported():
+            return
+        if self._db is None:
             dialogs.warning(
                 self, "Sin librería", "Cargá la librería de Traktor primero."
             )
@@ -2158,8 +2214,8 @@ class MainWindow(QMainWindow):
         self._log(f"→ Buscando en: {search_root}")
 
         # Se fija la fuente activa al arrancar (no self._source en vivo):
-        # el usuario no puede tocar el selector de fuente mientras hay un
-        # relocate corriendo, pero el mensaje de "blocked" al terminar debe
+        # el selector de fuente queda bloqueado mientras hay un relocate
+        # (`_sync_busy_locks`); igual el mensaje de "blocked" al terminar debe
         # referirse a la app que efectivamente se chequeó, no a la que esté
         # seleccionada en ese momento.
         self._relocate_source = self._source
@@ -2168,18 +2224,11 @@ class MainWindow(QMainWindow):
 
         if scope is not None:
             self._log(f"→ Alcance: carpeta «{scope.name}» ({len(scope.paths)} pista(s))")
-        if self._source == "traktor":
-            self._log(f"→ NML: {self._db.path}")
-            self._relocate_worker = RelocateWorker(
-                self._db.path, Path(search_root), auto_resolve=auto_resolve,
-                scope=scope,
-            )
-        else:
-            self._log("→ Librería: Rekordbox 6 (master.db)")
-            self._relocate_worker = RekordboxRelocateWorker(
-                Path(self._rb_db_path) if self._rb_db_path else None,
-                Path(search_root), auto_resolve=auto_resolve, scope=scope,
-            )
+        self._log(f"→ NML: {self._db.path}")
+        self._relocate_worker = RelocateWorker(
+            self._db.path, Path(search_root), auto_resolve=auto_resolve,
+            scope=scope,
+        )
         self._relocate_worker.log.connect(self._log)
         self._relocate_worker.progress.connect(self._on_progress)
         self._relocate_worker.progress.connect(self._on_relocate_progress_track)
@@ -2240,28 +2289,18 @@ class MainWindow(QMainWindow):
         summary = " · ".join(parts) if parts else "Sin enlaces rotos"
 
         if status == "blocked":
-            is_traktor = self._relocate_source == "traktor"
-            app_name = "Traktor" if is_traktor else "Rekordbox"
-            self._footer.end_progress(f"Bloqueado — {app_name} está abierto", "⚠")
+            self._footer.end_progress("Bloqueado — Traktor está abierto", "⚠")
             self.output_status.setText("bloqueado ⚠")
             self._set_status_style("warn")
             self.log_view.setVisible(False)
             self.preview_scroll.setVisible(True)
-            if is_traktor:
-                dialogs.warning(
-                    self, "Traktor está abierto",
-                    "Cerrá Traktor antes de reparar enlaces.\n\n"
-                    "Traktor reescribe collection.nml entero al salir o guardar "
-                    "(no bloquea el archivo a nivel de OS como Rekordbox), así "
-                    "que si queda abierto pisaría las reparaciones.",
-                )
-            else:
-                dialogs.warning(
-                    self, "Rekordbox está abierto",
-                    "Cerrá Rekordbox antes de reparar enlaces.\n\n"
-                    "La base de datos (master.db) queda bloqueada a nivel de "
-                    "sistema operativo mientras el programa está corriendo.",
-                )
+            dialogs.warning(
+                self, "Traktor está abierto",
+                "Cerrá Traktor antes de reparar enlaces.\n\n"
+                "Traktor reescribe collection.nml entero al salir o guardar "
+                "(no bloquea el archivo a nivel de OS), así "
+                "que si queda abierto pisaría las reparaciones.",
+            )
             QTimer.singleShot(8000, self._hide_progress_section)
             return
         elif status == "cancelled":
@@ -2281,7 +2320,7 @@ class MainWindow(QMainWindow):
                 log_path = log_dir() / "listBuddy.log"
             except Exception:
                 log_path = None
-            app_name = "Traktor" if self._relocate_source == "traktor" else "Rekordbox"
+            app_name = "Traktor"
             detail = (
                 "La reparación de enlaces falló y no se escribió nada sobre tu "
                 f"librería de {app_name} (el backup y la escritura son atómicos: "
@@ -2326,6 +2365,8 @@ class MainWindow(QMainWindow):
 
     def _open_restore_backup_dialog(self) -> None:
         """Entrypoint del botón "↩ Restaurar copia de seguridad…"."""
+        if not self._repair_supported():
+            return
         if self._worker and self._worker.isRunning():
             dialogs.warning(
                 self, "Exportación en curso",
@@ -2345,7 +2386,7 @@ class MainWindow(QMainWindow):
 
         target_name, target_path = self._relocate_target_info()
         if target_path is None:
-            app_name = "Traktor" if self._source == "traktor" else "Rekordbox"
+            app_name = "Traktor"
             dialogs.warning(
                 self, "Sin ubicación conocida",
                 f"No se pudo determinar dónde vive tu {target_name} de "
@@ -2353,8 +2394,7 @@ class MainWindow(QMainWindow):
             )
             return
 
-        glob_pattern = "collection.*.nml" if self._source == "traktor" else "master.*.db"
-        backups = list_backups(target_path, glob_pattern)
+        backups = list_backups(target_path, "collection.*.nml")
 
         dlg = RestoreBackupDialog(backups, target_name, self)
         dlg.exec()
@@ -2369,17 +2409,13 @@ class MainWindow(QMainWindow):
         """
         `backup` es un `relocate_core.BackupInfo`. Mismas protecciones que
         el resto del write path: (a) app de origen cerrada — reusa
-        `is_traktor_running`/`is_rekordbox_running`, ya existentes, no se
+        `is_traktor_running`, ya existente, no se
         duplica el chequeo; (b) confirmación explícita con la fecha del
         backup elegido; (c) escritura atómica en un QThread (no congelar la
-        UI copiando un master.db de cientos de MB).
+        UI copiando un collection.nml grande).
         """
-        app_name = "Traktor" if self._source == "traktor" else "Rekordbox"
-        is_running = (
-            is_traktor_running() if self._source == "traktor"
-            else is_rekordbox_running()
-        )
-        if is_running:
+        app_name = "Traktor"
+        if is_traktor_running():
             dialogs.warning(
                 self, f"{app_name} está abierto",
                 f"Cerrá {app_name} antes de restaurar un backup — la "
@@ -2414,7 +2450,7 @@ class MainWindow(QMainWindow):
         self._restore_worker.start()
 
     def _on_restore_backup_finished(self, ok: bool, error_msg: str, target_name: str) -> None:
-        app_name = "Traktor" if self._source == "traktor" else "Rekordbox"
+        app_name = "Traktor"
         self._set_maintenance_enabled(True)
 
         if ok:
@@ -2479,6 +2515,9 @@ class MainWindow(QMainWindow):
 
     def _show_donation(self) -> None:
         DonationDialog(self).exec()
+
+    def _show_about(self) -> None:
+        AboutDialog(_APP_VERSION, self._theme, self).exec()
 
     # ── T-021 (I-8): chequeo de actualización ───────────────────────────────
 

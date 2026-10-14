@@ -3,51 +3,48 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.0/).
 Versionado [SemVer](https://semver.org/lang/es/).
 
-## [Sin publicar]
+## [1.0.0] — sin publicar
 
-### Changed
-- Columna de playlists rediseñada (320 px), búsqueda por nombre, numeración marcada/no marcada diferenciada.
+Primera versión pública. Reúne todo el trabajo previo: las versiones internas
+«1.0.0» y «1.1.0» que figuraban antes en este archivo nunca se publicaron.
 
-## [1.1.0] — 2026-07-24
+### Exportar y escuchar
+- Lee **Rekordbox 6 y 7** a partir del XML que exporta (Archivo → Exportar
+  colección en formato xml; no hace falta cerrar Rekordbox) y **Traktor Pro 3/4**
+  (`collection.nml`),
+  con un selector en el header para cambiar de librería.
+- Exporta las playlists marcadas a carpetas numeradas en el orden real de la
+  playlist (`001 - Artista - Título.ext`). Las pistas ya copiadas se saltan;
+  las que fallan quedan listadas en `_no_exportados.txt` por playlist.
+- Vista previa por carpeta con estado de cada pista, chip de formato y columna
+  **Key · BPM**. Las pistas cuyo archivo falta se marcan y no se reproducen.
+- Reproductor integrado (mp3, wav, aiff, m4a, flac, wma) con forma de onda,
+  seek, barra espaciadora y auto-avance.
+- Búsqueda de playlists por nombre, Todas/Ninguna y carpetas plegables.
 
-Primera versión que **escribe** sobre la librería del usuario (antes era solo
-lectura + copia a destino). Introduce el relocate de enlaces rotos.
+### Reparar enlaces rotos (relocate, solo Traktor)
+- Busca por nombre cada archivo faltante en la carpeta o disco que indiques y
+  **repara el enlace en tu librería de Traktor**. Tolera prefijo numérico y cambio de
+  extensión. Se puede limitar a una playlist.
+- Confirmación previa que dice qué archivo se modifica y dónde queda el backup.
+- **Backup automático** antes de escribir (Traktor: 10) y
+  **restauración** desde el menú Mantenimiento.
+- Escritura atómica: si algo falla, la librería queda intacta.
+- Bloqueo si Traktor está abierto, re-chequeado justo antes de escribir. Detección e indexado cancelables y con progreso.
 
-### Added
-- **Relocate de enlaces rotos** para Traktor (`collection.nml`, F-07 / ADR-001)
-  y Rekordbox 6 (`master.db`, F-08 / ADR-002): busca cada archivo faltante por
-  nombre en una ubicación indicada y repara el enlace en la librería.
-  - Backup automático antes de escribir (Traktor N=10, Rekordbox N=5).
-  - Escritura atómica (NML: temp + fsync + `os.replace`; Rekordbox: transacción
-    SQLite única con `db.commit()`).
-  - Modal de desambiguación ante varios candidatos + checkbox opt-in de
-    resolución automática por mejor coincidencia (default OFF).
-  - Bloqueo si Traktor/Rekordbox está abierto (R-03 / R-01).
-- Barra de título custom en Windows (frameless, estilo dark/light) — T-010.
-- `_no_exportados.txt` por playlist con las pistas que fallaron al exportar — T-008.
-- Suite de tests (`pytest`) para las piezas de correctitud del relocate:
-  encoder/decoder de rutas, matching, backup + poda, escritura atómica y
-  sincronización COLLECTION↔PLAYLISTS.
+- En Rekordbox, List Buddy no modifica la librería: para reparar enlaces se
+  usa Reubicar de Rekordbox y se reexporta el XML.
 
-### Fixed
-- `_location_to_path` en Traktor ahora honra `VOLUME` en Windows: el material en
-  discos distintos al del proceso ya no aparece falsamente como "roto" — T-004/T-005.
-- Concurrencia export ↔ relocate: guard de exclusión mutua + cancelación y
-  progreso incremental durante la indexación de disco — T-007.
+### App
+- Diseño «Mezcla Cálida» en tema oscuro y claro, con fuentes propias (Sora,
+  Public Sans, JetBrains Mono) y diálogos en español rioplatense.
+- Aviso discreto cuando hay una versión nueva en GitHub.
+- «Acerca de» con licencia, falta de garantía, marcas y avisos de terceros
+  (`THIRD_PARTY_NOTICES.md`, `licenses/`).
+- Log rotativo en disco para diagnosticar fallas.
+- Interfaz sobre **PySide6** (Qt for Python, LGPL).
 
-### Changed
-- Los workers de relocate ahora escriben también al **log rotativo** de archivo
-  (antes solo al panel de la UI, que se oculta al terminar): un relocate fallido
-  en producción queda diagnosticable.
-- Un fallo de relocate (backup/escritura/DB) muestra un **QMessageBox** claro con
-  puntero al log, en vez de solo un label que se desvanece.
-
-### Known issues / deuda
-- Rama macOS del encoder `path_to_location` sin verificar contra un NML real de
-  macOS (D-02).
-- Sin tests de UI (Qt) ni contra DB/NML reales; cobertura acotada a lógica pura
-  (D-04, parcialmente mitigada por esta versión).
-
-## [1.0.0] — 2026-07-23
-- Versión inicial: lectura de Rekordbox 6 / Traktor Pro 3-4, exportación
-  numerada, reproductor integrado con espectrograma, settings, logging global.
+### Requisitos
+- macOS 13 o posterior. Windows: pendiente de prueba en esta versión.
+- Rekordbox: exportar la colección a XML. Traktor cerrado solo al reparar enlaces.
+- Sin claves ni componentes de AlphaTheta ni de Native Instruments en el ejecutable.
