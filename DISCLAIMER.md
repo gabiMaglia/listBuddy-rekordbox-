@@ -122,9 +122,9 @@ maximum extent permitted by law, the author and contributors are **not liable
 for any loss or corruption of DJ libraries, collections, playlists, cue
 points, metadata or music files**, wrong relinks, failed performances, lost
 income, or any other direct or indirect damage. List Buddy only reads the
-Rekordbox XML you export and never writes Rekordbox files or your exported
-XML; repairs are stored in List Buddy's own file; it can write a new XML you
-choose to import; it writes Traktor's
+Rekordbox XML you export. It never writes Rekordbox files or your exported
+XML. Rekordbox repairs are stored in List Buddy's own file. It can write a new
+XML where you choose, for you to import. It writes Traktor's
 `collection.nml` only when you choose to repair or restore, after making an
 automatic backup that is **not a substitute for your own backups**. Nothing
 here limits non-waivable consumer rights. Rekordbox and Traktor are
