@@ -12,3 +12,4 @@ _*.png
 *.DS_Store
 .venv-build/
 .superpowers/
+rekordbox_fixes.json*
