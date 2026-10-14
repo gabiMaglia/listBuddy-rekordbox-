@@ -173,3 +173,27 @@ def test_repeated_sibling_names_get_distinct_ids(tmp_path) -> None:
     assert ids == ["Sets/Viernes", "Sets/Viernes#2", "Sets/Viernes#3"]
     assert tree[0]["playlist"].ID == "Sets" and tree[1]["playlist"].ID == "Sets#2"
     assert tree[1]["children"][0]["playlist"].ID == "Sets#2/Viernes"
+
+
+def test_fixes_replace_the_path_and_mark_the_track(tmp_path: Path) -> None:
+    p = tmp_path / "rekordbox.xml"
+    p.write_text(XML, encoding="utf-8")
+    lib = rx.open_library(p, fixes={"file://localhost/Users/gab/Music/uno.mp3": "/Nuevo/uno.mp3"})
+    uno = rx.get_songs(rx.get_playlist_tree(lib)[1]["playlist"])[0]
+    assert uno.FolderPath == str(Path("/Nuevo/uno.mp3"))
+    assert uno.relocated and uno.location == "file://localhost/Users/gab/Music/uno.mp3"
+    tres = rx.get_songs(rx.get_playlist_tree(lib)[0]["children"][0]["playlist"])[0]
+    assert not tres.relocated and tres.element is not None and tres.element.get("TrackID") == "3"
+
+
+def test_path_to_location_round_trips() -> None:
+    for raw in ("/Users/gab/Music/Björk - dos #1.flac", "/a b/c?d.mp3"):
+        loc = rx.path_to_location(Path(raw))
+        assert loc.startswith("file://localhost/") and " " not in loc
+        assert rx.location_to_path(loc) == Path(raw)
+
+
+def test_path_to_location_windows_drive() -> None:
+    from pathlib import PureWindowsPath
+    loc = rx.path_to_location(PureWindowsPath("C:/Users/gab/a b.mp3"))
+    assert loc == "file://localhost/C:/Users/gab/a%20b.mp3"

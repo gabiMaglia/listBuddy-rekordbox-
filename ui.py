@@ -50,6 +50,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtMultimedia import QMediaDevices
 
 import rekordbox_xml
+from app_paths import default_settings_path
 from db import key_bpm_of
 from about_dialog import (
     AboutDialog,
@@ -284,7 +285,7 @@ class MainWindow(QMainWindow):
         self._broken_total: int = 0
         self._render_gen: int = 0   # se incrementa al limpiar; invalida batches stale
 
-        settings_path = settings_path or Path(__file__).parent / ".rbe_settings.ini"
+        settings_path = settings_path or default_settings_path()
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
         self._theme = str(self.settings.value("theme", "dark"))
         from ui_components import PlaylistCard as _PC
