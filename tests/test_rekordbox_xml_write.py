@@ -116,11 +116,25 @@ def test_refuses_symlink_to_the_source(tmp_path: Path) -> None:
 
 def test_failed_write_leaves_no_tmp_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     lib, xml = _lib(tmp_path)
-    def boom(self: ET.ElementTree, *a: object, **k: object) -> None:
+    out = tmp_path / "out"
+    out.mkdir()
+    dest = out / "o.xml"
+    def boom(src: str, dst: str) -> None:
+        assert Path(src).exists()          # el .tmp ya está escrito cuando falla
         raise OSError("disco lleno")
-    monkeypatch.setattr(ET.ElementTree, "write", boom)
-    dest = tmp_path / "o.xml"
+    monkeypatch.setattr(rx.os, "replace", boom)
     with pytest.raises(OSError, match="disco lleno"):
         rx.write_playlists_xml([rx.get_playlist_tree(lib)[0]["playlist"]], dest, source=xml)
-    assert not list(tmp_path.glob("*.tmp"))
+    assert not list(out.glob("*.tmp"))
     assert not dest.exists()
+
+
+def test_refuses_source_named_like_the_temp_file(tmp_path: Path) -> None:
+    lib, xml = _lib(tmp_path)
+    src = tmp_path / "x.xml.tmp"
+    src.write_bytes(xml.read_bytes())
+    before = src.read_bytes()
+    with pytest.raises(ValueError):
+        rx.write_playlists_xml([rx.get_playlist_tree(lib)[0]["playlist"]],
+                               tmp_path / "x.xml", source=src)
+    assert src.read_bytes() == before
