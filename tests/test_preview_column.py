@@ -132,7 +132,7 @@ def test_card_ok_says_todo_ok_and_has_no_repair_button() -> None:
 
 def test_card_partial_shows_count_and_repair_button() -> None:
     out = run(CARD_IMPORT +
-        "w, _ = make(); fill(w, [(12, 3)])\n"
+        "w, _ = make(); w._source = 'traktor'; fill(w, [(12, 3)])\n"
         "c = w.findChildren(PreviewGroupCard)[0]\n"
         "b = c.findChild(QPushButton, 'card_repair_btn')\n"
         "print(c.state, c.findChild(QLabel, 'card_status').text(), b is not None and b.text())\n")
@@ -141,7 +141,7 @@ def test_card_partial_shows_count_and_repair_button() -> None:
 
 def test_card_all_broken_is_collapsed_with_message_and_autoresolve() -> None:
     out = run(CARD_IMPORT +
-        "w, _ = make(); fill(w, [(27, 27)])\n"
+        "w, _ = make(); w._source = 'traktor'; fill(w, [(27, 27)])\n"
         "c = w.findChildren(PreviewGroupCard)[0]\n"
         "print(c.state, c.findChild(QLabel, 'card_status').text(),\n"
         "      c.findChild(QPushButton, 'card_auto_btn').text(),\n"
@@ -153,7 +153,7 @@ def test_card_all_broken_is_collapsed_with_message_and_autoresolve() -> None:
 
 def test_expanding_all_broken_builds_its_rows_once() -> None:
     out = run(CARD_IMPORT +
-        "w, _ = make(); fill(w, [(27, 27)])\n"
+        "w, _ = make(); w._source = 'traktor'; fill(w, [(27, 27)])\n"
         "c = w.findChildren(PreviewGroupCard)[0]\n"
         "b = c.findChild(QPushButton, 'card_expand_btn')\n"
         "b.click(); pump(800); n1 = len(c.findChildren(FileRow))\n"
@@ -206,7 +206,7 @@ FAKE_RELOCATE = (
     "    def __init__(self, db, root, auto_resolve=False, scope=None): calls.append((auto_resolve, scope))\n"
     "    def start(self): pass\n"
     "    def isRunning(self): return False\n"
-    "ui.RekordboxRelocateWorker = FakeWorker\n"
+    "ui.RelocateWorker = FakeWorker\n"
     "ui.QFileDialog.getExistingDirectory = staticmethod(lambda *a, **k: '/tmp/r')\n"
     "asked = []\n"
     "ui.dialogs.question = staticmethod(lambda *a, **k: (asked.append(a[2]), True)[1])\n"
@@ -215,7 +215,7 @@ FAKE_RELOCATE = (
 
 def test_card_repair_button_scopes_the_relocate_to_that_folders_broken_tracks() -> None:
     out = run(CARD_IMPORT + FAKE_RELOCATE +
-        "w, _ = make(); w._source = 'rekordbox'; fill(w, [(12, 3), (9, 2)])\n"
+        "w, _ = make(); w._source = 'traktor'; w._db = type('C', (), {'path': '/tmp/c.nml'})(); fill(w, [(12, 3), (9, 2)])\n"
         "cards = w.findChildren(PreviewGroupCard)\n"
         "cards[0].findChild(QPushButton, 'card_repair_btn').click()\n"
         "auto, sc = calls[0]\n"
@@ -226,7 +226,7 @@ def test_card_repair_button_scopes_the_relocate_to_that_folders_broken_tracks() 
 
 def test_card_autoresolve_always_asks_with_count_and_folder_name_and_ignores_menu_tick() -> None:
     out = run(CARD_IMPORT + FAKE_RELOCATE +
-        "w, _ = make(); w._source = 'rekordbox'; fill(w, [(27, 27)])\n"
+        "w, _ = make(); w._source = 'traktor'; w._db = type('C', (), {'path': '/tmp/c.nml'})(); fill(w, [(27, 27)])\n"
         "w.findChildren(PreviewGroupCard)[0].findChild(QPushButton, 'card_auto_btn').click()\n"
         "auto, sc = calls[0]\n"
         "print(auto, len(sc.paths), len(asked), 'P0' in asked[0], '27 pistas' in asked[0],\n"
@@ -236,7 +236,7 @@ def test_card_autoresolve_always_asks_with_count_and_folder_name_and_ignores_men
 
 def test_card_autoresolve_cancel_in_the_confirmation_starts_nothing() -> None:
     out = run(CARD_IMPORT + FAKE_RELOCATE +
-        "w, _ = make(); w._source = 'rekordbox'; fill(w, [(27, 27)])\n"
+        "w, _ = make(); w._source = 'traktor'; w._db = type('C', (), {'path': '/tmp/c.nml'})(); fill(w, [(27, 27)])\n"
         "ui.dialogs.question = staticmethod(lambda *a, **k: False)\n"
         "w.findChildren(PreviewGroupCard)[0].findChild(QPushButton, 'card_auto_btn').click()\n"
         "print(calls, w._relocate_state)\n")
@@ -245,7 +245,7 @@ def test_card_autoresolve_cancel_in_the_confirmation_starts_nothing() -> None:
 
 def test_card_repair_with_menu_tick_on_does_not_auto_resolve() -> None:
     out = run(CARD_IMPORT + FAKE_RELOCATE +
-        "w, _ = make(); w._source = 'rekordbox'; fill(w, [(12, 3)])\n"
+        "w, _ = make(); w._source = 'traktor'; w._db = type('C', (), {'path': '/tmp/c.nml'})(); fill(w, [(12, 3)])\n"
         "w._act_auto.setChecked(True)\n"
         "w.findChildren(PreviewGroupCard)[0].findChild(QPushButton, 'card_repair_btn').click()\n"
         "print(calls[0][0])\n")
@@ -254,7 +254,7 @@ def test_card_repair_with_menu_tick_on_does_not_auto_resolve() -> None:
 
 def test_global_menu_repair_is_unchanged_and_has_no_scope() -> None:
     out = run(CARD_IMPORT + FAKE_RELOCATE +
-        "w, _ = make(); w._source = 'rekordbox'; w._act_auto.setChecked(True)\n"
+        "w, _ = make(); w._source = 'traktor'; w._db = type('C', (), {'path': '/tmp/c.nml'})(); w._act_auto.setChecked(True)\n"
         "w._start_relocate()\n"
         "print(calls[0])\n")
     assert out == "(True, None)"
@@ -262,7 +262,7 @@ def test_global_menu_repair_is_unchanged_and_has_no_scope() -> None:
 
 def test_card_buttons_do_nothing_while_a_relocate_is_running() -> None:
     out = run(CARD_IMPORT + FAKE_RELOCATE +
-        "w, _ = make(); w._source = 'rekordbox'; fill(w, [(12, 3)])\n"
+        "w, _ = make(); w._source = 'traktor'; w._db = type('C', (), {'path': '/tmp/c.nml'})(); fill(w, [(12, 3)])\n"
         "w._relocate_state = 'running'\n"
         "w.findChildren(PreviewGroupCard)[0].findChild(QPushButton, 'card_repair_btn').click()\n"
         "print(calls)\n")
@@ -272,7 +272,7 @@ def test_card_buttons_do_nothing_while_a_relocate_is_running() -> None:
 def test_card_with_nothing_broken_in_the_data_never_starts_a_global_relocate() -> None:
     # Guardia: un alcance vacío no puede degradarse a «toda la librería».
     out = run(CARD_IMPORT + FAKE_RELOCATE +
-        "w, _ = make(); w._source = 'rekordbox'; fill(w, [(12, 3)])\n"
+        "w, _ = make(); w._source = 'traktor'; w._db = type('C', (), {'path': '/tmp/c.nml'})(); fill(w, [(12, 3)])\n"
         "data = w._rendered_groups[0]\n"
         "for t in data.tracks: t.exists = True\n"
         "w._on_card_repair(False, data)\n"
@@ -282,7 +282,7 @@ def test_card_with_nothing_broken_in_the_data_never_starts_a_global_relocate() -
 
 def test_card_buttons_have_scope_tooltips() -> None:
     out = run(CARD_IMPORT +
-        "w, _ = make(); fill(w, [(12, 3), (5, 5)])\n"
+        "w, _ = make(); w._source = 'traktor'; fill(w, [(12, 3), (5, 5)])\n"
         "cs = w.findChildren(PreviewGroupCard)\n"
         "print(cs[0].findChild(QPushButton, 'card_repair_btn').toolTip(), '|',\n"
         "      cs[1].findChild(QPushButton, 'card_auto_btn').toolTip())\n")

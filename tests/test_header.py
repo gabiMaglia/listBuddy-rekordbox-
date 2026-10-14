@@ -153,7 +153,7 @@ def test_menu_actions_fire_the_same_flows_as_before() -> None:
         "calls = []\n"
         "ui.MainWindow._start_relocate = lambda self: calls.append('relocate')\n"
         "ui.MainWindow._open_restore_backup_dialog = lambda self: calls.append('restore')\n"
-        "w, _ = make()\n"
+        "w, _ = make(); w._source = 'traktor'; w._sync_maintenance_for_source()\n"
         "w._act_relocate.trigger(); w._act_restore.trigger()\n"
         "print(calls)\n"
     )
@@ -165,7 +165,7 @@ def test_relocate_action_becomes_cancel_while_running() -> None:
         "calls = []\n"
         "ui.MainWindow._start_relocate = lambda self: calls.append('start')\n"
         "ui.MainWindow._cancel_relocate = lambda self: calls.append('cancel')\n"
-        "w, _ = make()\n"
+        "w, _ = make(); w._source = 'traktor'; w._sync_maintenance_for_source()\n"
         "w._set_relocate_state('running')\n"
         "assert w._act_relocate.text() == 'Cancelar'\n"
         "w._act_relocate.trigger()\n"
@@ -181,7 +181,7 @@ def test_relocate_action_becomes_cancel_while_running() -> None:
 
 def test_auto_resolve_starts_off_and_is_not_persisted() -> None:
     out = run(
-        "w, tmp = make()\n"
+        "w, tmp = make(); w._source = 'traktor'; w._sync_maintenance_for_source()\n"
         "assert w._auto_resolve_enabled() is False\n"
         "w._act_auto.trigger(); w.settings.sync()\n"
         "assert w._auto_resolve_enabled() is True\n"
@@ -195,7 +195,7 @@ def test_auto_resolve_starts_off_and_is_not_persisted() -> None:
 
 def test_restore_in_flight_disables_both_maintenance_actions() -> None:
     out = run(
-        "w, _ = make()\n"
+        "w, _ = make(); w._source = 'traktor'; w._sync_maintenance_for_source()\n"
         "w._set_maintenance_enabled(False)\n"
         "assert not w._act_relocate.isEnabled() and not w._act_restore.isEnabled()\n"
         "w._set_maintenance_enabled(True)\n"
@@ -306,7 +306,7 @@ def test_relocate_finished_returns_menu_action_to_idle(status: str, start_state:
         "ui.dialogs.warning = staticmethod(lambda *a, **k: None)\n"
         "ui.dialogs.critical = staticmethod(lambda *a, **k: None)\n"
         "w, _ = make()\n"
-        "w._relocate_source = 'rekordbox'\n"
+        "w._relocate_source = 'traktor'; w._source = 'traktor'\n"
         f"w._set_relocate_state({start_state!r})\n"
         # precondición: si ya estuviera en reposo el test sería vacuo
         "assert w._act_relocate.text() != 'Reparar enlaces rotos…'\n"

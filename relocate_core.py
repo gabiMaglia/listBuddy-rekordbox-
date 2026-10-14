@@ -1,16 +1,16 @@
 """
 relocate_core.py
 ------------------
-Orquestador y matching COMPARTIDOS entre `RelocateWorker` (Traktor,
-traktor_relocate.py) y `RekordboxRelocateWorker` (Rekordbox,
-rekordbox_relocate.py) — T-017 / D-05.
+Orquestador y matching del relocate (`RelocateWorker` de Traktor,
+traktor_relocate.py) — T-017 / D-05. Rekordbox ya no se repara desde la app
+(T-080).
 
 D-05 (engram/07_production_readiness.md): el loop `run()` de ambos workers
 era ~90% idéntico (decidir 0/1/N candidatos, `ask_user`/modal, chequeo de
 cancelación, progreso, logging), duplicado en dos archivos. El núcleo de
 matching (`Candidate`/`RelocateRequest`/`build_basename_index`/
 `find_candidates`) ya vivía compartido, pero importado por nombre de archivo
-concreto (`rekordbox_relocate` -> `traktor_relocate`), acoplamiento que la
+concreto (motor de Rekordbox -> `traktor_relocate`), acoplamiento que la
 auditoría señaló como parte del mismo problema ("el módulo de Rekordbox
 depende del de Traktor por el *nombre del archivo*, no por un módulo
 compartido neutral"). Este módulo es ese punto neutral: ninguno de los dos
@@ -32,8 +32,7 @@ Qué VIVE acá (no depende del formato de la librería, NML vs SQLCipher):
     (`_run_resolution`) — indexar disco, recorrer `broken`, decidir 0/1/N
     candidatos, esperar `ask_user`, chequear interrupción, progreso y log.
 
-Qué NO vive acá (sigue en cada motor, `traktor_relocate.py`/
-`rekordbox_relocate.py`): chequeo R-0x de proceso corriendo, abrir/parsear la
+Qué NO vive acá (sigue en cada motor, `traktor_relocate.py`): chequeo R-0x de proceso corriendo, abrir/parsear la
 librería, encontrar los tracks rotos, aplicar UNA reparación concreta
 (`_apply_one`, override por subclase) y el paso final de backup + escritura
 atómica/commit (sync de PLAYLISTS incluido, solo aplica a Traktor).
@@ -280,7 +279,7 @@ class RestoreBackupWorker(QThread):
     """
     QThread mínimo para B-4: `restore_backup` copia un archivo binario
     completo (hasta cientos de MB para `master.db`, ver I-7) — igual que el
-    resto de la app (ExportWorker, RelocateWorker/RekordboxRelocateWorker),
+    resto de la app (ExportWorker, RelocateWorker),
     nunca corre en el hilo de UI para no congelar la ventana durante la
     copia. Sin progreso incremental a propósito: es una copia de UN
     archivo (no un `os.walk` de una librería entera), la barra indeterminada

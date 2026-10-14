@@ -29,8 +29,6 @@ def run(code: str) -> str:
 def test_no_app_module_imports_pyrekordbox_or_sqlcipher() -> None:
     offenders = []
     for p in PROJECT_ROOT.glob("*.py"):
-        if p.name == "rekordbox_relocate.py":  # lo borra la Task 3 de T-080
-            continue
         text = p.read_text(encoding="utf-8")
         if any(m in text for m in ("import pyrekordbox", "from pyrekordbox", "sqlcipher3")):
             offenders.append(p.name)
@@ -74,3 +72,56 @@ def test_settings_rows_empty_text_and_clear_button_labels() -> None:
         "print(w._rb_path_edit.text(), clear_label(w._rb_path_edit), "
         "w._tk_path_edit.text(), clear_label(w._tk_path_edit))\n")
     assert out == "(sin elegir) Quitar (automático) Auto"
+
+
+REKORDBOX_HINT = "Reubicar"
+
+
+def test_rekordbox_maintenance_actions_are_disabled_with_a_hint() -> None:
+    out = run(BOOT +
+        "w, s = make(); w._source = 'rekordbox'; w._sync_maintenance_for_source()\n"
+        "print(w._act_relocate.isEnabled(), w._act_restore.isEnabled(), "
+        f"{REKORDBOX_HINT!r} in w._act_relocate.toolTip())\n")
+    assert out == "False False True"
+
+
+def test_traktor_maintenance_actions_stay_enabled() -> None:
+    out = run(BOOT +
+        "w, s = make(); w._source = 'traktor'; w._sync_maintenance_for_source()\n"
+        "w._set_relocate_state('idle')\n"
+        "print(w._act_relocate.isEnabled(), w._act_restore.isEnabled())\n")
+    assert out == "True True"
+
+
+def test_idle_state_does_not_reenable_repair_for_rekordbox() -> None:
+    out = run(BOOT +
+        "w, s = make(); w._source = 'rekordbox'; w._sync_maintenance_for_source()\n"
+        "w._set_relocate_state('idle'); w._set_maintenance_enabled(True)\n"
+        "print(w._act_relocate.isEnabled(), w._act_restore.isEnabled())\n")
+    assert out == "False False"
+
+
+def test_start_relocate_never_runs_for_rekordbox() -> None:
+    out = run(BOOT +
+        "called = []\n"
+        "ui.QFileDialog.getExistingDirectory = staticmethod(lambda *a, **k: called.append(1) or '/tmp')\n"
+        "w, s = make(); w._source = 'rekordbox'; w._start_relocate()\n"
+        "print(called, w._relocate_state)\n")
+    assert out == "[] idle"
+
+
+def test_preview_card_hides_repair_buttons_when_not_supported() -> None:
+    out = run(BOOT +
+        "from PySide6.QtWidgets import QPushButton\n"
+        "from preview_card import PreviewGroupCard\n"
+        "from preview_worker import GroupData, TrackRow\n"
+        "rows = [TrackRow(num=f'{i:03d}', title='t', artist='', ext='.mp3', raw_path=f'/x/{i}.mp3', exists=i > 1) for i in range(5)]\n"
+        "d = GroupData(name='P', order=1, total_count=5, tracks=rows)\n"
+        "on = PreviewGroupCard(d, 'dark'); off = PreviewGroupCard(d, 'dark', can_repair=False)\n"
+        "names = lambda c: sorted(b.objectName() for b in c.findChildren(QPushButton) if b.objectName().startswith('card_'))\n"
+        "print(names(on), names(off))\n")
+    assert out == "['card_repair_btn'] []"
+
+
+def test_rekordbox_relocate_module_is_gone() -> None:
+    assert not (PROJECT_ROOT / "rekordbox_relocate.py").exists()
