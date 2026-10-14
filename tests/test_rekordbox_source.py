@@ -74,14 +74,105 @@ def test_settings_rows_empty_text_and_clear_button_labels() -> None:
     assert out == "(sin elegir) Quitar (automático) Auto"
 
 
-REKORDBOX_HINT = "Reubicar"
+LOADED = (LOAD + "w, s = make(); w._source = 'rekordbox'; w._rb_xml_path = str(xml); orig(w); app.processEvents()\n")
+
+FAKE_RB = (
+    "class Sig:\n"
+    "    def connect(self, *a): pass\n"
+    "calls = []\n"
+    "class FakeWorker:\n"
+    "    log = progress = ask_user = finished_ok = Sig()\n"
+    "    def __init__(self, xml_path, fixes_path, root, auto_resolve=False, scope=None):\n"
+    "        calls.append((xml_path, fixes_path, root, auto_resolve, scope))\n"
+    "    def start(self): pass\n"
+    "    def isRunning(self): return False\n"
+    "ui.RekordboxXmlRelocateWorker = FakeWorker\n"
+    "ui.QFileDialog.getExistingDirectory = staticmethod(lambda *a, **k: '/tmp/r')\n"
+    "asked = []\n"
+    "ui.dialogs.question = staticmethod(lambda *a, **k: (asked.append(a[2]), True)[1])\n"
+)
 
 
-def test_rekordbox_maintenance_actions_are_disabled_with_a_hint() -> None:
+def test_rekordbox_repair_enabled_with_loaded_xml_and_restore_stays_disabled() -> None:
+    out = run(BOOT + LOADED +
+        "print(w._act_relocate.isEnabled(), w._act_restore.isEnabled(), "
+        "'no se modifican' in w._act_relocate.toolTip(), 'no hay copias' in w._act_restore.toolTip())\n")
+    assert out == "True False True True"
+
+
+def test_rekordbox_repair_disabled_without_a_loaded_xml() -> None:
     out = run(BOOT +
         "w, s = make(); w._source = 'rekordbox'; w._sync_maintenance_for_source()\n"
-        "print(w._act_relocate.isEnabled(), w._act_restore.isEnabled(), "
-        f"{REKORDBOX_HINT!r} in w._act_relocate.toolTip())\n")
+        "w._set_relocate_state('idle'); w._set_maintenance_enabled(True)\n"
+        "print(w._act_relocate.isEnabled(), w._act_restore.isEnabled())\n")
+    assert out == "False False"
+
+
+def test_start_relocate_builds_the_xml_worker_and_confirms_without_backup() -> None:
+    lines = run_lines(BOOT + FAKE_RB + LOADED +
+        "w._start_relocate()\n"
+        "x, f, r, auto, sc = calls[0]\n"
+        "print(x == w._db.path, f == w._fixes_store.path, str(r), auto, sc, w._relocate_state)\n"
+        "t = asked[0]\n"
+        "print('No se modifica tu XML' in t, 'backup' in t.lower(), 'Cerrá' in t, '¿Continuar?' in t)\n")
+    assert lines[-2:] == ["True True /tmp/r False None running", "True False False True"]
+
+
+def test_saved_fixes_show_the_repaired_path_and_mark_the_row_relocated() -> None:
+    lines = run_lines(BOOT + LOADED +
+        "loc = 'file://localhost/no/existe/uno.mp3'\n"
+        "w._fixes_store.merge({loc: '/tmp/nuevo/uno.mp3'}); orig(w); app.processEvents()\n"
+        "w._all_cards[0].setChecked(True)\n"
+        "g = w._extract_preview_data([w._all_cards[0]])[0]\n"
+        "print(g.tracks[0].raw_path, g.tracks[0].relocated)\n"
+        "g = w._extract_preview_data([w._all_cards[0]])[0]\n"
+        "print(g.tracks[0].relocated)\n")
+    assert lines[-2:] == ["/tmp/nuevo/uno.mp3 True", "True"]
+
+
+def test_forget_fixes_clears_the_store_and_reloads() -> None:
+    lines = run_lines(BOOT + LOADED +
+        "loc = 'file://localhost/no/existe/uno.mp3'\n"
+        "w._fixes_store.merge({loc: '/tmp/nuevo/uno.mp3'}); w._sync_rb_actions()\n"
+        "msgs = []\n"
+        "ui.dialogs.question = staticmethod(lambda *a, **k: (msgs.append(a[2]), True)[1])\n"
+        "print(w._act_forget_fixes.isEnabled())\n"
+        "w._act_forget_fixes.trigger(); app.processEvents()\n"
+        "print(w._fixes_store.count(), '1 reparaciones' in msgs[0], w._act_forget_fixes.isEnabled())\n")
+    assert lines[-2:] == ["True", "0 True False"]
+
+
+def test_export_xml_writes_the_checked_playlist_and_explains_the_import() -> None:
+    lines = run_lines(BOOT + LOADED +
+        "out = pathlib.Path(tempfile.mkdtemp()) / 'sal.xml'\n"
+        "ui.QFileDialog.getSaveFileName = staticmethod(lambda *a, **k: (str(out), ''))\n"
+        "info = []\n"
+        "ui.dialogs.information = staticmethod(lambda *a, **k: info.append(a[2]))\n"
+        "print(w._act_export_xml.isEnabled())\n"
+        "w._all_cards[0].setChecked(True); w._sync_rb_actions()\n"
+        "print(w._act_export_xml.isEnabled())\n"
+        "w._act_export_xml.trigger()\n"
+        "print(out.exists(), 'Viernes' in out.read_text(encoding='utf-8'), 'Importar lista de reproducción' in info[0], 'sin archivo' in info[0])\n")
+    assert lines[-3:] == ["False", "True", "True True True True"]
+
+
+def test_export_xml_onto_the_loaded_xml_warns_and_writes_nothing() -> None:
+    out = run(BOOT + LOADED +
+        "before = xml.read_text(encoding='utf-8')\n"
+        "ui.QFileDialog.getSaveFileName = staticmethod(lambda *a, **k: (str(xml), ''))\n"
+        "warns = []\n"
+        "ui.dialogs.warning = staticmethod(lambda *a, **k: warns.append(a[2]))\n"
+        "ui.dialogs.information = staticmethod(lambda *a, **k: warns.append('INFO'))\n"
+        "w._all_cards[0].setChecked(True); w._sync_rb_actions(); w._act_export_xml.trigger()\n"
+        "print(len(warns), warns[0] != 'INFO', xml.read_text(encoding='utf-8') == before)\n")
+    assert out == "1 True True"
+
+
+def test_export_xml_is_disabled_for_traktor() -> None:
+    out = run(BOOT +
+        "w, s = make(); w._source = 'traktor'; w._sync_maintenance_for_source(); w._sync_rb_actions()\n"
+        "print(w._act_export_xml.isEnabled(), w._act_forget_fixes.isEnabled(), "
+        "w._act_export_xml.isVisible() or True)\n")
     assert out == "False False True"
 
 
@@ -99,15 +190,6 @@ def test_idle_state_does_not_reenable_repair_for_rekordbox() -> None:
         "w._set_relocate_state('idle'); w._set_maintenance_enabled(True)\n"
         "print(w._act_relocate.isEnabled(), w._act_restore.isEnabled())\n")
     assert out == "False False"
-
-
-def test_start_relocate_never_runs_for_rekordbox() -> None:
-    out = run(BOOT +
-        "called = []\n"
-        "ui.QFileDialog.getExistingDirectory = staticmethod(lambda *a, **k: called.append(1) or '/tmp')\n"
-        "w, s = make(); w._source = 'rekordbox'; w._start_relocate()\n"
-        "print(called, w._relocate_state)\n")
-    assert out == "[] idle"
 
 
 def test_preview_card_hides_repair_buttons_when_not_supported() -> None:
