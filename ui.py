@@ -1184,9 +1184,16 @@ class MainWindow(QMainWindow):
         self._reload_after_path_change()
 
     def _reload_after_path_change(self) -> None:
+        """Vuelve a leer la fuente activa conservando las playlists marcadas."""
+        keep = {self._playlist_cache_key(c.playlist) for c in self._all_cards if c.isChecked()}
         self._track_meta_cache.clear()
         self._exists_cache.clear()
         self._load_playlists()
+        if keep:
+            for card in self._all_cards:
+                if self._playlist_cache_key(card.playlist) in keep:
+                    card.setChecked(True)
+            self._update_order_numbers()
 
     # ──────────────────────────────────────── Load playlists ─────────────
 
@@ -2273,7 +2280,7 @@ class MainWindow(QMainWindow):
     def _confirm_rb_relocate_start(
         self, auto_resolve: bool, scope: RelocateScope | None,
     ) -> bool:
-        lines = []
+        lines: list[str] = []
         if scope is not None:
             n = len(scope.paths)
             lines += [
@@ -2527,10 +2534,8 @@ class MainWindow(QMainWindow):
             # El NML cambió: invalidar caches y recargar el árbol para que
             # el preview refleje los paths reparados (las pistas que ya no
             # están rotas dejan de figurar "en rojo").
-            self._track_meta_cache.clear()
-            self._exists_cache.clear()
             self._log("↻  Recargando playlists con los enlaces reparados…")
-            self._load_playlists()
+            self._reload_after_path_change()
 
         QTimer.singleShot(8000, self._hide_progress_section)
 

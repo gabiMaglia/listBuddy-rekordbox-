@@ -320,3 +320,34 @@ def test_not_installed_card_text_is_not_clipped_in_the_narrow_column() -> None:
         "sub = w.findChild(QLabel, 'not_installed_sub')\n"
         "print(sub.height() >= sub.heightForWidth(sub.width()), sub.width() < 400)\n")
     assert out == "True True"
+
+
+# ───────────────────── arreglos de la revisión final (T-081) ─────────────────────
+
+REAL = "ui.MainWindow._load_playlists = ui.MainWindow._load_playlists_real\n"
+LOC = "loc = 'file://localhost/no/existe/uno.mp3'\n"
+
+
+def test_checked_playlists_survive_the_reload_after_a_repair() -> None:
+    lines = run_lines(BOOT + LOADED + REAL + LOC +
+        "w._all_cards[0].setChecked(True); w._update_order_numbers()\n"
+        "w._fixes_store.merge({loc: '/tmp/nuevo/uno.mp3'})\n"
+        "w._on_relocate_finished(1, 0, 0, 'ok'); app.processEvents()\n"
+        "print(len(w._all_cards), w._all_cards[0].isChecked(), w.count_pill.text())\n"
+        "g = w._extract_preview_data([c for c in w._all_cards if c.isChecked()])[0]\n"
+        "print(g.tracks[0].raw_path, g.tracks[0].relocated)\n")
+    assert lines[-2:] == ["1 True 1/1", "/tmp/nuevo/uno.mp3 True"]
+
+
+def test_checked_playlists_survive_forget_and_manual_reload_but_not_a_source_switch() -> None:
+    lines = run_lines(BOOT + LOADED + REAL + LOC +
+        "ui.dialogs.question = staticmethod(lambda *a, **k: True)\n"
+        "w._fixes_store.merge({loc: '/tmp/nuevo/uno.mp3'})\n"
+        "w._all_cards[0].setChecked(True)\n"
+        "w._forget_rb_fixes(); app.processEvents()\n"
+        "print(w._all_cards[0].isChecked())\n"
+        "w._reload_library(); app.processEvents()\n"
+        "print(w._all_cards[0].isChecked())\n"
+        "w._switch_source('traktor'); w._switch_source('rekordbox'); app.processEvents()\n"
+        "print(len(w._all_cards), any(c.isChecked() for c in w._all_cards))\n")
+    assert lines[-3:] == ["True", "True", "1 False"]
