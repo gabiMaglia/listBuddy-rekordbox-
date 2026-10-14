@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="icon_preview.png" width="120" alt="listBuddy">
+<img src="icon_preview.png" width="120" alt="List Buddy">
 
-# listBuddy
+# List Buddy
 
 **Exportá y previsualizá las playlists de tu librería de DJ.**
 Lee Rekordbox (por el XML que exporta) y Traktor Pro 3/4, y copia las pistas a carpetas numeradas en orden.
@@ -16,7 +16,7 @@ Lee Rekordbox (por el XML que exporta) y Traktor Pro 3/4, y copia las pistas a c
 
 ## Qué hace
 
-listBuddy lee tu librería de **Rekordbox** (6 o 7, por el XML que exporta) o **Traktor Pro 3/4**, te muestra el árbol
+List Buddy lee tu librería de **Rekordbox** (6 o 7, por el XML que exporta) o **Traktor Pro 3/4**, te muestra el árbol
 de carpetas y playlists, y copia las pistas que elijas a carpetas organizadas con un
 prefijo numérico de orden:
 
@@ -39,7 +39,7 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 - 🎹 **Key · BPM** — tonalidad y tempo de cada pista en la vista previa.
 - ⏯ **Controles** — play/pausa desde la nota ♪ o con la **barra espaciadora**, barra de progreso con seek, y auto-avance al siguiente track.
 - ⚠️ **Detección de archivos faltantes** — las pistas cuyo archivo no está en disco se marcan en rojo y no se pueden reproducir.
-- 🔧 **Reparar enlaces rotos (relocate)** — si moviste tu música de carpeta o disco, listBuddy busca cada archivo faltante por nombre en la ubicación que le indiques y **repara el enlace en tu propia librería** (Traktor `collection.nml`; en Rekordbox usá Reubicar, ver abajo). Siempre hace un **backup automático** antes de escribir, y ante varios candidatos te pregunta cuál es (con un checkbox opcional para resolver todo automáticamente por mejor coincidencia).
+- 🔧 **Reparar enlaces rotos (relocate)** — si moviste tu música de carpeta o disco, List Buddy busca cada archivo faltante por nombre en la ubicación que le indiques y **repara el enlace en tu propia librería** (Traktor `collection.nml`; en Rekordbox usá Reubicar, ver abajo). Siempre hace un **backup automático** antes de escribir, y ante varios candidatos te pregunta cuál es (con un checkbox opcional para resolver todo automáticamente por mejor coincidencia).
 - ⚙️ **Configuración** — selector de dispositivo de salida de audio, auto-avance y override de la ruta de la librería.
 - 🌗 **Tema claro / oscuro** estilo macOS.
 - ⚡ **Sin congelamientos** — las operaciones pesadas (existencia de archivos, decodificación, copia) corren en hilos separados.
@@ -95,12 +95,12 @@ Las pistas ya existentes en el destino se saltan, así que podés re-exportar si
 ### Reparar enlaces rotos (solo Traktor)
 
 Si moviste tu música y en la vista previa aparecen pistas **en rojo** (archivo no
-encontrado), podés reparar los enlaces sin salir de listBuddy:
+encontrado), podés reparar los enlaces sin salir de List Buddy:
 
 1. Asegurate de que **Traktor esté cerrado** (la librería se escribe, no solo se lee).
 2. Hacé click en **🔧 Reparar enlaces rotos…** y elegí la carpeta o disco donde
    está ahora tu música.
-3. listBuddy indexa esa ubicación y, por cada pista rota, busca el archivo por
+3. List Buddy indexa esa ubicación y, por cada pista rota, busca el archivo por
    nombre:
    - **1 coincidencia** → la aplica.
    - **varias** → te muestra un modal para que elijas (o tildá *Resolver
@@ -155,7 +155,7 @@ python scripts/make_icon.py
 
 ## Logs
 
-Si algo falla, listBuddy escribe un log rotativo que podés adjuntar para diagnosticar:
+Si algo falla, List Buddy escribe un log rotativo que podés adjuntar para diagnosticar:
 
 | OS | Ruta |
 |---|---|
@@ -204,7 +204,7 @@ Python · PySide6 · numpy · PyInstaller
 
 ## Donaciones
 
-listBuddy es gratuito y de código abierto. Si te sirvió, podés invitarme un café:
+List Buddy es gratuito y de código abierto. Si te sirvió, podés invitarme un café:
 
 **[ko-fi.com/gabrielmaglia](https://ko-fi.com/gabrielmaglia)** — o escaneá el QR desde
 el menú **Ayuda → Donar en Ko-fi…** dentro de la app.
@@ -234,5 +234,5 @@ También están en la app, en **Ayuda → Acerca de List Buddy**.
 ---
 
 <sub>Rekordbox es una marca de AlphaTheta / Pioneer DJ. Traktor es una marca de Native
-Instruments. listBuddy es un proyecto independiente, sin afiliación ni respaldo de esas
+Instruments. List Buddy es un proyecto independiente, sin afiliación ni respaldo de esas
 empresas; lee sus librerías localmente para tu propio uso.</sub>
