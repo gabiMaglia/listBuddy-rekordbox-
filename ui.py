@@ -51,7 +51,13 @@ from PySide6.QtMultimedia import QMediaDevices
 
 import rekordbox_xml
 from db import key_bpm_of
-from about_dialog import AboutDialog
+from about_dialog import (
+    AboutDialog,
+    FirstRunNoticeDialog,
+    disclaimer_dialog,
+    disclaimer_pending,
+    mark_disclaimer_accepted,
+)
 import dialogs
 import icons
 from branding import APP_NAME
@@ -81,6 +87,12 @@ from traktor_relocate import RelocateWorker, is_traktor_running
 from update_checker import UpdateCheckWorker, UpdateInfo
 
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
+# Va en cada confirmación antes de escribir sobre una librería (DISCLAIMER.md §3-4).
+_RESPONSIBILITY_LINE = (
+    f"Lo hacés bajo tu responsabilidad: {APP_NAME} no se hace cargo de pérdidas "
+    "o daños en tu librería (Ayuda → Aviso legal). Tené tu propia copia de "
+    "seguridad."
+)
 _APP_VERSION = "1.0.0"
 
 # T-016: header/frameless custom, retoma T-010 (revertido, ver D-06 en
@@ -321,6 +333,9 @@ class MainWindow(QMainWindow):
         help_menu = self.menuBar().addMenu("Ayuda")
         help_menu.addAction("☕  Donar en Ko-fi…").triggered.connect(self._show_donation)
         # AboutRole: en macOS Qt lo muda al menú de la app, donde se lo espera.
+        help_menu.addAction("Aviso legal…").triggered.connect(
+            lambda: disclaimer_dialog(self).exec()
+        )
         about_action = help_menu.addAction(f"Acerca de {APP_NAME}…")
         about_action.setMenuRole(QAction.MenuRole.AboutRole)
         about_action.triggered.connect(self._show_about)
@@ -345,6 +360,20 @@ class MainWindow(QMainWindow):
         self._space_shortcut.activated.connect(self._on_space)
 
         self._start_update_check()
+        # Después del show: el aviso legal sale sobre la ventana, no antes.
+        QTimer.singleShot(0, self._maybe_show_disclaimer)
+
+    def _maybe_show_disclaimer(self) -> None:
+        """Aviso legal resumido al primer arranque y cuando cambia su versión."""
+        if not disclaimer_pending(self.settings):
+            return
+        dlg = FirstRunNoticeDialog(self._theme, self)
+        dlg.accepted.connect(lambda: mark_disclaimer_accepted(self.settings))
+        dlg.open()
+
+    # Seam de test: BOOT reemplaza `_maybe_show_disclaimer` por un no-op para
+    # que ningún diálogo aparezca en los tests; los que lo prueban usan este alias.
+    _maybe_show_disclaimer_real = _maybe_show_disclaimer
 
     # ──────────────────────────────────────── Widget builders ────────────
 
@@ -2130,7 +2159,7 @@ class MainWindow(QMainWindow):
                 "la mejor coincidencia en todas las pistas con más de un "
                 "candidato, sin preguntar una por una.",
             ]
-        lines += ["", "¿Continuar?"]
+        lines += ["", _RESPONSIBILITY_LINE, "", "¿Continuar?"]
 
         yes = dialogs.question(
             self, f"Reparar enlaces rotos — {app_name}",
@@ -2156,7 +2185,7 @@ class MainWindow(QMainWindow):
             f"Ya se revisaron {done} de {total or done} enlace(s) roto(s) "
             "en esta sesión. Nada se guarda hasta el final: si continuás, "
             "se pierden todas las decisiones ya tomadas y vas a tener que "
-            f"volver a repasarlas.\n\n{action_label} de todos modos?",
+            f"volver a repasarlas.\n\n¿{action_label} de todos modos?",
         )
         return yes
 
@@ -2434,7 +2463,7 @@ class MainWindow(QMainWindow):
             f"del {when} — ¿seguro?\n\n"
             f"Archivo que se sobrescribe:\n{target_path}\n\n"
             "Tus otros backups no se tocan y siguen disponibles si te "
-            "equivocás de copia.",
+            f"equivocás de copia.\n\n{_RESPONSIBILITY_LINE}",
         )
         if not yes:
             return
