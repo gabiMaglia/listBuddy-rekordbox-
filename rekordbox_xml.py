@@ -14,8 +14,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path, PureWindowsPath
-from urllib.parse import unquote
+from pathlib import Path, PurePath, PureWindowsPath
+from urllib.parse import quote, unquote
 from xml.etree import ElementTree as ET
 
 _DRIVE = re.compile(r"^/[A-Za-z]:")
@@ -29,6 +29,9 @@ class RbxTrack:
     bpm: float | None = None
     key: str = ""         # Tonality tal cual la exporta Rekordbox («8A», «Am»)
     TrackNo: int = 0      # posición 1..n dentro de la playlist
+    location: str = ""    # URI Location original del XML (clave de las reparaciones)
+    relocated: bool = False  # True si la ruta viene de una reparación de List Buddy
+    element: ET.Element | None = field(default=None, repr=False, compare=False)
 
     @property
     def FolderPath(self) -> str:
@@ -124,6 +127,14 @@ def location_to_path(location: str) -> Path:
     return Path(path)
 
 
+def path_to_location(path: PurePath) -> str:
+    """Ruta local → URI `file://localhost/...` (inversa de `location_to_path`)."""
+    posix = path.as_posix()
+    if not posix.startswith("/"):
+        posix = "/" + posix          # «C:/Users/...» → «/C:/Users/...»
+    return "file://localhost" + quote(posix, safe="/:")
+
+
 def _float_or_none(raw: str | None) -> float | None:
     try:
         value = float(raw) if raw else 0.0
@@ -143,18 +154,23 @@ def _index_collection(root: ET.Element) -> tuple[dict[str, ET.Element], dict[str
     return by_id, by_location
 
 
-def _track(el: ET.Element, position: int) -> RbxTrack:
+def _track(el: ET.Element, position: int, fixes: dict[str, str]) -> RbxTrack:
+    location = el.get("Location", "") or ""
+    fixed = fixes.get(location)
     return RbxTrack(
         title=el.get("Name", "") or "",
         artist=el.get("Artist", "") or "",
-        file_path=location_to_path(el.get("Location", "")),
+        file_path=Path(fixed) if fixed else location_to_path(location),
         bpm=_float_or_none(el.get("AverageBpm")),
         key=(el.get("Tonality", "") or "").strip(),
         TrackNo=position,
+        location=location,
+        relocated=bool(fixed),
+        element=el,
     )
 
 
-def _build_tree(root: ET.Element) -> list[dict]:
+def _build_tree(root: ET.Element, fixes: dict[str, str]) -> list[dict]:
     by_id, by_location = _index_collection(root)
 
     def walk(node: ET.Element, prefix: str, node_id: str) -> dict:
@@ -166,7 +182,7 @@ def _build_tree(root: ET.Element) -> list[dict]:
                 el = index.get(ref.get("Key", ""))
                 if el is None or not el.get("Location"):
                     continue
-                track = _track(el, len(tracks) + 1)
+                track = _track(el, len(tracks) + 1, fixes)
                 if track.file_path.name:
                     tracks.append(track)
             return {"playlist": RbxPlaylist(name, node_id, tracks), "children": []}
@@ -188,7 +204,7 @@ def _build_tree(root: ET.Element) -> list[dict]:
     return walk_children(root_node, "")
 
 
-def open_library(path: Path | None) -> RekordboxXmlLibrary:
+def open_library(path: Path | None, fixes: dict[str, str] | None = None) -> RekordboxXmlLibrary:
     """Abre el rekordbox.xml exportado. RuntimeError con texto para el usuario si falla."""
     if path is None:
         raise RuntimeError(f"Todavía no elegiste el XML de Rekordbox.\n\n{_HOW_TO_EXPORT}")
@@ -203,7 +219,7 @@ def open_library(path: Path | None) -> RekordboxXmlLibrary:
         ) from e
     if root.tag != "DJ_PLAYLISTS":
         raise RuntimeError(f"Ese archivo no es un XML de Rekordbox.\n\n{_HOW_TO_EXPORT}")
-    return RekordboxXmlLibrary(path, _build_tree(root))
+    return RekordboxXmlLibrary(path, _build_tree(root, fixes or {}))
 
 
 def get_playlist_tree(library: RekordboxXmlLibrary) -> list[dict]:
