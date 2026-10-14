@@ -817,7 +817,7 @@ class RestoreBackupDialog(QDialog):
     def __init__(
         self,
         backups: list,  # list[relocate_core.BackupInfo]
-        target_name: str,  # "collection.nml" | "master.db"
+        target_name: str,  # "collection.nml"
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
