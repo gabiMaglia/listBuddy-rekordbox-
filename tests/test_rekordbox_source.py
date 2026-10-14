@@ -100,14 +100,6 @@ def test_rekordbox_repair_enabled_with_loaded_xml_and_restore_stays_disabled() -
     assert out == "True False True True"
 
 
-def test_rekordbox_repair_disabled_without_a_loaded_xml() -> None:
-    out = run(BOOT +
-        "w, s = make(); w._source = 'rekordbox'; w._sync_maintenance_for_source()\n"
-        "w._set_relocate_state('idle'); w._set_maintenance_enabled(True)\n"
-        "print(w._act_relocate.isEnabled(), w._act_restore.isEnabled())\n")
-    assert out == "False False"
-
-
 def test_start_relocate_builds_the_xml_worker_and_confirms_without_backup() -> None:
     lines = run_lines(BOOT + FAKE_RB + LOADED +
         "w._start_relocate()\n"
@@ -138,7 +130,7 @@ def test_forget_fixes_clears_the_store_and_reloads() -> None:
         "ui.dialogs.question = staticmethod(lambda *a, **k: (msgs.append(a[2]), True)[1])\n"
         "print(w._act_forget_fixes.isEnabled())\n"
         "w._act_forget_fixes.trigger(); app.processEvents()\n"
-        "print(w._fixes_store.count(), '1 reparaciones' in msgs[0], w._act_forget_fixes.isEnabled())\n")
+        "print(w._fixes_store.count(), 'la reparación guardada' in msgs[0], w._act_forget_fixes.isEnabled())\n")
     assert lines[-2:] == ["True", "0 True False"]
 
 
@@ -172,7 +164,7 @@ def test_export_xml_is_disabled_for_traktor() -> None:
     out = run(BOOT +
         "w, s = make(); w._source = 'traktor'; w._sync_maintenance_for_source(); w._sync_rb_actions()\n"
         "print(w._act_export_xml.isEnabled(), w._act_forget_fixes.isEnabled(), "
-        "w._act_export_xml.isVisible() or True)\n")
+        "w._act_export_xml.isEnabled() == w._act_forget_fixes.isEnabled())\n")
     assert out == "False False True"
 
 
@@ -351,3 +343,50 @@ def test_checked_playlists_survive_forget_and_manual_reload_but_not_a_source_swi
         "w._switch_source('traktor'); w._switch_source('rekordbox'); app.processEvents()\n"
         "print(len(w._all_cards), any(c.isChecked() for c in w._all_cards))\n")
     assert lines[-3:] == ["True", "True", "1 False"]
+
+
+def test_forget_prompt_uses_plural_for_several_fixes() -> None:
+    out = run(BOOT + LOADED +
+        "w._fixes_store.merge({'a': '/x/a.mp3', 'b': '/x/b.mp3'})\n"
+        "msgs = []\n"
+        "ui.dialogs.question = staticmethod(lambda *a, **k: (msgs.append(a[2]), False)[1])\n"
+        "w._forget_rb_fixes()\n"
+        "print('las 2 reparaciones guardadas' in msgs[0])\n")
+    assert out == "True"
+
+
+def test_auto_resolve_tooltip_claims_backup_only_for_traktor() -> None:
+    out = run(BOOT + LOADED +
+        "rb = w._act_auto.toolTip()\n"
+        "w._source = 'traktor'; w._sync_maintenance_for_source()\n"
+        "tk = w._act_auto.toolTip()\n"
+        "print('backup' in rb, 'Olvidar reparaciones' in rb, 'backup reversible' in tk)\n")
+    assert out == "False True True"
+
+
+def test_failed_load_resyncs_maintenance_so_repair_is_not_left_enabled() -> None:
+    out = run(BOOT + LOADED + REAL +
+        "assert w._act_relocate.isEnabled()\n"
+        "xml.unlink(); w._load_playlists(); app.processEvents()\n"
+        "print(w._db is None, w._act_relocate.isEnabled(), w._act_auto.isEnabled())\n")
+    assert out == "True False False"
+
+
+def test_export_xml_default_name_uses_the_brand() -> None:
+    out = run(BOOT + LOADED +
+        "seen = []\n"
+        "ui.QFileDialog.getSaveFileName = staticmethod(lambda *a, **k: (seen.append(a[2]), ('', ''))[1])\n"
+        "w._all_cards[0].setChecked(True); w._sync_rb_actions(); w._act_export_xml.trigger()\n"
+        "print(pathlib.Path(seen[0]).name)\n")
+    assert out == "List Buddy - Viernes.xml"
+
+
+def test_export_info_mentions_refreshing_an_already_open_xml_panel() -> None:
+    out = run(BOOT + LOADED +
+        "out = pathlib.Path(tempfile.mkdtemp()) / 'sal.xml'\n"
+        "ui.QFileDialog.getSaveFileName = staticmethod(lambda *a, **k: (str(out), ''))\n"
+        "info = []\n"
+        "ui.dialogs.information = staticmethod(lambda *a, **k: info.append(a[2]))\n"
+        "w._all_cards[0].setChecked(True); w._sync_rb_actions(); w._act_export_xml.trigger()\n"
+        "print('ya estaba abierto, actualizalo' in info[0])\n")
+    assert out == "True"

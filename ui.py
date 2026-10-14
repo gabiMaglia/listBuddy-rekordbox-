@@ -678,12 +678,7 @@ class MainWindow(QMainWindow):
         )
         self._act_auto.setCheckable(True)
         self._act_auto.setChecked(False)  # D4: siempre apagado al arrancar, no se persiste
-        self._act_auto.setToolTip(
-            "Con >1 candidato, aplica directo el de mejor score sin mostrar\n"
-            "el modal de desambiguación. El log marca cada uno como '(auto)'.\n"
-            "Riesgo: un nombre de archivo idéntico para canciones distintas\n"
-            "podría auto-resolver al candidato equivocado (backup reversible)."
-        )
+        self._act_auto.setToolTip(self._AUTO_TIP_TRAKTOR)
         self._maint_menu = menu
         self._relocate_state: Literal["idle", "running", "cancelling"] = "idle"
         self._maintenance_locked = False  # restauración en curso
@@ -751,6 +746,17 @@ class MainWindow(QMainWindow):
         self._act_restore.setEnabled(enabled and self._source == "traktor")
         self._sync_rb_actions()
 
+    _AUTO_TIP_BASE = (
+        "Con >1 candidato, aplica directo el de mejor score sin mostrar\n"
+        "el modal de desambiguación. El log marca cada uno como '(auto)'.\n"
+        "Riesgo: un nombre de archivo idéntico para canciones distintas\n"
+        "podría auto-resolver al candidato equivocado"
+    )
+    _AUTO_TIP_TRAKTOR = _AUTO_TIP_BASE + " (backup reversible)."
+    _AUTO_TIP_REKORDBOX = (
+        _AUTO_TIP_BASE + ".\nCon Rekordbox, las reparaciones se pueden deshacer "
+        "con «Olvidar reparaciones de Rekordbox…»."
+    )
     _REKORDBOX_RESTORE_HINT = (
         "Con Rekordbox no hay copias: List Buddy no modifica tu XML ni tu librería."
     )
@@ -785,6 +791,9 @@ class MainWindow(QMainWindow):
                 "Busca los archivos que faltan en una carpeta o disco. Las rutas nuevas "
                 "se guardan en List Buddy para exportar; tu XML y Rekordbox no se modifican."
             )
+        self._act_auto.setToolTip(
+            self._AUTO_TIP_TRAKTOR if self._source == "traktor" else self._AUTO_TIP_REKORDBOX
+        )
         self._act_restore.setToolTip(
             self._REKORDBOX_RESTORE_HINT if self._source != "traktor" else ""
         )
@@ -1225,6 +1234,7 @@ class MainWindow(QMainWindow):
             if self._source == "rekordbox":
                 action = ("Elegir rekordbox.xml…", self._browse_rb_path)
             self._show_not_installed(str(e), action)
+            self._sync_maintenance_for_source()
             return
 
         self._populate_playlists(tree, playlist_song_count)
@@ -2138,8 +2148,9 @@ class MainWindow(QMainWindow):
             return
         if not dialogs.question(
             self, "Olvidar reparaciones de Rekordbox",
-            f"Vas a olvidar las {n} reparaciones guardadas para Rekordbox. "
-            "Las pistas vuelven a figurar con su ruta original del XML. "
+            ("Vas a olvidar la reparación guardada para Rekordbox. " if n == 1
+             else f"Vas a olvidar las {n} reparaciones guardadas para Rekordbox. ")
+            + "Las pistas vuelven a figurar con su ruta original del XML. "
             "Tu XML y Rekordbox no cambian. ¿Seguir?",
         ):
             return
@@ -2160,7 +2171,7 @@ class MainWindow(QMainWindow):
         first = sanitize(str(getattr(playlists[0], "Name", "") or "playlist"))
         dest_str, _ = QFileDialog.getSaveFileName(
             self, "Guardar XML para Rekordbox",
-            str(Path.home() / "Desktop" / f"ListBuddy - {first}.xml"),
+            str(Path.home() / "Desktop" / f"List Buddy - {first}.xml"),
             "Rekordbox XML (*.xml)",
         )
         if not dest_str:
@@ -2195,6 +2206,9 @@ class MainWindow(QMainWindow):
             "«Biblioteca importada» elegí este archivo.",
             "3. En el panel izquierdo abrí «rekordbox xml» → Listas de reproducción, "
             "hacé clic derecho en la lista y elegí «Importar lista de reproducción».",
+            "",
+            "Si el panel «rekordbox xml» ya estaba abierto, actualizalo (clic derecho → "
+            "Actualizar / volvé a elegir el archivo) para ver la lista nueva.",
         ]
         dialogs.information(self, "XML para Rekordbox", "\n".join(lines))
 
