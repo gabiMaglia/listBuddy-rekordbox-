@@ -1,6 +1,7 @@
 """T-081: XML nuevo con las playlists marcadas, importable en Rekordbox."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -77,3 +78,49 @@ def test_output_reloads_with_list_buddy_itself(tmp_path: Path) -> None:
     again = rx.open_library(dest)
     songs = rx.get_songs(rx.get_playlist_tree(again)[0]["playlist"])
     assert [s.Title for s in songs] == ["Perdido", "Ok"] and all(s.file_path.exists() for s in songs)
+
+
+def _case_insensitive(tmp: Path) -> bool:
+    probe = tmp / "CaseProbe.tmp"
+    probe.write_bytes(b"x")
+    try:
+        return probe.with_name("caseprobe.tmp").exists()
+    finally:
+        probe.unlink()
+
+
+def test_refuses_case_swapped_name_of_the_source(tmp_path: Path) -> None:
+    lib, xml = _lib(tmp_path)
+    if not _case_insensitive(tmp_path):
+        pytest.skip("el filesystem distingue mayúsculas")
+    before = xml.read_bytes()
+    with pytest.raises(ValueError):
+        rx.write_playlists_xml([rx.get_playlist_tree(lib)[0]["playlist"]],
+                               xml.with_name(xml.name.upper()), source=xml)
+    assert xml.read_bytes() == before
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="sin os.symlink")
+def test_refuses_symlink_to_the_source(tmp_path: Path) -> None:
+    lib, xml = _lib(tmp_path)
+    link = tmp_path / "link.xml"
+    try:
+        os.symlink(xml, link)
+    except OSError:
+        pytest.skip("no se pudo crear el symlink")
+    before = xml.read_bytes()
+    with pytest.raises(ValueError):
+        rx.write_playlists_xml([rx.get_playlist_tree(lib)[0]["playlist"]], link, source=xml)
+    assert xml.read_bytes() == before
+
+
+def test_failed_write_leaves_no_tmp_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    lib, xml = _lib(tmp_path)
+    def boom(self: ET.ElementTree, *a: object, **k: object) -> None:
+        raise OSError("disco lleno")
+    monkeypatch.setattr(ET.ElementTree, "write", boom)
+    dest = tmp_path / "o.xml"
+    with pytest.raises(OSError, match="disco lleno"):
+        rx.write_playlists_xml([rx.get_playlist_tree(lib)[0]["playlist"]], dest, source=xml)
+    assert not list(tmp_path.glob("*.tmp"))
+    assert not dest.exists()
