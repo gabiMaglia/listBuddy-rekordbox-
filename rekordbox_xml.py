@@ -159,11 +159,13 @@ def _index_collection(root: ET.Element) -> tuple[dict[str, ET.Element], dict[str
 
 def _track(el: ET.Element, position: int, fixes: dict[str, str]) -> RbxTrack:
     location = el.get("Location", "") or ""
-    fixed = fixes.get(location)
+    original = location_to_path(location)
+    # Una reparación solo vale mientras el archivo original siga ausente.
+    fixed = fixes.get(location) if not original.exists() else None
     return RbxTrack(
         title=el.get("Name", "") or "",
         artist=el.get("Artist", "") or "",
-        file_path=Path(fixed) if fixed else location_to_path(location),
+        file_path=Path(fixed) if fixed else original,
         bpm=_float_or_none(el.get("AverageBpm")),
         key=(el.get("Tonality", "") or "").strip(),
         TrackNo=position,
@@ -251,6 +253,15 @@ def _same_file(a: Path, b: Path) -> bool:
     return a.exists() and b.exists() and os.path.samefile(a, b)
 
 
+def _adapt_relocated(el: ET.Element, t: RbxTrack) -> None:
+    """Size real del archivo reparado; si cambió el formato, fuera los datos del viejo."""
+    with contextlib.suppress(OSError):
+        el.set("Size", str(t.file_path.stat().st_size))
+    if t.file_path.suffix.lower() != location_to_path(t.location).suffix.lower():
+        for attr in ("Kind", "BitRate", "SampleRate"):
+            el.attrib.pop(attr, None)
+
+
 def write_playlists_xml(
     playlists: list[RbxPlaylist], dest: Path, *, source: Path | None = None,
     name_suffix: str = " (List Buddy)", app_version: str = "",
@@ -276,6 +287,8 @@ def write_playlists_xml(
                 "TRACK", Name=t.title, Artist=t.artist)
             el.set("TrackID", new_id)
             el.set("Location", path_to_location(t.file_path) if t.relocated else t.location)
+            if t.relocated:
+                _adapt_relocated(el, t)
             collection.append(el)
             relocated += int(t.relocated)
             missing += int(not t.file_path.exists())
