@@ -62,3 +62,15 @@ def test_settings_row_is_about_the_xml() -> None:
         "texts = [l.text() for l in w.findChildren(QLabel)]\n"
         "print('Rekordbox · rekordbox.xml' in texts, any('master.db' in t for t in texts))\n")
     assert out == "True False"
+
+
+def test_settings_rows_empty_text_and_clear_button_labels() -> None:
+    out = run(BOOT +
+        "from PySide6.QtWidgets import QPushButton\n"
+        "w, s = make()\n"
+        "def clear_label(edit):\n"
+        "    btns = [b.text() for b in edit.parentWidget().findChildren(QPushButton)]\n"
+        "    return btns[-1]\n"
+        "print(w._rb_path_edit.text(), clear_label(w._rb_path_edit), "
+        "w._tk_path_edit.text(), clear_label(w._tk_path_edit))\n")
+    assert out == "(sin elegir) Quitar (automático) Auto"
