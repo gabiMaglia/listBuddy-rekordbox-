@@ -227,3 +227,14 @@ def test_export_from_xml_copies_numbered_files_and_reports_missing() -> None:
         "print((d / '_no_exportados.txt').read_text(encoding='utf-8').splitlines()[0].startswith('Dos'))\n"
     )
     assert lines[-2:] == ["['1 - Ana - Uno.mp3', '_no_exportados.txt'] [(1, 1, 0, 'ok')]", "True"]
+
+
+def test_not_installed_card_text_is_not_clipped_in_the_narrow_column() -> None:
+    out = run(BOOT + LOAD +
+        "from PySide6.QtWidgets import QLabel\n"
+        "w, s = make(); w.resize(1100, 720); w._source = 'rekordbox'; w._rb_xml_path = ''\n"
+        "orig(w)\n"
+        "for _ in range(5): app.processEvents()\n"
+        "sub = w.findChild(QLabel, 'not_installed_sub')\n"
+        "print(sub.height() >= sub.heightForWidth(sub.width()), sub.width() < 400)\n")
+    assert out == "True True"
