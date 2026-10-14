@@ -202,3 +202,28 @@ def test_rekordbox_button_tooltip_shows_export_date() -> None:
         "w._source = 'traktor'; w._tk_collection_path = '/no/existe.nml'; orig(w)\n"
         "print(w._src_rb_btn.toolTip() == '')\n")
     assert out == "True"
+
+
+def test_export_from_xml_copies_numbered_files_and_reports_missing() -> None:
+    # Camino real: rekordbox.xml -> reader -> ExportWorker.run() (síncrono, sin event loop).
+    # El ancho del prefijo es el del worker: len(str(cantidad)) -> con 2 pistas, «1 - ».
+    lines = run_lines(
+        "import pathlib, tempfile\n"
+        "import rekordbox_xml, worker\n"
+        "tmp = pathlib.Path(tempfile.mkdtemp())\n"
+        "audio = tmp / 'uno.mp3'; audio.write_bytes(b'abc')\n"
+        "xml = tmp / 'rekordbox.xml'\n"
+        "xml.write_text('<?xml version=\"1.0\"?><DJ_PLAYLISTS Version=\"1.0.0\"><COLLECTION>'\n"
+        "  f'<TRACK TrackID=\"1\" Name=\"Uno\" Artist=\"Ana\" Location=\"file://localhost{audio}\"/>'\n"
+        "  '<TRACK TrackID=\"2\" Name=\"Dos\" Artist=\"Beto\" Location=\"file://localhost/no/existe/dos.mp3\"/>'\n"
+        "  '</COLLECTION><PLAYLISTS><NODE Type=\"0\" Name=\"ROOT\"><NODE Type=\"1\" Name=\"Set\" KeyType=\"0\">'\n"
+        "  '<TRACK Key=\"1\"/><TRACK Key=\"2\"/></NODE></NODE></PLAYLISTS></DJ_PLAYLISTS>', encoding='utf-8')\n"
+        "lib = rekordbox_xml.open_library(xml)\n"
+        "pl = rekordbox_xml.get_playlist_tree(lib)[0]['playlist']\n"
+        "dest = tmp / 'out'; done = []\n"
+        "w = worker.ExportWorker([pl], dest); w.finished_ok.connect(lambda *a: done.append(a)); w.run()\n"
+        "d = dest / 'Set'\n"
+        "print(sorted(p.name for p in d.iterdir()), done)\n"
+        "print((d / '_no_exportados.txt').read_text(encoding='utf-8').splitlines()[0].startswith('Dos'))\n"
+    )
+    assert lines[-2:] == ["['1 - Ana - Uno.mp3', '_no_exportados.txt'] [(1, 1, 0, 'ok')]", "True"]
