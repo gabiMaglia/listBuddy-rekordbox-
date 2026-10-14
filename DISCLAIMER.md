@@ -1,6 +1,6 @@
 # Aviso legal y descargo de responsabilidad — List Buddy
 
-Versión del aviso: 2026-10-14
+Versión del aviso: 2026-10-15
 
 Al instalar o usar List Buddy aceptás este aviso. Si no estás de acuerdo, no
 uses el programa. Este aviso complementa las secciones 15 («Disclaimer of
@@ -20,9 +20,12 @@ sistema operativo o con tu librería en particular.
 
 ## 2. Qué hace List Buddy con tus archivos
 
-- **Rekordbox:** List Buddy solo **lee** el archivo `rekordbox.xml` que vos
-  exportás desde Rekordbox. Nunca abre, modifica ni escribe la base de datos
-  de Rekordbox (`master.db`) ni ningún otro archivo de Rekordbox.
+- **Rekordbox:** List Buddy solo **lee** el `rekordbox.xml` que vos exportás.
+  Nunca abre, modifica ni escribe la base de datos de Rekordbox ni el XML que
+  exportaste. Si reparás enlaces, las rutas nuevas se guardan en un archivo
+  propio de List Buddy. «Exportar XML para Rekordbox» crea un archivo **nuevo**
+  donde vos elijas; importarlo en Rekordbox es una acción tuya dentro de
+  Rekordbox y se rige por su funcionamiento.
 - **Traktor:** List Buddy lee tu colección (`collection.nml`) y **la modifica
   únicamente cuando vos elegís «Reparar enlaces rotos» o «Restaurar copia de
   seguridad»**, después de pedirte confirmación. Antes de escribir hace una
@@ -119,7 +122,9 @@ maximum extent permitted by law, the author and contributors are **not liable
 for any loss or corruption of DJ libraries, collections, playlists, cue
 points, metadata or music files**, wrong relinks, failed performances, lost
 income, or any other direct or indirect damage. List Buddy only reads the
-Rekordbox XML you export and never writes Rekordbox files; it writes Traktor's
+Rekordbox XML you export and never writes Rekordbox files or your exported
+XML; repairs are stored in List Buddy's own file; it can write a new XML you
+choose to import; it writes Traktor's
 `collection.nml` only when you choose to repair or restore, after making an
 automatic backup that is **not a substitute for your own backups**. Nothing
 here limits non-waivable consumer rights. Rekordbox and Traktor are
