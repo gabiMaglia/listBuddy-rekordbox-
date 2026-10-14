@@ -43,3 +43,20 @@ def test_clear_removes_everything(tmp_path: Path) -> None:
 
 def test_fixes_live_next_to_the_settings_file(tmp_path: Path) -> None:
     assert fixes_path_for(tmp_path / "s.ini") == tmp_path / "rekordbox_fixes.json"
+
+
+def test_failed_save_removes_the_tmp_and_reraises(tmp_path, monkeypatch) -> None:
+    import pytest
+    import rekordbox_fixes as rf
+
+    store = rf.FixStore(tmp_path / "rekordbox_fixes.json")
+
+    def boom(*a, **k):
+        assert (tmp_path / "rekordbox_fixes.json.tmp").exists()
+        raise OSError("disco lleno")
+
+    monkeypatch.setattr(rf.os, "replace", boom)
+    with pytest.raises(OSError):
+        store.save({"a": "b"})
+    assert not (tmp_path / "rekordbox_fixes.json.tmp").exists()
+    assert not store.path.exists()
