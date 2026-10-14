@@ -133,6 +133,11 @@ Archivo → Mostrar todos los archivos que faltan → Reubicar automáticamente.
       importada» elegí este archivo.
    3. En el panel izquierdo abrí «rekordbox xml» → Listas de reproducción, hacé clic
       derecho en la lista y elegí «Importar lista de reproducción».
+   4. Si el panel «rekordbox xml» ya estaba abierto, actualizalo (clic derecho →
+      Actualizar / volvé a elegir el archivo) para ver la lista nueva.
+
+Los cue points y el beatgrid viajan tal como estaban en la pista original: si el
+archivo reparado es otra versión (otro master o formato), revisalos en Rekordbox.
 
 Mantenimiento → **Olvidar reparaciones de Rekordbox…** descarta las rutas guardadas.
 La configuración y las reparaciones viven en `~/Library/Application Support/listBuddy/`
