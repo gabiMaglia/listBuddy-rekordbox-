@@ -951,6 +951,7 @@ class MainWindow(QMainWindow):
         self._rb_path_edit = self._add_path_row(
             lib_box, "Rekordbox · rekordbox.xml", self._rb_xml_path,
             self._browse_rb_path, self._clear_rb_path,
+            empty_text="(sin elegir)", clear_text="Quitar",
         )
         self._tk_path_edit = self._add_path_row(
             lib_box, "Traktor · collection.nml", self._tk_collection_path,
@@ -962,7 +963,10 @@ class MainWindow(QMainWindow):
         outer.addWidget(scroll, 1)
         return page
 
-    def _add_path_row(self, box, label_text, value, on_browse, on_clear) -> QLineEdit:
+    def _add_path_row(
+        self, box, label_text, value, on_browse, on_clear,
+        empty_text: str = "(automático)", clear_text: str = "Auto",
+    ) -> QLineEdit:
         lbl = QLabel(label_text)
         lbl.setObjectName("settings_label")
         box.addWidget(lbl)
@@ -971,7 +975,7 @@ class MainWindow(QMainWindow):
         rl = QHBoxLayout(row)
         rl.setContentsMargins(0, 0, 0, 0)
         rl.setSpacing(8)
-        edit = QLineEdit(value or "(automático)")
+        edit = QLineEdit(value or empty_text)
         edit.setObjectName("settings_path")
         edit.setReadOnly(True)
         rl.addWidget(edit, 1)
@@ -979,7 +983,7 @@ class MainWindow(QMainWindow):
         browse.setObjectName("settings_path_btn")
         browse.clicked.connect(on_browse)
         rl.addWidget(browse)
-        auto = QPushButton("Auto")
+        auto = QPushButton(clear_text)
         auto.setObjectName("settings_path_btn")
         auto.clicked.connect(on_clear)
         rl.addWidget(auto)
