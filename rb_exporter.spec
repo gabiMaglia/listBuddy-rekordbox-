@@ -28,7 +28,7 @@ a = Analysis(
     # que los textos viajen con el binario; el diálogo «Acerca de» los lee.
     datas=certifi_datas + [
         ('qss', 'qss'), ('fonts', 'fonts'),
-        ('LICENSE', '.'), ('THIRD_PARTY_NOTICES.md', '.'), ('licenses', 'licenses'),
+        ('LICENSE', '.'), ('THIRD_PARTY_NOTICES.md', '.'), ('DISCLAIMER.md', '.'), ('licenses', 'licenses'),
     ],
     # Nota: los módulos locales (traktor_relocate, traktor_db, worker,
     # preview_worker, etc.) NO van acá: se importan de forma estática desde
