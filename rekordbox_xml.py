@@ -11,6 +11,8 @@ preview_worker.py, db.key_bpm_of y ui.py.
 """
 from __future__ import annotations
 
+import copy
+import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -232,3 +234,54 @@ def playlist_song_count(playlist: RbxPlaylist) -> int:
 
 def get_songs(playlist: RbxPlaylist) -> list[RbxTrack]:
     return list(playlist.tracks)
+
+
+@dataclass
+class WriteResult:
+    playlists: int
+    tracks: int
+    relocated: int
+    missing: int
+
+
+def write_playlists_xml(
+    playlists: list[RbxPlaylist], dest: Path, *, source: Path | None = None,
+    name_suffix: str = " (List Buddy)", app_version: str = "",
+) -> WriteResult:
+    """XML nuevo (formato oficial) con solo estas playlists, para importar en
+    Rekordbox. Copia cada TRACK original (cues, beatgrid, metadatos) y pone en
+    `Location` la ruta reparada. Nunca escribe sobre el XML de origen."""
+    if source is not None and dest.resolve() == source.resolve():
+        raise ValueError("No se puede sobrescribir el XML que exportaste desde Rekordbox.")
+    root = ET.Element("DJ_PLAYLISTS", Version="1.0.0")
+    ET.SubElement(root, "PRODUCT", Name="List Buddy", Version=app_version, Company="")
+    collection = ET.SubElement(root, "COLLECTION")
+    ids: dict[str, str] = {}
+    relocated = missing = 0
+    for pl in playlists:
+        for t in pl.tracks:
+            if t.location in ids:
+                continue
+            new_id = str(len(ids) + 1)
+            ids[t.location] = new_id
+            el = copy.deepcopy(t.element) if t.element is not None else ET.Element(
+                "TRACK", Name=t.title, Artist=t.artist)
+            el.set("TrackID", new_id)
+            el.set("Location", path_to_location(t.file_path) if t.relocated else t.location)
+            collection.append(el)
+            relocated += int(t.relocated)
+            missing += int(not t.file_path.exists())
+    collection.set("Entries", str(len(ids)))
+    root_node = ET.SubElement(ET.SubElement(root, "PLAYLISTS"), "NODE",
+                              Type="0", Name="ROOT", Count=str(len(playlists)))
+    for pl in playlists:
+        node = ET.SubElement(root_node, "NODE", Name=pl.name + name_suffix, Type="1",
+                             KeyType="0", Entries=str(len(pl.tracks)))
+        for t in pl.tracks:
+            ET.SubElement(node, "TRACK", Key=ids[t.location])
+    ET.indent(root)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_name(dest.name + ".tmp")
+    ET.ElementTree(root).write(tmp, encoding="UTF-8", xml_declaration=True)
+    os.replace(tmp, dest)
+    return WriteResult(len(playlists), len(ids), relocated, missing)
