@@ -57,9 +57,6 @@ def setup_logging(version: str = "") -> Path:
     root.handlers.clear()
     root.addHandler(file_h)
     root.addHandler(stream_h)
-    # pyrekordbox loguea la clave de master.db en DEBUG; el log se adjunta en
-    # reportes de bugs, así que nunca debe llegar ahí aunque el raíz baje a DEBUG.
-    logging.getLogger("pyrekordbox").setLevel(logging.INFO)
 
     logging.getLogger(_LOGGER).info(
         "──── listBuddy %s iniciado ────", version or "(dev)"

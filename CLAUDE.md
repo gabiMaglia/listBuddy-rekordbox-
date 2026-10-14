@@ -2,17 +2,17 @@
 
 ## Rol esperado
 
-Sos un experto en Python, empaquetado de apps de escritorio para macOS/Windows, y en el funcionamiento interno de Rekordbox y Traktor (todas sus versiones). Conocés la estructura de sus bases de datos, el esquema de sus tablas, cómo pyrekordbox y el NML de Traktor funcionan, y los problemas habituales de integración.
+Sos un experto en Python, empaquetado de apps de escritorio para macOS/Windows, y en el funcionamiento interno de Rekordbox y Traktor (todas sus versiones). Conocés la estructura de sus librerías, cómo el XML exportado de Rekordbox y el NML de Traktor funcionan, y los problemas habituales de integración.
 
 ---
 
 ## El proyecto
 
-**listBuddy** es una app de escritorio (PySide6) que lee la librería de Rekordbox 6 o Traktor Pro 3/4 y copia las canciones de las playlists seleccionadas a carpetas organizadas con prefijo numérico de orden. También permite previsualizar y reproducir audio directamente desde la interfaz.
+**listBuddy** es una app de escritorio (PySide6) que lee la librería de Rekordbox (6 o 7, vía el XML que exporta) o Traktor Pro 3/4 y copia las canciones de las playlists seleccionadas a carpetas organizadas con prefijo numérico de orden. También permite previsualizar y reproducir audio directamente desde la interfaz.
 
 ### Flujo de usuario
 
-1. La app abre la DB de Rekordbox 6 al iniciar (requiere que RB esté cerrado).
+1. La app lee el `rekordbox.xml` exportado de Rekordbox (no hace falta cerrar RB) o la colección NML de Traktor.
 2. Muestra las playlists agrupadas en carpetas plegables; solo las playlists tienen checkbox (las carpetas no se marcan).
 3. El usuario elige carpeta de destino, marca playlists, y exporta.
 4. Un `QThread` copia los archivos con nombre `001 - Artist - Title.mp3`, mostrando progreso y log.
@@ -25,7 +25,8 @@ Sos un experto en Python, empaquetado de apps de escritorio para macOS/Windows, 
 main.py              → entry point. Solo QApplication + MainWindow.show().
 ui.py                → MainWindow (PySide6). Árbol de playlists, preview, reproducción, exportación.
 worker.py            → ExportWorker (QThread). Copia archivos; emite signals log/progress/finished_ok.
-db.py                → Capa de acceso a pyrekordbox. open_database(), list_playlists(), get_playlist_tree().
+db.py                → Utilidades compartidas: order_playlist_songs(), key_bpm_of().
+rekordbox_xml.py     → Lector del rekordbox.xml exportado. open_library(), get_playlist_tree(), get_songs().
 rekordbox_export.py  → Lógica base validada. NO modificar sin causa mayor.
 traktor_db.py        → Parser de colección NML de Traktor Pro 3/4. open_collection(), get_playlist_tree().
 preview_worker.py    → PreviewWorker (QThread). Existence checks en background; emite GroupData.
@@ -48,9 +49,8 @@ plans/               → Planes de implementación autocontenidos para ejecutar 
 
 | Función | Qué hace |
 |---|---|
-| `get_all_playlists(db)` | Lista plana de playlists (Attribute==0, ignora carpetas) |
 | `get_songs(playlist)` | Songs de una playlist; prueba `Songs`, `songs`, `items` |
-| `get_content(song)` | DjmdContent del song; prueba `Content` y `content` |
+| `get_content(song)` | Contenido (pista) del song; prueba `Content` y `content` |
 | `get_artist(content)` | Artista; prueba `ArtistName`, `Artist`, `artist_name`, `artist` |
 | `resolve_path(raw_path)` | Normaliza rutas `/C/Users/...` → `C:/Users/...` y verifica existencia |
 | `sanitize(name)` | Elimina chars inválidos para nombres de archivo (`\/:*?"<>|`) |
@@ -65,8 +65,7 @@ PySide6             6.11.1
 PySide6_Essentials  6.11.1
 PySide6_Addons      6.11.1
 shiboken6           6.11.1
-pyrekordbox  0.4.4
-sqlcipher3-wheels 0.5.7
+certifi      2026.7.22
 numpy        2.4.6
 ```
 
@@ -82,70 +81,23 @@ python main.py                   # arrancar la app
 
 ## Rekordbox — conocimiento experto
 
-### Versiones y bases de datos
+### Fuente: el rekordbox.xml exportado (ADR-004)
 
-| Versión RB | Formato DB | Biblioteca Python |
-|---|---|---|
-| 5.x | XML (`rekordbox.xml`) + colección propia | `pyrekordbox` (modo XML) |
-| 6.x | SQLite cifrado con SQLCipher | `pyrekordbox.Rekordbox6Database` |
-| 6.7+ / 7.x | Misma DB y misma clave | pyrekordbox 0.4.4 trae la clave embebida (`db6/database.py`, `deobfuscate(BLOB)`) |
+List Buddy lee Rekordbox **solo** del XML que el usuario exporta (Archivo → Exportar colección en formato xml; formato publicado por AlphaTheta para terceros, `xml_format_list.pdf`) y lo elige en ⚙ Configuración → Librerías. Sirve igual para Rekordbox 6 y 7, y funciona con Rekordbox abierto. El usuario reexporta cuando cambia sus playlists. El parser es `rekordbox_xml.py` (`open_library()`, `get_playlist_tree()`, `get_songs()`).
 
-> Este proyecto solo soporta **Rekordbox 6**. La DB es un archivo SQLite cifrado con SQLCipher 4. pyrekordbox 0.4.4 trae la clave embebida: no hay `download-key` ni archivo de clave. Ojo: la loguea en DEBUG; `app_logging` fija el logger `pyrekordbox` en INFO para que nunca llegue al log.
+**Regla: nunca abrir ni escribir `master.db`; nada de pyrekordbox/sqlcipher3 en el proyecto ni en el bundle (ADR-004).** Para reparar enlaces rotos en Rekordbox se le indica al usuario usar Reubicar de Rekordbox y reexportar.
 
-### Ubicación de la base de datos de Rekordbox 6
-
-| OS | Ruta |
+| Elemento / atributo del XML | Qué es |
 |---|---|
-| Windows | `%APPDATA%\Pioneer\rekordbox\master.db` |
-| macOS | `~/Library/Pioneer/rekordbox/master.db` |
+| `DJ_PLAYLISTS` | Raíz del documento |
+| `COLLECTION/TRACK` | Una pista: `TrackID`, `Name` (título), `Artist`, `Location`, `AverageBpm`, `Tonality` |
+| `AverageBpm` | BPM como float plano (`128.00`); `0` o vacío = sin dato (no hay ×100 como en la vieja DB) |
+| `Tonality` | Tonalidad tal cual la exporta Rekordbox (`8A`, `Am`) |
+| `Location` | URI `file://localhost/...` con escapes `%xx`; en Windows `file://localhost/C:/Users/...` |
+| `PLAYLISTS/NODE` | Árbol de carpetas y playlists: `Type="0"` carpeta, `Type="1"` playlist; `Name` |
+| `NODE[Type=1]/TRACK` | Entrada de playlist en el orden real; `Key` referencia `TrackID` (o `Location` si `KeyType="1"`) |
 
-`pyrekordbox.Rekordbox6Database()` la encuentra automáticamente si la instalación de RB es estándar. Si falla, se puede pasar la ruta explícitamente.
-
-**La DB queda bloqueada mientras Rekordbox está abierto.** Siempre pedir al usuario que cierre RB antes de usar la app.
-
-### Esquema de tablas relevantes (pyrekordbox 0.4.x)
-
-#### `DjmdPlaylist` — playlists y carpetas
-
-| Campo | Tipo | Notas |
-|---|---|---|
-| `ID` | str | Identificador único |
-| `ParentID` | str | `"root"` si es nodo raíz; ID de la carpeta padre si está anidado |
-| `Attribute` | int | `0` = playlist, `1` = carpeta |
-| `Name` | str | Nombre visible en RB |
-| `Seq` | int | Orden de visualización dentro del nivel |
-| `is_playlist` | bool | Propiedad de conveniencia: `Attribute == 0` |
-| `is_folder` | bool | Propiedad de conveniencia: `Attribute == 1` |
-
-Para obtener todas las entradas: `db.get_playlist()` devuelve un iterable de `DjmdPlaylist`.
-
-Las canciones de una playlist están en la relación `Songs` (o `songs` o `items` según versión de pyrekordbox — siempre usar `get_songs()` del proyecto en lugar de acceder directo).
-
-#### `DjmdContent` — pistas
-
-| Campo | Tipo | Notas |
-|---|---|---|
-| `ID` | str | |
-| `Title` | str | Título de la pista |
-| `ArtistName` | str | Nombre del artista (puede ser `None`) |
-| `FolderPath` | str | Ruta al archivo en disco (puede ser `/C/Users/...` o `C:\Users\...`) |
-| `TrackNo` | int | Número de pista del archivo (suele valer `0`). **NO es el orden de la playlist:** ese vive en `TrackNo` de la entrada playlist-canción (`DjmdSongPlaylist`, los items de `get_songs()`); ordenar siempre con `db.order_playlist_songs()` |
-| `BPM` | int | BPM×100 (12800 → 128). `Key.ScaleName` (relación `Key`) trae la tonalidad en Camelot («9A») |
-| `ColorID` | int | Color de la pista en RB |
-
-Acceso: `get_content(song)` prueba los atributos `Content` y `content` para compatibilidad cross-versión.
-
-#### Normalización de rutas (`FolderPath`)
-
-Rekordbox en Windows guarda las rutas con separador Unix al inicio: `/C/Users/usuario/Music/track.mp3`. La función `resolve_path()` ya convierte esto a `C:/Users/usuario/Music/track.mp3`. En macOS las rutas son `/Users/usuario/Music/track.mp3` y pasan sin tocar.
-
-### pyrekordbox 0.4.4 — notas de integración
-
-- `Rekordbox6Database()` → abre la DB, descifra con la clave local. Lanza excepción si falla.
-- `db.get_playlist()` → genera `DjmdPlaylist` uno a uno.
-- `db.get_content()` → genera `DjmdContent` uno a uno.
-- Las relaciones SQLAlchemy (como `playlist.Songs`) se cargan lazy. Si se itera fuera del contexto de sesión puede fallar — `get_songs()` del proyecto maneja esto.
-- **No asumir nombres de campo** de pyrekordbox. Si surge una versión nueva, verificar con `dir(objeto)` antes de codear.
+`Location` se convierte con `location_to_path()` (decodifica `%xx`, saca la barra previa de `/C:/`, soporta UNC). El orden de la playlist es el orden de los `TRACK` dentro del `NODE`.
 
 ---
 
@@ -163,19 +115,11 @@ El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **
 
 #### Checklist para que el .app funcione correctamente
 
-1. **SQLCipher:** `sqlcipher3-wheels` incluye el `.dylib`. El spec ya hace `collect_dynamic_libs('sqlcipher3')`. Si el .app abre pero falla al leer la DB, verificar que `libsqlcipher.dylib` esté en `dist/List Buddy.app/Contents/Frameworks/`.
+1. **Sin SQLCipher ni pyrekordbox:** el spec los lista en `excludes=` (junto con `sqlalchemy`) y `tests/test_packaging_manifest.py` lo verifica. Tras buildear, `find "dist/List Buddy.app" -iname "*pyrekordbox*" -o -iname "*sqlcipher*" -o -iname "*sqlalchemy*"` debe dar vacío.
 
-2. **Hidden imports de pyrekordbox:** el spec ya declara:
-   ```python
-   hiddenimports=[
-       'pyrekordbox', 'pyrekordbox.db6', 'pyrekordbox.db6.tables',
-       'pyrekordbox.db6.registry', 'sqlcipher3',
-       'sqlalchemy', 'sqlalchemy.dialects.sqlite', 'sqlalchemy.orm',
-   ]
-   ```
-   Si aparece `ModuleNotFoundError` en runtime, agregar el módulo faltante aquí.
+2. **Sin clave de desencriptado:** no hay nada que descifrar; no se incluye ninguna clave de AlphaTheta (ADR-004).
 
-3. **Clave de desencriptado en el bundle:** viene dentro del código de pyrekordbox (no hay archivo externo); alcanza con que `pyrekordbox` entre al bundle.
+3. **Hidden imports:** el spec declara solo `PySide6.QtMultimedia`, `PySide6.QtSvg`, `numpy`, `certifi`. Si aparece `ModuleNotFoundError` en runtime, agregar el módulo faltante.
 
 4. **Ícono:** crear `icon.icns` (macOS). Descomentar `icon='icon.icns'` en el spec antes de buildear.
 
@@ -198,7 +142,7 @@ El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **
    ```bash
    pyinstaller rb_exporter.spec --target-arch universal2
    ```
-   Requiere que todas las dependencias nativas (SQLCipher .dylib) también sean universal. `sqlcipher3-wheels` puede no tener universal en todas sus versiones — verificar antes de intentarlo.
+   Requiere que las dependencias nativas (PySide6/Qt, numpy) también sean universal.
 
 8. **Audio (QtMultimedia + FFmpeg):** el spec declara `PySide6.QtMultimedia` y `numpy`
    en `hiddenimports`. **PyInstaller 6.x recoge automáticamente** los plugins
@@ -251,7 +195,7 @@ pyinstaller rb_exporter.spec
 
 - `icon.ico` para el ícono (descomentar línea en spec).
 - UPX está habilitado (`upx=True`) para reducir tamaño. Si da problemas de antivirus, deshabilitar.
-- Si el .exe abre pero falla al leer la DB: agregar hidden imports de SQLCipher en el spec.
+- Si el .exe abre pero falla al leer el XML/NML: revisar el log (`%LOCALAPPDATA%\listBuddy\logs\listBuddy.log`).
 
 ---
 
@@ -261,17 +205,18 @@ pyinstaller rb_exporter.spec
 - **Type hints en todo.** Funciones y métodos tipados con `from __future__ import annotations`.
 - **Sin estado global.** Dependencias explícitas por parámetro.
 - **No reescribir** `rekordbox_export.py` sin causa mayor. Es la lógica base validada; las otras capas la envuelven.
-- **Rekordbox debe estar cerrado** al testear (la DB queda bloqueada si está abierto).
-- **Ante cualquier ambigüedad sobre campos de pyrekordbox o estructura de DB:** preguntar antes de asumir. Los nombres de campo pueden variar entre versiones de pyrekordbox.
+- **Rekordbox no hace falta cerrarlo** (se lee un XML exportado). Traktor sí debe estar cerrado al reparar enlaces.
+- **Ante cualquier ambigüedad sobre el formato del XML de Rekordbox o el NML de Traktor:** preguntar antes de asumir.
 
 ---
 
 ## Reglas de trabajo (para Claude)
 
 - Antes de modificar `rekordbox_export.py`, verificar que el cambio no rompa las funciones que `db.py` y `worker.py` consumen.
-- Si se agregan campos nuevos de `DjmdContent` o `DjmdPlaylist`, siempre usar `getattr(obj, 'campo', None)` con fallback defensivo.
+- Nunca abrir ni escribir `master.db`; no reintroducir pyrekordbox/sqlcipher3 (ADR-004).
+- Si se leen atributos nuevos del XML, usar `el.get('Atributo')` con fallback defensivo (pueden faltar).
 - Si algo del spec de PyInstaller no se entiende, verificar la documentación de PyInstaller antes de modificar flags al azar.
-- Los errores de apertura de DB deben siempre mostrar un mensaje claro al usuario vía `QMessageBox`, nunca stacktrace crudo.
+- Los errores de apertura de la librería (XML/NML) deben siempre mostrar un mensaje claro al usuario vía `QMessageBox`, nunca stacktrace crudo.
 - `ExportWorker` corre en un `QThread` — nunca actualizar widgets de Qt directamente desde `run()`, siempre via signals.
 - El conteo de progreso usa `total_songs` acumulado antes del loop; no recalcular mid-flight.
 

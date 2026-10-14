@@ -18,6 +18,7 @@
 |---|--------|--------|-------|
 | ADR-001 | Relocate de links rotos en playlists de Traktor: backup, escritura atómica del NML, matching y sync COLLECTION↔PLAYLISTS | Aceptado | 2026-07-23 |
 | ADR-002 | Relocate de links rotos para Rekordbox 6 (F-08): backup del master.db SQLCipher, USN, transacción única y reuso del matching de ADR-001 sobre `update_content_path` | Aceptado | 2026-07-24 |
+| ADR-004 | Rekordbox solo por el XML oficial exportado: sin master.db, pyrekordbox ni SQLCipher (reemplaza a ADR-002) | Aceptado | 2026-10-14 |
 
 ## ADR-001: Relocate de links rotos en playlists de Traktor (F-07)
 
@@ -163,3 +164,13 @@ fixes (I-1/I-2/I-4 se aplican dos veces por la duplicación).
 ## Notas
 - El agente `nerv-desktop` está pensado por default para PySide6, pero este proyecto usa PyQt6 real. Se asigna igual a `nerv-desktop` (stack Python desktop multiplataforma), documentando la diferencia acá para que no se asuma PySide6 en implementaciones futuras.
 - F-07 (relocate) sería la primera funcionalidad que ESCRIBE sobre un archivo fuente del usuario (collection.nml). Hasta ahora la app es solo lectura + copia a destino. Evaluar si amerita ADR-001 antes de implementar (backup, escritura atómica, criterio de matching, UI de desambiguación).
+
+## ADR-004: Rekordbox solo por el XML oficial (T-080)
+
+**Estado:** Aceptado (PO, 2026-10-14). Reemplaza a ADR-002 (relocate sobre master.db).
+
+**Contexto:** Leer y escribir master.db exige descifrarlo con la clave que pyrekordbox trae embebida. El EULA de rekordbox (2025/03/04) prohíbe eludir tecnología de AlphaTheta (§2.2(b)) y la ingeniería inversa (§2.2(g)); distribuir la clave dentro del ejecutable es además la figura de «trafficking» de la DMCA §1201. Para un producto que se quiere vender, es el riesgo legal principal.
+
+**Decisión:** Rekordbox se lee solo del `rekordbox.xml` que el usuario exporta (formato publicado por AlphaTheta para terceros, `xml_format_list.pdf`). List Buddy no escribe nada de Rekordbox: la reparación de enlaces y la restauración de backups quedan solo para Traktor; para Rekordbox se indica usar Reubicar de Rekordbox. pyrekordbox, sqlcipher3 y sus dependencias salen del proyecto y del bundle.
+
+**Consecuencias:** + sin clave, sin SQLCipher, bundle más chico, funciona con Rekordbox abierto, soporta 6 y 7 por igual. − el usuario reexporta el XML cuando cambia sus playlists; se pierde el relocate de Rekordbox. Traktor sin cambios (NML en texto plano, sin cifrado).

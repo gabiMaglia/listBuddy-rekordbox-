@@ -5,7 +5,7 @@
 # listBuddy
 
 **Exportá y previsualizá las playlists de tu librería de DJ.**
-Lee Rekordbox 6 y Traktor Pro 3/4, y copia las pistas a carpetas numeradas en orden.
+Lee Rekordbox (por el XML que exporta) y Traktor Pro 3/4, y copia las pistas a carpetas numeradas en orden.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Donar-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/gabrielmaglia)
@@ -16,7 +16,7 @@ Lee Rekordbox 6 y Traktor Pro 3/4, y copia las pistas a carpetas numeradas en or
 
 ## Qué hace
 
-listBuddy abre tu librería de **Rekordbox 6** o **Traktor Pro 3/4**, te muestra el árbol
+listBuddy lee tu librería de **Rekordbox** (6 o 7, por el XML que exporta) o **Traktor Pro 3/4**, te muestra el árbol
 de carpetas y playlists, y copia las pistas que elijas a carpetas organizadas con un
 prefijo numérico de orden:
 
@@ -32,14 +32,14 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 
 ## Características
 
-- 🎛 **Dos fuentes** — Rekordbox 6 y Traktor Pro 3/4, con un switch para cambiar entre ellas.
+- 🎛 **Dos fuentes** — Rekordbox (por el XML que exporta) y Traktor Pro 3/4, con un switch para cambiar entre ellas.
 - 🔢 **Exportación numerada** — cada playlist va a su carpeta, con prefijo de orden y nombre `Artista - Título`.
 - 🔊 **Reproductor integrado** — clickeá cualquier pista para escucharla. Soporta mp3, wav, aiff, mp4/m4a, **flac** y wma (backend FFmpeg de Qt).
 - 📊 **Forma de onda** — en el reproductor de abajo; clickeala para saltar a cualquier punto.
 - 🎹 **Key · BPM** — tonalidad y tempo de cada pista en la vista previa.
 - ⏯ **Controles** — play/pausa desde la nota ♪ o con la **barra espaciadora**, barra de progreso con seek, y auto-avance al siguiente track.
 - ⚠️ **Detección de archivos faltantes** — las pistas cuyo archivo no está en disco se marcan en rojo y no se pueden reproducir.
-- 🔧 **Reparar enlaces rotos (relocate)** — si moviste tu música de carpeta o disco, listBuddy busca cada archivo faltante por nombre en la ubicación que le indiques y **repara el enlace en tu propia librería** (Rekordbox `master.db` o Traktor `collection.nml`). Siempre hace un **backup automático** antes de escribir, y ante varios candidatos te pregunta cuál es (con un checkbox opcional para resolver todo automáticamente por mejor coincidencia).
+- 🔧 **Reparar enlaces rotos (relocate)** — si moviste tu música de carpeta o disco, listBuddy busca cada archivo faltante por nombre en la ubicación que le indiques y **repara el enlace en tu propia librería** (Traktor `collection.nml`; en Rekordbox usá Reubicar, ver abajo). Siempre hace un **backup automático** antes de escribir, y ante varios candidatos te pregunta cuál es (con un checkbox opcional para resolver todo automáticamente por mejor coincidencia).
 - ⚙️ **Configuración** — selector de dispositivo de salida de audio, auto-avance y override de la ruta de la librería.
 - 🌗 **Tema claro / oscuro** estilo macOS.
 - ⚡ **Sin congelamientos** — las operaciones pesadas (existencia de archivos, decodificación, copia) corren en hilos separados.
@@ -54,8 +54,8 @@ Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBud
 ## Requisitos
 
 - **Python 3.11+** (solo para correrlo desde el código fuente)
-- **Rekordbox 6** y/o **Traktor Pro 3/4** instalados, con su librería configurada.
-- El programa correspondiente debe estar **cerrado** al usar listBuddy (la librería queda bloqueada si está abierto).
+- **Rekordbox 6 o 7** (con su colección exportada a XML) y/o **Traktor Pro 3/4** instalados.
+- Rekordbox puede estar abierto: List Buddy lee el XML exportado. Traktor tiene que estar **cerrado** solo al reparar enlaces.
 
 ## Instalación desde fuente
 
@@ -67,8 +67,13 @@ source .venv/bin/activate          # Windows: .\.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Rekordbox 6 cifra su base de datos con SQLCipher; pyrekordbox ya trae lo necesario para
-abrirla, no hace falta ningún paso extra.
+### Primera vez con Rekordbox
+
+List Buddy lee el XML que exporta Rekordbox, no su base de datos:
+
+1. En Rekordbox: **Archivo → Exportar colección en formato xml** y guardá el archivo.
+2. En List Buddy: **⚙ Configuración → Librerías** y elegí ese `rekordbox.xml`.
+3. Cuando cambies tus playlists en Rekordbox, volvé a exportar el XML.
 
 ## Ejecutar
 
@@ -87,13 +92,12 @@ python main.py
 
 Las pistas ya existentes en el destino se saltan, así que podés re-exportar sin duplicar.
 
-### Reparar enlaces rotos (relocate)
+### Reparar enlaces rotos (solo Traktor)
 
 Si moviste tu música y en la vista previa aparecen pistas **en rojo** (archivo no
 encontrado), podés reparar los enlaces sin salir de listBuddy:
 
-1. Asegurate de que **Rekordbox / Traktor estén cerrados** (la librería se escribe,
-   no solo se lee).
+1. Asegurate de que **Traktor esté cerrado** (la librería se escribe, no solo se lee).
 2. Hacé click en **🔧 Reparar enlaces rotos…** y elegí la carpeta o disco donde
    está ahora tu música.
 3. listBuddy indexa esa ubicación y, por cada pista rota, busca el archivo por
@@ -109,6 +113,10 @@ encontrado), podés reparar los enlaces sin salir de listBuddy:
 > La escritura es atómica y con backup previo, pero **es tu librería real**:
 > revisá el resumen y tené el backup a mano por las dudas.
 
+**En Rekordbox** usá Reubicar: Archivo → Mostrar todos los archivos que faltan →
+Reubicar automáticamente, y volvé a exportar el XML. List Buddy no modifica tu librería
+de Rekordbox.
+
 ### Reproducir
 
 - Clickeá cualquier pista del panel de vista previa para escucharla.
@@ -120,8 +128,8 @@ encontrado), podés reparar los enlaces sin salir de listBuddy:
 
 - **Dispositivo de salida de audio** — elegí por qué salida suena la previsualización.
 - **Auto-avance** — on/off.
-- **Librerías** — si tu `master.db` (Rekordbox) o `collection.nml` (Traktor) están en una
-  ubicación no estándar (disco externo, varias versiones), configurá la ruta acá. El botón
+- **Librerías** — elegí acá el `rekordbox.xml` exportado (Rekordbox) y, si está en una
+  ubicación no estándar, el `collection.nml` (Traktor). El botón
   **Auto** vuelve a la autodetección.
 
 ## Empaquetar a ejecutable
@@ -132,7 +140,7 @@ pyinstaller rb_exporter.spec
 ```
 
 El resultado queda en `dist/`. El `.spec` ya incluye el ícono, los hidden imports de
-pyrekordbox/SQLCipher y el motor de audio (QtMultimedia + FFmpeg, que PyInstaller recoge
+el motor de audio (QtMultimedia + FFmpeg, que PyInstaller recoge
 automáticamente).
 
 > **No se puede cross-compilar:** el ejecutable de macOS solo se genera desde una Mac, y el
@@ -175,13 +183,13 @@ ui.py                # MainWindow (PySide6): layout, reproducción, exportación
 ui_components.py     # widgets custom (cards, seek bar, file rows, rack head)
 worker.py            # ExportWorker (QThread): copia y numera los archivos
 traktor_relocate.py  # RelocateWorker (QThread): repara enlaces rotos del NML de Traktor
-rekordbox_relocate.py# RekordboxRelocateWorker (QThread): repara enlaces del master.db
 preview_worker.py    # PreviewWorker (QThread): chequeo de existencia en background
 audio_player.py      # AudioPlayer (QMediaPlayer + FFmpeg)
 waveform_worker.py   # WaveformWorker (QThread): picos de la forma de onda
-db.py                # acceso a la librería de Rekordbox (pyrekordbox)
+db.py                # utilidades compartidas (orden de playlist, Key · BPM)
+rekordbox_xml.py     # lector del rekordbox.xml exportado de Rekordbox
 traktor_db.py        # parser de la colección NML de Traktor
-rekordbox_export.py  # lógica base validada (acceso a DB + copia)
+rekordbox_export.py  # lógica base validada (nombres de archivo + copia)
 app_logging.py       # logging a archivo + manejo global de excepciones
 about_dialog.py      # «Acerca de»: licencia, garantía y avisos de terceros
 styles.py + qss/     # design system (tokens + hojas QSS dark/light)
@@ -192,7 +200,7 @@ tests/               # tests de correctitud (rutas, matching, backup, sync)
 
 ## Tecnología
 
-Python · PySide6 · pyrekordbox · sqlcipher3 · numpy · PyInstaller
+Python · PySide6 · numpy · PyInstaller
 
 ## Donaciones
 
@@ -208,17 +216,16 @@ GNU General Public License v3.0 o posterior — ver [LICENSE](LICENSE).
 En resumen: podés usar, modificar y redistribuir este software libremente, siempre que
 cualquier versión redistribuida también sea de código abierto bajo GPL v3.
 
-Los componentes de terceros que viajan en el ejecutable (Qt/PySide6, FFmpeg, SQLCipher,
-pyrekordbox y otros) tienen sus propias licencias: ver
+Los componentes de terceros que viajan en el ejecutable (Qt/PySide6, FFmpeg, numpy y otros) tienen sus propias licencias: ver
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) y la carpeta [licenses/](licenses/).
 También están en la app, en **Ayuda → Acerca de List Buddy**.
 
 ## Avisos
 
-- **Sin garantía.** List Buddy se ofrece tal cual. La reparación de enlaces escribe sobre
-  tu librería real: siempre hace backup, pero tené tu propia copia.
-- **Compatibilidad.** Lee formatos de Rekordbox y Traktor que sus fabricantes no
-  documentan; una actualización de esos programas puede romperlo sin aviso.
+- **Sin garantía.** List Buddy se ofrece tal cual. La reparación de enlaces de Traktor
+  escribe sobre tu librería real: siempre hace backup, pero tené tu propia copia.
+- **Compatibilidad.** Lee el XML de Rekordbox (formato publicado por AlphaTheta) y el NML
+  de Traktor (no documentado por su fabricante); una actualización de esos programas puede romperlo sin aviso.
 - **Tu música.** List Buddy solo copia archivos que ya están en tu disco. Sos responsable
   de tener los derechos sobre lo que copiás.
 - **Privacidad.** No recolecta datos. La única conexión a internet es al arrancar, para
