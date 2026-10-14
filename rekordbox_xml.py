@@ -11,6 +11,7 @@ preview_worker.py, db.key_bpm_of y ui.py.
 """
 from __future__ import annotations
 
+import contextlib
 import copy
 import os
 import re
@@ -244,6 +245,12 @@ class WriteResult:
     missing: int
 
 
+def _same_file(a: Path, b: Path) -> bool:
+    if a.resolve() == b.resolve():
+        return True
+    return a.exists() and b.exists() and os.path.samefile(a, b)
+
+
 def write_playlists_xml(
     playlists: list[RbxPlaylist], dest: Path, *, source: Path | None = None,
     name_suffix: str = " (List Buddy)", app_version: str = "",
@@ -251,10 +258,8 @@ def write_playlists_xml(
     """XML nuevo (formato oficial) con solo estas playlists, para importar en
     Rekordbox. Copia cada TRACK original (cues, beatgrid, metadatos) y pone en
     `Location` la ruta reparada. Nunca escribe sobre el XML de origen."""
-    if source is not None and (
-        dest.resolve() == source.resolve()
-        or (dest.exists() and source.exists() and os.path.samefile(dest, source))
-    ):
+    tmp = dest.with_name(dest.name + ".tmp")
+    if source is not None and (_same_file(dest, source) or _same_file(tmp, source)):
         raise ValueError("No se puede sobrescribir el XML que exportaste desde Rekordbox.")
     root = ET.Element("DJ_PLAYLISTS", Version="1.0.0")
     ET.SubElement(root, "PRODUCT", Name="List Buddy", Version=app_version, Company="")
@@ -284,11 +289,11 @@ def write_playlists_xml(
             ET.SubElement(node, "TRACK", Key=ids[t.location])
     ET.indent(root)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_name(dest.name + ".tmp")
     try:
         ET.ElementTree(root).write(tmp, encoding="UTF-8", xml_declaration=True)
         os.replace(tmp, dest)
     except BaseException:
-        tmp.unlink(missing_ok=True)
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
         raise
     return WriteResult(len(playlists), len(ids), relocated, missing)
