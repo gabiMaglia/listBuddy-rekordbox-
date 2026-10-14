@@ -31,9 +31,8 @@ Primera versión pública. Reúne todo el trabajo previo: las versiones internas
   **restauración** desde el menú Mantenimiento.
 - Escritura atómica: si algo falla, la librería queda intacta.
 - Bloqueo si Traktor está abierto, re-chequeado justo antes de escribir. Detección e indexado cancelables y con progreso.
-
-- En Rekordbox, List Buddy no modifica la librería: para reparar enlaces se
-  usa Reubicar de Rekordbox y se reexporta el XML.
+- En Rekordbox, List Buddy nunca modifica la librería ni el XML exportado: las
+  reparaciones se guardan en un archivo propio (ver la sección siguiente).
 
 ### Reparar listas de Rekordbox e importarlas
 - **Reparar enlaces rotos** también funciona con Rekordbox: las rutas nuevas se
