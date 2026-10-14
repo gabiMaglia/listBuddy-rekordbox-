@@ -33,6 +33,7 @@ class TrackRow:
     exists: bool = True   # rellenado por el worker
     key: str = ""          # Camelot/Open Key tal cual viene de la fuente
     bpm: float | None = None
+    relocated: bool = False  # ruta reparada por List Buddy (Rekordbox XML)
 
 
 @dataclass

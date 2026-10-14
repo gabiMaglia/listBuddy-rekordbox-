@@ -129,6 +129,8 @@ def test_left_column_no_longer_has_source_switcher() -> None:
 MENU_TEXTS = [
     "Reparar enlaces rotos…",
     "Restaurar copia de seguridad…",
+    "Olvidar reparaciones de Rekordbox…",
+    "Exportar XML para Rekordbox…",
     "Resolver automáticamente con la mejor coincidencia",
 ]
 
