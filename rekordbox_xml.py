@@ -160,17 +160,19 @@ def _index_collection(root: ET.Element) -> tuple[dict[str, ET.Element], dict[str
 def _track(el: ET.Element, position: int, fixes: dict[str, str]) -> RbxTrack:
     location = el.get("Location", "") or ""
     original = location_to_path(location)
+    fixed = fixes.get(location)
     # Una reparación solo vale mientras el archivo original siga ausente.
-    fixed = fixes.get(location) if not original.exists() else None
+    # El chequeo de disco solo se hace si hay reparación guardada (drives lentos).
+    use_fix = bool(fixed) and not original.exists()
     return RbxTrack(
         title=el.get("Name", "") or "",
         artist=el.get("Artist", "") or "",
-        file_path=Path(fixed) if fixed else original,
+        file_path=Path(fixed) if use_fix else original,
         bpm=_float_or_none(el.get("AverageBpm")),
         key=(el.get("Tonality", "") or "").strip(),
         TrackNo=position,
         location=location,
-        relocated=bool(fixed),
+        relocated=use_fix,
         element=el,
     )
 

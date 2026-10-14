@@ -225,6 +225,26 @@ def test_fix_is_ignored_when_the_original_file_exists_again(tmp_path: Path) -> N
     assert t.file_path == Path("/Nuevo/uno.mp3") and t.relocated is True
 
 
+def test_load_without_fixes_never_touches_the_disk_from_track(tmp_path: Path, monkeypatch) -> None:
+    import pathlib
+
+    orig = tmp_path / "uno.mp3"
+    orig.write_bytes(b"x")
+    p = _one_track_xml(tmp_path, rx.path_to_location(orig))
+    calls: list[str] = []
+    real_exists = pathlib.Path.exists
+
+    def counting_exists(self, *a, **kw):
+        calls.append(str(self))
+        return real_exists(self, *a, **kw)
+
+    monkeypatch.setattr(pathlib.Path, "exists", counting_exists)
+    lib = rx.open_library(p, fixes={})
+    assert calls == []
+    t = rx.get_songs(rx.get_playlist_tree(lib)[0]["playlist"])[0]
+    assert t.file_path == orig and t.relocated is False
+
+
 def _export_one(tmp_path: Path, new_name: str, attrs: str):
     new = tmp_path / new_name
     new.write_bytes(b"x" * 1234)
