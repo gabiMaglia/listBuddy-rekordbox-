@@ -8,16 +8,15 @@ chequeo de espacio libre ANTES de intentar el backup, mismo patrón que
 worker.py ya usa para el export y que el write path sobre la librería del
 usuario no tenía hasta este ticket. La otra mitad de B-3 (que un backup
 interrumpido a mitad no deje un archivo parcial) se testea en
-test_traktor_relocate.py / test_rekordbox_relocate.py, donde viven
-backup_collection/backup_master_db.
+test_traktor_relocate.py, donde vive
+backup_collection.
 
 T-028 agrega acá el matching tolerante a prefijo numérico (`NN - `) y a
 extensión (`_normalize_key`/`build_normalized_index`/fallback en
 `find_candidates`), y el loop de resolución (`_run_resolution`) que
 garantiza que un match normalizado nunca auto-resuelve (ADR-001 p.3
-ampliado). Vive acá y no en test_traktor_relocate.py/
-test_rekordbox_relocate.py porque el matching y el loop son compartidos
-por los dos motores (criterio 6 del ticket): un test acá cubre ambos sin
+ampliado). Vive acá y no en test_traktor_relocate.py porque el matching y el loop son compartidos
+por los motores (criterio 6 del ticket): un test acá cubre todos sin
 duplicar.
 
 Se evita instanciar BaseRelocateWorker (QThread) para los tests de

@@ -8,7 +8,6 @@ import pytest
 
 import relocate_core as rc
 import traktor_relocate as tr
-import rekordbox_relocate as rr
 
 
 class TestRelocateScope:
@@ -161,118 +160,6 @@ class TestTraktorWorkerScoped:
         assert keys[0] == keys[1]                # las dos playlists apuntan a la entrada nueva
 
 
-# ───────────────────── Rekordbox (DB de prueba en memoria) ────────────────
-
-from dataclasses import dataclass
-
-
-@dataclass
-class _C:
-    FolderPath: str
-    Title: str = ""
-    ArtistName: str = ""
-    ID: str = "1"
-
-
-class _FakeRbDb:
-    """Duck-type de Rekordbox6Database: nunca abre un master.db real."""
-
-    def __init__(self, contents: list[_C], db_dir: Path) -> None:
-        self.contents, self.db_directory = contents, db_dir
-        self.commits = 0
-        self.rollbacks = 0
-
-    def get_content(self) -> list[_C]:
-        return list(self.contents)
-
-    def update_content_path(self, content, chosen, save=True, check_path=True, commit=False) -> None:
-        content.FolderPath = str(chosen)
-
-    def commit(self) -> None:
-        self.commits += 1
-
-    def rollback(self) -> None:
-        self.rollbacks += 1
-
-    def close(self) -> None:
-        pass
-
-
-class TestRekordboxFindBrokenScoped:
-    def test_only_scoped_content_is_returned(self) -> None:
-        db = _FakeRbDb([_C("/Z/n/a.mp3", "a", ID="1"), _C("/Z/n/b.mp3", "b", ID="2")], Path("."))
-        sc = rc.RelocateScope("P", frozenset({"/Z/n/a.mp3"}))
-        assert [b.content_id for _, b in rr.find_broken_content(db, scope=sc)] == ["1"]
-
-    def test_no_scope_returns_all(self) -> None:
-        db = _FakeRbDb([_C("/Z/n/a.mp3"), _C("/Z/n/b.mp3", ID="2")], Path("."))
-        assert len(rr.find_broken_content(db)) == 2
-
-    def test_empty_scope_returns_nothing(self) -> None:
-        db = _FakeRbDb([_C("/Z/n/a.mp3")], Path("."))
-        assert rr.find_broken_content(db, scope=rc.RelocateScope("v", frozenset())) == []
-
-    def test_out_of_scope_content_never_hits_the_disk(self, monkeypatch) -> None:
-        db = _FakeRbDb([_C("/Z/n/a.mp3", ID="1"), _C("/Z/n/b.mp3", ID="2")], Path("."))
-        checked: list[str] = []
-        real = rr.resolve_path
-        monkeypatch.setattr(rr, "resolve_path", lambda raw: (checked.append(raw), real(raw))[1])
-        rr.find_broken_content(db, scope=rc.RelocateScope("P", frozenset({"/Z/n/a.mp3"})))
-        assert checked == ["/Z/n/a.mp3"]
-
-
-def _rb_setup(tmp_path: Path, names: list[str], monkeypatch) -> tuple[_FakeRbDb, Path, Path]:
-    master = tmp_path / "master.db"
-    master.write_bytes(b"fake-master-db")
-    contents = [_C(f"/Z/nope/{n}.mp3", n, ID=str(i)) for i, n in enumerate(names)]
-    fake = _FakeRbDb(contents, tmp_path)
-    monkeypatch.setattr(rr, "Rekordbox6Database", lambda *a, **k: fake)
-    monkeypatch.setattr(rr, "is_rekordbox_running", lambda: False)
-    disk = tmp_path / "disk"
-    disk.mkdir()
-    for n in names:
-        (disk / f"{n}.mp3").write_text("x")   # todas tienen reemplazo posible
-    return fake, master, disk
-
-
-def _run_rb(master: Path, disk: Path, scope) -> list[tuple]:
-    w = rr.RekordboxRelocateWorker(master, disk, auto_resolve=True, scope=scope)
-    done: list[tuple] = []
-    w.finished_ok.connect(lambda *a: done.append(a))
-    w.run()
-    return done
-
-
-class TestRekordboxWorkerScoped:
-    def test_only_the_scoped_track_is_repaired_the_other_is_untouched(self, tmp_path, monkeypatch) -> None:
-        fake, master, disk = _rb_setup(tmp_path, ["a", "b"], monkeypatch)
-        done = _run_rb(master, disk, rc.RelocateScope("P", frozenset({"/Z/nope/a.mp3"})))
-        assert done[-1] == (1, 0, 0, "ok")
-        assert fake.contents[0].FolderPath == str(disk / "a.mp3")
-        assert fake.contents[1].FolderPath == "/Z/nope/b.mp3"      # fuera del alcance
-        assert fake.commits == 1
-
-    def test_scope_with_no_matching_track_commits_nothing_and_makes_no_backup(self, tmp_path, monkeypatch) -> None:
-        fake, master, disk = _rb_setup(tmp_path, ["a"], monkeypatch)
-        done = _run_rb(master, disk, rc.RelocateScope("otra", frozenset({"/no/esta.mp3"})))
-        assert done[-1] == (0, 0, 0, "ok")
-        assert fake.commits == 0
-        assert not (tmp_path / "listBuddy_backups").exists()
-
-    def test_no_scope_repairs_everything_like_before(self, tmp_path, monkeypatch) -> None:
-        fake, master, disk = _rb_setup(tmp_path, ["a", "b"], monkeypatch)
-        done = _run_rb(master, disk, None)
-        assert done[-1] == (2, 0, 0, "ok")
-        assert fake.commits == 1
-
-    def test_same_content_in_two_playlists_is_one_repair(self, tmp_path, monkeypatch) -> None:
-        # Rekordbox liga playlists por Content.ID: una sola fila repara a todas.
-        fake, master, disk = _rb_setup(tmp_path, ["a"], monkeypatch)
-        done = _run_rb(master, disk, rc.RelocateScope("uno", frozenset({"/Z/nope/a.mp3"})))
-        assert done[-1][0] == 1
-        assert fake.contents[0].FolderPath == str(disk / "a.mp3")
-
-
 # ───────────── Criterio 3: el backup es el mismo y va antes del primer write ─────────────
 
 class TestBackupBeforeFirstWriteWithScope:
@@ -302,28 +189,6 @@ class TestBackupBeforeFirstWriteWithScope:
         assert done[-1][3] == "error"
         assert nml.read_bytes() == original
 
-    def test_rekordbox_backup_then_commit(self, tmp_path, monkeypatch) -> None:
-        fake, master, disk = _rb_setup(tmp_path, ["a", "b"], monkeypatch)
-        order: list[str] = []
-        real_backup = rr.backup_master_db
-        monkeypatch.setattr(rr, "backup_master_db", lambda p: (order.append("backup"), real_backup(p))[1])
-        real_commit = fake.commit
-        monkeypatch.setattr(fake, "commit", lambda: (order.append("commit"), real_commit())[1])
-        _run_rb(master, disk, rc.RelocateScope("P", frozenset({"/Z/nope/a.mp3"})))
-        assert order == ["backup", "commit"]
-        assert len(list((tmp_path / "listBuddy_backups").glob("*"))) == 1
-
-    def test_rekordbox_backup_failure_rolls_back_and_does_not_commit(self, tmp_path, monkeypatch) -> None:
-        fake, master, disk = _rb_setup(tmp_path, ["a"], monkeypatch)
-
-        def boom(_p):
-            raise OSError("sin espacio")
-
-        monkeypatch.setattr(rr, "backup_master_db", boom)
-        done = _run_rb(master, disk, rc.RelocateScope("P", frozenset({"/Z/nope/a.mp3"})))
-        assert done[-1][3] == "error"
-        assert fake.commits == 0 and fake.rollbacks == 1
-
 
 # ───────────── UI: _start_relocate(scope, auto_resolve) y confirmación (criterios 4-6) ─────────────
 
@@ -346,9 +211,7 @@ class FakeWorker:
     def start(self): pass
     def isRunning(self): return False
 
-class FakeRb(FakeWorker): pass
 class FakeTk(FakeWorker): pass
-ui.RekordboxRelocateWorker = FakeRb
 ui.RelocateWorker = FakeTk
 ui.QFileDialog.getExistingDirectory = staticmethod(lambda *a, **k: PICKED[0])
 PICKED = ["/tmp/busqueda"]
@@ -370,7 +233,7 @@ def run_ui(code: str) -> str:
 class TestStartRelocateScoped:
     def test_scoped_auto_resolve_confirms_with_count_name_and_shared_note(self) -> None:
         out = run_ui(
-            "w, _ = make(); w._source = 'rekordbox'\n"
+            "w, _ = make(); w._source = 'traktor'; w._db = SimpleNamespace(path=Path('/tmp/c.nml'))\n"
             "w._start_relocate(scope=SC, auto_resolve=True)\n"
             "t = asked[0]\n"
             "print(len(asked), 'housepost' in t, '3 pistas' in t, 'otras playlists' in t,\n"
@@ -380,7 +243,7 @@ class TestStartRelocateScoped:
 
     def test_answering_no_starts_nothing(self) -> None:
         out = run_ui(
-            "w, _ = make(); w._source = 'rekordbox'\n"
+            "w, _ = make(); w._source = 'traktor'; w._db = SimpleNamespace(path=Path('/tmp/c.nml'))\n"
             "ANSWER[0] = False\n"
             "w._start_relocate(scope=SC, auto_resolve=True)\n"
             "print(len(asked), calls, w._relocate_state, w._relocate_worker)\n"
@@ -389,7 +252,7 @@ class TestStartRelocateScoped:
 
     def test_cancelling_the_folder_picker_asks_nothing_and_starts_nothing(self) -> None:
         out = run_ui(
-            "w, _ = make(); w._source = 'rekordbox'; PICKED[0] = ''\n"
+            "w, _ = make(); w._source = 'traktor'; w._db = SimpleNamespace(path=Path('/tmp/c.nml')); PICKED[0] = ''\n"
             "w._start_relocate(scope=SC, auto_resolve=True)\n"
             "print(len(asked), calls)\n"
         )
@@ -397,7 +260,7 @@ class TestStartRelocateScoped:
 
     def test_scoped_run_asks_even_with_the_menu_tick_off_and_ignores_the_tick(self) -> None:
         out = run_ui(
-            "w, _ = make(); w._source = 'rekordbox'\n"
+            "w, _ = make(); w._source = 'traktor'; w._db = SimpleNamespace(path=Path('/tmp/c.nml'))\n"
             "w._start_relocate(scope=SC, auto_resolve=True)\n"            # tilde apagado
             "ask_off = len(asked)\n"
             "w._set_relocate_state('idle'); w._relocate_worker = None\n"
@@ -409,7 +272,7 @@ class TestStartRelocateScoped:
 
     def test_without_scope_it_is_the_old_global_flow(self) -> None:
         out = run_ui(
-            "w, _ = make(); w._source = 'rekordbox'; w._act_auto.setChecked(True)\n"
+            "w, _ = make(); w._source = 'traktor'; w._db = SimpleNamespace(path=Path('/tmp/c.nml')); w._act_auto.setChecked(True)\n"
             "w._start_relocate()\n"
             "t = asked[0]\n"
             "print(calls[0][1], calls[0][2], 'carpeta' in t, 'otras playlists' in t)\n"
@@ -426,7 +289,7 @@ class TestStartRelocateScoped:
 
     def test_nothing_is_persisted_in_the_ini(self) -> None:
         out = run_ui(
-            "w, ini = make(); w._source = 'rekordbox'\n"
+            "w, ini = make(); w._source = 'traktor'; w._db = SimpleNamespace(path=Path('/tmp/c.nml'))\n"
             "before = ini.read_bytes() if ini.exists() else b''\n"
             "w._start_relocate(scope=SC, auto_resolve=True)\n"
             "w.settings.sync()\n"
