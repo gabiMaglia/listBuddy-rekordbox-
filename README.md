@@ -39,7 +39,7 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 - 🎹 **Key · BPM** — tonalidad y tempo de cada pista en la vista previa.
 - ⏯ **Controles** — play/pausa desde la nota ♪ o con la **barra espaciadora**, barra de progreso con seek, y auto-avance al siguiente track.
 - ⚠️ **Detección de archivos faltantes** — las pistas cuyo archivo no está en disco se marcan en rojo y no se pueden reproducir.
-- 🔧 **Reparar enlaces rotos (relocate)** — si moviste tu música de carpeta o disco, List Buddy busca cada archivo faltante por nombre en la ubicación que le indiques y **repara el enlace en tu propia librería** (Traktor `collection.nml`; en Rekordbox usá Reubicar, ver abajo). Siempre hace un **backup automático** antes de escribir, y ante varios candidatos te pregunta cuál es (con un checkbox opcional para resolver todo automáticamente por mejor coincidencia).
+- 🔧 **Reparar enlaces rotos (relocate)** — si moviste tu música de carpeta o disco, List Buddy busca cada archivo faltante por nombre en la ubicación que le indiques y **repara el enlace** (en Traktor, en tu `collection.nml`; en Rekordbox, en un archivo propio de List Buddy, ver abajo). Siempre hace un **backup automático** antes de escribir, y ante varios candidatos te pregunta cuál es (con un checkbox opcional para resolver todo automáticamente por mejor coincidencia).
 - ⚙️ **Configuración** — selector de dispositivo de salida de audio, auto-avance y override de la ruta de la librería.
 - 🌗 **Tema claro / oscuro** estilo macOS.
 - ⚡ **Sin congelamientos** — las operaciones pesadas (existencia de archivos, decodificación, copia) corren en hilos separados.
@@ -92,7 +92,7 @@ python main.py
 
 Las pistas ya existentes en el destino se saltan, así que podés re-exportar sin duplicar.
 
-### Reparar enlaces rotos (solo Traktor)
+### Reparar enlaces rotos (Traktor)
 
 Si moviste tu música y en la vista previa aparecen pistas **en rojo** (archivo no
 encontrado), podés reparar los enlaces sin salir de List Buddy:
@@ -113,9 +113,30 @@ encontrado), podés reparar los enlaces sin salir de List Buddy:
 > La escritura es atómica y con backup previo, pero **es tu librería real**:
 > revisá el resumen y tené el backup a mano por las dudas.
 
-**En Rekordbox** usá Reubicar: Archivo → Mostrar todos los archivos que faltan →
-Reubicar automáticamente, y volvé a exportar el XML. List Buddy no modifica tu librería
-de Rekordbox.
+**En Rekordbox** las reparaciones se guardan en List Buddy (no se toca tu XML ni tu
+librería); ver la sección siguiente. Para arreglar la librería de Rekordbox en sí,
+exportá el XML con List Buddy e importá la lista, o usá Reubicar dentro de Rekordbox:
+Archivo → Mostrar todos los archivos que faltan → Reubicar automáticamente.
+
+### Reparar una lista de Rekordbox e importarla
+
+1. En Rekordbox: Archivo → Exportar colección en formato xml, y cargá ese XML en
+   List Buddy (⚙ Configuración → Librerías).
+2. Mantenimiento → **Reparar enlaces rotos…** y elegí dónde está ahora tu música.
+   Las rutas nuevas se guardan en `rekordbox_fixes.json`, en la carpeta de datos de
+   List Buddy; tu XML no se modifica.
+3. Marcá la lista y **Exportar playlists** (carpetas completas) y/o Mantenimiento →
+   **Exportar XML para Rekordbox…**, que crea un XML **nuevo** con las listas marcadas.
+4. Para importarlo en Rekordbox:
+   1. Preferencias → Vista → Diseño: activá «rekordbox xml».
+   2. Preferencias → Avanzado → Base de datos → rekordbox xml: en «Biblioteca
+      importada» elegí este archivo.
+   3. En el panel izquierdo abrí «rekordbox xml» → Listas de reproducción, hacé clic
+      derecho en la lista y elegí «Importar lista de reproducción».
+
+Mantenimiento → **Olvidar reparaciones de Rekordbox…** descarta las rutas guardadas.
+La configuración y las reparaciones viven en `~/Library/Application Support/listBuddy/`
+(macOS) o `%APPDATA%\listBuddy\` (Windows).
 
 ### Reproducir
 
