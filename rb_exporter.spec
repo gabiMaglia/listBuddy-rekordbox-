@@ -30,11 +30,11 @@ a = Analysis(
         ('qss', 'qss'), ('fonts', 'fonts'),
         ('LICENSE', '.'), ('THIRD_PARTY_NOTICES.md', '.'), ('licenses', 'licenses'),
     ],
-    # Nota: los módulos locales del relocate (traktor_relocate,
-    # traktor_db, worker, preview_worker, etc.) NO van acá — se importan de forma
-    # estática desde main.py → ui.py (`from traktor_relocate import ...`), así que
-    # el análisis de PyInstaller los sigue solo. hiddenimports es únicamente para
-    # lo que el grafo estático NO puede ver (extensiones nativas, imports diferidos).
+    # Nota: los módulos locales (traktor_relocate, traktor_db, worker,
+    # preview_worker, etc.) NO van acá: se importan de forma estática desde
+    # main.py → ui.py (`from traktor_relocate import ...`), así que el análisis
+    # de PyInstaller los sigue solo. hiddenimports es únicamente para lo que el
+    # grafo estático NO puede ver (extensiones nativas, imports diferidos).
     hiddenimports=[
         'PySide6.QtMultimedia',
         'PySide6.QtSvg',

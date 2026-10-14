@@ -19,8 +19,9 @@ DMG="dist/ListBuddy-${VERSION}.dmg"
 
 if [ ! -x .venv-build/bin/python ]; then
   python3 -m venv .venv-build
-  .venv-build/bin/pip install -q -r requirements.txt pyinstaller==6.20.0
 fi
+# Siempre: un venv viejo con dependencias desactualizadas no puede buildear en silencio.
+.venv-build/bin/pip install -q -r requirements.txt pyinstaller==6.20.0
 
 rm -rf build "$APP" "$DMG"
 .venv-build/bin/pyinstaller --noconfirm rb_exporter.spec
@@ -29,6 +30,9 @@ if [ -n "${DEVELOPER_ID:-}" ]; then
   codesign --force --deep --timestamp --options runtime \
     --entitlements entitlements.plist --sign "$DEVELOPER_ID" "$APP"
   codesign --verify --deep --strict --verbose=2 "$APP"
+else
+  # Firma ad-hoc explícita: sin firma alguna Gatekeeper rechaza el .app en Apple Silicon.
+  codesign --force --deep --sign - "$APP"
 fi
 
 STAGE=$(mktemp -d)
