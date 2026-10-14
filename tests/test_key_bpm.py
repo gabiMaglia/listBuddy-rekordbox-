@@ -1,6 +1,7 @@
 """T-067: columna KEY · BPM — formato, extracción por fuente y alineación en la vista previa."""
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from xml.etree import ElementTree as ET
 
@@ -9,6 +10,7 @@ import pytest
 from _qt_isolated import PROJECT_ROOT, run_isolated
 from _window_boot import BOOT
 from db import key_bpm_of
+from rekordbox_xml import RbxTrack
 from row_blocks import format_key_bpm
 from traktor_db import _build_track_index
 
@@ -29,32 +31,15 @@ def test_format_key_bpm(key, bpm, expected) -> None:
     assert format_key_bpm(key, bpm) == expected
 
 
-# ── Rekordbox (DB falsa) ──
-def test_rekordbox_content_bpm_is_x100_and_key_is_scale_name() -> None:
-    c = SimpleNamespace(BPM=12800, Key=SimpleNamespace(ScaleName="9A"))
-    assert key_bpm_of(c) == ("9A", 128.0)
+# ── Rekordbox (XML) ──
+def test_rekordbox_xml_track_exposes_key_and_bpm() -> None:
+    t = RbxTrack(title="", artist="", file_path=Path("/a"), bpm=122.5, key="8A")
+    assert key_bpm_of(t) == ("8A", 122.5)
 
 
-def test_rekordbox_fractional_bpm() -> None:
-    c = SimpleNamespace(BPM=12750, Key=SimpleNamespace(ScaleName="10B"))
-    assert key_bpm_of(c) == ("10B", 127.5)
-
-
-def test_rekordbox_missing_key_and_bpm_are_empty_not_errors() -> None:
-    assert key_bpm_of(SimpleNamespace(BPM=None, Key=None)) == ("", None)
+def test_missing_key_and_bpm_are_empty_not_errors() -> None:
+    assert key_bpm_of(RbxTrack(title="", artist="", file_path=Path("/a"))) == ("", None)
     assert key_bpm_of(SimpleNamespace()) == ("", None)
-    assert key_bpm_of(SimpleNamespace(BPM=0, Key=SimpleNamespace(ScaleName=None))) == ("", None)
-
-
-def test_rekordbox_lazy_key_that_raises_is_tolerated() -> None:
-    class Boom:
-        BPM = 12800
-
-        @property
-        def Key(self):
-            raise RuntimeError("sesión cerrada")
-
-    assert key_bpm_of(Boom()) == ("", 128.0)
 
 
 # ── Traktor (NML sintético) ──
@@ -159,7 +144,7 @@ def test_at_980_the_column_shows_in_header_and_rows_with_room_for_the_title() ->
     assert out == "True True True True"
 
 
-def test_claude_md_documents_bpm_x100() -> None:
+def test_claude_md_documents_xml_source() -> None:
     text = (PROJECT_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
     assert "BeatCount" not in text
-    assert "BPM×100" in text or "BPM ×100" in text
+    assert "rekordbox.xml" in text and "AverageBpm" in text

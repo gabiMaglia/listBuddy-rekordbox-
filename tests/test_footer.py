@@ -354,7 +354,7 @@ def test_stale_hide_timer_does_not_hide_a_running_export_progress() -> None:
 def test_relocate_progress_and_summary_use_the_footer() -> None:
     out = run(
         "ui.dialogs.warning = staticmethod(lambda *a, **k: None)\n"
-        "w, _ = make(); f = w._footer; w._relocate_source = 'rekordbox'\n"
+        "w, _ = make(); f = w._footer; w._relocate_source = 'traktor'; w._source = 'traktor'\n"
         "w._footer.begin_progress('Buscando enlaces rotos…'); w._set_relocate_state('running')\n"
         "w._on_relocate_finished(3, 1, 0, 'ok'); app.processEvents()\n"
         "print(f.prog_label.full_text(), f.prog_pct.text(), f.progress_active(), w._relocate_state)\n"
