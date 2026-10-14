@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PureWindowsPath
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote
 from xml.etree import ElementTree as ET
 
 _DRIVE = re.compile(r"^/[A-Za-z]:")
@@ -107,10 +107,18 @@ _HOW_TO_EXPORT = (
 
 def location_to_path(location: str) -> Path:
     """URI `file://localhost/...` del XML → ruta local."""
-    parsed = urlparse(location)
-    path = unquote(parsed.path)
-    if parsed.netloc and parsed.netloc != "localhost":
-        return Path(f"//{parsed.netloc}{path}")
+    host = ""
+    path = location
+    if location.startswith("file://"):
+        rest = location[len("file://"):]
+        slash = rest.find("/")
+        host, path = (rest, "") if slash < 0 else (rest[:slash], rest[slash:])
+        if host == "localhost":
+            host = ""
+    # Sin urlparse: un '#' o '?' crudo en el nombre no es fragmento ni query.
+    path = unquote(path)
+    if host:
+        return Path(f"//{unquote(host)}{path}")
     if _DRIVE.match(path):
         return Path(PureWindowsPath(path[1:]).as_posix())
     return Path(path)
@@ -149,24 +157,35 @@ def _track(el: ET.Element, position: int) -> RbxTrack:
 def _build_tree(root: ET.Element) -> list[dict]:
     by_id, by_location = _index_collection(root)
 
-    def walk(node: ET.Element, prefix: str) -> dict:
+    def walk(node: ET.Element, prefix: str, node_id: str) -> dict:
         name = node.get("Name", "") or ""
-        node_id = f"{prefix}/{name}" if prefix else name
         if node.get("Type") == "1":
             index = by_location if node.get("KeyType") == "1" else by_id
             tracks: list[RbxTrack] = []
             for ref in node.iterfind("./TRACK"):
                 el = index.get(ref.get("Key", ""))
-                if el is not None:
-                    tracks.append(_track(el, len(tracks) + 1))
+                if el is None or not el.get("Location"):
+                    continue
+                track = _track(el, len(tracks) + 1)
+                if track.file_path.name:
+                    tracks.append(track)
             return {"playlist": RbxPlaylist(name, node_id, tracks), "children": []}
-        children = [walk(child, node_id) for child in node.iterfind("./NODE")]
-        return {"playlist": RbxFolder(name, node_id), "children": children}
+        return {"playlist": RbxFolder(name, node_id), "children": walk_children(node, node_id)}
+
+    def walk_children(parent: ET.Element, prefix: str) -> list[dict]:
+        seen: dict[str, int] = {}
+        out: list[dict] = []
+        for child in parent.iterfind("./NODE"):
+            name = child.get("Name", "") or ""
+            seen[name] = seen.get(name, 0) + 1
+            unique = name if seen[name] == 1 else f"{name}#{seen[name]}"
+            out.append(walk(child, prefix, f"{prefix}/{unique}" if prefix else unique))
+        return out
 
     root_node = root.find("./PLAYLISTS/NODE")
     if root_node is None:
         return []
-    return [walk(child, "") for child in root_node.iterfind("./NODE")]
+    return walk_children(root_node, "")
 
 
 def open_library(path: Path | None) -> RekordboxXmlLibrary:

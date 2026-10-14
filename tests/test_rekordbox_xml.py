@@ -128,3 +128,48 @@ def test_other_xml_is_rejected(tmp_path: Path) -> None:
 
 def test_exported_at_is_the_file_mtime(lib) -> None:
     assert lib.exported_at.timestamp() == pytest.approx(lib.path.stat().st_mtime, abs=1)
+
+
+def test_location_keeps_hash_and_question_mark_in_the_name() -> None:
+    assert rx.location_to_path("file://localhost/x/Track #1.mp3").as_posix() == "/x/Track #1.mp3"
+    assert rx.location_to_path("file://localhost/x/Qu%C3%A9? mp3.mp3").as_posix() == "/x/Qué? mp3.mp3"
+    assert rx.location_to_path("file:///x/a#b.mp3").as_posix() == "/x/a#b.mp3"
+
+
+def _lib_from(tmp_path: Path, body: str, collection: str) -> rx.RekordboxXmlLibrary:
+    p = tmp_path / "r.xml"
+    p.write_text(
+        '<?xml version="1.0"?><DJ_PLAYLISTS Version="1.0.0"><COLLECTION>'
+        f"{collection}</COLLECTION><PLAYLISTS><NODE Type=\"0\" Name=\"ROOT\">{body}"
+        "</NODE></PLAYLISTS></DJ_PLAYLISTS>",
+        encoding="utf-8",
+    )
+    return rx.open_library(p)
+
+
+def test_tracks_without_location_or_file_name_are_skipped_and_numbering_stays_contiguous(tmp_path) -> None:
+    coll = (
+        '<TRACK TrackID="1" Name="A" Location="file://localhost/m/a.mp3"/>'
+        '<TRACK TrackID="2" Name="Vacio" Location=""/>'
+        '<TRACK TrackID="3" Name="SinLoc"/>'
+        '<TRACK TrackID="4" Name="Dir" Location="file://localhost/"/>'
+        '<TRACK TrackID="5" Name="B" Location="file://localhost/m/b.mp3"/>'
+    )
+    body = '<NODE Type="1" Name="P" KeyType="0"><TRACK Key="1"/><TRACK Key="2"/><TRACK Key="3"/><TRACK Key="4"/><TRACK Key="5"/></NODE>'
+    pl = rx.get_playlist_tree(_lib_from(tmp_path, body, coll))[0]["playlist"]
+    assert [(t.title, t.TrackNo) for t in pl.tracks] == [("A", 1), ("B", 2)]
+
+
+def test_repeated_sibling_names_get_distinct_ids(tmp_path) -> None:
+    body = (
+        '<NODE Type="0" Name="Sets">'
+        '<NODE Type="1" Name="Viernes" KeyType="0"/>'
+        '<NODE Type="1" Name="Viernes" KeyType="0"/>'
+        '<NODE Type="1" Name="Viernes" KeyType="0"/></NODE>'
+        '<NODE Type="0" Name="Sets"><NODE Type="1" Name="Viernes" KeyType="0"/></NODE>'
+    )
+    tree = rx.get_playlist_tree(_lib_from(tmp_path, body, ""))
+    ids = [c["playlist"].ID for c in tree[0]["children"]]
+    assert ids == ["Sets/Viernes", "Sets/Viernes#2", "Sets/Viernes#3"]
+    assert tree[0]["playlist"].ID == "Sets" and tree[1]["playlist"].ID == "Sets#2"
+    assert tree[1]["children"][0]["playlist"].ID == "Sets#2/Viernes"
