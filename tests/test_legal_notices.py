@@ -95,3 +95,13 @@ def test_viewer_degrades_to_link_when_file_is_missing() -> None:
     )
     assert r.returncode == 0 and "ok" in r.stdout, r.stderr[-2000:]
 
+
+
+def test_notices_cover_native_libraries_shipped_in_the_bundle() -> None:
+    python_txt = (PROJECT_ROOT / "licenses" / "Python.txt").read_text(encoding="utf-8")
+    for lib in ("libexpat", "libmpdec", "liblzma", "libzstd", "zlib", "libffi"):
+        assert lib in _NOTICES, lib
+    for marker in ("Licenses and Acknowledgements for Incorporated Software", "expat", "libmpdec", "Zstandard"):
+        assert marker in python_txt, marker
+    assert "Qt Virtual Keyboard" in _NOTICES and "GPL-3.0" in _NOTICES
+    assert "Qt PDF" in _NOTICES and "PDFium" in _NOTICES
