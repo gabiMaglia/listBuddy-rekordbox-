@@ -2042,6 +2042,16 @@ class MainWindow(QMainWindow):
         if not selected:
             dialogs.warning(self, "Sin selección", "Marcá al menos una playlist.")
             return
+        try:
+            Path(output).mkdir(parents=True, exist_ok=True)
+        except OSError:
+            # Típico: el destino guardado está en un disco que hoy no está montado.
+            dialogs.warning(
+                self, "No se puede usar la carpeta de destino",
+                f"No se puede escribir en:\n{output}\n\n"
+                "¿Está conectado el disco? Conectalo o elegí otra carpeta con «Cambiar».",
+            )
+            return
 
         self._last_export_dest = output
         self._set_export_state("running")

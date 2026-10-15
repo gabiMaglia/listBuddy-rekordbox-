@@ -5,6 +5,7 @@ QThread que ejecuta la exportación sin congelar la UI.
 """
 from __future__ import annotations
 
+import logging
 import shutil
 from pathlib import Path
 
@@ -13,6 +14,8 @@ from PySide6.QtCore import QThread, Signal
 from rekordbox_export import get_songs as _rb_get_songs
 from rekordbox_export import get_content, get_artist, resolve_path, sanitize
 from db import order_playlist_songs
+
+_log = logging.getLogger("listBuddy")
 
 
 def _get_songs(pl):
@@ -121,7 +124,18 @@ class ExportWorker(QThread):
 
             sorted_songs = order_playlist_songs(songs)
 
-            dest_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                dest_dir.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                # Disco de destino desconectado (/Volumes/<disco> desmontado),
+                # sin permisos o solo lectura: se corta acá con un mensaje claro.
+                self.log.emit(
+                    f"✗  No se pudo crear la carpeta de destino:\n   {dest_dir}\n"
+                    "   ¿Está conectado el disco y tenés permiso para escribir ahí?"
+                )
+                _log.error("Export: no se pudo crear %s: %s", dest_dir, e)
+                self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
+                return
             pad = len(str(len(sorted_songs)))
 
             for idx, song in enumerate(sorted_songs, start=1):
