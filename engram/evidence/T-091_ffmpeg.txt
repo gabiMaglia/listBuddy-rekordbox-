@@ -1,0 +1,30 @@
+T-091 evidencia FFmpeg (2026-10-15; macOS Darwin 23.6 x86_64; Python 3.14.7; PySide6 6.12.0 / Qt 6.12.0)
+
+## strings PySide6/Qt/lib/libavcodec.63.1.101.dylib
+FFmpeg version 9.0.1
+configure: --prefix=/usr/local/FFmpeg-n9.0.1 --enable-network --enable-shared ... (build x86_64)
+(6.11.1 traia libavcodec.61.19.101 = FFmpeg 7.1.3)
+
+## CVEs
+CVE-2026-40962 (MOV/CENC, OOB write): corregido en n8.1 / n7.1.4 (Debian security tracker) -> 9.0.1 cubierta.
+CVE-2026-66039 (MACE6/CAF, heap OOB): fix aafb5c6 (master) / 947c57d (rama n9.0, 2026-06-29).
+  El tag n9.0.1 (2026-08-12) contiene el cambio: libavcodec/mace.c del tag trae
+  "int64_t nb_samples = ...; if (nb_samples > INT_MAX) return AVERROR_INVALIDDATA;" -> cubierta.
+  (Debian marca "fixed" en 7:9.0.2 solo por el empaquetado de su fuente; verificado leyendo mace.c en code.ffmpeg.org.)
+  Limite: se verifica el codigo fuente del tag; no se fuzzeo el binario con un CAF malicioso.
+
+## Smoke manual (script en subproceso, venv 6.12.0)
+XML sintetico -> rekordbox_xml.open_library -> get_songs -> AudioPlayer.play (volumen 0) + WaveformWorker
+sobre un aiff real de "MUSIC 2026" y su conversion a m4a (AAC) y caf (PCM) con afconvert.
+
+qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 9.0.1 LGPL version 2.1 or later
+PySide6 6.12.0 Qt 6.12.0
+tree: ['P']
+canciones: 3
+--- Dennis Cruz - Rock Is Dead (Original Mix).aiff
+  pos_ms=6803 dur_ms=401119 err=None onda_puntos=8026 playing=True
+--- t.m4a
+  pos_ms=6941 dur_ms=401171 err=None onda_puntos=8026 playing=True
+--- t.caf
+  pos_ms=6942 dur_ms=401119 err=None onda_puntos=8026 playing=True
+RESULT OK
