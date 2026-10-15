@@ -285,7 +285,9 @@ class MainWindow(QMainWindow):
         # Grupos ya dibujados: el cambio de tema los re-encola (T-070).
         self._rendered_groups: list[GroupData] = []
         self._broken_total: int = 0
-        self._render_gen: int = 0   # se incrementa al limpiar; invalida batches stale
+        # Tarjetas vivas de la vista previa por playlist del árbol (T-089): tildar/destildar
+        # agrega o quita solo la afectada en vez de reconstruir todo.
+        self._preview_cards: dict[object, PreviewGroupCard] = {}
 
         settings_path = settings_path or default_settings_path()
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
@@ -1195,6 +1197,7 @@ class MainWindow(QMainWindow):
     def _reload_after_path_change(self) -> None:
         """Vuelve a leer la fuente activa conservando las playlists marcadas."""
         keep = {self._playlist_cache_key(c.playlist) for c in self._all_cards if c.isChecked()}
+        self._clear_preview_layout()   # los datos reparados cambian con las mismas claves
         self._track_meta_cache.clear()
         self._exists_cache.clear()
         self._load_playlists()
@@ -1453,7 +1456,7 @@ class MainWindow(QMainWindow):
     def _clear_preview_layout(self, immediate: bool = False) -> None:
         """`immediate` destruye ya los widgets (no deleteLater): el cambio de tema
         necesita que no existan cuando Qt re-pulea (T-070)."""
-        self._render_gen += 1          # invalida cualquier batch en vuelo
+        self._preview_cards.clear()
         self._rendered_groups.clear()
         self._set_broken_total(0)
         self._render_queue.clear()
@@ -1482,9 +1485,12 @@ class MainWindow(QMainWindow):
     def _start_preview_worker(self) -> None:
         """Llamado por el debounce timer. Cancela worker anterior, muestra loading, inicia nuevo."""
         self._cancel_preview_worker()
-        self._clear_preview_layout()
 
         selected = [c for c in self._all_cards if c.isChecked()]
+        if selected and self._preview_cards:
+            self._sync_preview_cards(selected)
+            return
+        self._clear_preview_layout()
         if not selected:
             self._show_preview_empty()
             return
@@ -1499,7 +1505,9 @@ class MainWindow(QMainWindow):
 
         # ── Extracción de metadata en el main thread (rápido: sólo queries a DB) ──
         groups = self._extract_preview_data(selected)
+        self._launch_preview_worker(groups)
 
+    def _launch_preview_worker(self, groups: list[GroupData]) -> None:
         # ── Worker: existence checks en background con cache compartido ──
         self._render_queue.clear()
         self._preview_worker = PreviewWorker(
@@ -1510,6 +1518,44 @@ class MainWindow(QMainWindow):
         self._preview_worker.group_ready.connect(self._queue_group)
         self._preview_worker.finished.connect(self._on_preview_done)
         self._preview_worker.start()
+
+    def _sync_preview_cards(self, selected: list[PlaylistCard]) -> None:
+        """Tildar/destildar con la vista previa ya armada (T-089): quita las tarjetas de las
+        playlists desmarcadas, renumera las que siguen y manda al worker solo las nuevas."""
+        self._render_queue.clear()   # lo encolado sin dibujar se vuelve a pedir abajo
+        keep = set(selected)
+        for key in [k for k in self._preview_cards if k not in keep]:
+            self._remove_preview_card(key)
+        for order, card in enumerate(selected, start=1):
+            shown = self._preview_cards.get(card)
+            if shown is not None:
+                shown.set_order(order)
+        self._set_broken_total(sum(g.missing_count for g in self._rendered_groups))
+        new = [c for c in selected if c not in self._preview_cards]
+        if not new:
+            return
+        groups = self._extract_preview_data(new)
+        for group in groups:
+            group.order = selected.index(group.card) + 1
+        self._launch_preview_worker(groups)
+
+    def _remove_preview_card(self, key: object) -> None:
+        card = self._preview_cards.pop(key)
+        self._rendered_groups = [g for g in self._rendered_groups if g is not card.data]
+        row = self._playing_row
+        if row is not None and card.isAncestorOf(row):
+            self._playing_row = None   # la fila se destruye con la tarjeta
+        self.preview_layout.removeWidget(card)
+        self._stop_fade_anim(card)   # T-029: parar el fade ANTES de borrar
+        card.deleteLater()
+
+    def _group_rank(self, data: GroupData, ranks: dict[int, int]) -> int:
+        """Posición de la playlist en el árbol = orden de la cola; sin playlist, al final."""
+        return ranks.get(id(data.card), len(ranks))
+
+    def _groups_in_order(self, groups: list[GroupData]) -> list[GroupData]:
+        ranks = {id(c): i for i, c in enumerate(self._all_cards)}
+        return sorted(groups, key=lambda g: self._group_rank(g, ranks))
 
     def _playlist_cache_key(self, playlist) -> str:
         uid = (
@@ -1611,8 +1657,14 @@ class MainWindow(QMainWindow):
         if not self._render_queue:
             return
         data = self._render_queue.pop(0)
+        if data.card in self._preview_cards:
+            # Cancelación a medias: ese grupo ya tiene tarjeta.
+            if self._render_queue:
+                QTimer.singleShot(0, self._pump_render_queue)
+            return
         self._rendered_groups.append(data)
-        gen  = self._render_gen
+        self._rendered_groups = self._groups_in_order(self._rendered_groups)
+        slot = next(i for i, g in enumerate(self._rendered_groups) if g is data)
         lo   = self.preview_layout
 
         # Quitar loading label al llegar el primer grupo real
@@ -1635,31 +1687,20 @@ class MainWindow(QMainWindow):
             card.close_requested.connect(partial(self._close_group_card, data.card))
         card.repair_requested.connect(partial(self._on_card_repair, False, data))
         card.auto_resolve_requested.connect(partial(self._on_card_repair, True, data))
-        lo.addWidget(card)
+        self._preview_cards[data.card if data.card is not None else card] = card
+        lo.insertWidget(slot, card)
         lo.addStretch(1)
         self._animate_fade_in(card, duration=180)
 
-        # Filas: en lotes de 15 para no bloquear el event loop. Una carpeta 100 % rota
-        # nace colapsada y no crea sus filas hasta que se expande (D4).
+        # Filas perezosas (T-089): la tarjeta construye ~12 y el resto al scrollear. Una carpeta
+        # 100 % rota nace colapsada y no crea sus filas hasta que se expande (D4).
         positions = block_positions([t.exists for t in data.tracks])
-        rows = list(zip(data.tracks, positions))
-        if card.state == ALL_BROKEN:
-            card.expand_toggled.connect(partial(self._on_card_expand, card, rows, gen))
-        else:
-            self._batch_rows(rows, card.files_layout, gen, batch=15,
-                             reserve_note=data.missing_count > 0)
+        card.set_lazy_rows(list(zip(data.tracks, positions)), self._make_row_widget,
+                           data.missing_count > 0)
 
         # Continuar con el siguiente grupo en el próximo tick
         if self._render_queue:
             QTimer.singleShot(0, self._pump_render_queue)
-
-    def _on_card_expand(
-        self, card: PreviewGroupCard, rows: list[tuple[TrackRow, str]], gen: int, on: bool,
-    ) -> None:
-        if not on or card.rows_built or gen != self._render_gen:
-            return                       # contraer no destruye; una generación vieja no dibuja
-        card.rows_built = True
-        self._batch_rows(list(rows), card.files_layout, gen, batch=15, reserve_note=True)
 
     def _on_card_repair(self, auto: bool, data: GroupData) -> None:
         """Botonera de la tarjeta (D1 del PO): actúa SOLO sobre los rotos de esa carpeta."""
@@ -1671,29 +1712,6 @@ class MainWindow(QMainWindow):
         if not paths:
             return                       # alcance vacío: nunca degradar a «toda la librería»
         self._start_relocate(scope=RelocateScope(data.name, paths), auto_resolve=auto)
-
-    def _batch_rows(
-        self,
-        remaining: list[tuple[TrackRow, str]],
-        layout: QVBoxLayout,
-        gen: int,
-        batch: int = 15,
-        reserve_note: bool = False,
-    ) -> None:
-        """Añade `batch` filas al layout y se re-programa si quedan más."""
-        if gen != self._render_gen:
-            return                             # selección cambió → descartar
-        for _ in range(batch):
-            if not remaining:
-                layout.addStretch(1)
-                return
-            track, pos = remaining.pop(0)
-            layout.addWidget(self._make_row_widget(track, pos, reserve_note))
-        if remaining:
-            QTimer.singleShot(
-                0, lambda: self._batch_rows(remaining, layout, gen, batch, reserve_note))
-        else:
-            layout.addStretch(1)
 
     def _on_preview_done(self) -> None:
         """Worker terminó. Limpia loading label si no llegó ningún grupo."""
@@ -1894,7 +1912,7 @@ class MainWindow(QMainWindow):
         `_apply_theme` repone estos grupos de forma síncrona, así que nunca quedan
         vacíos (T-072)."""
         return [
-            t for g in (*self._rendered_groups, *self._render_queue)
+            t for g in self._groups_in_order([*self._rendered_groups, *self._render_queue])
             for t in g.tracks if t.exists and t.raw_path
         ]
 
