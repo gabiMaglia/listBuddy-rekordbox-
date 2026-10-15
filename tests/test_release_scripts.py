@@ -59,6 +59,19 @@ def test_release_script_notarization_flow() -> None:
     assert re.search(r"DEVELOPER_ID.*NOTARY_PROFILE|NOTARY_PROFILE.*DEVELOPER_ID", code, re.S)
 
 
+def test_release_script_ci_hooks() -> None:
+    """T-097: el workflow de GitHub Actions llama al script con --arch-suffix y PYTHON,
+    y sube el .sha256 que el script escribe al lado del DMG."""
+    code = "\n".join(_code_lines(_RELEASE))
+    assert "--arch-suffix" in code
+    assert "uname -m" in code
+    assert re.search(r'PYTHON="?\$\{PYTHON:-python3\}', code)
+    assert ".sha256" in code
+    # uso: aceptar los dos flags a la vez y rechazar uno desconocido
+    r = subprocess.run(["bash", str(_RELEASE), "--bogus"], capture_output=True, text=True, cwd=PROJECT_ROOT)
+    assert r.returncode == 2 and "--arch-suffix" in r.stderr
+
+
 def _fake_bundle(tmp_path, *, dirty: str | None):
     app = tmp_path / "List Buddy.app" / "Contents" / "Frameworks"
     app.mkdir(parents=True)

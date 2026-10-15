@@ -5,24 +5,31 @@
 #   DEVELOPER_ID="Developer ID Application: Gabriel Maglia (TEAMID)" \
 #   NOTARY_PROFILE=listbuddy scripts/release_mac.sh   # firma Developer ID + notariza
 #   scripts/release_mac.sh --dry-run       # muestra firma/notarización sin ejecutarlas
+#   scripts/release_mac.sh --arch-suffix   # DMG «List Buddy-<v>-<arm64|x86_64>.dmg» (CI, T-097)
 #
 # NOTARY_PROFILE se crea una sola vez con:
 #   xcrun notarytool store-credentials listbuddy --apple-id <mail> --team-id <TEAMID>
+# o con una API key de App Store Connect (CI):
+#   xcrun notarytool store-credentials listbuddy --key AuthKey.p8 --key-id <ID> --issuer <UUID>
 #
 # Usa un venv limpio (.venv-build) para que PyQt6 u otros restos del venv de
 # desarrollo no entren al bundle. La arquitectura es la de la Mac que buildea.
+# PYTHON (default python3) es el intérprete con el que se crea ese venv.
 # Firma inside-out (sin --deep): Mach-O sueltos -> frameworks -> .app. Hardened
 # runtime y entitlements solo van en el .app (ejecutable principal).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DRY_RUN=0
+ARCH_SUFFIX=""
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
-    *) echo "Uso: $0 [--dry-run]" >&2; exit 2 ;;
+    --arch-suffix) ARCH_SUFFIX="-$(uname -m)" ;;   # arm64 | x86_64
+    *) echo "Uso: $0 [--dry-run] [--arch-suffix]" >&2; exit 2 ;;
   esac
 done
+PYTHON="${PYTHON:-python3}"
 
 # En --dry-run los pasos que firman o hablan con Apple solo se imprimen.
 run() {
@@ -31,8 +38,8 @@ run() {
 
 VERSION=$(sed -n 's/^_APP_VERSION = "\(.*\)"/\1/p' ui.py)
 APP="dist/List Buddy.app"
-DMG="dist/ListBuddy-${VERSION}.dmg"
-ZIP="dist/ListBuddy-${VERSION}.zip"      # solo para subir a notarización (un zip no se estampa)
+DMG="dist/ListBuddy-${VERSION}${ARCH_SUFFIX}.dmg"
+ZIP="dist/ListBuddy-${VERSION}${ARCH_SUFFIX}.zip"   # solo para subir a notarización (un zip no se estampa)
 DMG_ID="com.gabrielmaglia.listbuddy.dmg"
 IDENTITY="${DEVELOPER_ID:--}"             # «-» = ad-hoc
 STAGE=""
@@ -47,13 +54,13 @@ fi
 xmllint --noout entitlements.plist
 
 if [ ! -x .venv-build/bin/python ]; then
-  python3 -m venv .venv-build
+  "$PYTHON" -m venv .venv-build
 fi
 echo "Python de build: $(.venv-build/bin/python -c 'import sys,platform;print(sys.version.split()[0], platform.machine())')"
 # Siempre: un venv viejo con dependencias desactualizadas no puede buildear en silencio.
 .venv-build/bin/pip install -q -r requirements.txt pyinstaller==6.20.0
 
-rm -rf build "$APP" "$DMG" "$ZIP"
+rm -rf build "$APP" "$DMG" "$DMG.sha256" "$ZIP"
 .venv-build/bin/pyinstaller --noconfirm rb_exporter.spec
 
 scripts/check_bundle.sh "$APP"
@@ -166,5 +173,6 @@ if [ "$CAN_NOTARIZE" = 1 ]; then
   run hdiutil verify "$DMG"
 fi
 
-shasum -a 256 "$DMG"
+# <dmg>.sha256 con el nombre pelado: `shasum -a 256 -c` funciona desde la carpeta de descarga.
+(cd dist && shasum -a 256 "$(basename "$DMG")" | tee "$(basename "$DMG").sha256")
 echo "Listo: $DMG ($(lipo -archs "$APP/Contents/MacOS/listBuddy"))"
