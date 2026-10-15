@@ -64,10 +64,10 @@ plans/               → Planes de implementación autocontenidos para ejecutar 
 
 ```
 Python       3.14.3  (CPython)
-PySide6             6.11.1
-PySide6_Essentials  6.11.1
-PySide6_Addons      6.11.1
-shiboken6           6.11.1
+PySide6             6.12.0
+PySide6_Essentials  6.12.0
+PySide6_Addons      6.12.0
+shiboken6           6.12.0
 certifi      2026.7.22
 numpy        2.4.6
 ```
@@ -113,7 +113,7 @@ List Buddy lee Rekordbox **solo** del XML que el usuario exporta (Archivo → Ex
 ```bash
 pip install pyinstaller
 pyinstaller rb_exporter.spec
-# El bundle queda en dist/List Buddy.app (Intel o arm64 según la Mac que buildea; mínimo macOS 13)
+# El bundle queda en dist/List Buddy.app (Intel o arm64 según la Mac que buildea; mínimo macOS 14: lo fijan Python 3.14 y numpy, `minos 14.0`)
 ```
 
 El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **No se puede cross-compilar:** el `.app` solo se puede generar desde una Mac, y el `.exe` de Windows solo desde Windows.
@@ -130,18 +130,14 @@ El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **
 
 5. **Firma de código (Code Signing):** sin firma, macOS Gatekeeper bloquea el .app. Para distribuir:
    - **Sin firma** (solo para el propio usuario): click derecho → Abrir → Confirmar en el diálogo.
-   - **Con firma ad-hoc** (para distribuir a conocidos sin Developer ID):
-     ```bash
-     codesign --force --deep --sign - "dist/List Buddy.app"
-     ```
+   - **Todo el flujo** (build + firma + DMG + notarización) lo hace `scripts/release_mac.sh`; sin `DEVELOPER_ID` firma ad-hoc, con `--dry-run` solo imprime firma y notarización. Firma **inside-out** (Mach-O sueltos → frameworks → `.app`), **sin `--deep`** (deprecado para firmar; `--deep` solo se usa en `codesign --verify`). Hardened runtime (`--options runtime`), `--timestamp` y `entitlements.plist` van solo en el `.app`.
    - **Con Developer ID** (distribución pública sin Mac App Store):
      ```bash
-     codesign --force --deep --options runtime \
-       --sign "Developer ID Application: Tu Nombre (TEAMID)" \
-       "dist/List Buddy.app"
-     xcrun notarytool submit "dist/List Buddy.zip" --apple-id ... --password ... --team-id ...
-     xcrun stapler staple "dist/List Buddy.app"
+     xcrun notarytool store-credentials listbuddy --apple-id <mail> --team-id <TEAMID>   # una vez
+     DEVELOPER_ID="Developer ID Application: Tu Nombre (TEAMID)" NOTARY_PROFILE=listbuddy scripts/release_mac.sh
      ```
+     Notariza el `.app` (zip) → `stapler staple` → DMG firmado → notariza el DMG → `stapler staple/validate` → `spctl --assess --type open --context context:primary-signature` + `hdiutil verify`.
+   - Tras buildear, `scripts/check_bundle.sh "dist/List Buddy.app"` (lo corre el script) falla si hay pyrekordbox/sqlcipher/sqlalchemy o un `.rbe_settings.ini` dentro del bundle.
 
 6. **Arquitectura:** por defecto PyInstaller empaqueta para la arquitectura del sistema donde se corre. Para crear un **Universal Binary** (arm64 + x86_64):
    ```bash
@@ -176,7 +172,7 @@ El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **
      <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
    </dict></plist>
    ```
-   PyInstaller+PySide6 puede requerir `cs.allow-unsigned-executable-memory`. Pasar con `--entitlements entitlements.plist` en codesign.
+   Verificado (T-087): bajo hardened runtime la app necesita **solo** `cs.allow-unsigned-executable-memory` (sin él `import ctypes` cuelga en libffi); `allow-jit` y `disable-library-validation` sobran. Un comentario XML no puede llevar dos guiones seguidos: `codesign` lo rechaza aunque `plutil -lint` diga OK (`tests/test_release_scripts.py` lo vigila).
 
 ### Alternativas a PyInstaller en macOS
 

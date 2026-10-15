@@ -48,7 +48,8 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 
 Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
 
-- **macOS 13 o posterior.** Abrí el `.dmg` y arrastrá **List Buddy** a Aplicaciones.
+- **Código fuente:** el de cada versión está en la sección [Código fuente](#código-fuente).
+- **macOS 14 o posterior.** Abrí el `.dmg` y arrastrá **List Buddy** a Aplicaciones.
 - **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente.
 
 ## Requisitos
@@ -228,9 +229,16 @@ tests/               # tests de correctitud (rutas, matching, backup, sync)
 
 Python · PySide6 · numpy · PyInstaller
 
+## Código fuente
+
+List Buddy es software libre (GPL v3): el código de cada versión está en
+[github.com/gabiMaglia/listBuddy-rekordbox-](https://github.com/gabiMaglia/listBuddy-rekordbox-)
+y podés compilarlo vos: el código fuente está disponible sin cargo. Lo que se vende
+es el binario firmado para macOS, listo para usar.
+
 ## Donaciones
 
-List Buddy es gratuito y de código abierto. Si te sirvió, podés invitarme un café:
+Si te sirvió y lo compilaste vos, podés invitarme un café:
 
 **[ko-fi.com/gabrielmaglia](https://ko-fi.com/gabrielmaglia)** — o escaneá el QR desde
 el menú **Ayuda → Donar en Ko-fi…** dentro de la app.
@@ -257,7 +265,8 @@ resumido la primera vez que la abrís.
 - **Sin garantía.** List Buddy se ofrece tal cual. La reparación de enlaces de Traktor
   escribe sobre tu librería real: siempre hace backup, pero tené tu propia copia.
 - **Compatibilidad.** Lee el XML de Rekordbox (formato publicado por AlphaTheta) y el NML
-  de Traktor (no documentado por su fabricante); una actualización de esos programas puede romperlo sin aviso.
+  de Traktor (`collection.nml`, el archivo XML de texto plano en el que Traktor guarda la
+  colección; formato no documentado oficialmente); una actualización de esos programas puede romperlo sin aviso.
 - **Tu música.** List Buddy solo copia archivos que ya están en tu disco. Sos responsable
   de tener los derechos sobre lo que copiás.
 - **Privacidad.** No recolecta datos. La única conexión a internet es al arrancar, para
@@ -265,6 +274,7 @@ resumido la primera vez que la abrís.
 
 ---
 
-<sub>Rekordbox es una marca de AlphaTheta / Pioneer DJ. Traktor es una marca de Native
-Instruments. List Buddy es un proyecto independiente, sin afiliación ni respaldo de esas
-empresas; lee sus librerías localmente para tu propio uso.</sub>
+<sub>rekordbox es una marca de AlphaTheta Corporation. Pioneer DJ es una marca de Pioneer
+Corporation usada bajo licencia. Traktor es una marca de Native Instruments GmbH. List Buddy
+no es un producto oficial ni está afiliado, patrocinado ni respaldado por esas empresas; lee
+sus librerías localmente para tu propio uso.</sub>
