@@ -170,9 +170,10 @@ class ExportWorker(QThread):
 
         # ── Loop principal ────────────────────────────────────────────────
         done = 0
-        for pl, songs in playlist_songs:
+        folder_names = _unique_folder_names([pl.Name for pl, _ in playlist_songs])
+        for (pl, songs), folder in zip(playlist_songs, folder_names):
             self.log.emit(f"▶  {pl.Name}")
-            dest_dir = self._output_root / sanitize(pl.Name)
+            dest_dir = self._output_root / folder
 
             sorted_songs = order_playlist_songs(songs)
 
@@ -283,6 +284,26 @@ class ExportWorker(QThread):
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
+
+def _unique_folder_names(names: list[str]) -> list[str]:
+    """Una carpeta por playlist: si dos colisionan (mismo nombre, otra carpeta de
+    Rekordbox) la segunda en adelante lleva « (2)», « (3)»…
+
+    Se compara sin distinguir mayúsculas porque APFS/NTFS tratan igual
+    «Mix» y «mix»; si no, las dos pisarían la misma carpeta.
+    """
+    taken: set[str] = set()
+    result: list[str] = []
+    for name in names:
+        base = sanitize(name)
+        candidate, n = base, 1
+        while candidate.casefold() in taken:
+            n += 1
+            candidate = f"{base} ({n})"
+        taken.add(candidate.casefold())
+        result.append(candidate)
+    return result
+
 
 def _is_complete_copy(dest: Path, src: Path) -> bool:
     """«Ya existe» solo si el archivo está y pesa lo mismo que el origen."""

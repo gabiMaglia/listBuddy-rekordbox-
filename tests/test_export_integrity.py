@@ -90,3 +90,31 @@ def test_cancelling_in_the_middle_of_a_file_removes_the_partial_copy() -> None:
         "print(done[3], sorted(f.name for f in (out / 'Mix').iterdir()))\n"
     )
     assert out == "cancelled []"
+
+
+def test_playlists_with_the_same_name_go_to_separate_folders_without_losing_tracks() -> None:
+    out = _run(
+        "a = pl('Viernes', [track(1, 1), track(2, 2)], ID='1')\n"
+        "b = pl('Viernes', [track(3, 1), track(4, 2), track(5, 3)], ID='2')\n"
+        "logs, done = export([a, b])\n"
+        "names = sorted(f.name for f in out.iterdir())\n"
+        "counts = [len(list((out / n).glob('*.mp3'))) for n in names]\n"
+        "print(names, counts, done[0], done[2])\n"
+    )
+    assert out == "['Viernes', 'Viernes (2)'] [2, 3] 5 0"
+
+
+def test_folder_name_stays_simple_when_there_is_no_collision() -> None:
+    out = _run(
+        "export([pl('Viernes', [track(1, 1)]), pl('Sabado', [track(2, 1)])])\n"
+        "print(sorted(f.name for f in out.iterdir()))\n"
+    )
+    assert out == "['Sabado', 'Viernes']"
+
+
+def test_names_that_only_differ_in_case_or_forbidden_chars_do_not_collide() -> None:
+    out = _run(
+        "export([pl('Mix/1', [track(1, 1)]), pl('mix_1', [track(2, 1)]), pl('MIX_1', [track(3, 1)])])\n"
+        "print(sorted(f.name for f in out.iterdir()))\n"
+    )
+    assert out == "['MIX_1 (3)', 'Mix_1', 'mix_1 (2)']"
