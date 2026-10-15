@@ -29,6 +29,7 @@ import logging
 import ssl
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 from dataclasses import dataclass
 
 import threading
@@ -42,6 +43,30 @@ _RELEASES_API_URL = (
 )
 _RELEASES_PAGE_URL = "https://github.com/gabiMaglia/listBuddy-rekordbox-/releases"
 _REQUEST_TIMEOUT_SECONDS = 4.0
+_RELEASES_PATH = "/gabiMaglia/listBuddy-rekordbox-/releases"
+
+
+def safe_release_url(url: object) -> str | None:
+    """
+    SEC-10: el `html_url` viene de un JSON remoto y acaba en
+    `QDesktopServices.openUrl`. Solo se acepta https://github.com/<repo>/releases[/...]
+    (sin credenciales ni puerto); cualquier otra cosa devuelve None.
+    """
+    if not isinstance(url, str):
+        return None
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        return None
+    if parts.scheme != "https" or parts.hostname != "github.com":
+        return None
+    if parts.username or parts.password or port is not None or "@" in parts.netloc:
+        return None
+    path = parts.path
+    if ".." in path.split("/") or not (path == _RELEASES_PATH or path.startswith(_RELEASES_PATH + "/")):
+        return None
+    return url
 
 
 @dataclass(frozen=True)
@@ -148,7 +173,7 @@ class UpdateCheckWorker(QObject):
                 return
 
             if _is_newer(remote, local) and not self._cancelled:
-                url = payload.get("html_url") or _RELEASES_PAGE_URL
+                url = safe_release_url(payload.get("html_url")) or _RELEASES_PAGE_URL
                 version_text = ".".join(str(part) for part in remote)
                 self.update_available.emit(UpdateInfo(version=version_text, url=url))
 
