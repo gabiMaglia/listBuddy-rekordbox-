@@ -240,3 +240,20 @@ def test_safe_filename_never_splits_a_grapheme_cluster() -> None:
 def test_safe_filename_short_names_are_untouched() -> None:
     out = _run("print(worker._safe_filename('01', 'A', 'Canción', '.flac'))\n")
     assert out == "01 - A - Canción.flac"
+
+
+# ── T-093: aviso de ruta larga (MAX_PATH 260 en Windows) ──────────────────
+
+def test_long_destination_path_logs_a_warning_only_on_win32() -> None:
+    out = _run(
+        "import sys\n"
+        "long_title = 'T' * 190\n"
+        "def run_on(plat):\n"
+        "    sys.platform = plat\n"
+        "    d = out / plat; d.mkdir(exist_ok=True)\n"
+        "    logs, done = export([pl('Mix', [track(1, 1, long_title)])], d)\n"
+        "    return sum('260' in l for l in logs), done[0]\n"
+        "w = run_on('win32'); l = run_on('linux')\n"
+        "print(w[0], w[1], l[0], l[1])\n"
+    )
+    assert out == "1 1 0 1"
