@@ -11,11 +11,16 @@
 # - Audio: PyInstaller 6.x recoge automáticamente los plugins multimedia de Qt.
 #   Verificar en runtime: "qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg ..."
 
+import re
 import sys
+from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files
 
 block_cipher = None
 is_mac = sys.platform == "darwin"
+
+# Fuente única de la versión: ui.py (_APP_VERSION). release_mac.sh lee el mismo valor.
+APP_VERSION = re.search(r'^_APP_VERSION = "([^"]+)"', Path('ui.py').read_text(encoding='utf-8'), re.M).group(1)
 
 # cacert.pem de certifi: sin él el chequeo de updates falla el SSL en el bundle.
 certifi_datas = collect_data_files('certifi')
@@ -98,10 +103,24 @@ if is_mac:
             'NSAppleScriptEnabled': False,
             'CFBundleName': 'List Buddy',
             'CFBundleDisplayName': 'List Buddy',
-            'CFBundleShortVersionString': '1.0.0',
-            'CFBundleVersion': '1.0.0',
+            'CFBundleShortVersionString': APP_VERSION,
+            'CFBundleVersion': APP_VERSION,
             'NSHighResolutionCapable': True,
-            'LSMinimumSystemVersion': '13.0',  # mínimo de Qt 6.11 (minos de QtCore)
+            # Mínimo REAL: lo fija el Mach-O con minos más alto (Python 3.14 y numpy: 14.0).
+            # release_mac.sh verifica con otool que ningún binario pida más que esto.
+            'LSMinimumSystemVersion': '14.0',
+            'LSApplicationCategoryType': 'public.app-category.music',
+            # Carpetas protegidas por TCC: sin estas claves el aviso del sistema no explica nada.
+            'NSDesktopFolderUsageDescription':
+                'List Buddy necesita acceder a tu Escritorio para leer y copiar las canciones de tus playlists.',
+            'NSDocumentsFolderUsageDescription':
+                'List Buddy necesita acceder a Documentos para leer tu colección y las canciones de tus playlists.',
+            'NSDownloadsFolderUsageDescription':
+                'List Buddy necesita acceder a Descargas para leer el XML exportado y las canciones de tus playlists.',
+            'NSRemovableVolumesUsageDescription':
+                'List Buddy necesita acceder a discos externos y pendrives para leer o copiar tus canciones.',
+            'NSNetworkVolumesUsageDescription':
+                'List Buddy necesita acceder a volúmenes de red para leer o copiar tus canciones.',
             'NSHumanReadableCopyright': '© 2025-2026 Gabriel Maglia. GPL v3.',
         },
     )
