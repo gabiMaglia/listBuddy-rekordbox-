@@ -142,7 +142,7 @@ Síntoma del PO («pequeño drop de fps hasta que se abren, luego va formidable�
 
 ## 6. Cómo reproducir (comandos usados)
 
-Todo con `cd /Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR`, `S=<scratchpad>/audit-tecnica`, `.venv/bin/python`.
+Todo con `cd <HOME>/Desktop/REKORDBOX_EXTRACTOR`, `S=<scratchpad>/audit-tecnica`, `.venv/bin/python`.
 
 - Fixtures: `python $S/gen_fixture.py $S/fx30x200 30 200 0.05` (también `fx200x200`, `fx2x2000`; `fx200x200_real` = 40k pistas + 48 hijos/pista, 148 MB).
 - Costo por tilde: `python $S/bench_toggle.py $S/fx30x200 10 150` (`MODE=LAZY|NOFADE|NOQSS|SETUPD` para variantes; `TIMED=1` instrumenta `QApplication.notify`).

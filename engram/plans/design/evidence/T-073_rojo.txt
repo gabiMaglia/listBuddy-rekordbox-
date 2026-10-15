@@ -35,7 +35,7 @@ FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_no_scope_re
 FAILED tests/test_relocate_scope.py::TestRekordboxWorkerScoped::test_same_content_in_two_playlists_is_one_repair
 E         
 E       assert 1 == 0
-E        +  where 1 = CompletedProcess(args=['/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/.venv/bin/python', '-c', '\nimport pathlib, tempf...^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: MainWindow._start_relocate() got an unexpected keyword argument \'scope\'\n').returncode
+E        +  where 1 = CompletedProcess(args=['<HOME>/Desktop/REKORDBOX_EXTRACTOR/.venv/bin/python', '-c', '\nimport pathlib, tempf...^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: MainWindow._start_relocate() got an unexpected keyword argument \'scope\'\n').returncode
 
 tests/test_relocate_scope.py:366: AssertionError
 =========================== short test summary info ============================
