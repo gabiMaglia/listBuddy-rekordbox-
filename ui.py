@@ -88,7 +88,7 @@ from rekordbox_fixes import FixStore, fixes_path_for
 from rekordbox_xml_relocate import RekordboxXmlRelocateWorker
 from relocate_core import BackupInfo, RelocateScope, RestoreBackupWorker, list_backups
 from traktor_relocate import RelocateWorker, is_traktor_running
-from update_checker import UpdateCheckWorker, UpdateInfo
+from update_checker import UpdateCheckWorker, UpdateInfo, safe_release_url
 
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
 # Va en cada confirmación antes de escribir sobre una librería (DISCLAIMER.md §3-4).
@@ -2792,5 +2792,7 @@ class MainWindow(QMainWindow):
         self._update_strip.setVisible(True)
 
     def _open_update_link(self) -> None:
-        if self._update_url:
-            QDesktopServices.openUrl(QUrl(self._update_url))
+        # Segunda barrera: aunque _update_url cambie de dueño, solo se abre una URL válida.
+        url = safe_release_url(self._update_url)
+        if url:
+            QDesktopServices.openUrl(QUrl(url))
