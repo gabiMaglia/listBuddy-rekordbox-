@@ -64,10 +64,10 @@ plans/               → Planes de implementación autocontenidos para ejecutar 
 
 ```
 Python       3.14.3  (CPython)
-PySide6             6.11.1
-PySide6_Essentials  6.11.1
-PySide6_Addons      6.11.1
-shiboken6           6.11.1
+PySide6             6.12.0
+PySide6_Essentials  6.12.0
+PySide6_Addons      6.12.0
+shiboken6           6.12.0
 certifi      2026.7.22
 numpy        2.4.6
 ```
