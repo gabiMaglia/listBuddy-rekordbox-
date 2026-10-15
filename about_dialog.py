@@ -37,7 +37,7 @@ DISCLAIMER_PATH = ROOT / "DISCLAIMER.md"
 
 # Igual a «Versión del aviso» de DISCLAIMER.md (un test lo verifica). Cambiarla
 # vuelve a mostrar el aviso a quien ya lo había aceptado.
-DISCLAIMER_VERSION = "2026-10-15"
+DISCLAIMER_VERSION = "2026-10-15.2"
 _DISCLAIMER_KEY = "disclaimer_accepted"
 
 _LEGAL_TEXT = (
@@ -49,12 +49,17 @@ _LEGAL_TEXT = (
     "implícita de COMERCIABILIDAD o de APTITUD PARA UN PROPÓSITO PARTICULAR. "
     "Lo usás bajo tu responsabilidad: antes de reparar enlaces, tené una copia "
     "de tu librería."
+    "<br><br>"
+    "Si compraste tu copia, tenés además los derechos de garantía y devolución "
+    "que te reconoce la ley de tu país (ver Aviso legal, sección 5 bis)."
 )
 
 _TRADEMARKS_TEXT = (
-    "Rekordbox es una marca de AlphaTheta / Pioneer DJ. Traktor es una marca de "
-    f"Native Instruments. {APP_NAME} es un proyecto independiente, sin afiliación "
-    "ni respaldo de esas empresas; lee tu librería localmente para tu propio uso."
+    "rekordbox es una marca de AlphaTheta Corporation. Pioneer DJ es una marca de "
+    "Pioneer Corporation usada bajo licencia. Traktor es una marca de Native "
+    f"Instruments GmbH. {APP_NAME} es un proyecto independiente: no es un "
+    "producto oficial ni está afiliado, patrocinado ni respaldado por esas "
+    "empresas; lee tu librería localmente, para tu propio uso."
 )
 
 
@@ -136,20 +141,24 @@ def mark_disclaimer_accepted(settings: QSettings) -> None:
 
 
 _NOTICE_TEXT = (
-    f"{APP_NAME} es gratuito y se ofrece <b>tal cual, sin ninguna garantía</b>. "
-    "Lo usás bajo tu responsabilidad."
+    f"{APP_NAME} es software libre (GPL v3) y se ofrece <b>tal cual, sin garantía "
+    "comercial</b>. Lo usás bajo tu responsabilidad y con los derechos que te da "
+    "la ley de tu país."
     "<br><br>"
     "• Con Rekordbox solo lee el XML que exportás: nunca modifica tu librería ni tu XML. "
     "Las reparaciones se guardan en List Buddy.<br>"
     "• Con Traktor, «Reparar enlaces rotos» y «Restaurar» <b>sobrescriben tu "
-    "colección</b>. Hace una copia de seguridad automática, pero no reemplaza "
-    "la tuya.<br>"
+    "colección</b> (<code>collection.nml</code>, un archivo tuyo). Hace una copia de "
+    "seguridad automática, pero no reemplaza la tuya.<br>"
     "• Una coincidencia automática puede apuntar al archivo equivocado: revisá "
     "tu librería antes de tocar en vivo."
     "<br><br>"
-    "No nos hacemos cargo de la pérdida o corrupción de librerías, playlists, "
-    "cue points ni archivos de música. <b>Hacé tu propia copia de seguridad</b> "
-    "antes de reparar o restaurar."
+    "No respondemos por la pérdida o corrupción de librerías, playlists, "
+    "cue points ni archivos de música más allá de lo que la ley establezca. "
+    "<b>Hacé tu propia copia de seguridad</b> antes de reparar o restaurar."
+    "<br><br>"
+    f"{APP_NAME} no es un producto de AlphaTheta (rekordbox) ni de Native "
+    "Instruments (Traktor)."
 )
 
 
@@ -222,7 +231,11 @@ class AboutDialog(QDialog):
             layout.addWidget(label)
 
         repo = _link(SOURCE_URL, SOURCE_URL.removeprefix("https://"), token(theme, "link"))
-        source = QLabel(f"Código fuente: {repo}")
+        source = QLabel(
+            f"Código fuente: el código de cada versión está en {repo}. {APP_NAME} es "
+            "software libre (GPL v3): podés compilarlo vos; lo que se vende es el "
+            "binario listo para usar."
+        )
         source.setObjectName("about_body")
         source.setWordWrap(True)
         source.setOpenExternalLinks(True)
