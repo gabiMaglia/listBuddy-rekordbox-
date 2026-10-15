@@ -153,3 +153,39 @@ def test_worker_refuses_a_destination_that_resolves_outside_the_output_root() ->
         "print(done[3], [p.name for p in tmp.glob('*.mp3') if p.name.startswith('1 -')], list(sub.iterdir()))\n"
     )
     assert out == "error [] []"
+
+
+# ── SEC-03: no escribir a través de symlinks plantados en el destino ──────
+
+def test_dangling_symlink_at_the_destination_name_is_not_written_through() -> None:
+    out = _run(
+        "(out / 'Mix').mkdir()\n"
+        "target = tmp / 'colgante.txt'\n"
+        "os.symlink(target, out / 'Mix' / '1 - A - T1.mp3')\n"
+        "logs, done = export([pl('Mix', [track(1, 1)])])\n"
+        "print(target.exists(), done[0], done[2], (out / 'Mix' / '1 - A - T1.mp3').is_symlink())\n"
+    )
+    assert out == "False 0 1 True"
+
+
+def test_dangling_symlink_at_the_part_name_is_not_written_through() -> None:
+    out = _run(
+        "(out / 'Mix').mkdir()\n"
+        "target = tmp / 'colgante.txt'\n"
+        "os.symlink(target, out / 'Mix' / '1 - A - T1.mp3.part')\n"
+        "logs, done = export([pl('Mix', [track(1, 1)])])\n"
+        "print(target.exists(), done[0], (out / 'Mix' / '1 - A - T1.mp3').stat().st_size)\n"
+    )
+    assert out == "False 1 1000000"
+
+
+def test_report_file_symlink_is_not_written_through() -> None:
+    out = _run(
+        "(out / 'Mix').mkdir()\n"
+        "target = tmp / 'colgante.txt'\n"
+        "os.symlink(target, out / 'Mix' / '_no_exportados.txt')\n"
+        "missing = rx.RbxTrack(title='x', artist='', file_path=tmp / 'falta.mp3', TrackNo=1)\n"
+        "logs, done = export([pl('Mix', [missing])])\n"
+        "print(target.exists(), done[3])\n"
+    )
+    assert out == "False ok"
