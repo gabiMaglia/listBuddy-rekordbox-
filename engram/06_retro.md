@@ -4,6 +4,11 @@
 > cierre (P-10). Las lecciones de proceso que aplican a CUALQUIER proyecto se promueven
 > a ~/.nerv/playbook.md; lo específico de este proyecto queda acá.
 
+### 2026-10-15 — QA formal T-080..T-085 + D-11
+**Bien:** tres nerv-qa en paralelo con artefacto propio y prohibición de tocar el backlog; el Done lo consolidó después un solo QA → sin carreras sobre el mismo archivo y backlog-check OK. QA encontró un bug real de producto (D-11, duplicados por codificación) que se reprodujo con un archivo real, se arregló con clave canónica y se verificó con mutación.
+**Mal:** nerv-gate.sh no aplica a auditorías post-merge (pide handoff de retorno y --files) → los tres QA lo reemplazaron por suite + mutaciones; falta un modo «auditoría» del gate. El `.app` auditado era viejo (D-10).
+**Acción concreta:** antes del tag, build de release + chequeo post-build del `.app` con evidencia en `engram/evidence/`.
+
 ### 2026-10-13/15 — Sprint 2: release 1.0.0 (legal, XML oficial, reparar/exportar XML, onda)
 **Bien:** la auditoría legal antes de lanzar cambió el producto a tiempo: se sacó pyrekordbox (clave embebida, EULA §2.2) y Rekordbox pasó al XML oficial (ADR-004). Planes T-080/T-081 ejecutados con un subagente por tarea + revisión por tarea + revisión final: la revisión atrapó 3 bugs reales (restore de Traktor podía pisar rekordbox.xml, `REKORDBOX.XML` en macOS pisaba el origen, desmarcado de playlists tras reparar). Las opciones de onda se mostraron renderizadas con audio real del PO y eligió en un mensaje. La investigación de mercado trajo 2 bugs de producto (rutas duplicadas, streaming).
 **Mal:** el crash del PO al exportar a un disco desmontado venía de antes (excepthook armando UI en un QThread) y ninguna revisión lo vio; se encontró recién en uso real. Un test de limpieza de .tmp pasaba sin el arreglo (vacío). La onda (T-084) y streaming (T-085) se mergearon sin revisión independiente. Los scripts NERV se volvieron a buscar en `~/.claude/nerv-bin` (están en `~/Documents/NERV/bin`).
