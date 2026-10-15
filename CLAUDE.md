@@ -195,7 +195,7 @@ pyinstaller rb_exporter.spec
 ```
 
 - `icon.ico` para el ícono (descomentar línea en spec).
-- UPX está habilitado (`upx=True`) para reducir tamaño. Si da problemas de antivirus, deshabilitar.
+- UPX está deshabilitado (`upx=False` en todo el spec): LGPL (ADR-003) y menos falsos positivos de antivirus sin firma. No habilitarlo.
 - Si el .exe abre pero falla al leer el XML/NML: revisar el log (`%LOCALAPPDATA%\listBuddy\logs\listBuddy.log`).
 
 ---
