@@ -476,7 +476,7 @@ class WaveformSeek(SeekBar):
 
     _BAR, _GAP = 2, 1
     _GROW_MS = 400
-    _PENDING_MIX = 0.72     # cuánto se acerca el color pendiente al color de reposo
+    _PENDING_MIX = 0.55     # cuánto se acerca el color pendiente al color de reposo
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
