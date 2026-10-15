@@ -175,3 +175,28 @@ def test_closing_the_app_while_a_corrupt_file_decodes_does_not_abort() -> None:
         pre=BOOT, timeout=60,
     )
     assert out == "True False"
+
+
+# ── D-21 ──────────────────────────────────────────────────────────────────
+
+def test_playing_changed_only_emits_real_changes_when_starting_and_switching_tracks() -> None:
+    out = _run(
+        "import wave, numpy as np\n"
+        "from PySide6.QtCore import QEventLoop, QTimer\n"
+        "def mkwav(n):\n"
+        "    p = tmp / f'a{n}.wav'\n"
+        "    with wave.open(str(p), 'wb') as f:\n"
+        "        f.setnchannels(1); f.setsampwidth(2); f.setframerate(11025)\n"
+        "        f.writeframes((np.sin(np.arange(11025 * 3) / 5) * 8000).astype('<i2').tobytes())\n"
+        "    return str(p)\n"
+        "def pump(ms):\n"
+        "    loop = QEventLoop(); QTimer.singleShot(ms, loop.quit); loop.exec()\n"
+        "from audio_player import AudioPlayer\n"
+        "pl_ = AudioPlayer(); seen = []\n"
+        "pl_.playing_changed.connect(seen.append)\n"
+        "pl_.play(mkwav(1)); pump(700)\n"
+        "pl_.play(mkwav(2)); pump(700)\n"
+        "pl_.stop(); pump(300)\n"
+        "print(seen)\n",
+    )
+    assert out == "[True, False]"
