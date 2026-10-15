@@ -60,14 +60,24 @@ scripts/check_bundle.sh "$APP"
 
 # Mínimo real del bundle vs. lo declarado en Info.plist (T-086 APP-05).
 MIN_OS=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP/Contents/Info.plist")
+MINOS_WARN=0
 while IFS= read -r f; do
   file -b "$f" | grep -q Mach-O || continue
   minos=$(otool -l "$f" | awk '/LC_BUILD_VERSION/{b=1} b&&/minos/{print $2; exit}')
   [ -z "$minos" ] && continue
   if [ "$(printf '%s\n%s\n' "$MIN_OS" "$minos" | sort -V | tail -1)" != "$MIN_OS" ]; then
-    echo "ERROR: $f pide macOS $minos pero Info.plist declara $MIN_OS" >&2; exit 1
+    case "$f" in
+      # El wheel de PySide6 está etiquetado macosx_13_0 pero sus módulos x86_64 dicen
+      # minos 15.0; en macOS 14.8.8 arrancan y cargan FFmpeg (T-087). Solo se avisa.
+      */Frameworks/PySide6/*|*/Frameworks/shiboken6/*) MINOS_WARN=$((MINOS_WARN + 1)) ;;
+      *) echo "ERROR: $f pide macOS $minos pero Info.plist declara $MIN_OS" >&2; exit 1 ;;
+    esac
   fi
 done < <(find "$APP/Contents" -type f \( -name '*.dylib' -o -name '*.so' -o -perm -u=x \))
+
+if [ "$MINOS_WARN" -gt 0 ]; then
+  echo "AVISO: $MINOS_WARN módulos de PySide6/shiboken6 declaran minos mayor que $MIN_OS (no verificado en macOS < 14.8)." >&2
+fi
 
 # ── Firma inside-out ────────────────────────────────────────────────────────
 if [ "$IDENTITY" = "-" ]; then
@@ -100,8 +110,12 @@ if [ "$IDENTITY" != "-" ] && [ "$DRY_RUN" = 0 ]; then
   TEAM_ID=$(codesign -dv "$APP" 2>&1 | sed -n 's/^TeamIdentifier=//p')
   while IFS= read -r f; do
     file -b "$f" | grep -q Mach-O || continue
-    codesign -dv "$f" 2>&1 | grep -q "TeamIdentifier=$TEAM_ID" \
-      || { echo "ERROR: sin la firma esperada: $f" >&2; exit 1; }
+    # En variable y no en pipe: con pipefail, grep -q cierra antes y codesign muere por SIGPIPE.
+    info=$(codesign -dv "$f" 2>&1 || true)
+    case "$info" in
+      *"TeamIdentifier=$TEAM_ID"*) ;;
+      *) echo "ERROR: sin la firma esperada: $f" >&2; exit 1 ;;
+    esac
   done < <(find "$APP/Contents" -type f \( -name '*.dylib' -o -name '*.so' -o -perm -u=x \))
 fi
 

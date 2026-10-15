@@ -52,7 +52,8 @@ def test_release_script_syntax_and_signing_flags() -> None:
 def test_release_script_notarization_flow() -> None:
     code = "\n".join(_code_lines(_RELEASE))
     for needle in ("trap ", "--dry-run", "notarytool submit", "stapler staple", "stapler validate",
-                   "context:primary-signature", "hdiutil verify", "NOTARY_PROFILE", "check_bundle.sh"):
+                   "context:primary-signature", "hdiutil verify", "NOTARY_PROFILE", "check_bundle.sh",
+                   "LSMinimumSystemVersion", "minos"):
         assert needle in code, needle
     # sin credenciales de notarización el script avisa en vez de fallar
     assert re.search(r"DEVELOPER_ID.*NOTARY_PROFILE|NOTARY_PROFILE.*DEVELOPER_ID", code, re.S)

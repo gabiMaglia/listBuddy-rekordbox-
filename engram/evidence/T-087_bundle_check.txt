@@ -1,0 +1,6 @@
+$ scripts/check_bundle.sh "dist/List Buddy.app"
+OK: dist/List Buddy.app sin pyrekordbox/sqlcipher/sqlalchemy ni .rbe_settings.ini
+exit=0
+
+$ find "dist/List Buddy.app" -iname "*pyrekordbox*" -o -iname "*sqlcipher*" -o -iname "*sqlalchemy*" -o -name ".rbe_settings.ini"   (salida vacía = OK)
+(fin)
