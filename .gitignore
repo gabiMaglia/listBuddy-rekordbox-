@@ -10,7 +10,6 @@ prueba/
 _*.png
 .DS_Store
 *.DS_Store
-.venv-build/
+.venv-build
 .superpowers/
 rekordbox_fixes.json*
-.venv-build/
