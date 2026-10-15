@@ -1551,6 +1551,7 @@ class MainWindow(QMainWindow):
                         num=t.num, title=t.title, artist=t.artist,
                         ext=t.ext, raw_path=t.raw_path, exists=True,
                         key=t.key, bpm=t.bpm, relocated=t.relocated,
+                        streaming=t.streaming,
                     )
                     for t in cached
                 ]
@@ -1565,8 +1566,10 @@ class MainWindow(QMainWindow):
                         title    = sanitize(str(getattr(content, "Title",  "") or "") or "?")
                         artist   = get_artist(content)
                         artist_s = sanitize(str(artist)) if artist else ""
-                        raw      = getattr(content, "FolderPath", "") or ""
-                        ext      = Path(raw).suffix.lower() if raw else ""
+                        streaming = bool(getattr(content, "streaming", False))
+                        # Streaming: no hay archivo; sin raw_path no se reproduce ni se repara.
+                        raw      = "" if streaming else (getattr(content, "FolderPath", "") or "")
+                        ext      = "stream" if streaming else (Path(raw).suffix.lower() if raw else "")
                         key, bpm = key_bpm_of(content)
                         tracks.append(TrackRow(
                             num      = str(i + 1).zfill(3),
@@ -1578,6 +1581,7 @@ class MainWindow(QMainWindow):
                             key      = key,
                             bpm      = bpm,
                             relocated = bool(getattr(content, "relocated", False)),
+                            streaming = streaming,
                         ))
                 except Exception:
                     pass

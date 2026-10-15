@@ -105,3 +105,23 @@ def test_worker_with_nothing_found_writes_nothing(tmp_path: Path) -> None:
     assert r.returncode == 0, r.stderr[-2000:]
     assert r.stdout.strip().splitlines()[-1] == "(0, 0, 1, 'ok')"
     assert not fixes.exists()
+
+
+def test_streaming_tracks_are_never_offered_for_repair(tmp_path: Path) -> None:
+    xml = tmp_path / "rekordbox.xml"
+    xml.write_text(
+        '<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0"><COLLECTION Entries="2">'
+        '<TRACK TrackID="1" Name="De Tidal" Location="tidal:tracks:1"/>'
+        '<TRACK TrackID="2" Name="Perdido" Location="file://localhost/viejo/perdido.mp3"/>'
+        '</COLLECTION><PLAYLISTS><NODE Type="0" Name="ROOT" Count="1">'
+        '<NODE Type="1" Name="L" KeyType="0" Entries="2"><TRACK Key="1"/><TRACK Key="2"/></NODE>'
+        '</NODE></PLAYLISTS></DJ_PLAYLISTS>', encoding="utf-8")
+    r = run_isolated(
+        "from pathlib import Path\n"
+        "import rekordbox_xml as rx\n"
+        "from rekordbox_xml_relocate import find_broken_tracks\n"
+        f"lib = rx.open_library(Path({str(xml)!r}))\n"
+        "print([b.title for _, b in find_broken_tracks(lib)])\n"
+    )
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert r.stdout.strip().splitlines()[-1] == "['Perdido']"

@@ -151,6 +151,16 @@ class ExportWorker(QThread):
                 done += 1
                 self.progress.emit(done, max(total_songs, 1))
 
+                if getattr(content, "streaming", False):
+                    label = getattr(content, "Title", None) or "desconocido"
+                    self.log.emit(f"   ♫  Es de streaming, no es un archivo: {label}")
+                    missing_tracks.append(f"{pl.Name} → {label} (streaming)")
+                    missing_by_dest.setdefault(dest_dir, []).append(
+                        f"{label} — pista de streaming (no es un archivo que se pueda copiar)"
+                    )
+                    missing_total += 1
+                    continue
+
                 if src is None:
                     label = getattr(content, "Title", None) or raw_path or "desconocido"
                     self.log.emit(f"   ⚠  No se encontró: {label}")

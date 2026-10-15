@@ -84,3 +84,39 @@ def test_start_export_warns_before_starting_when_the_destination_is_unusable() -
         "print(len(started), len(warned), 'conectado' in (warned[0] if warned else ''), w._export_state)\n"
     )
     assert out == "0 1 True idle"
+
+
+def test_export_skips_streaming_tracks_with_a_clear_reason() -> None:
+    out = _last(
+        "import pathlib, tempfile\n"
+        "from PySide6.QtCore import QCoreApplication\n"
+        "app = QCoreApplication([])\n"
+        "song = pathlib.Path(tempfile.mkdtemp()) / 'a.mp3'; song.write_bytes(b'x')\n"
+        "dest = pathlib.Path(tempfile.mkdtemp()) / 'out'\n"
+        "import rekordbox_xml as rx\n"
+        "from worker import ExportWorker\n"
+        "ok = rx.RbxTrack(title='Uno', artist='Ana', file_path=song, TrackNo=1)\n"
+        "st = rx.RbxTrack(title='De Tidal', artist='B', file_path=pathlib.Path('tidal:tracks:1'), TrackNo=2,\n"
+        "                 location='tidal:tracks:1', streaming=True)\n"
+        "w = ExportWorker([rx.RbxPlaylist(name='Mix', ID='Mix', tracks=[ok, st])], dest)\n"
+        "logs, done = [], []\n"
+        "w.log.connect(logs.append); w.finished_ok.connect(lambda *a: done.append(a))\n"
+        "w.run()\n"
+        "txt = (dest / 'Mix' / '_no_exportados.txt').read_text(encoding='utf-8')\n"
+        "print(done[-1][0], any('streaming' in l for l in logs), 'streaming' in txt)\n"
+    )
+    assert out == "1 True True"
+
+
+def test_preview_shows_streaming_tracks_as_stream_not_broken() -> None:
+    out = _last(
+        "import pathlib\n"
+        "from PySide6.QtCore import QCoreApplication\n"
+        "app = QCoreApplication([])\n"
+        "from preview_worker import GroupData, PreviewWorker, TrackRow\n"
+        "row = TrackRow(num='001', title='De Tidal', artist='', ext='stream', raw_path='', streaming=True)\n"
+        "g = GroupData(name='Mix', order=1, total_count=1, tracks=[row])\n"
+        "PreviewWorker([g], False, {}).run()\n"
+        "print(row.exists, g.missing_count)\n"
+    )
+    assert out == "True 0"
