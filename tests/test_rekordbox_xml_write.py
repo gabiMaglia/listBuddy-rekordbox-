@@ -176,3 +176,46 @@ def test_streaming_tracks_are_written_as_is_and_not_counted_missing(tmp_path: Pa
     res = rx.write_playlists_xml([rx.get_playlist_tree(lib)[0]["playlist"]], tmp_path / "o.xml", source=xml)
     track = ET.parse(tmp_path / "o.xml").getroot().find("./COLLECTION/TRACK")
     assert track.get("Location") == "tidal:tracks:123456" and res.missing == 0
+
+
+def _same_file_xml(tmp: Path, healthy_location: str) -> Path:
+    xml = tmp / "rekordbox.xml"
+    loc = healthy_location.replace("&", "&amp;").replace("'", "&apos;")
+    xml.write_text(
+        '<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0"><COLLECTION Entries="2">'
+        f'<TRACK TrackID="1" Name="Sana" Location="{loc}"/>'
+        '<TRACK TrackID="2" Name="Rota" Location="file://localhost/viejo/rota.mp3"/>'
+        '</COLLECTION><PLAYLISTS><NODE Type="0" Name="ROOT" Count="1">'
+        '<NODE Type="1" Name="L" KeyType="0" Entries="2"><TRACK Key="1"/><TRACK Key="2"/></NODE>'
+        '</NODE></PLAYLISTS></DJ_PLAYLISTS>', encoding="utf-8")
+    return xml
+
+
+def _export_locations(tmp: Path, xml: Path, fixed_path: str) -> tuple[list[str], list[str]]:
+    lib = rx.open_library(xml, fixes={"file://localhost/viejo/rota.mp3": fixed_path})
+    dest = tmp / "o.xml"
+    rx.write_playlists_xml([rx.get_playlist_tree(lib)[0]["playlist"]], dest, source=xml)
+    root = ET.parse(dest).getroot()
+    return ([t.get("Location") for t in root.findall("./COLLECTION/TRACK")],
+            [t.get("Key") for t in root.findall("./PLAYLISTS/NODE/NODE/TRACK")])
+
+
+def test_healthy_and_repaired_track_to_the_same_file_share_one_entry_despite_escaping(tmp_path: Path) -> None:
+    # D-11: el XML de Rekordbox puede traer ( ) ' & ! sin escapar; path_to_location los escapa.
+    f = tmp_path / "Björk - Joga (Live) 'Remix' & Co!.mp3"
+    f.write_bytes(b"x")
+    healthy = "file://localhost" + str(f).replace(" ", "%20").replace("ö", "%C3%B6")
+    assert healthy != rx.path_to_location(f)          # precondición: codificación distinta
+    locations, keys = _export_locations(tmp_path, _same_file_xml(tmp_path, healthy), str(f))
+    assert locations == [healthy]                      # se conserva la Location que trajo Rekordbox
+    assert keys == ["1", "1"]
+
+
+def test_healthy_and_repaired_track_share_one_entry_despite_unicode_form(tmp_path: Path) -> None:
+    import unicodedata
+    f = tmp_path / "Sigur Rós - Hoppípolla.mp3"
+    f.write_bytes(b"x")
+    nfd = unicodedata.normalize("NFD", str(f))         # como puede devolverla os.walk en macOS
+    locations, keys = _export_locations(
+        tmp_path, _same_file_xml(tmp_path, rx.path_to_location(f)), nfd)
+    assert len(locations) == 1 and keys == ["1", "1"]
