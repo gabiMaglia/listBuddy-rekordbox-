@@ -72,3 +72,27 @@ def test_preview_worker_does_not_shadow_qthread_finished() -> None:
     )
     assert r.returncode == 0, r.stderr[-2000:]
     assert r.stdout.strip() == "True"
+
+
+def test_closing_the_window_with_the_update_check_in_flight_exits_cleanly() -> None:
+    # `urlopen` simulado lento (DNS colgado): el hilo sigue vivo al cerrar.
+    r = run_isolated(
+        "import sys, time, urllib.request\n"
+        "def slow(*a, **k):\n"
+        "    time.sleep(3); raise OSError('sin red')\n"
+        "urllib.request.urlopen = slow\n"
+        "from PySide6.QtCore import QTimer\n"
+        "from PySide6.QtWidgets import QApplication\n"
+        "import pathlib, tempfile, styles, ui\n"
+        "app = QApplication([]); styles.register_fonts(); styles.apply_theme(app, 'dark')\n"
+        "ui.MainWindow._load_playlists = lambda self: None\n"
+        "ui.MainWindow._maybe_show_disclaimer = lambda self: None\n"
+        "win = ui.MainWindow(settings_path=pathlib.Path(tempfile.mkdtemp()) / 's.ini')\n"
+        "win.show()\n"
+        "QTimer.singleShot(300, win.close); QTimer.singleShot(400, app.quit)\n"
+        "rc = app.exec(); print('exec', rc, flush=True)\n"
+        "sys.exit(rc)\n",
+        cold=True, timeout=60,
+    )
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert "exec 0" in r.stdout
