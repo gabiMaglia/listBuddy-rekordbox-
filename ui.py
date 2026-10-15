@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import itertools
 import sys
-from io import BytesIO
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Literal
@@ -21,6 +20,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QAction,
     QDesktopServices,
+    QImage,
     QIcon,
     QKeySequence,
     QMouseEvent,
@@ -185,20 +185,23 @@ class DonationDialog(QDialog):
 
     @staticmethod
     def _make_qr() -> QPixmap | None:
+        # qrcode solo aporta la matriz de módulos (sin Pillow): se pinta con Qt.
         try:
             import qrcode  # type: ignore
-            qr = qrcode.QRCode(box_size=5, border=2)
+
+            qr = qrcode.QRCode(border=2)
             qr.add_data(_KOFI_URL)
             qr.make(fit=True)
-            img = qr.make_image(fill_color="black", back_color="white")
-            buf = BytesIO()
-            img.save(buf, format="PNG")
-            px = QPixmap()
-            px.loadFromData(buf.getvalue())
-            return px.scaled(
+            matrix = qr.get_matrix()
+            n = len(matrix)
+            img = QImage(n, n, QImage.Format.Format_RGB32)
+            for y, row in enumerate(matrix):
+                for x, dark in enumerate(row):
+                    img.setPixel(x, y, 0xFF000000 if dark else 0xFFFFFFFF)
+            return QPixmap.fromImage(img).scaled(
                 180, 180,
                 Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
+                Qt.TransformationMode.FastTransformation,
             )
         except Exception:
             return None
