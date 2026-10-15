@@ -307,3 +307,37 @@ class TestRunResolutionNormalizedNeverAutoResolves:
         assert result.unresolved == 0
         assert not asked  # nunca pidió confirmación — 1 match exacto se aplica solo
         assert worker.applied
+
+
+# ───────────── T-093 (TEC-06): NFC/NFD en el índice y el lookup ───────────
+
+import unicodedata
+
+
+class TestUnicodeNormalizationLookup:
+    def _find(self, disk_name: str, xml_name: str, tmp_path):
+        # Un archivo aparte por nombre: en APFS NFC y NFD serían el mismo, así
+        # que se crea con el nombre de disco y se busca con el del XML.
+        (tmp_path / disk_name).write_bytes(b"x")
+        index = rc.build_basename_index(tmp_path)
+        norm = rc.build_normalized_index(index)
+        return rc.find_candidates(_broken(xml_name), index, normalized_index=norm)
+
+    def test_disk_nfd_xml_nfc_is_found_exactly(self, tmp_path):
+        nfd = unicodedata.normalize("NFD", "Canción.mp3")
+        nfc = unicodedata.normalize("NFC", "Canción.mp3")
+        assert nfd != nfc
+        cands = self._find(nfd, nfc, tmp_path)
+        assert len(cands) == 1 and cands[0].match_type == "exact"
+
+    def test_disk_nfc_xml_nfd_is_found_exactly(self, tmp_path):
+        nfd = unicodedata.normalize("NFD", "Canción.mp3")
+        nfc = unicodedata.normalize("NFC", "Canción.mp3")
+        cands = self._find(nfc, nfd, tmp_path)
+        assert len(cands) == 1 and cands[0].match_type == "exact"
+
+    def test_normalize_key_is_nfc_and_casefolded(self):
+        a = rc._normalize_key(unicodedata.normalize("NFD", "CANCIÓN.mp3"))
+        b = rc._normalize_key(unicodedata.normalize("NFC", "canción.mp3"))
+        assert a == b
+        assert rc._normalize_key("Straße.mp3") == rc._normalize_key("STRASSE.mp3")
