@@ -48,7 +48,7 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 
 Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
 
-- **macOS 13 o posterior.** Abrí el `.dmg` y arrastrá **List Buddy** a Aplicaciones.
+- **macOS 14 o posterior.** Abrí el `.dmg` y arrastrá **List Buddy** a Aplicaciones.
 - **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente.
 
 ## Requisitos
