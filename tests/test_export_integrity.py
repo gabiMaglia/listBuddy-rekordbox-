@@ -118,3 +118,38 @@ def test_names_that_only_differ_in_case_or_forbidden_chars_do_not_collide() -> N
         "print(sorted(f.name for f in out.iterdir()))\n"
     )
     assert out == "['MIX_1 (3)', 'Mix_1', 'mix_1 (2)']"
+
+
+# ── SEC-02: el nombre de la playlist no puede sacar la copia del destino ──
+
+def test_sanitize_never_returns_a_dot_name() -> None:
+    from rekordbox_export import sanitize
+
+    for raw in ("..", ".", "", "   ", "...", " . . ", "./..", "../.."):
+        assert sanitize(raw) not in (".", ".."), raw
+        assert "/" not in sanitize(raw) and "\\" not in sanitize(raw)
+    assert sanitize(" Mi set. ") == "Mi set"
+    assert sanitize("A/B:C") == "A_B_C"
+
+
+def test_dot_playlist_names_stay_inside_the_chosen_folder() -> None:
+    out = _run(
+        "sub = tmp / 'elegida'; sub.mkdir()\n"
+        "(tmp / '_no_exportados.txt').write_text('AJENO')\n"
+        "pls = [pl(n, [track(i, 1), rx.RbxTrack(title='x', artist='', file_path=tmp / 'falta.mp3', TrackNo=2)], ID=str(i))\n"
+        "       for i, n in enumerate(['..', '.', '', '  ', '...'], start=1)]\n"
+        "export(pls, sub)\n"
+        "outside = sorted(p.name for p in tmp.iterdir() if p.name not in ('elegida',) and not p.name.startswith('src') and p.name != 'out')\n"
+        "print(outside, (tmp / '_no_exportados.txt').read_text(), len(list(sub.iterdir())), len(list(sub.glob('*.mp3'))))\n"
+    )
+    assert out == "['_no_exportados.txt'] AJENO 5 0"
+
+
+def test_worker_refuses_a_destination_that_resolves_outside_the_output_root() -> None:
+    out = _run(
+        "sub = tmp / 'elegida'; sub.mkdir()\n"
+        "worker.sanitize = lambda s: '..'\n"
+        "logs, done = export([pl('x', [track(1, 1)])], sub)\n"
+        "print(done[3], [p.name for p in tmp.glob('*.mp3') if p.name.startswith('1 -')], list(sub.iterdir()))\n"
+    )
+    assert out == "error [] []"
