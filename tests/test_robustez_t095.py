@@ -139,3 +139,39 @@ def test_foreign_part_files_survive_but_our_own_orphan_is_removed() -> None:
         "print(sorted(f.name for f in (out / 'Mix').iterdir()))\n"
     )
     assert out == "['1 - A - T1.mp3', 'descarga.part', 'otra.mp3.part']"
+
+
+# ── D-20 ──────────────────────────────────────────────────────────────────
+
+_CORRUPT = (
+    "import os, pathlib, tempfile, time\n"
+    "bad = pathlib.Path(tempfile.mkdtemp()) / 'roto.mp3'; bad.write_bytes(os.urandom(5000))\n"
+)
+
+
+def test_waveform_worker_gives_up_at_once_on_a_file_that_does_not_open() -> None:
+    out = _run(
+        _CORRUPT +
+        "from PySide6.QtCore import QCoreApplication\n"
+        "app = QCoreApplication([])\n"
+        "import waveform_worker as ww\n"
+        "w = ww.WaveformWorker(str(bad), 1); t0 = time.monotonic(); w.start()\n"
+        "while w.isRunning() and time.monotonic() - t0 < 20:\n"
+        "    app.processEvents(); time.sleep(0.01)\n"
+        "print(w.isRunning(), time.monotonic() - t0 < 2)\n",
+        pre="", timeout=60,
+    )
+    assert out == "False True"
+
+
+def test_closing_the_app_while_a_corrupt_file_decodes_does_not_abort() -> None:
+    out = _run(
+        _CORRUPT +
+        "w, _ = make()\n"
+        "w._start_waveform(str(bad)); time.sleep(0.3)\n"
+        "ws = list(w._live_wave_workers)\n"
+        "t0 = time.monotonic(); w.close()\n"
+        "print(time.monotonic() - t0 < 4, any(x.isRunning() for x in ws))\n",
+        pre=BOOT, timeout=60,
+    )
+    assert out == "True False"
