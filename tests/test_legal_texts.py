@@ -126,3 +126,10 @@ def test_first_run_notice_mentions_purchase_rights_and_non_official() -> None:
     assert "con los derechos que te da la ley de tu país" in src
     assert "no es un producto de AlphaTheta" in src
     assert "Si compraste tu copia" in src
+
+
+def test_readme_explains_gatekeeper_block() -> None:
+    """APP-13: qué hacer si macOS bloquea la app (en macOS 15 ya no sirve Control-clic)."""
+    text = " ".join((PROJECT_ROOT / "README.md").read_text(encoding="utf-8").split())
+    assert "Privacidad y seguridad" in text and "Abrir de todos modos" in text
+    assert "notarizada" in text
