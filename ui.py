@@ -50,6 +50,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtMultimedia import QMediaDevices
 
 import rekordbox_xml
+from app_paths import default_settings_path
 from db import key_bpm_of
 from about_dialog import (
     AboutDialog,
@@ -70,6 +71,7 @@ from styles import apply_title_tracking, status_style, token
 from worker import ExportWorker
 from ui_components import (
     ClickableLabel,
+    WrapLabel,
     FileRow,
     MaintenanceButton,
     PlaylistCard,
@@ -82,6 +84,8 @@ from preview_worker import PreviewWorker, GroupData, TrackRow
 from audio_player import AudioPlayer
 from footer import FooterBar
 from waveform_worker import WaveformWorker
+from rekordbox_fixes import FixStore, fixes_path_for
+from rekordbox_xml_relocate import RekordboxXmlRelocateWorker
 from relocate_core import BackupInfo, RelocateScope, RestoreBackupWorker, list_backups
 from traktor_relocate import RelocateWorker, is_traktor_running
 from update_checker import UpdateCheckWorker, UpdateInfo
@@ -283,8 +287,9 @@ class MainWindow(QMainWindow):
         self._broken_total: int = 0
         self._render_gen: int = 0   # se incrementa al limpiar; invalida batches stale
 
-        settings_path = settings_path or Path(__file__).parent / ".rbe_settings.ini"
+        settings_path = settings_path or default_settings_path()
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
+        self._fixes_store = FixStore(fixes_path_for(Path(self.settings.fileName())))
         self._theme = str(self.settings.value("theme", "dark"))
         from ui_components import PlaylistCard as _PC
         _PC.set_theme(self._theme)
@@ -663,18 +668,17 @@ class MainWindow(QMainWindow):
         self._act_relocate.triggered.connect(self._on_relocate_action)
         self._act_restore = menu.addAction("Restaurar copia de seguridad…")
         self._act_restore.triggered.connect(self._open_restore_backup_dialog)
+        self._act_forget_fixes = menu.addAction("Olvidar reparaciones de Rekordbox…")
+        self._act_forget_fixes.triggered.connect(self._forget_rb_fixes)
+        self._act_export_xml = menu.addAction("Exportar XML para Rekordbox…")
+        self._act_export_xml.triggered.connect(self._export_rb_xml)
         menu.addSeparator()
         self._act_auto = menu.addAction(
             "Resolver automáticamente con la mejor coincidencia"
         )
         self._act_auto.setCheckable(True)
         self._act_auto.setChecked(False)  # D4: siempre apagado al arrancar, no se persiste
-        self._act_auto.setToolTip(
-            "Con >1 candidato, aplica directo el de mejor score sin mostrar\n"
-            "el modal de desambiguación. El log marca cada uno como '(auto)'.\n"
-            "Riesgo: un nombre de archivo idéntico para canciones distintas\n"
-            "podría auto-resolver al candidato equivocado (backup reversible)."
-        )
+        self._act_auto.setToolTip(self._AUTO_TIP_TRAKTOR)
         self._maint_menu = menu
         self._relocate_state: Literal["idle", "running", "cancelling"] = "idle"
         self._maintenance_locked = False  # restauración en curso
@@ -683,6 +687,7 @@ class MainWindow(QMainWindow):
         self._sync_maintenance_for_source()
 
     def _show_maintenance_menu(self) -> None:
+        self._sync_rb_actions()
         self._maint_menu.popup(
             self._maint_btn.mapToGlobal(QPoint(0, self._maint_btn.height() + 4))
         )
@@ -717,29 +722,59 @@ class MainWindow(QMainWindow):
         self._src_rb_btn.setEnabled(free)
         self._src_tk_btn.setEnabled(free)
         self._reload_action.setEnabled(free)
+        self._sync_rb_actions()
+
+    def _sync_rb_actions(self) -> None:
+        """«Olvidar reparaciones» y «Exportar XML»: solo con Rekordbox, sin tareas en curso."""
+        if not hasattr(self, "_act_export_xml"):
+            return
+        base = (
+            self._source == "rekordbox"
+            and isinstance(self._db, rekordbox_xml.RekordboxXmlLibrary)
+            and not self._is_maintenance_busy()
+        )
+        self._act_forget_fixes.setEnabled(base and self._fixes_store.count() > 0)
+        self._act_export_xml.setEnabled(
+            base and any(c.isChecked() for c in self._all_cards)
+        )
 
     def _set_maintenance_enabled(self, enabled: bool) -> None:
         self._maintenance_locked = not enabled
         self._sync_busy_locks()
         ok = enabled and self._repair_supported()
         self._act_relocate.setEnabled(ok)
-        self._act_restore.setEnabled(ok)
+        self._act_restore.setEnabled(enabled and self._source == "traktor")
+        self._sync_rb_actions()
 
-    _REKORDBOX_REPAIR_HINT = (
-        "Con Rekordbox, List Buddy solo lee el XML exportado y no modifica tu librería.\n"
-        "Para reparar enlaces usá Reubicar en Rekordbox (Archivo → Mostrar todos los\n"
-        "archivos que faltan → Reubicar automáticamente) y volvé a exportar el XML."
+    _AUTO_TIP_BASE = (
+        "Con >1 candidato, aplica directo el de mejor score sin mostrar\n"
+        "el modal de desambiguación. El log marca cada uno como '(auto)'.\n"
+        "Riesgo: un nombre de archivo idéntico para canciones distintas\n"
+        "podría auto-resolver al candidato equivocado"
+    )
+    _AUTO_TIP_TRAKTOR = _AUTO_TIP_BASE + " (backup reversible)."
+    _AUTO_TIP_REKORDBOX = (
+        _AUTO_TIP_BASE + ".\nCon Rekordbox, las reparaciones se pueden deshacer "
+        "con «Olvidar reparaciones de Rekordbox…»."
+    )
+    _REKORDBOX_RESTORE_HINT = (
+        "Con Rekordbox no hay copias: List Buddy no modifica tu XML ni tu librería."
     )
 
     def _repair_supported(self) -> bool:
-        return self._source == "traktor"
+        if self._source == "traktor":
+            return True
+        return self._source == "rekordbox" and isinstance(
+            self._db, rekordbox_xml.RekordboxXmlLibrary
+        )
 
     def _sync_maintenance_for_source(self) -> None:
         ok = self._repair_supported()
         self._act_relocate.setEnabled(ok and self._relocate_state != "cancelling")
-        self._act_restore.setEnabled(ok)
+        self._act_restore.setEnabled(self._source == "traktor")
         self._act_auto.setEnabled(ok)
         self._update_relocate_tooltip()
+        self._sync_rb_actions()
 
     def _auto_resolve_enabled(self) -> bool:
         return self._act_auto.isChecked()
@@ -752,9 +787,15 @@ class MainWindow(QMainWindow):
                 "la colección de Traktor (collection.nml)."
             )
         else:
-            self._act_relocate.setToolTip(self._REKORDBOX_REPAIR_HINT)
+            self._act_relocate.setToolTip(
+                "Busca los archivos que faltan en una carpeta o disco. Las rutas nuevas "
+                "se guardan en List Buddy para exportar; tu XML y Rekordbox no se modifican."
+            )
+        self._act_auto.setToolTip(
+            self._AUTO_TIP_TRAKTOR if self._source == "traktor" else self._AUTO_TIP_REKORDBOX
+        )
         self._act_restore.setToolTip(
-            self._REKORDBOX_REPAIR_HINT if not self._repair_supported() else ""
+            self._REKORDBOX_RESTORE_HINT if self._source != "traktor" else ""
         )
 
     def _switch_source(self, source: str) -> None:
@@ -1152,9 +1193,16 @@ class MainWindow(QMainWindow):
         self._reload_after_path_change()
 
     def _reload_after_path_change(self) -> None:
+        """Vuelve a leer la fuente activa conservando las playlists marcadas."""
+        keep = {self._playlist_cache_key(c.playlist) for c in self._all_cards if c.isChecked()}
         self._track_meta_cache.clear()
         self._exists_cache.clear()
         self._load_playlists()
+        if keep:
+            for card in self._all_cards:
+                if self._playlist_cache_key(card.playlist) in keep:
+                    card.setChecked(True)
+            self._update_order_numbers()
 
     # ──────────────────────────────────────── Load playlists ─────────────
 
@@ -1177,7 +1225,7 @@ class MainWindow(QMainWindow):
                 self._db = col
             else:
                 xml_path = Path(self._rb_xml_path) if self._rb_xml_path else None
-                lib = rekordbox_xml.open_library(xml_path)
+                lib = rekordbox_xml.open_library(xml_path, fixes=self._fixes_store.load())
                 tree = rekordbox_xml.get_playlist_tree(lib)
                 playlist_song_count = rekordbox_xml.playlist_song_count
                 self._db = lib
@@ -1186,6 +1234,7 @@ class MainWindow(QMainWindow):
             if self._source == "rekordbox":
                 action = ("Elegir rekordbox.xml…", self._browse_rb_path)
             self._show_not_installed(str(e), action)
+            self._sync_maintenance_for_source()
             return
 
         self._populate_playlists(tree, playlist_song_count)
@@ -1195,6 +1244,7 @@ class MainWindow(QMainWindow):
             stamp = f"{self._db.exported_at:%d/%m/%Y %H:%M}"
             self._log(f"XML exportado el {stamp}.")
             self._src_rb_btn.setToolTip(f"XML exportado el {stamp}")
+        self._sync_maintenance_for_source()
 
     # Seam de test: los tests con BOOT reemplazan `_load_playlists` por un no-op
     # y llaman a esta referencia para ejercitar la carga real.
@@ -1292,10 +1342,9 @@ class MainWindow(QMainWindow):
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(title)
 
-        sub = QLabel(detail)
+        sub = WrapLabel(detail)
         sub.setObjectName("not_installed_sub")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub.setWordWrap(True)
         cl.addWidget(sub)
 
         if action is not None:
@@ -1501,7 +1550,7 @@ class MainWindow(QMainWindow):
                     TrackRow(
                         num=t.num, title=t.title, artist=t.artist,
                         ext=t.ext, raw_path=t.raw_path, exists=True,
-                        key=t.key, bpm=t.bpm,
+                        key=t.key, bpm=t.bpm, relocated=t.relocated,
                     )
                     for t in cached
                 ]
@@ -1528,6 +1577,7 @@ class MainWindow(QMainWindow):
                             exists   = True,
                             key      = key,
                             bpm      = bpm,
+                            relocated = bool(getattr(content, "relocated", False)),
                         ))
                 except Exception:
                     pass
@@ -1686,6 +1736,8 @@ class MainWindow(QMainWindow):
         flag = "true" if missing else "false"
         row = FileRow(track.raw_path, track.exists, block_pos=block_pos)
         row.track = track
+        if track.relocated:
+            row.setToolTip("Reubicada por List Buddy")
         row.setMinimumHeight(ROW_HEIGHT)   # rotas y sanas miden lo mismo: el alto del scroll depende de eso (T-074)
         if track.exists:
             row.clicked.connect(self._play_track)
@@ -1990,6 +2042,16 @@ class MainWindow(QMainWindow):
         if not selected:
             dialogs.warning(self, "Sin selección", "Marcá al menos una playlist.")
             return
+        try:
+            Path(output).mkdir(parents=True, exist_ok=True)
+        except OSError:
+            # Típico: el destino guardado está en un disco que hoy no está montado.
+            dialogs.warning(
+                self, "No se puede usar la carpeta de destino",
+                f"No se puede escribir en:\n{output}\n\n"
+                "¿Está conectado el disco? Conectalo o elegí otra carpeta con «Cambiar».",
+            )
+            return
 
         self._last_export_dest = output
         self._set_export_state("running")
@@ -2090,6 +2152,76 @@ class MainWindow(QMainWindow):
 
     # ──────────────────────────────── Relocate (F-07 ADR-001 / F-08 ADR-002) ───
 
+    def _forget_rb_fixes(self) -> None:
+        n = self._fixes_store.count()
+        if n <= 0 or self._is_maintenance_busy():
+            return
+        if not dialogs.question(
+            self, "Olvidar reparaciones de Rekordbox",
+            ("Vas a olvidar la reparación guardada para Rekordbox. " if n == 1
+             else f"Vas a olvidar las {n} reparaciones guardadas para Rekordbox. ")
+            + "Las pistas vuelven a figurar con su ruta original del XML. "
+            "Tu XML y Rekordbox no cambian. ¿Seguir?",
+        ):
+            return
+        self._fixes_store.clear()
+        self._reload_after_path_change()
+        self._sync_rb_actions()
+
+    def _export_rb_xml(self) -> None:
+        if not isinstance(self._db, rekordbox_xml.RekordboxXmlLibrary):
+            return
+        if self._is_maintenance_busy():
+            return
+        playlists = self._selected_playlists()
+        if not playlists:
+            dialogs.warning(self, "Sin selección", "Marcá al menos una playlist.")
+            return
+        from rekordbox_export import sanitize
+        first = sanitize(str(getattr(playlists[0], "Name", "") or "playlist"))
+        dest_str, _ = QFileDialog.getSaveFileName(
+            self, "Guardar XML para Rekordbox",
+            str(Path.home() / "Desktop" / f"List Buddy - {first}.xml"),
+            "Rekordbox XML (*.xml)",
+        )
+        if not dest_str:
+            return
+        dest = Path(dest_str)
+        try:
+            res = rekordbox_xml.write_playlists_xml(
+                playlists, dest, source=self._db.path, app_version=_APP_VERSION,
+            )
+        except ValueError as e:
+            dialogs.warning(self, "No se puede guardar ahí", str(e))
+            return
+        except OSError as e:
+            dialogs.critical(self, "Error al guardar", f"No se pudo guardar el XML: {e}")
+            return
+        lines = [
+            f"Se guardó: {dest}",
+            f"{res.playlists} lista(s) · {res.tracks} pista(s) · "
+            f"{res.relocated} con ruta reparada · {res.missing} todavía sin archivo.",
+            "",
+        ]
+        if res.missing > 0:
+            lines += [
+                "Las pistas sin archivo se incluyen igual, para respetar el orden; "
+                "Rekordbox las va a mostrar como faltantes.",
+                "",
+            ]
+        lines += [
+            "Para importarla en Rekordbox:",
+            "1. Preferencias → Vista → Diseño: activá «rekordbox xml».",
+            "2. Preferencias → Avanzado → Base de datos → rekordbox xml: en "
+            "«Biblioteca importada» elegí este archivo.",
+            "3. En el panel izquierdo abrí «rekordbox xml» → Listas de reproducción, "
+            "hacé clic derecho en la lista y elegí «Importar lista de reproducción».",
+            "",
+            "Si el panel «rekordbox xml» ya estaba abierto, actualizalo (clic derecho → "
+            "Actualizar / volvé a elegir el archivo) para ver la lista nueva.",
+        ]
+        dialogs.information(self, "XML para Rekordbox", "\n".join(lines))
+
     def _relocate_target_info(self) -> tuple[str, Path | None]:
         """
         B-2: qué archivo se va a modificar, para mostrarlo completo en el
@@ -2113,6 +2245,8 @@ class MainWindow(QMainWindow):
         advertencia específica — un click de distancia de miles de
         reescrituras silenciosas merece su propia confirmación explícita.
         """
+        if self._source == "rekordbox":
+            return self._confirm_rb_relocate_start(auto_resolve, scope)
         app_name = "Traktor"
         target_name, target_path = self._relocate_target_info()
         target_display = str(target_path) if target_path else (
@@ -2166,6 +2300,41 @@ class MainWindow(QMainWindow):
             "\n".join(lines),
         )
         return yes
+
+    def _confirm_rb_relocate_start(
+        self, auto_resolve: bool, scope: RelocateScope | None,
+    ) -> bool:
+        lines: list[str] = []
+        if scope is not None:
+            n = len(scope.paths)
+            lines += [
+                f"Carpeta «{scope.name}» ({n} pista{'s' if n != 1 else ''}).",
+                "",
+            ]
+        lines += [
+            "List Buddy va a buscar los archivos que faltan y a guardar las rutas "
+            "nuevas para usarlas al exportar.",
+            "",
+            "No se modifica tu XML ni tu librería de Rekordbox. Para que Rekordbox "
+            "también las tenga, usá «Exportar XML para Rekordbox…» e importá la lista.",
+        ]
+        if auto_resolve and scope is not None:
+            lines += [
+                "",
+                "⚠ Vas a aplicar la mejor coincidencia en las pistas con más de un "
+                "candidato, sin preguntar una por una. Solo en esta carpeta.",
+            ]
+        elif auto_resolve:
+            lines += [
+                "",
+                "⚠ Tenés activado \"Resolver automáticamente…\": vas a aplicar "
+                "la mejor coincidencia en todas las pistas con más de un "
+                "candidato, sin preguntar una por una.",
+            ]
+        lines += ["", _RESPONSIBILITY_LINE, "", "¿Continuar?"]
+        return dialogs.question(
+            self, "Reparar enlaces rotos — Rekordbox", "\n".join(lines)
+        )
 
     def _confirm_relocate_interrupt(self, action_label: str) -> bool:
         """
@@ -2253,11 +2422,18 @@ class MainWindow(QMainWindow):
 
         if scope is not None:
             self._log(f"→ Alcance: carpeta «{scope.name}» ({len(scope.paths)} pista(s))")
-        self._log(f"→ NML: {self._db.path}")
-        self._relocate_worker = RelocateWorker(
-            self._db.path, Path(search_root), auto_resolve=auto_resolve,
-            scope=scope,
-        )
+        if self._source == "rekordbox":
+            self._log(f"→ XML: {self._db.path}")
+            self._relocate_worker = RekordboxXmlRelocateWorker(
+                self._db.path, self._fixes_store.path, Path(search_root),
+                auto_resolve=auto_resolve, scope=scope,
+            )
+        else:
+            self._log(f"→ NML: {self._db.path}")
+            self._relocate_worker = RelocateWorker(
+                self._db.path, Path(search_root), auto_resolve=auto_resolve,
+                scope=scope,
+            )
         self._relocate_worker.log.connect(self._log)
         self._relocate_worker.progress.connect(self._on_progress)
         self._relocate_worker.progress.connect(self._on_relocate_progress_track)
@@ -2349,12 +2525,18 @@ class MainWindow(QMainWindow):
                 log_path = log_dir() / "listBuddy.log"
             except Exception:
                 log_path = None
-            app_name = "Traktor"
-            detail = (
-                "La reparación de enlaces falló y no se escribió nada sobre tu "
-                f"librería de {app_name} (el backup y la escritura son atómicos: "
-                "o se aplica todo, o queda intacto)."
-            )
+            app_name = "Rekordbox" if self._relocate_source == "rekordbox" else "Traktor"
+            if app_name == "Rekordbox":
+                detail = (
+                    "No se pudieron guardar las reparaciones. "
+                    "Tu XML y Rekordbox no se tocaron."
+                )
+            else:
+                detail = (
+                    "La reparación de enlaces falló y no se escribió nada sobre tu "
+                    f"librería de {app_name} (el backup y la escritura son atómicos: "
+                    "o se aplica todo, o queda intacto)."
+                )
             if log_path is not None:
                 detail += f"\n\nRevisá el detalle del error en el log:\n{log_path}"
             dialogs.critical(self, f"Error al reparar enlaces — {app_name}", detail)
@@ -2376,10 +2558,8 @@ class MainWindow(QMainWindow):
             # El NML cambió: invalidar caches y recargar el árbol para que
             # el preview refleje los paths reparados (las pistas que ya no
             # están rotas dejan de figurar "en rojo").
-            self._track_meta_cache.clear()
-            self._exists_cache.clear()
             self._log("↻  Recargando playlists con los enlaces reparados…")
-            self._load_playlists()
+            self._reload_after_path_change()
 
         QTimer.singleShot(8000, self._hide_progress_section)
 

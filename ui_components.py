@@ -162,6 +162,27 @@ class ClickableLabel(QLabel):
         super().mousePressEvent(event)
 
 
+# ───────────────────────────────────────── Texto multilínea que no se corta ────
+
+class WrapLabel(QLabel):
+    """QLabel con word wrap que pide el alto real para su ancho.
+
+    Un QLabel con wordWrap estima su alto con un ancho mayor al que termina
+    teniendo; en una columna angosta las últimas líneas quedan recortadas.
+    Al conocer su ancho final fija el alto mínimo que ese ancho necesita.
+    """
+
+    def __init__(self, text: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(text, parent)
+        self.setWordWrap(True)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        needed = self.heightForWidth(self.width())
+        if needed > 0 and needed != self.minimumHeight():
+            self.setMinimumHeight(needed)
+
+
 # ─────────────────────────────────── Etiqueta con elipsis (footer, T-063) ────
 
 class ElidedLabel(QLabel):
