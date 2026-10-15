@@ -71,7 +71,7 @@ def test_disclaimer_warranty_return_law_age_and_contact() -> None:
     ):
         assert needle in flat, needle
     # Datos que el informe deja al PO / abogado no se inventan.
-    assert flat.count("[A DEFINIR POR EL PO]") >= 3
+    assert flat.count("[A DEFINIR POR EL PO") >= 5
 
 
 def test_disclaimer_trademarks_and_no_official_product() -> None:
