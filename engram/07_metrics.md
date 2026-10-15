@@ -24,3 +24,5 @@
 | Cycle time por ticket | — | sin timestamps de inicio/fin por ticket |
 | Días en bloqueo | T-026: bloqueado desde 2026-08-01 (cuenta Apple Developer) | 03_backlog |
 | Edad del backlog | — | filas sin fecha de alta |
+
+- 2026-10-15 (tarde, cierre sprint 3 parcial) · §Costo: `nerv-metrics.sh` → «sin sesiones medidas» (hook PreToolUse no instalado en este proyecto). Subagentes de la sesión (tokens reportados por el harness): auditorías 4 × ~230-300k; implementación 5 × ~110-145k; QA 6 × ~70-110k. §Proceso no cierra sprint: T-087..T-091 ciclo mismo día; rechazo QA 1/5 (T-087, 1 iteración).

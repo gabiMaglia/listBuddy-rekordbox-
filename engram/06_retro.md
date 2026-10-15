@@ -32,3 +32,8 @@
 **Mal:** `gh` no está autenticado en la Mac → QA aprobó y el PR no se pudo abrir. Se descubrió al final, no al principio.
 **Acción concreta:** al arrancar sesión en una máquina nueva del PO, verificar de una las herramientas del flujo (`gh auth status`, venv, tests) ANTES del primer handoff, no cuando ya hay trabajo aprobado esperando.
 
+## 2026-10-15 (tarde) — Auditoría pre-release T-086 + T-087..T-091
+- ✅ Cuatro auditorías con rol especializado, fuentes verificadas y PoC reproducibles dieron hallazgos accionables; el corte en niveles 0/1/2 permitió aprobar en una palabra. Worktrees por ticket + integración ordenada: solo 2 conflictos triviales (README, versiones). QA con mutaciones encontró un defecto real (bit de ejecución) que la suite no veía.
+- ⚠️ Cinco QA en paralelo cargaron la máquina y dieron una corrida roja por flakiness; dos QA reportaron archivos modificados por otro agente en el árbol compartido (mutaciones temporales). El PO cerró la sesión con 6 agentes en vuelo. Disco casi lleno (<1 GB) durante los builds.
+- 🎯 QA que haga mutaciones corre en worktree propio, no en el checkout principal. Chequear `df -h` antes de lanzar builds. Al lanzar trabajo largo, avisar explícitamente que cerrar la sesión corta los agentes y dejar el estado por rama en _state.md.
+
