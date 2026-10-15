@@ -1,0 +1,7 @@
+# T-083 — verificación con la plataforma Cocoa real (no offscreen)
+# fecha: 2026-10-15 11:33 · commit: 8a7de9f
+# script: QThread que lanza PermissionError con install_excepthook(); un QTimer cierra el modal a los 1,5 s
+
+modal shown: True
+alive
+exit=
