@@ -1,0 +1,8 @@
+T-088 QA (integracion release/1.0.0-audit, PySide6 6.12.0, ventana real, no offscreen)
+t2 (preview en vuelo + close): exit 0 x3 ; t7 (update check + cierre): exit 0 x3
+export_close.py coop: exit 0, close 0.0s, sin .part ; hang (I/O que ignora la interrupcion 10 s): close 6.0s, QThread Destroyed while running, exit 134, queda .part
+Mutaciones (todas revertidas, tree limpio): M1 sin _retain_thread en cancel -> test_retoggling FAIL ; M2 dest.exists() -> test_existing_file_with_a_different_size FAIL ; M3 sin _is_inside -> test_worker_refuses FAIL ; M4 sin _remove_orphan_parts -> test_orphan_part FAIL ; M5 sin _unique_folder_names -> test_playlists_with_the_same_name FAIL ; M6 strip() viejo -> test_sanitize_never_returns_a_dot_name FAIL ; M7 done->finished -> test_preview_worker_does_not_shadow FAIL ; M8 sin wait en closeEvent -> test_closing_..._preview_worker FAIL ; M9 update thread daemon=False -> PASA (no discrimina)
+SEC-02 PoC: '..' '.' '...' '   ' -> playlist/ ; '../x' '..\x' '/abs/x' -> _x/_abs_x dentro ; NUL -> ValueError no capturado (worker.py _is_inside), nada escrito fuera
+kill -9 en copia: queda '1 - A - T.mp3.part'; el siguiente export lo borra y copia 3000000 B completos
+dest_dir symlink hacia fuera -> 'error', victima intacta
+test_thread_lifecycle -n 0 x3: verde ; test_export_integrity: 13 verde ; suite completa pytest -q: exit 0

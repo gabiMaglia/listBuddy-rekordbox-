@@ -1,0 +1,110 @@
+bringing up nodes...
+bringing up nodes...
+
+.....qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 9.0.1 LGPL version 2.1 or later
+qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 9.0.1 LGPL version 2.1 or later
+qt.qpa.fonts: Populating font family aliases took 223 ms. Replace uses of missing font family "Sans Serif" with one that exists to avoid this cost. 
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.qt.qpa.fonts: Populating font family aliases took 214 ms. Replace uses of missing font family "Sans Serif" with one that exists to avoid this cost. 
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+qt.qpa.fonts: Populating font family aliases took 206 ms. Replace uses of missing font family "Sans Serif" with one that exists to avoid this cost. 
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+......qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 9.0.1 LGPL version 2.1 or later
+........qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 9.0.1 LGPL version 2.1 or later
+.....qt.qpa.fonts: Populating font family aliases took 196 ms. Replace uses of missing font family "Sans Serif" with one that exists to avoid this cost. 
+..........................This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+...This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+...........This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+..............This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.Traceback (most recent call last):
+  File "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
+    if lo.count() >= 1:
+       ~~~~~~~~^^
+RuntimeError: libshiboken: Internal C++ object (PySide6.QtWidgets.QVBoxLayout) already deleted.
+.............This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+.........................Traceback (most recent call last):
+  File "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
+    if lo.count() >= 1:
+       ~~~~~~~~^^
+RuntimeError: libshiboken: Internal C++ object (PySide6.QtWidgets.QVBoxLayout) already deleted.
+...........................This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+........................Traceback (most recent call last):
+  File "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
+    if lo.count() >= 1:
+       ~~~~~~~~^^
+RuntimeError: libshiboken: Internal C++ object (PySide6.QtWidgets.QVBoxLayout) already deleted.
+....Traceback (most recent call last):
+  File "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
+    if lo.count() >= 1:
+       ~~~~~~~~^^
+RuntimeError: libshiboken: Internal C++ object (PySide6.QtWidgets.QVBoxLayout) already deleted.
+..Traceback (most recent call last):
+  File "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
+    if lo.count() >= 1:
+       ~~~~~~~~^^
+RuntimeError: libshiboken: Internal C++ object (PySide6.QtWidgets.QVBoxLayout) already deleted.
+............................This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+..This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+.This plugin does not support raise()
+This plugin does not support grabbing the keyboard
+....This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.....This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+..This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+...This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+................This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+...................s.........................................................................................This plugin does not support propagateSizeHints()
+..This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+......................This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+......................Traceback (most recent call last):
+  File "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
+    if lo.count() >= 1:
+       ~~~~~~~~^^
+RuntimeError: libshiboken: Internal C++ object (PySide6.QtWidgets.QVBoxLayout) already deleted.
+..............................................................................................................................................................................
