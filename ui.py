@@ -2006,12 +2006,9 @@ class MainWindow(QMainWindow):
             # app pueda cerrar sin quedar colgada.
             self._relocate_worker.provide_answer(None)
             self._relocate_worker.wait(4000)
-        if self._update_worker and self._update_worker.isRunning():
-            # No hay forma de interrumpir un urlopen() en curso a mitad de
-            # request; el timeout corto (4s) ya acota cuánto puede tardar.
-            # Esperamos un instante corto para no demorar el cierre — si
-            # sigue vivo, el proceso termina igual al salir del intérprete.
-            self._update_worker.wait(200)
+        if self._update_worker is not None:
+            # Hilo daemon: no frena la salida aunque el urlopen/DNS siga colgado.
+            self._update_worker.cancel()
         super().closeEvent(event)
 
     # ──────────────────────────────────────── Actions ────────────────────

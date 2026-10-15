@@ -7,12 +7,16 @@ releases de GitHub y compara contra `_APP_VERSION` (ui.py). Si hay una
 versión más nueva, emite una señal para que la UI muestre un aviso discreto
 con un link — nunca bloquea el arranque ni molesta si falla.
 
-Por qué QThread (mismo patrón que ExportWorker/PreviewWorker/RelocateWorker):
-la request de red (incluso con timeout corto) no puede correr en el hilo de
+Por qué un hilo aparte: la request de red (incluso con timeout corto) no puede correr en el hilo de
 UI sin congelar la ventana un instante en el peor caso (red lenta/rate
 limit). Es un thread de un solo uso: corre `run()` una vez y termina, no
 necesita cancelación intra-request (el timeout del socket ya acota cuánto
 puede tardar).
+
+T-088 (TEC-03): es un `threading.Thread` daemon y no un QThread. Un urlopen no
+se puede interrumpir (el DNS ni siquiera respeta el timeout) y Qt aborta el
+proceso si se destruye un QThread corriendo al cerrar la app; un hilo daemon
+simplemente no frena la salida.
 
 Falla en silencio a propósito (sin internet, GitHub caído, rate limit,
 JSON inesperado, tag_name no parseable): es una mejora opcional, no una
@@ -27,7 +31,9 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
-from PySide6.QtCore import QThread, Signal
+import threading
+
+from PySide6.QtCore import QObject, Signal
 
 _log = logging.getLogger("listBuddy")
 
@@ -88,7 +94,7 @@ def _is_newer(remote: tuple[int, ...], local: tuple[int, ...]) -> bool:
     return remote_padded > local_padded
 
 
-class UpdateCheckWorker(QThread):
+class UpdateCheckWorker(QObject):
     """
     GET en background a la API de releases de GitHub. Emite
     `update_available` SOLO si hay una versión más nueva que la actual;
@@ -101,6 +107,19 @@ class UpdateCheckWorker(QThread):
     def __init__(self, current_version: str) -> None:
         super().__init__()
         self._current_version = current_version
+        self._thread: threading.Thread | None = None
+        self._cancelled = False
+
+    def start(self) -> None:
+        self._thread = threading.Thread(target=self.run, name="update-check", daemon=True)
+        self._thread.start()
+
+    def cancel(self) -> None:
+        """Al cerrar la app: si el chequeo termina después, no emite nada."""
+        self._cancelled = True
+
+    def isRunning(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
 
     def run(self) -> None:
         try:
@@ -128,7 +147,7 @@ class UpdateCheckWorker(QThread):
             if remote is None:
                 return
 
-            if _is_newer(remote, local):
+            if _is_newer(remote, local) and not self._cancelled:
                 url = payload.get("html_url") or _RELEASES_PAGE_URL
                 version_text = ".".join(str(part) for part in remote)
                 self.update_available.emit(UpdateInfo(version=version_text, url=url))
