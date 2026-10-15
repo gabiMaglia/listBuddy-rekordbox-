@@ -46,7 +46,7 @@ def shoot(theme: str) -> None:
     print(theme, "marcadas:", len(cards), "->", foot.export_btn.text())
     snap("idle", theme)
     foot.set_now_playing("Glace Circle (Original Mix)", "DJOKO")
-    foot.set_peaks([0.2 + 0.8 * abs(math.sin(i / 7)) for i in range(400)])
+    foot.set_wave(__import__("waveform_worker").WaveData(tuple(0.2 + 0.8 * abs(math.sin(i / 7)) for i in range(400)), (0.5,) * 400))
     foot.set_position(161_000, 418_000)
     snap("playing", theme)
     foot.set_dest(LONG)

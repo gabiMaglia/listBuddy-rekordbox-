@@ -1,7 +1,6 @@
 """footer.py — footer de 76 px: reproductor, destino, exportar y progreso (T-063)."""
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import Literal
 
 from PySide6.QtCore import QSize, Qt, Signal
@@ -19,6 +18,7 @@ from PySide6.QtWidgets import (
 import icons
 from styles import token
 from ui_components import ElidedLabel, WaveformSeek
+from waveform_worker import WaveData
 
 ExportMode = Literal["idle", "running", "cancelling"]
 
@@ -214,8 +214,8 @@ class FooterBar(QWidget):
         self.time_cur.setText(format_ms(pos_ms))
         self.time_total.setText(format_ms(dur_ms))
 
-    def set_peaks(self, peaks: Sequence[float] | None) -> None:
-        self.wave.set_peaks(peaks)
+    def set_wave(self, data: WaveData | None) -> None:
+        self.wave.set_wave(data)
 
     # ── Destino ──────────────────────────────────────────────────
 
@@ -300,7 +300,7 @@ class FooterBar(QWidget):
 
     def apply_theme(self, theme: str) -> None:
         self._theme = theme
-        self.wave.set_colors(token(theme, "accent"), token(theme, "line"))
+        self.wave.set_colors(token(theme, "accent"), token(theme, "wave_hi"), token(theme, "line"))
         self.set_play_glyph(self._play_name)  # type: ignore[arg-type]
         self._dest_icon.setPixmap(icons.pixmap("folder", token(theme, "muted"), 16))
         self._refresh_export()

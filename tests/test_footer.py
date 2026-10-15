@@ -372,6 +372,9 @@ _FAKE_WAVE = (
     "    def isRunning(self): return True\n"
     "    def wait(self, ms=0): return True\n"
     "ui.WaveformWorker = FakeWave\n"
+    "from waveform_worker import WaveData\n"
+    "def wd(v, n): return WaveData((v,) * n, (0.5,) * n)\n"
+    "def lv(w): return list(w._footer.wave._data.levels) if w._footer.wave._data else []\n"
 )
 
 
@@ -381,11 +384,11 @@ def test_waveform_arrives_in_the_footer_and_stale_generations_are_ignored() -> N
         "w, _ = make()\n"
         "w._start_waveform('/a.mp3'); first = created[-1]\n"
         "w._start_waveform('/b.mp3'); second = created[-1]\n"
-        "first.ready.emit([0.9] * 10, first.gen)       # llega tarde: se descarta\n"
-        "stale = list(w._footer.wave._peaks)\n"
-        "second.ready.emit([0.5] * 10, second.gen)\n"
-        "w._on_wave_ready('/old.mp3', [0.9] * 10, w._wave_gen - 1)   # señal en cola de una generación vieja\n"
-        "print(first.cancelled, stale, list(w._footer.wave._peaks)[:2], '/old.mp3' in w._wave_cache)\n"
+        "first.ready.emit(wd(0.9, 10), first.gen)       # llega tarde: se descarta\n"
+        "stale = lv(w)\n"
+        "second.ready.emit(wd(0.5, 10), second.gen)\n"
+        "w._on_wave_ready('/old.mp3', wd(0.9, 10), w._wave_gen - 1)   # señal en cola de una generación vieja\n"
+        "print(first.cancelled, stale, lv(w)[:2], '/old.mp3' in w._wave_cache)\n"
     )
     assert out.strip().splitlines()[-1] == "True [] [0.5, 0.5] False"
 
@@ -394,11 +397,11 @@ def test_waveform_cache_hit_starts_no_new_worker_and_is_bounded() -> None:
     out = run(
         _FAKE_WAVE +
         "w, _ = make()\n"
-        "w._start_waveform('/a.mp3'); created[-1].ready.emit([0.7] * 4, created[-1].gen)\n"
+        "w._start_waveform('/a.mp3'); created[-1].ready.emit(wd(0.7, 4), created[-1].gen)\n"
         "n = len(created); w._start_waveform('/a.mp3')\n"
-        "hit = (len(created) == n, list(w._footer.wave._peaks))\n"
+        "hit = (len(created) == n, lv(w))\n"
         "for i in range(40):\n"
-        "    w._on_wave_ready(f'/t{i}.mp3', [0.1], w._wave_gen)\n"
+        "    w._on_wave_ready(f'/t{i}.mp3', wd(0.1, 1), w._wave_gen)\n"
         "print(hit, len(w._wave_cache) <= 32)\n"
     )
     assert out.strip().splitlines()[-1] == "(True, [0.7, 0.7, 0.7, 0.7]) True"
@@ -422,10 +425,10 @@ def test_waveform_resets_on_audio_error() -> None:
     out = run(
         _FAKE_WAVE +
         "ui.dialogs.warning = staticmethod(lambda *a, **k: None)\n"
-        "w, _ = make(); w._start_waveform('/a.mp3'); created[-1].ready.emit([0.8] * 5, created[-1].gen)\n"
-        "w._on_audio_error('boom'); print(list(w._footer.wave._peaks))\n"
+        "w, _ = make(); w._start_waveform('/a.mp3'); created[-1].ready.emit(wd(0.8, 5), created[-1].gen)\n"
+        "w._on_audio_error('boom'); print(lv(w), w._footer.wave._data is None)\n"
     )
-    assert out.strip().splitlines()[-1] == "[]"
+    assert out.strip().splitlines()[-1] == "[] True"
 
 
 def test_footer_empty_placeholder_is_cut_at_the_end_not_the_start() -> None:
