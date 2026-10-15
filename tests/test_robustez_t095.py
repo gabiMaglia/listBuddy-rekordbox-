@@ -31,3 +31,14 @@ def test_incremental_reexport_to_a_nearly_full_disk_does_not_abort() -> None:
         "print(done[3], done[0], done[2])\n"
     )
     assert out == "ok 0 2"
+
+
+# ── TEC-09 ────────────────────────────────────────────────────────────────
+
+def test_log_view_has_a_block_cap() -> None:
+    out = _win(
+        "w, _ = make()\n"
+        "for i in range(6000): w._log(f'l{i}')\n"
+        "print(w.log_view.blockCount() <= 5000, w.log_view.toPlainText().endswith('l5999'))\n"
+    )
+    assert out == "True True"

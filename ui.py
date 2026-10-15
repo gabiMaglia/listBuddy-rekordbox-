@@ -966,6 +966,7 @@ class MainWindow(QMainWindow):
         self.log_view = QPlainTextEdit()
         self.log_view.setObjectName("log_view")
         self.log_view.setReadOnly(True)
+        self.log_view.setMaximumBlockCount(5000)   # TEC-09: 40k pistas no dejan un log sin tope
         self.log_view.setVisible(False)
         panel_lo.addWidget(self.log_view, 1)
 
