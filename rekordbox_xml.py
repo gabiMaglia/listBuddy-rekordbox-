@@ -15,6 +15,8 @@ import contextlib
 import copy
 import os
 import re
+import sys
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PurePath, PureWindowsPath
@@ -272,6 +274,14 @@ def _adapt_relocated(el: ET.Element, t: RbxTrack) -> None:
             el.attrib.pop(attr, None)
 
 
+def _file_key(location: str) -> str:
+    """Clave canónica del archivo al que apunta una Location: ruta decodificada,
+    Unicode NFC y, en macOS/Windows (discos sin distinción de mayúsculas por
+    defecto), en minúsculas."""
+    key = unicodedata.normalize("NFC", location_to_path(location).as_posix())
+    return key.casefold() if sys.platform in ("darwin", "win32") else key
+
+
 def write_playlists_xml(
     playlists: list[RbxPlaylist], dest: Path, *, source: Path | None = None,
     name_suffix: str = " (List Buddy)", app_version: str = "",
@@ -285,20 +295,26 @@ def write_playlists_xml(
     root = ET.Element("DJ_PLAYLISTS", Version="1.0.0")
     ET.SubElement(root, "PRODUCT", Name="List Buddy", Version=app_version, Company="")
     collection = ET.SubElement(root, "COLLECTION")
-    # Una entrada por Location FINAL: Rekordbox rechaza el import si dos TRACK
-    # comparten ruta (pasa si dos pistas rotas se repararon al mismo archivo).
+    # Una entrada por ARCHIVO: Rekordbox rechaza el import si dos TRACK apuntan
+    # a la misma ruta. La comparación es por archivo físico (clave canónica), no
+    # por texto: el XML de Rekordbox y path_to_location() escapan distinto
+    # ( ( ) ' & ! ) y macOS puede dar la misma ruta en NFC o NFD (D-11).
     def final_location(t: RbxTrack) -> str:
         return path_to_location(t.file_path) if t.relocated else t.location
+
+    def key_of(t: RbxTrack) -> str:
+        return t.location if t.streaming else _file_key(final_location(t))
 
     ids: dict[str, str] = {}
     relocated = missing = 0
     for pl in playlists:
         for t in pl.tracks:
-            location = final_location(t)
-            if location in ids:
+            key = key_of(t)
+            if key in ids:
                 continue
+            location = final_location(t)
             new_id = str(len(ids) + 1)
-            ids[location] = new_id
+            ids[key] = new_id
             el = copy.deepcopy(t.element) if t.element is not None else ET.Element(
                 "TRACK", Name=t.title, Artist=t.artist)
             el.set("TrackID", new_id)
@@ -315,7 +331,7 @@ def write_playlists_xml(
         node = ET.SubElement(root_node, "NODE", Name=pl.name + name_suffix, Type="1",
                              KeyType="0", Entries=str(len(pl.tracks)))
         for t in pl.tracks:
-            ET.SubElement(node, "TRACK", Key=ids[final_location(t)])
+            ET.SubElement(node, "TRACK", Key=ids[key_of(t)])
     ET.indent(root)
     dest.parent.mkdir(parents=True, exist_ok=True)
     try:
