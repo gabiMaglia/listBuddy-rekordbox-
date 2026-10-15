@@ -69,7 +69,7 @@ from preview_card import (
 from row_blocks import ALL_BROKEN, NONE, block_positions, broken_notice_text, ext_chip_text, format_key_bpm
 from playlist_filter import matches
 from styles import apply_title_tracking, status_style, token
-from worker import ExportWorker
+from worker import ExportWorker, _unique_folder_names
 from ui_components import (
     ClickableLabel,
     WrapLabel,
@@ -1544,9 +1544,11 @@ class MainWindow(QMainWindow):
         keep = set(selected)
         for key in [k for k in self._preview_cards if k not in keep]:
             self._remove_preview_card(key)
+        folders = self._folder_names_of(selected)
         for order, card in enumerate(selected, start=1):
             shown = self._preview_cards.get(card)
             if shown is not None:
+                shown.data.name = folders[card]   # un « (2)» puede aparecer o desaparecer
                 shown.set_order(order)
         self._set_broken_total(sum(g.missing_count for g in self._rendered_groups))
         new = [c for c in selected if c not in self._preview_cards]
@@ -1583,6 +1585,13 @@ class MainWindow(QMainWindow):
         )
         return f"{self._source}:{uid}"
 
+    @staticmethod
+    def _folder_names_of(cards: list[PlaylistCard]) -> dict[PlaylistCard, str]:
+        """Nombre de carpeta que el export creará por playlist (D-17), con la misma función de
+        nombres únicos del worker. `cards` debe venir en el orden del árbol, como en el export."""
+        names = _unique_folder_names([c.playlist.Name for c in cards])
+        return dict(zip(cards, names))
+
     def _extract_preview_data(self, selected: list[PlaylistCard]) -> list[GroupData]:
         """
         Extrae metadata de la DB en el main thread.
@@ -1603,6 +1612,8 @@ class MainWindow(QMainWindow):
 
         from rekordbox_export import get_content, get_artist, sanitize
 
+        # Las colisiones se resuelven contra TODAS las marcadas, no solo las que llegan acá.
+        folders = self._folder_names_of([c for c in self._all_cards if c.isChecked() or c in selected])
         groups: list[GroupData] = []
         for idx, card in enumerate(selected):
             cache_key = self._playlist_cache_key(card.playlist)
@@ -1657,7 +1668,7 @@ class MainWindow(QMainWindow):
                     self._track_meta_cache[cache_key] = tracks
 
             groups.append(GroupData(
-                name        = card.playlist.Name,
+                name        = folders.get(card, card.playlist.Name),
                 order       = idx + 1,
                 total_count = card._track_count,
                 tracks      = tracks,
