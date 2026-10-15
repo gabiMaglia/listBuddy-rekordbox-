@@ -68,7 +68,9 @@ class PreviewWorker(QThread):
     """
 
     group_ready: Signal = Signal(object)  # GroupData
-    finished: Signal    = Signal()
+    # No se llama `finished`: pisaría QThread.finished, que Qt emite recién
+    # cuando el hilo terminó de verdad (no al salir del bucle de run()).
+    done: Signal        = Signal()
 
     def __init__(
         self,
@@ -84,6 +86,9 @@ class PreviewWorker(QThread):
 
     def cancel(self) -> None:
         self._stop = True
+
+    def _stopped(self) -> bool:
+        return self._stop or self.isInterruptionRequested()
 
     def _check(self, raw: str) -> bool:
         """Existence check con cache. Primer acceso hace I/O; resto es O(1)."""
@@ -101,14 +106,14 @@ class PreviewWorker(QThread):
 
     def run(self) -> None:
         for group in self._groups:
-            if self._stop:
+            if self._stopped():
                 break
             for track in group.tracks:
-                if self._stop:
+                if self._stopped():
                     break
                 if track.streaming:
                     track.exists = True
                 else:
                     track.exists = self._check(track.raw_path) if track.raw_path else False
             self.group_ready.emit(group)
-        self.finished.emit()
+        self.done.emit()

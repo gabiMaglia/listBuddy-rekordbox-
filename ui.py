@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Callable, Literal
 
 from PySide6.QtCore import (
-    QPoint, QSize, Qt, QTimer, QUrl, QSettings,
+    QPoint, QSize, QThread, Qt, QTimer, QUrl, QSettings,
     QPropertyAnimation, QEasingCurve,
 )
 from PySide6.QtGui import (
@@ -262,6 +262,7 @@ class MainWindow(QMainWindow):
         self._wave_cache: dict[str, WaveData] = {}
         # Cancelados pero con el hilo aún vivo: se sueltan en su `finished`.
         self._live_wave_workers: set[WaveformWorker] = set()
+        self._live_threads: set[QThread] = set()  # T-088: hilos retenidos hasta su finished
 
         self._export_state: Literal["idle", "running", "cancelling"] = "idle"
         self._last_export_dest: str = ""
@@ -1473,11 +1474,23 @@ class MainWindow(QMainWindow):
                     w.deleteLater()
 
     def _cancel_preview_worker(self) -> None:
-        if self._preview_worker and self._preview_worker.isRunning():
-            self._preview_worker.group_ready.disconnect()
-            self._preview_worker.finished.disconnect()
-            self._preview_worker.cancel()
-            # Don't block — old worker dies on its own; signals already disconnected
+        worker = self._preview_worker
+        if worker is not None and worker.isRunning():
+            worker.group_ready.disconnect()
+            worker.done.disconnect()
+            worker.cancel()
+            worker.requestInterruption()
+            # No se espera: el hilo viejo termina solo (puede estar en un stat
+            # lento) y mientras tanto queda retenido, nunca destruido en vuelo.
+            self._retain_thread(worker)
+
+    def _retain_thread(self, thread: QThread) -> None:
+        """Mantiene vivo el wrapper de un hilo hasta su `finished` real.
+
+        Qt aborta el proceso si se destruye un QThread que sigue corriendo.
+        """
+        self._live_threads.add(thread)
+        thread.finished.connect(lambda t=thread: self._live_threads.discard(t))
 
     def _start_preview_worker(self) -> None:
         """Llamado por el debounce timer. Cancela worker anterior, muestra loading, inicia nuevo."""
@@ -1508,7 +1521,7 @@ class MainWindow(QMainWindow):
             self._exists_cache,
         )
         self._preview_worker.group_ready.connect(self._queue_group)
-        self._preview_worker.finished.connect(self._on_preview_done)
+        self._preview_worker.done.connect(self._on_preview_done)
         self._preview_worker.start()
 
     def _playlist_cache_key(self, playlist) -> str:
@@ -2068,6 +2081,7 @@ class MainWindow(QMainWindow):
         self._log(f"→ Destino: {output}")
 
         self._worker = ExportWorker(selected, Path(output))
+        self._retain_thread(self._worker)
         self._worker.log.connect(self._log)
         self._worker.progress.connect(self._on_progress)
         self._worker.finished_ok.connect(self._on_finished)
@@ -2438,6 +2452,7 @@ class MainWindow(QMainWindow):
                 self._db.path, Path(search_root), auto_resolve=auto_resolve,
                 scope=scope,
             )
+        self._retain_thread(self._relocate_worker)
         self._relocate_worker.log.connect(self._log)
         self._relocate_worker.progress.connect(self._on_progress)
         self._relocate_worker.progress.connect(self._on_relocate_progress_track)
@@ -2657,6 +2672,7 @@ class MainWindow(QMainWindow):
         self._set_status_style("active")
 
         self._restore_worker = RestoreBackupWorker(backup.path, target_path)
+        self._retain_thread(self._restore_worker)
         self._restore_worker.finished_ok.connect(
             lambda ok, err: self._on_restore_backup_finished(ok, err, target_name)
         )
