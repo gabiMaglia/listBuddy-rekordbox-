@@ -268,3 +268,30 @@ def test_export_drops_format_attributes_when_the_repaired_file_changes_format(tm
     el = _export_one(tmp_path, "uno.flac", 'Size="99" Kind="MP3 File" BitRate="320" SampleRate="44100"')
     assert el.get("Size") == "1234"
     assert el.get("Kind") is None and el.get("BitRate") is None and el.get("SampleRate") is None
+
+
+STREAM_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<DJ_PLAYLISTS Version="1.0.0"><COLLECTION Entries="3">
+  <TRACK TrackID="1" Name="Archivo" Location="file://localhost/Users/gab/Music/a.mp3"/>
+  <TRACK TrackID="2" Name="De Tidal" Location="tidal:tracks:123456"/>
+  <TRACK TrackID="3" Name="De Beatport" Location="https://www.beatport.com/track/x/987"/>
+</COLLECTION><PLAYLISTS><NODE Type="0" Name="ROOT" Count="1">
+  <NODE Type="1" Name="Mix" KeyType="0" Entries="3"><TRACK Key="1"/><TRACK Key="2"/><TRACK Key="3"/></NODE>
+</NODE></PLAYLISTS></DJ_PLAYLISTS>"""
+
+
+def test_non_file_locations_are_streaming_tracks_kept_in_order(tmp_path: Path) -> None:
+    p = tmp_path / "rekordbox.xml"
+    p.write_text(STREAM_XML, encoding="utf-8")
+    songs = rx.get_songs(rx.get_playlist_tree(rx.open_library(p))[0]["playlist"])
+    assert [(s.Title, s.streaming) for s in songs] == [
+        ("Archivo", False), ("De Tidal", True), ("De Beatport", True)]
+    assert [s.TrackNo for s in songs] == [1, 2, 3]
+
+
+def test_streaming_tracks_never_take_a_stored_fix(tmp_path: Path) -> None:
+    p = tmp_path / "rekordbox.xml"
+    p.write_text(STREAM_XML, encoding="utf-8")
+    lib = rx.open_library(p, fixes={"tidal:tracks:123456": "/x/a.mp3"})
+    tidal = rx.get_songs(rx.get_playlist_tree(lib)[0]["playlist"])[1]
+    assert tidal.streaming and not tidal.relocated

@@ -390,3 +390,23 @@ def test_export_info_mentions_refreshing_an_already_open_xml_panel() -> None:
         "w._all_cards[0].setChecked(True); w._sync_rb_actions(); w._act_export_xml.trigger()\n"
         "print('ya estaba abierto, actualizalo' in info[0])\n")
     assert out == "True"
+
+
+def test_preview_rows_for_streaming_tracks_say_stream_and_are_not_broken() -> None:
+    import textwrap
+    stream_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0"><COLLECTION Entries="1">'
+        '<TRACK TrackID="1" Name="De Tidal" Artist="B" Location="tidal:tracks:1"/>'
+        '</COLLECTION><PLAYLISTS><NODE Type="0" Name="ROOT" Count="1">'
+        '<NODE Type="1" Name="Mix" KeyType="0" Entries="1"><TRACK Key="1"/></NODE>'
+        '</NODE></PLAYLISTS></DJ_PLAYLISTS>'
+    )
+    out = run(BOOT +
+        "import pathlib, tempfile\n"
+        "orig = ui.MainWindow._load_playlists_real\n"
+        f"xml = pathlib.Path(tempfile.mkdtemp()) / 'rekordbox.xml'; xml.write_text({stream_xml!r}, encoding='utf-8')\n"
+        "w, s = make(); w._source = 'rekordbox'; w._rb_xml_path = str(xml); orig(w)\n"
+        "card = w._all_cards[0]; card.setChecked(True)\n"
+        "row = w._extract_preview_data([card])[0].tracks[0]\n"
+        "print(row.ext, row.streaming, row.raw_path == '')\n")
+    assert out == "stream True True"
