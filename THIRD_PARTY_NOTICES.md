@@ -17,14 +17,14 @@ exporta (formato publicado por AlphaTheta para terceros) y el NML de Traktor.
 
 | Componente | Versión | Licencia | Texto |
 |---|---|---|---|
-| Qt for Python (PySide6, Shiboken6) y Qt | 6.11.1 | LGPL-3.0 | `licenses/LGPL-3.0.txt`, `licenses/GPL-3.0.txt` |
-| FFmpeg (libavcodec, libavformat, libavutil, libswresample, libswscale) | 7.1.3 | LGPL-2.1 o posterior | `licenses/LGPL-2.1.txt` |
+| Qt for Python (PySide6, Shiboken6) y Qt | 6.12.0 | LGPL-3.0 | `licenses/LGPL-3.0.txt`, `licenses/GPL-3.0.txt` |
+| FFmpeg (libavcodec, libavformat, libavutil, libswresample, libswscale) | 9.0.1 | LGPL-2.1 o posterior | `licenses/LGPL-2.1.txt` |
 | OpenSSL (dentro de Python) | 3.6 | Apache-2.0 | `licenses/OpenSSL.txt`, `licenses/Apache-2.0.txt` |
 | numpy (incluye OpenBLAS y otras bibliotecas empaquetadas) | 2.4.6 | BSD-3-Clause y otras (ver archivo) | `licenses/numpy.txt` |
 | certifi | 2026.7.22 | MPL-2.0 | `licenses/certifi.txt`, `licenses/MPL-2.0.txt` |
 | Python (intérprete y biblioteca estándar; incluye libexpat, libmpdec, liblzma, libzstd, zlib, bzip2 y libffi) | 3.14 | PSF-2.0 y las licencias de esas bibliotecas (MIT, BSD, dominio público; ver archivo) | `licenses/Python.txt` |
-| Qt Virtual Keyboard (módulo de Qt que viaja con PySide6) | 6.11.1 | GPL-3.0 | `licenses/GPL-3.0.txt` |
-| Qt PDF y las bibliotecas que incluye (PDFium, FreeType, libjpeg, libpng, zlib y otras) | 6.11.1 | LGPL-3.0 (Qt PDF); BSD-3-Clause, Apache-2.0, FreeType License, MIT y otras (bibliotecas incluidas); detalle en <https://doc.qt.io/qt-6/licenses-used-in-qt.html> | `licenses/Apache-2.0.txt` |
+| Qt Virtual Keyboard (módulo de Qt que viaja con PySide6) | 6.12.0 | GPL-3.0 | `licenses/GPL-3.0.txt` |
+| Qt PDF y las bibliotecas que incluye (PDFium, FreeType, libjpeg, libpng, zlib y otras) | 6.12.0 | LGPL-3.0 (Qt PDF); BSD-3-Clause, Apache-2.0, FreeType License, MIT y otras (bibliotecas incluidas); detalle en <https://doc.qt.io/qt-6/licenses-used-in-qt.html> | `licenses/Apache-2.0.txt` |
 | Íconos Feather (varios trazos de `icons.py` derivan de ellos) | — | MIT | `licenses/Feather.txt` |
 | Fuente Sora | — | SIL Open Font License 1.1 | `fonts/OFL-Sora.txt` |
 | Fuente Public Sans | — | SIL Open Font License 1.1 | `fonts/OFL-PublicSans.txt` |
@@ -44,9 +44,9 @@ compatible —propia o modificada— sin recompilar List Buddy.
 
 Código fuente correspondiente:
 
-- Qt 6.11.1: <https://download.qt.io/official_releases/qt/6.11/>
-- Qt for Python (PySide6 / Shiboken6) 6.11.1: <https://code.qt.io/cgit/pyside/pyside-setup.git/>
-- FFmpeg 7.1.3: <https://ffmpeg.org/releases/>
+- Qt 6.12.0: <https://download.qt.io/official_releases/qt/6.12/>
+- Qt for Python (PySide6 / Shiboken6) 6.12.0: <https://code.qt.io/cgit/pyside/pyside-setup.git/>
+- FFmpeg 9.0.1: <https://ffmpeg.org/releases/>
 - Bibliotecas de terceros que incluye Qt: <https://doc.qt.io/qt-6/licenses-used-in-qt.html>
 
 **Oferta escrita:** durante al menos tres años desde cada versión publicada de
