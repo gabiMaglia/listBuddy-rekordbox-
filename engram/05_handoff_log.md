@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-15 19:30] CIERRE DE SESIÓN
+- Hecho hoy: T-086 auditoría pre-release en 4 patas (Apple, seguridad, legal, técnica; informes en engram/audit/) → corte aprobado por el PO → T-087..T-091 implementados en worktrees paralelos, integrados en release/1.0.0-audit, QA formal (T-087 rechazada 1 vez por bit de ejecución, re-aprobada), mergeado a main (4922586). PySide6 6.12/FFmpeg 9.0.1, drop de fps resuelto, aborts, copia atómica, textos legales, release firmable. T-092..T-097 lanzados al cierre (ver _state).
+- Próximo paso: revisar las 6 ramas T-092..T-097 (pueden estar incompletas), completar, integrar, QA, push. PO: cert Developer ID, datos legales, renombrar repo, liberar disco.
+- Quien retoma: nerv-orquestador → nerv-desktop / nerv-qa.
+
 ### [2026-10-15 14:00] T-086 auditoría pre-release → 4 agentes en paralelo
 - Pedido del PO: auditoría en 4 patas (Apple, seguridad, legal, técnica/rendimiento). Síntoma reportado: caída de fps al agregar muchas listas nuevas hasta que terminan de abrirse.
 - Entregable: `engram/audit/T-086_{apple,seguridad,legal,tecnica}.md`, solo lectura, sin código.
