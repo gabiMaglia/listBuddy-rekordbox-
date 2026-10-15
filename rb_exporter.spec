@@ -45,6 +45,7 @@ a = Analysis(
         'PySide6.QtSvg',
         'numpy',
         'certifi',
+        'qrcode',
     ],
     hookspath=[],
     hooksconfig={},
