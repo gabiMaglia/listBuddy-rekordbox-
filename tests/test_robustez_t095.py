@@ -97,3 +97,31 @@ def test_close_waits_for_the_export_block_in_flight_instead_of_aborting() -> Non
         pre=BOOT, timeout=90,
     )
     assert out == "True False Esperando que termine la copia… True True"
+
+
+# ── D-17 ──────────────────────────────────────────────────────────────────
+
+def test_preview_titles_show_the_folder_name_the_export_will_create() -> None:
+    out = _win(
+        "import tempfile, pathlib\n"
+        "from PySide6.QtCore import QEventLoop, QTimer\n"
+        "import rekordbox_xml as rx, worker\n"
+        "from ui_components import PlaylistCard\n"
+        "def pump(ms=600):\n"
+        "    loop = QEventLoop(); QTimer.singleShot(ms, loop.quit); loop.exec()\n"
+        "f = pathlib.Path(tempfile.mkdtemp()) / 'a.mp3'; f.write_bytes(b'x')\n"
+        "names = ['Set: A', 'set: a']\n"
+        "base = worker._unique_folder_names(names)\n"
+        "def mk(i): return rx.RbxPlaylist(name=names[i], ID=f'p{i}', tracks=[rx.RbxTrack(title='T', artist='A', file_path=f, TrackNo=1)])\n"
+        "w, _ = make()\n"
+        "cards = [PlaylistCard(mk(i), 1, i) for i in range(2)]\n"
+        "w._all_cards.extend(cards)\n"
+        "for c in cards: c.setChecked(True)\n"
+        "w._start_preview_worker(); pump()\n"
+        "def titles(): return sorted(c._title.text() for c in w._preview_cards.values())\n"
+        "first = titles()\n"
+        "cards[0].setChecked(False); w._start_preview_worker(); pump()\n"
+        "second = titles()\n"
+        "print(first == [f'01 {base[0]}', f'02 {base[1]}'], base[1].endswith('(2)'), second == [f'01 {base[1][:-4]}'])\n"
+    )
+    assert out == "True True True"
