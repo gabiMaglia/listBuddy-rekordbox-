@@ -23,8 +23,6 @@ exporta (formato publicado por AlphaTheta para terceros) y el NML de Traktor.
 | numpy (incluye OpenBLAS y otras bibliotecas empaquetadas) | 2.4.6 | BSD-3-Clause y otras (ver archivo) | `licenses/numpy.txt` |
 | certifi | 2026.7.22 | MPL-2.0 | `licenses/certifi.txt`, `licenses/MPL-2.0.txt` |
 | Python (intérprete y biblioteca estándar; incluye libexpat, libmpdec, liblzma, libzstd, zlib, bzip2 y libffi) | 3.14 | PSF-2.0 y las licencias de esas bibliotecas (MIT, BSD, dominio público; ver archivo) | `licenses/Python.txt` |
-| Qt Virtual Keyboard (módulo de Qt que viaja con PySide6) | 6.12.0 | GPL-3.0 | `licenses/GPL-3.0.txt` |
-| Qt PDF y las bibliotecas que incluye (PDFium, FreeType, libjpeg, libpng, zlib y otras) | 6.12.0 | LGPL-3.0 (Qt PDF); BSD-3-Clause, Apache-2.0, FreeType License, MIT y otras (bibliotecas incluidas); detalle en <https://doc.qt.io/qt-6/licenses-used-in-qt.html> | `licenses/Apache-2.0.txt` |
 | Íconos Feather (varios trazos de `icons.py` derivan de ellos) | — | MIT | `licenses/Feather.txt` |
 | Fuente Sora | — | SIL Open Font License 1.1 | `fonts/OFL-Sora.txt` |
 | Fuente Public Sans | — | SIL Open Font License 1.1 | `fonts/OFL-PublicSans.txt` |

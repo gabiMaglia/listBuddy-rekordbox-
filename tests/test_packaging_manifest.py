@@ -68,3 +68,40 @@ def test_info_plist_store_and_privacy_keys() -> None:
         "NSNetworkVolumesUsageDescription", "NSHumanReadableCopyright",
     ):
         assert f"'{key}'" in _SPEC, key
+
+
+def test_spec_drops_unused_qt_modules_t096() -> None:
+    # TEC-12: QtPdf/QtQuick/QtQml/QtVirtualKeyboard (GPL-3.0) no se usan y pesan >13 MB.
+    excludes = _SPEC.split("excludes=", 1)[1].split("]", 1)[0]
+    for mod in ("PySide6.QtPdf", "PySide6.QtQuick", "PySide6.QtQml", "PySide6.QtVirtualKeyboard"):
+        assert f"'{mod}'" in excludes, mod
+    # Los hooks de PySide6 pueden arrastrar frameworks y plugins igual: filtro explícito.
+    assert "a.binaries = " in _SPEC and "a.datas = " in _SPEC
+    for token in ("qtquick", "qtqml", "qtpdf", "qtvirtualkeyboard", "qpdf"):
+        assert f"'{token}'" in _SPEC, token
+
+
+def test_spec_filter_matches_framework_plugin_and_windows_names() -> None:
+    ns: dict[str, object] = {}
+    src = _SPEC.split("# --- filtro Qt", 1)[1].split("# --- fin filtro Qt", 1)[0]
+    src = src.split("\n", 1)[1].replace("a.binaries = ", "_b = ").replace("a.datas = ", "_d = ")
+    src = "\n".join(l for l in src.splitlines() if "_b =" not in l and "_d =" not in l)
+    exec(src, ns)  # noqa: S102 - definición pura de la función del spec
+    drop = ns["_is_unused_qt"]
+    for gone in (
+        "PySide6/Qt/lib/QtQuick.framework/Versions/A/QtQuick",
+        "PySide6/Qt/lib/QtVirtualKeyboardQml.framework/Versions/A/Resources/Info.plist",
+        "PySide6/Qt/plugins/platforminputcontexts/libqtvirtualkeyboardplugin.dylib",
+        "PySide6/Qt/plugins/imageformats/libqpdf.dylib",
+        "PySide6/Qt6Qml.dll", "PySide6/plugins/platforminputcontexts/qtvirtualkeyboardplugin.dll",
+        "PySide6/Qt6Pdf.dll",
+    ):
+        assert drop(gone), gone
+    for kept in (
+        "PySide6/Qt/lib/QtCore.framework/Versions/A/QtCore",
+        "PySide6/Qt/lib/QtMultimedia.framework/Versions/A/QtMultimedia",
+        "PySide6/Qt/plugins/multimedia/libffmpegmediaplugin.dylib",
+        "PySide6/Qt/plugins/imageformats/libqsvg.dylib",
+        "PySide6/QtWidgets.abi3.so", "PySide6/Qt6Multimedia.dll",
+    ):
+        assert not drop(kept), kept

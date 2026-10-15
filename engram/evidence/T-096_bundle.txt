@@ -1,0 +1,19 @@
+T-096 / TEC-12 evidencia (2026-10-15; macOS Darwin 23.6 x86_64; PySide6 6.12.0; PyInstaller 6.20.0)
+
+ANTES (spec sin excludes de Qt):
+  du -sh "dist/List Buddy.app"  -> 135M   (du -sk: 138488)
+  Sobraban: QtQuick, QtQml, QtQmlMeta, QtQmlModels, QtQmlWorkerScript, QtVirtualKeyboard,
+  QtVirtualKeyboardQml (.framework) y platforminputcontexts/libqtvirtualkeyboardplugin.dylib.
+  QtPdf / libqpdf NO viajan con el wheel 6.12.0 (el 21,5 MB del audit era de 6.11.1 con PDF).
+
+DESPUES (excludes + filtro de a.binaries/a.datas en el spec):
+  du -sh "dist/List Buddy.app"  -> 122M   (du -sk: 124804)
+  Ahorro: 13684 KB = 13,4 MiB (< 15 MB pedidos: el resto del audit eran QtPdf/libqpdf, ausentes en 6.12).
+  scripts/check_bundle.sh -> OK (sin pyrekordbox/sqlcipher/sqlalchemy, .rbe_settings.ini ni QtPdf/QtQuick/QtQml/QtVirtualKeyboard)
+  otool -L sobre 123 Mach-O del bundle: 0 referencias a QtQuick/QtQml/QtVirtualKeyboard/QtPdf.
+  Arranque del .app (8 s, vivo), log:
+    qt.multimedia.plugin: Loading media backend "ffmpeg"
+    qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 9.0.1 LGPL version 2.1 or later
+  Limite: reproducir una pista dentro del .app no se automatizo (requiere UI); se verifica backend FFmpeg cargado
+  y que ningun Mach-O depende de lo quitado. Candidatos extra no tocados (QtDBus/QtConcurrent/QtMultimediaWidgets .so):
+  ~1 MB, los frameworks son dependencias de QtGui/QtMultimedia.

@@ -103,5 +103,6 @@ def test_notices_cover_native_libraries_shipped_in_the_bundle() -> None:
         assert lib in _NOTICES, lib
     for marker in ("Licenses and Acknowledgements for Incorporated Software", "expat", "libmpdec", "Zstandard"):
         assert marker in python_txt, marker
-    assert "Qt Virtual Keyboard" in _NOTICES and "GPL-3.0" in _NOTICES
-    assert "Qt PDF" in _NOTICES and "PDFium" in _NOTICES
+    # T-096: el bundle ya no lleva QtVirtualKeyboard (GPL-3.0) ni QtPdf; los avisos no los listan.
+    assert "Qt Virtual Keyboard" not in _NOTICES
+    assert "Qt PDF" not in _NOTICES and "PDFium" not in _NOTICES
