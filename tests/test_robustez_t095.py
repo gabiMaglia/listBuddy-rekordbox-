@@ -73,3 +73,27 @@ def test_preview_reports_unreadable_playlist_and_does_not_cache_the_empty_result
         "      'No se pudo leer' in w.output_status.text())\n"
     )
     assert out == "0 1 True"
+
+
+# ── D-16 ──────────────────────────────────────────────────────────────────
+
+def test_close_waits_for_the_export_block_in_flight_instead_of_aborting() -> None:
+    out = _run(
+        "import time\n"
+        "from PySide6.QtCore import QThread, QTimer\n"
+        "from PySide6.QtWidgets import QApplication\n"
+        "class Slow(QThread):\n"
+        "    def run(self):\n"
+        "        while not self.isInterruptionRequested(): self.msleep(10)\n"
+        "        self.msleep(7000)   # un bloque de I/O colgado más que el viejo tope de 4 + 2 s\n"
+        "w, _ = make()\n"
+        "s = Slow(); w._retain_thread(s); w._worker = s; s.start(); time.sleep(0.2)\n"
+        "seen = {}\n"
+        "def look():\n"
+        "    seen['msg'] = w.output_status.text(); seen['cur'] = QApplication.overrideCursor() is not None\n"
+        "QTimer.singleShot(1000, look)\n"
+        "t0 = time.monotonic(); w.close(); dt = time.monotonic() - t0\n"
+        "print(dt >= 6.9, s.isRunning(), seen.get('msg'), seen.get('cur'), QApplication.overrideCursor() is None)\n",
+        pre=BOOT, timeout=90,
+    )
+    assert out == "True False Esperando que termine la copia… True True"
