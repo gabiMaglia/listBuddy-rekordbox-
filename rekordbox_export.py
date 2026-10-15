@@ -18,6 +18,12 @@ import argparse
 from pathlib import Path
 
 
+_WIN_RESERVED = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"{d}{n}" for d in ("COM", "LPT") for n in "123456789\u00b9\u00b2\u00b3"}
+)
+
+
 def sanitize(name: str) -> str:
     """Elimina caracteres inválidos para nombres de carpeta/archivo en Windows.
 
@@ -28,7 +34,14 @@ def sanitize(name: str) -> str:
     """
     for ch in r'\/:*?"<>|':
         name = name.replace(ch, "_")
-    return name.strip(" .\t\r\n")
+    name = name.strip(" .\t\r\n")
+    # Windows reserva estos nombres aunque lleven extensión («CON.txt»), sin
+    # importar mayúsculas; los pendrives se leen en Windows, así que aplica en
+    # todas las plataformas (T-093, SEC-13).
+    stem, dot, rest = name.partition(".")
+    if stem.rstrip(" ").upper() in _WIN_RESERVED:
+        name = stem.rstrip(" ") + "_" + dot + rest
+    return name
 
 
 def resolve_path(raw_path: str) -> Path | None:

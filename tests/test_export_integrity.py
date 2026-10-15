@@ -189,3 +189,19 @@ def test_report_file_symlink_is_not_written_through() -> None:
         "print(target.exists(), done[3])\n"
     )
     assert out == "False ok"
+
+
+# ── T-093 SEC-13: nombres reservados de Windows ───────────────────────────
+
+def test_sanitize_suffixes_windows_reserved_names() -> None:
+    from rekordbox_export import sanitize
+
+    for raw, want in (
+        ("CON", "CON_"), ("con", "con_"), ("Prn", "Prn_"), ("AUX", "AUX_"), ("NUL", "NUL_"),
+        ("COM1", "COM1_"), ("com9", "com9_"), ("LPT1", "LPT1_"), ("lpt9", "lpt9_"),
+        ("CON.txt", "CON_.txt"), ("nul.tar.gz", "nul_.tar.gz"), ("COM3 .mp3", "COM3_.mp3"),
+        ("COM¹", "COM¹_"),
+    ):
+        assert sanitize(raw) == want, raw
+    for ok in ("COM0", "COM10", "CONSOLE", "Aux Cord", "LPT", "Mi CON", "x.CON"):
+        assert sanitize(ok) == ok, ok
