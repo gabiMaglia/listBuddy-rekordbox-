@@ -37,7 +37,7 @@ DISCLAIMER_PATH = ROOT / "DISCLAIMER.md"
 
 # Igual a «Versión del aviso» de DISCLAIMER.md (un test lo verifica). Cambiarla
 # vuelve a mostrar el aviso a quien ya lo había aceptado.
-DISCLAIMER_VERSION = "2026-10-14"
+DISCLAIMER_VERSION = "2026-10-15"
 _DISCLAIMER_KEY = "disclaimer_accepted"
 
 _LEGAL_TEXT = (
@@ -139,7 +139,8 @@ _NOTICE_TEXT = (
     f"{APP_NAME} es gratuito y se ofrece <b>tal cual, sin ninguna garantía</b>. "
     "Lo usás bajo tu responsabilidad."
     "<br><br>"
-    "• Con Rekordbox solo lee el XML que exportás: nunca modifica tu librería.<br>"
+    "• Con Rekordbox solo lee el XML que exportás: nunca modifica tu librería ni tu XML. "
+    "Las reparaciones se guardan en List Buddy.<br>"
     "• Con Traktor, «Reparar enlaces rotos» y «Restaurar» <b>sobrescriben tu "
     "colección</b>. Hace una copia de seguridad automática, pero no reemplaza "
     "la tuya.<br>"

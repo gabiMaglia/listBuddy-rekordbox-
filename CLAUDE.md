@@ -28,6 +28,9 @@ worker.py            → ExportWorker (QThread). Copia archivos; emite signals l
 db.py                → Utilidades compartidas: order_playlist_songs(), key_bpm_of().
 rekordbox_xml.py     → Lector del rekordbox.xml exportado. open_library(), get_playlist_tree(), get_songs().
 rekordbox_export.py  → Lógica base validada. NO modificar sin causa mayor.
+app_paths.py         → Carpeta de datos del usuario (settings.ini, rekordbox_fixes.json): Application Support (macOS) / %APPDATA% (Windows).
+rekordbox_fixes.py   → Persistencia de reparaciones de Rekordbox en rekordbox_fixes.json; se aplican al cargar el XML.
+rekordbox_xml_relocate.py → Reparar enlaces de la fuente Rekordbox (busca por nombre); las rutas nuevas van a rekordbox_fixes.json. El XML nuevo importable lo escribe rekordbox_xml.write_playlists_xml.
 traktor_db.py        → Parser de colección NML de Traktor Pro 3/4. open_collection(), get_playlist_tree().
 preview_worker.py    → PreviewWorker (QThread). Existence checks en background; emite GroupData.
 audio_player.py      → AudioPlayer (QMediaPlayer+FFmpeg). play/pause/seek; señales playing_changed, position_changed, track_finished.
@@ -85,7 +88,9 @@ python main.py                   # arrancar la app
 
 List Buddy lee Rekordbox **solo** del XML que el usuario exporta (Archivo → Exportar colección en formato xml; formato publicado por AlphaTheta para terceros, `xml_format_list.pdf`) y lo elige en ⚙ Configuración → Librerías. Sirve igual para Rekordbox 6 y 7, y funciona con Rekordbox abierto. El usuario reexporta cuando cambia sus playlists. El parser es `rekordbox_xml.py` (`open_library()`, `get_playlist_tree()`, `get_songs()`).
 
-**Regla: nunca abrir ni escribir `master.db`; nada de pyrekordbox/sqlcipher3 en el proyecto ni en el bundle (ADR-004).** Para reparar enlaces rotos en Rekordbox se le indica al usuario usar Reubicar de Rekordbox y reexportar.
+**Regla: nunca abrir ni escribir `master.db`; nada de pyrekordbox/sqlcipher3 en el proyecto ni en el bundle (ADR-004).** Para reparar enlaces rotos en Rekordbox se le indica al usuario usar Reubicar de Rekordbox y reexportar, o usar la reparación de List Buddy (ver Addendum T-081).
+
+**Regla (T-081): las reparaciones de Rekordbox van a `rekordbox_fixes.json` (carpeta de datos, `app_paths.py`); nunca al XML del usuario ni a `master.db`.** «Exportar XML para Rekordbox…» escribe un XML nuevo y rechaza el XML cargado como destino.
 
 | Elemento / atributo del XML | Qué es |
 |---|---|

@@ -22,7 +22,7 @@ Primera versión pública. Reúne todo el trabajo previo: las versiones internas
   seek, barra espaciadora y auto-avance.
 - Búsqueda de playlists por nombre, Todas/Ninguna y carpetas plegables.
 
-### Reparar enlaces rotos (relocate, solo Traktor)
+### Reparar enlaces rotos (relocate, Traktor)
 - Busca por nombre cada archivo faltante en la carpeta o disco que indiques y
   **repara el enlace en tu librería de Traktor**. Tolera prefijo numérico y cambio de
   extensión. Se puede limitar a una playlist.
@@ -31,9 +31,19 @@ Primera versión pública. Reúne todo el trabajo previo: las versiones internas
   **restauración** desde el menú Mantenimiento.
 - Escritura atómica: si algo falla, la librería queda intacta.
 - Bloqueo si Traktor está abierto, re-chequeado justo antes de escribir. Detección e indexado cancelables y con progreso.
+- En Rekordbox, List Buddy nunca modifica la librería ni el XML exportado: las
+  reparaciones se guardan en un archivo propio (ver la sección siguiente).
 
-- En Rekordbox, List Buddy no modifica la librería: para reparar enlaces se
-  usa Reubicar de Rekordbox y se reexporta el XML.
+### Reparar listas de Rekordbox e importarlas
+- **Reparar enlaces rotos** también funciona con Rekordbox: las rutas nuevas se
+  guardan en `rekordbox_fixes.json` (carpeta de datos de List Buddy) y se aplican
+  al cargar. Nunca se modifica el XML ni la librería de Rekordbox. Mantenimiento →
+  «Olvidar reparaciones de Rekordbox…» las descarta.
+- **Exportar XML para Rekordbox…** (Mantenimiento) escribe un XML **nuevo** con las
+  playlists marcadas y las rutas reparadas, para importarlo desde el panel
+  «rekordbox xml» de Rekordbox. Se rechaza pisar el XML cargado.
+- La configuración del `.app`/`.exe` vive ahora en la carpeta de datos del usuario
+  (`~/Library/Application Support/listBuddy/` en macOS, `%APPDATA%\listBuddy\` en Windows).
 
 ### App
 - Diseño «Mezcla Cálida» en tema oscuro y claro, con fuentes propias (Sora,
