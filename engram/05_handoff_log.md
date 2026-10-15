@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-15 18:00] CIERRE DE SESIÓN
+- Hecho hoy: release 1.0.0 armado (Acerca de/licencias/aviso legal), Rekordbox solo por XML oficial (sin pyrekordbox, ADR-004), reparar enlaces del XML + exportar XML importable (T-081), fix crash al exportar a disco desconectado, onda nueva con animación, streaming/duplicados en XML, investigación de mercado (reports/, doc compartible). Todo mergeado a main local.
+- Próximo paso: PO prueba con su XML real de Rekordbox 7 → push → tag v1.0.0 + release; QA formal (nerv-qa) de T-080..T-085.
+- Quien retoma: nerv-orquestador → nerv-qa (T-080..T-085) y nerv-desktop (T-025/T-026).
+
 ### [2026-10-13] CIERRE (mini, P-5) · T-067 + T-079
 - Hecho: columna Key·BPM (Rekordbox BPM/100 + Key.ScaleName, Traktor INFO@KEY/TEMPO@BPM; oculta bajo ~920 px) y chequeo de updates con CA de certifi (verificación SSL siempre activa). Gate oficial PASS con proof of red; QA con artefactos `engram/qa/T-067.md`, `T-079.md`; merge a main a2f406f. Push: lo hace el PO.
 - Hallazgo: el repo público no tiene releases/tags → `/releases/latest` = 404; el aviso de «Nueva versión» no funcionará hasta publicar uno (T-025).

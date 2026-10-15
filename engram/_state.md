@@ -1,12 +1,9 @@
-# STATE — listBuddy · actualizado: 2026-10-13
+# STATE — listBuddy · actualizado: 2026-10-15 18:00
 
-**Sprint:** 1 — Reskin «Mezcla Cálida» + menores (T-067, T-079) → CERRADO
-**Rama activa:** `main` = origin/main (pusheado por el PO; incluye a2f406f T-067/T-079). `feat/reskin` y `feat/menores` locales, ya mergeadas.
-**En curso:** nada. T-061..T-079 Done con QA; PO probó la app en vivo («anda bárbaro»), última corrida con faulthandler sin crash.
-**Bloqueos:** T-026 (cuenta Apple Developer). `gh` sin autenticar (PRs).
-**Sin probar:** Windows (todo el reskin: fuentes, íconos SVG, DPI, header compacto, QMessageBox) y el `.app` real.
-**Próximo paso sugerido:**
-1. T-025 — buildear el `.app` en la Mac: fuentes/íconos/`dialogs.py` dentro del bundle, tilde PNG (T-078), `diskutil`; decidir si el bundle se llama «List Buddy».
-2. Regularizar QA de T-027 y T-029 (mergeados sin veredicto) y B-1 (Windows: `.exe` + checklist de 07_production_readiness.md).
-3. Publicar el primer release en GitHub (el repo no tiene ninguno → el chequeo de updates da 404 y nunca avisa); va con T-025. Menor: «¿» faltante en «… de todos modos?».
-**Preguntas abiertas al PO:** 0
+**Sprint:** 2 — Release 1.0.0 (legal, Rekordbox por XML oficial, reparar/exportar XML, onda) → CERRADO en main local
+**Rama activa:** `main` (27 commits sin pushear a origin/main) → target: release v1.0.0
+**En curso:** nada. T-080..T-085 En revisión QA (revisiones SDD por tarea + final hechas; sin veredicto nerv-qa).
+**Bloqueos:** T-026 (cuenta Apple Developer para notarizar). `gh` sin autenticar.
+**Sin probar:** XML real de Rekordbox 7 (reparar, exportar, importar en Rekordbox), pistas de streaming reales, menús de Rekordbox en español, Windows.
+**Próximo paso sugerido:** PO prueba el flujo con su XML real → push de main → tag v1.0.0 + release con `scripts/release_mac.sh` (notarizado cuando haya cuenta).
+**Preguntas abiertas al PO:** 1 — numeración exportada `1 -` (ancho justo) vs `001` como la vista previa.
