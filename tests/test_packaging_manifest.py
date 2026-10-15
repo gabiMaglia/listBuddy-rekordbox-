@@ -10,8 +10,8 @@ _REQS = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8").splitlin
 
 
 def test_requirements_pin_pyside6_and_drop_pyqt6() -> None:
-    assert "PySide6==6.11.1" in _REQS
-    assert "shiboken6==6.11.1" in _REQS
+    assert "PySide6==6.12.0" in _REQS
+    assert "shiboken6==6.12.0" in _REQS
     assert [r for r in _REQS if r.lower().startswith("pyqt")] == []
 
 
