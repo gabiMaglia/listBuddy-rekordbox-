@@ -138,3 +138,41 @@ def test_refuses_source_named_like_the_temp_file(tmp_path: Path) -> None:
         rx.write_playlists_xml([rx.get_playlist_tree(lib)[0]["playlist"]],
                                tmp_path / "x.xml", source=src)
     assert src.read_bytes() == before
+
+
+def test_two_tracks_repaired_to_the_same_file_share_one_collection_entry(tmp_path: Path) -> None:
+    # Rekordbox rechaza el import si dos TRACK tienen la misma Location.
+    nuevo = tmp_path / "nuevo"; nuevo.mkdir(); (nuevo / "tema.mp3").write_bytes(b"y")
+    xml = tmp_path / "rekordbox.xml"
+    xml.write_text(
+        '<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0"><COLLECTION Entries="2">'
+        '<TRACK TrackID="1" Name="Tema" Location="file://localhost/viejo/tema.mp3"/>'
+        '<TRACK TrackID="2" Name="Tema (copia)" Location="file://localhost/otro/tema.mp3"/>'
+        '</COLLECTION><PLAYLISTS><NODE Type="0" Name="ROOT" Count="1">'
+        '<NODE Type="1" Name="L" KeyType="0" Entries="2"><TRACK Key="1"/><TRACK Key="2"/></NODE>'
+        '</NODE></PLAYLISTS></DJ_PLAYLISTS>', encoding="utf-8")
+    target = str(nuevo / "tema.mp3")
+    lib = rx.open_library(xml, fixes={"file://localhost/viejo/tema.mp3": target,
+                                      "file://localhost/otro/tema.mp3": target})
+    dest = tmp_path / "o.xml"
+    res = rx.write_playlists_xml([rx.get_playlist_tree(lib)[0]["playlist"]], dest, source=xml)
+    root = ET.parse(dest).getroot()
+    locations = [t.get("Location") for t in root.findall("./COLLECTION/TRACK")]
+    assert len(locations) == len(set(locations)) == 1 and res.tracks == 1
+    keys = [t.get("Key") for t in root.findall("./PLAYLISTS/NODE/NODE/TRACK")]
+    assert keys == [root.find("./COLLECTION/TRACK").get("TrackID")] * 2
+    assert root.find("./PLAYLISTS/NODE/NODE").get("Entries") == "2"
+
+
+def test_streaming_tracks_are_written_as_is_and_not_counted_missing(tmp_path: Path) -> None:
+    xml = tmp_path / "rekordbox.xml"
+    xml.write_text(
+        '<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0"><COLLECTION Entries="1">'
+        '<TRACK TrackID="7" Name="De Tidal" Location="tidal:tracks:123456"/>'
+        '</COLLECTION><PLAYLISTS><NODE Type="0" Name="ROOT" Count="1">'
+        '<NODE Type="1" Name="L" KeyType="0" Entries="1"><TRACK Key="7"/></NODE>'
+        '</NODE></PLAYLISTS></DJ_PLAYLISTS>', encoding="utf-8")
+    lib = rx.open_library(xml)
+    res = rx.write_playlists_xml([rx.get_playlist_tree(lib)[0]["playlist"]], tmp_path / "o.xml", source=xml)
+    track = ET.parse(tmp_path / "o.xml").getroot().find("./COLLECTION/TRACK")
+    assert track.get("Location") == "tidal:tracks:123456" and res.missing == 0

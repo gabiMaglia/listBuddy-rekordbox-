@@ -34,6 +34,7 @@ class TrackRow:
     key: str = ""          # Camelot/Open Key tal cual viene de la fuente
     bpm: float | None = None
     relocated: bool = False  # ruta reparada por List Buddy (Rekordbox XML)
+    streaming: bool = False  # pista de streaming: no es un archivo, nunca «rota»
 
 
 @dataclass
@@ -105,6 +106,9 @@ class PreviewWorker(QThread):
             for track in group.tracks:
                 if self._stop:
                     break
-                track.exists = self._check(track.raw_path) if track.raw_path else False
+                if track.streaming:
+                    track.exists = True
+                else:
+                    track.exists = self._check(track.raw_path) if track.raw_path else False
             self.group_ready.emit(group)
         self.finished.emit()

@@ -49,7 +49,7 @@ def find_broken_tracks(
     existe. Una por `Location`, aunque esté en varias playlists."""
     unique: dict[str, object] = {}
     for t in _iter_tracks(get_playlist_tree(library)):
-        if t.location and t.location not in unique:
+        if t.location and not t.streaming and t.location not in unique:
             unique[t.location] = t
     tracks = list(unique.values())
     broken: list[tuple[str, XmlBrokenTrack]] = []
