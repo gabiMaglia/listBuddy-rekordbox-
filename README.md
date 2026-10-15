@@ -160,6 +160,7 @@ La configuración y las reparaciones viven en `~/Library/Application Support/lis
 
 - **Dispositivo de salida de audio** — elegí por qué salida suena la previsualización.
 - **Auto-avance** — on/off.
+- **Buscar actualizaciones al iniciar** — activado por defecto; apagalo si no querés que la app consulte GitHub al abrir.
 - **Librerías** — elegí acá el `rekordbox.xml` exportado (Rekordbox) y, si está en una
   ubicación no estándar, el `collection.nml` (Traktor). El botón
   **Auto** vuelve a la autodetección.
