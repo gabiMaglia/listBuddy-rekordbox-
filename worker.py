@@ -103,16 +103,17 @@ def _copy_atomic(src: Path, dest: Path, should_stop) -> None:
         raise
 
 
-def _remove_orphan_parts(folder: Path) -> None:
-    """Borra los `.part` que dejó una copia anterior cortada de golpe (kill, USB)."""
-    try:
-        for leftover in folder.glob("*.part"):
-            try:
-                leftover.unlink()
-            except OSError:
-                pass
-    except OSError:
-        pass
+def _remove_orphan_parts(folder: Path, names: set[str]) -> None:
+    """Borra los `.part` que dejó una copia anterior cortada de golpe (kill, USB).
+
+    Solo los que este export va a volver a escribir: un `.part` ajeno (descarga a medias,
+    otra app) en la misma carpeta no se toca.
+    """
+    for name in names:
+        try:
+            (folder / name).unlink()
+        except OSError:
+            pass
 
 
 class ExportWorker(QThread):
@@ -197,8 +198,8 @@ class ExportWorker(QThread):
                 _log.error("Export: no se pudo crear %s: %s", dest_dir, e)
                 self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
                 return
-            _remove_orphan_parts(dest_dir)
             pad = len(str(len(sorted_songs)))
+            _remove_orphan_parts(dest_dir, _part_names(sorted_songs, dest_dir, pad))
 
             for idx, song in enumerate(sorted_songs, start=1):
                 if self.isInterruptionRequested():
@@ -349,6 +350,17 @@ def _planned_dest(dest_dir: Path, idx: int, pad: int, content, src: Path) -> Pat
     artist = sanitize(get_artist(content))
     title = sanitize(getattr(content, "Title", None) or "") or "Sin título"
     return dest_dir / _safe_filename(str(idx).zfill(pad), artist, title, src.suffix)
+
+
+def _part_names(sorted_songs: list, dest_dir: Path, pad: int) -> set[str]:
+    """Nombres `<archivo>.part` que esta playlist va a crear al copiar."""
+    names: set[str] = set()
+    for idx, song in enumerate(sorted_songs, start=1):
+        content = get_content(song)
+        src = resolve_path(getattr(content, "FolderPath", None) if content else None)
+        if src:
+            names.add(_planned_dest(dest_dir, idx, pad, content, src).name + ".part")
+    return names
 
 
 def _estimate_size(playlist_songs: list[tuple], output_root: Path, folder_names: list[str]) -> int:
