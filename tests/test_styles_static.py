@@ -21,7 +21,7 @@ FAMILIES = {"Public Sans", "Sora", "JetBrains Mono"}
 TOKENS = {
     "bg", "header", "surface", "surface2", "inset", "line", "row_line", "text", "muted",
     "accent", "on_accent", "link", "sel_bg", "danger", "danger_soft", "broken_bg",
-    "broken_chip", "ok", "chip_text",
+    "broken_chip", "ok", "chip_text", "wave_hi",
 }
 
 

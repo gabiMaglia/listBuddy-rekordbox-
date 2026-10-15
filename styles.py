@@ -43,6 +43,7 @@ THEMES: Dict[str, Dict[str, str]] = {
         'broken_chip': '#3a2823',
         'ok': '#9fd6ad',
         'chip_text': '#c9c1b4',
+        'wave_hi': '#f4e6c8',
     },
     'light': {
         'bg': '#f3efe7',
@@ -64,6 +65,7 @@ THEMES: Dict[str, Dict[str, str]] = {
         'broken_chip': '#f1d2ca',
         'ok': '#1f6b3a',
         'chip_text': '#4a443b',
+        'wave_hi': '#3d2a10',
     },
 }
 

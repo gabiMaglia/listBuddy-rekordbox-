@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from collections.abc import Sequence
 from typing import ClassVar, List
+
+import numpy as np
 
 import icons
 import styles
 from preview_worker import TrackRow
 from row_blocks import NONE, border_sides, corner_radii
+from waveform_worker import WaveData
 
-from PySide6.QtCore import QEvent, QPoint, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QRectF, QSize, Qt, QVariantAnimation, Signal
 from PySide6.QtGui import (
     QColor,
     QFontMetrics,
@@ -17,6 +21,7 @@ from PySide6.QtGui import (
     QPainter,
     QPainterPath,
     QPen,
+    QPixmap,
 )
 from PySide6.QtWidgets import (
     QDialog,
@@ -431,56 +436,145 @@ class SeekBar(QWidget):
             )
 
 
-def bar_heights(peaks: Sequence[float], n: int, floor: float = 0.12) -> list[float]:
-    """n alturas 0..1 por max-pool de los picos; sin picos, barras planas al piso."""
+def bar_means(values: Sequence[float], n: int) -> list[float]:
+    """n valores por promedio de cada tramo (mean-pool); sin datos, lista vacía."""
+    if n <= 0 or len(values) == 0:
+        return []
+    arr = np.asarray(values, dtype=np.float64)
+    idx = np.arange(n + 1) * arr.size // n
+    starts = np.minimum(idx[:-1], arr.size - 1)
+    ends = np.maximum(idx[1:], starts + 1)
+    csum = np.concatenate([[0.0], np.cumsum(arr)])
+    return ((csum[ends] - csum[starts]) / (ends - starts)).tolist()
+
+
+def bar_heights(levels: Sequence[float], n: int, floor: float = 0.12) -> list[float]:
+    """n alturas 0..1 por promedio de los niveles; sin datos, barras planas al piso."""
     if n <= 0:
         return []
-    if not peaks:
+    if len(levels) == 0:
         return [floor] * n
-    total = len(peaks)
-    out: list[float] = []
-    for i in range(n):
-        a = i * total // n
-        b = max(a + 1, (i + 1) * total // n)
-        out.append(max(floor, max(peaks[a:b])))
-    return out
+    return [max(floor, v) for v in bar_means(levels, n)]
+
+
+def _mix(a: QColor, b: QColor, t: float) -> QColor:
+    t = min(1.0, max(0.0, t))
+    return QColor.fromRgbF(
+        a.redF() + (b.redF() - a.redF()) * t,
+        a.greenF() + (b.greenF() - a.greenF()) * t,
+        a.blueF() + (b.blueF() - a.blueF()) * t,
+    )
 
 
 class WaveformSeek(SeekBar):
-    """SeekBar con forma de onda: mismo click/arrastre, barras en vez de riel."""
+    """SeekBar con forma de onda: mismo click/arrastre, barras en vez de riel.
 
-    _BAR, _GAP = 3, 2
+    Altura = energía (dB); color = tono (acento = graves → `hi` = agudos). Las barras se
+    pre-renderizan UNA vez en dos pixmaps (reproducido / pendiente) y recién se vuelven a
+    armar si cambian datos, tamaño, colores o DPR; cada tick de posición solo recorta.
+    """
+
+    _BAR, _GAP = 2, 1
+    _GROW_MS = 400
+    _PENDING_MIX = 0.55     # cuánto se acerca el color pendiente al color de reposo
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setFixedHeight(32)
-        self._peaks: Sequence[float] = ()
+        self._data: WaveData | None = None
+        self._hi = QColor(styles.token("dark", "wave_hi"))
         self._rest = QColor(styles.token("dark", "line"))
+        self._pm_played: QPixmap | None = None
+        self._pm_pending: QPixmap | None = None
+        self._pm_key: tuple | None = None
+        self._rebuilds = 0
+        self._grow = 1.0
+        self._anim = QVariantAnimation(self)
+        self._anim.setDuration(self._GROW_MS)
+        self._anim.setStartValue(0.0)
+        self._anim.setEndValue(1.0)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._anim.valueChanged.connect(self._on_grow)
 
-    def set_peaks(self, peaks: Sequence[float] | None) -> None:
-        self._peaks = peaks or ()
+    def _on_grow(self, value: object) -> None:
+        self._grow = float(value)  # type: ignore[arg-type]
         self.update()
 
-    def set_colors(self, played_hex: str, rest_hex: str) -> None:
-        self._accent = QColor(played_hex)
+    def set_wave(self, data: WaveData | None) -> None:
+        if data is self._data:
+            return                      # mismo objeto: no se reinicia la animación
+        self._data = data
+        self._anim.stop()
+        if data is None or not data.levels:
+            self._grow = 1.0            # piso plano inmediato, sin animar
+        else:
+            self._grow = 0.0
+            self._anim.start()
+        self.update()
+
+    def set_colors(self, lo_hex: str, hi_hex: str, rest_hex: str) -> None:
+        self._accent = QColor(lo_hex)
+        self._hi = QColor(hi_hex)
         self._rest = QColor(rest_hex)
         self.update()
 
+    def _bar_count(self) -> int:
+        return max(1, (self.width() + self._GAP) // (self._BAR + self._GAP))
+
+    def _ensure_pixmaps(self) -> None:
+        dpr = self.devicePixelRatioF()
+        key = (id(self._data), self.width(), self.height(), dpr,
+               self._accent.rgba(), self._hi.rgba(), self._rest.rgba())
+        if key == self._pm_key and self._pm_played is not None:
+            return
+        self._pm_key = key
+        self._rebuilds += 1
+        n = self._bar_count()
+        d = self._data
+        heights = bar_heights(d.levels if d else (), n)
+        tones = bar_means(d.tone, n) if d and d.tone else [0.0] * n
+        w, h = self.width(), self.height()
+        pms: list[QPixmap] = []
+        for pending in (False, True):
+            pm = QPixmap(max(1, int(w * dpr)), max(1, int(h * dpr)))
+            pm.setDevicePixelRatio(dpr)
+            pm.fill(Qt.GlobalColor.transparent)
+            p = QPainter(pm)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+            p.setPen(Qt.PenStyle.NoPen)
+            mid = h / 2
+            step = self._BAR + self._GAP
+            for i, level in enumerate(heights):
+                col = _mix(self._accent, self._hi, tones[i])
+                if pending:
+                    col = _mix(col, self._rest, self._PENDING_MIX)
+                bh = max(2.0, level * (h - 2))
+                p.setBrush(col)
+                p.drawRect(QRectF(i * step, mid - bh / 2, self._BAR, bh))
+            p.end()
+            pms.append(pm)
+        self._pm_played, self._pm_pending = pms
+
     def paintEvent(self, _event) -> None:
+        self._ensure_pixmaps()
+        assert self._pm_played is not None and self._pm_pending is not None
         p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-        step = self._BAR + self._GAP
-        n = max(1, (self.width() + self._GAP) // step)
-        heights = bar_heights(self._peaks, n)
+        w, h = self.width(), self.height()
+        if self._grow < 1.0:
+            mid = h / 2
+            p.setOpacity(self._grow)
+            p.translate(0, mid)
+            p.scale(1.0, self._grow)
+            p.translate(0, -mid)
+        p.drawPixmap(0, 0, self._pm_pending)
         frac = (self._pos / self._dur) if self._dur > 0 else 0.0
-        mid = self.height() / 2
-        p.setPen(Qt.PenStyle.NoPen)
-        for i, level in enumerate(heights):
-            x = i * step
-            h = max(2.0, level * (self.height() - 2))
-            # La barra cuenta como reproducida si su centro ya fue pasado.
-            p.setBrush(self._accent if (x + self._BAR / 2) / self.width() <= frac else self._rest)
-            p.drawRect(QRectF(x, mid - h / 2, self._BAR, h))
+        step = self._BAR + self._GAP
+        # La barra cuenta como reproducida si su centro ya fue pasado.
+        played = min(self._bar_count(), max(0, math.floor(frac * w / step - self._BAR / 2 / step) + 1))
+        cut = played * step
+        if cut > 0:
+            p.setClipRect(QRectF(0, 0, cut, h))
+            p.drawPixmap(0, 0, self._pm_played)
 
 
 class PlaylistCard(QWidget):
