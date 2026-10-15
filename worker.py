@@ -6,6 +6,7 @@ QThread que ejecuta la exportación sin congelar la UI.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -61,6 +62,57 @@ def _safe_filename(prefix: str, artist: str, title: str, suffix: str) -> str:
         parts.append(artist)
     parts.append(title)
     return " - ".join(parts) + suffix
+
+
+_CHUNK = 1024 * 1024
+
+
+class _CopyInterrupted(Exception):
+    """El usuario canceló (o la app se cierra) en medio de la copia de un archivo."""
+
+
+def _copy_stream(fsrc, fdst, should_stop) -> None:
+    """Copia por bloques para poder cortar a mitad de un archivo grande."""
+    while True:
+        if should_stop():
+            raise _CopyInterrupted
+        buf = fsrc.read(_CHUNK)
+        if not buf:
+            return
+        fdst.write(buf)
+
+
+def _copy_atomic(src: Path, dest: Path, should_stop) -> None:
+    """Copia a `<dest>.part` y recién al final lo renombra al nombre definitivo.
+
+    Si algo falla a mitad (disco lleno, USB desconectado, cancelación) el
+    nombre final nunca queda con un archivo truncado que el reintento daría
+    por bueno. Modo `xb` (O_EXCL): no escribe a través de un symlink plantado.
+    """
+    part = dest.with_name(dest.name + ".part")
+    try:
+        with open(src, "rb") as fsrc, open(part, "xb") as fdst:
+            _copy_stream(fsrc, fdst, should_stop)
+        shutil.copystat(src, part)
+        os.replace(part, dest)
+    except BaseException:
+        try:
+            part.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _remove_orphan_parts(folder: Path) -> None:
+    """Borra los `.part` que dejó una copia anterior cortada de golpe (kill, USB)."""
+    try:
+        for leftover in folder.glob("*.part"):
+            try:
+                leftover.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
 
 
 class ExportWorker(QThread):
@@ -136,6 +188,7 @@ class ExportWorker(QThread):
                 _log.error("Export: no se pudo crear %s: %s", dest_dir, e)
                 self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
                 return
+            _remove_orphan_parts(dest_dir)
             pad = len(str(len(sorted_songs)))
 
             for idx, song in enumerate(sorted_songs, start=1):
@@ -177,14 +230,18 @@ class ExportWorker(QThread):
                 filename = _safe_filename(prefix, artist, title, src.suffix)
                 dest     = dest_dir / filename
 
-                if dest.exists():
+                if _is_complete_copy(dest, src):
                     self.log.emit(f"   ⏭  Ya existe: {dest.name}")
                     skipped_total += 1
                 else:
                     try:
-                        shutil.copy2(src, dest)
+                        _copy_atomic(src, dest, self.isInterruptionRequested)
                         self.log.emit(f"   ✓  {dest.name}")
                         copied_total += 1
+                    except _CopyInterrupted:
+                        self.log.emit("\n⏹  Exportación cancelada.")
+                        self.finished_ok.emit(copied_total, missing_total, skipped_total, "cancelled")
+                        return
                     except OSError as e:
                         if e.errno == 28:  # ENOSPC — disco lleno
                             self.log.emit(f"   ✗  Disco lleno al copiar {dest.name}")
@@ -226,6 +283,14 @@ class ExportWorker(QThread):
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
+
+def _is_complete_copy(dest: Path, src: Path) -> bool:
+    """«Ya existe» solo si el archivo está y pesa lo mismo que el origen."""
+    try:
+        return dest.stat().st_size == src.stat().st_size
+    except OSError:
+        return False
+
 
 def _get_songs_list(pl) -> list:
     try:
