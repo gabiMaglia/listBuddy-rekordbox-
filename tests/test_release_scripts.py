@@ -77,3 +77,14 @@ def test_check_bundle_detects_forbidden_content(tmp_path, dirty, expected_ok) ->
     app = _fake_bundle(tmp_path, dirty=dirty)
     r = subprocess.run(["bash", str(_CHECK), str(app)], capture_output=True, text=True)
     assert (r.returncode == 0) is expected_ok, r.stdout + r.stderr
+
+
+@pytest.mark.parametrize("script", [_RELEASE, _CHECK])
+def test_release_scripts_are_executable_in_git(script) -> None:
+    """QA T-087: check_bundle.sh estaba en git como 100644 y release_mac.sh lo
+    invoca como ejecutable → «Permission denied» en una checkout limpia."""
+    mode = subprocess.run(
+        ["git", "ls-files", "-s", str(script.relative_to(PROJECT_ROOT))],
+        cwd=PROJECT_ROOT, capture_output=True, text=True, check=True,
+    ).stdout.split()[0]
+    assert mode == "100755", f"{script.name} está en git como {mode}"
