@@ -23,7 +23,7 @@ def run() -> None:
         win._apply_theme(theme)
         win.findChild(MaintenanceButton).set_broken(30)
         win._footer.set_now_playing("Glace Circle (Original Mix)", "DJOKO")
-        win._footer.set_peaks([0.2 + 0.8 * abs(math.sin(i / 7)) for i in range(400)])
+        win._footer.set_wave(__import__("waveform_worker").WaveData(tuple(0.2 + 0.8 * abs(math.sin(i / 7)) for i in range(400)), (0.5,) * 400))
         win._footer.set_position(161_000, 418_000)
         for w in (980, 820):
             win.resize(w, 700); app.processEvents()

@@ -83,7 +83,7 @@ from ui_components import (
 from preview_worker import PreviewWorker, GroupData, TrackRow
 from audio_player import AudioPlayer
 from footer import FooterBar
-from waveform_worker import WaveformWorker
+from waveform_worker import WaveData, WaveformWorker
 from rekordbox_fixes import FixStore, fixes_path_for
 from rekordbox_xml_relocate import RekordboxXmlRelocateWorker
 from relocate_core import BackupInfo, RelocateScope, RestoreBackupWorker, list_backups
@@ -259,7 +259,7 @@ class MainWindow(QMainWindow):
         # ── Forma de onda del footer ─────────────────────────────────────
         self._wave_worker: WaveformWorker | None = None
         self._wave_gen: int = 0
-        self._wave_cache: dict[str, list[float]] = {}
+        self._wave_cache: dict[str, WaveData] = {}
         # Cancelados pero con el hilo aún vivo: se sueltan en su `finished`.
         self._live_wave_workers: set[WaveformWorker] = set()
 
@@ -1926,7 +1926,7 @@ class MainWindow(QMainWindow):
         self._playing_row = None
         self._update_now_playing(None)
         self._cancel_waveform()
-        self._footer.set_peaks(None)
+        self._footer.set_wave(None)
         dialogs.warning(self, "Reproducción de audio", msg)
 
     # ── Forma de onda del footer ───────────────────────────────────────────
@@ -1935,12 +1935,12 @@ class MainWindow(QMainWindow):
         self._cancel_waveform()
         cached = self._wave_cache.get(resolved)
         if cached is not None:
-            self._footer.set_peaks(cached)
+            self._footer.set_wave(cached)
             return
-        self._footer.set_peaks(None)          # onda plana mientras decodifica
+        self._footer.set_wave(None)          # onda plana mientras decodifica
         self._wave_gen += 1
         worker = WaveformWorker(resolved, self._wave_gen)
-        worker.ready.connect(lambda peaks, gen, p=resolved: self._on_wave_ready(p, peaks, gen))
+        worker.ready.connect(lambda data, gen, p=resolved: self._on_wave_ready(p, data, gen))
         worker.finished.connect(lambda w=worker: self._live_wave_workers.discard(w))
         self._live_wave_workers.add(worker)   # vivo hasta que el hilo termine
         self._wave_worker = worker
@@ -1955,13 +1955,13 @@ class MainWindow(QMainWindow):
                 pass
             worker.cancel()
 
-    def _on_wave_ready(self, path: str, peaks: object, generation: int) -> None:
+    def _on_wave_ready(self, path: str, data: WaveData, generation: int) -> None:
         if generation != self._wave_gen:
             return                            # resultado stale → descartar
-        self._wave_cache[path] = list(peaks)  # type: ignore[call-overload]
+        self._wave_cache[path] = data
         while len(self._wave_cache) > 32:
             self._wave_cache.pop(next(iter(self._wave_cache)))
-        self._footer.set_peaks(self._wave_cache[path])
+        self._footer.set_wave(self._wave_cache[path])
 
     def closeEvent(self, event) -> None:
         # I-1: cerrar la ventana con un relocate corriendo cancelaba sin

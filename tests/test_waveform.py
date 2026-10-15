@@ -1,6 +1,8 @@
 """T-063: energía/tono de la onda, alturas de barras y WaveformSeek."""
 from __future__ import annotations
 
+import textwrap
+
 import numpy as np
 
 from _qt_isolated import run_isolated
@@ -110,30 +112,97 @@ def _rc(code: str) -> str:
     return r.stdout.strip().splitlines()[-1]
 
 
-def test_bar_heights_max_pools_flat_when_empty_and_respects_floor() -> None:
+def test_bar_heights_mean_pools_flat_when_empty_and_respects_floor() -> None:
     assert _rc("""
         import ui_components as uc
         spike = [0.0] * 99 + [1.0]
         h = uc.bar_heights(spike, 10)
-        print(len(h), h[-1], h[0], uc.bar_heights([], 4), uc.bar_heights([0.5], 3))
-    """) == "10 1.0 0.12 [0.12, 0.12, 0.12, 0.12] [0.5, 0.5, 0.5]"
+        print(len(h), round(h[-1], 3), h[0], uc.bar_heights([], 4), uc.bar_heights([0.5], 3),
+              uc.bar_means([0.0, 1.0, 0.5, 0.5], 2))
+    """) == "10 0.12 0.12 [0.12, 0.12, 0.12, 0.12] [0.5, 0.5, 0.5] [0.5, 0.5]"
 
 
-def test_waveform_seek_paints_played_part_in_accent_and_rest_in_line() -> None:
-    assert _rc("""
-        from PySide6.QtWidgets import QApplication
-        from PySide6.QtGui import QColor
-        import styles, ui_components as uc
-        app = QApplication([]); styles.register_fonts()
-        acc, rest = styles.token('dark', 'accent'), styles.token('dark', 'line')
-        wf = uc.WaveformSeek(); wf.resize(200, 32); wf.set_colors(acc, rest)
-        wf.set_peaks([1.0] * 100); wf.set_progress(500, 1000); wf.show(); app.processEvents()
-        img = wf.grab().toImage()
-        mid = wf.height() // 2
-        left = QColor(img.pixel(1, mid)).name()      # 1.ª barra, x∈[0,3): reproducida
-        right = QColor(img.pixel(196, mid)).name()   # barra 39 (n=40), x∈[195,198): resto
-        print(left == QColor(acc).name(), right == QColor(rest).name())
-    """) == "True True"
+_WF = """
+    from PySide6.QtCore import QEventLoop, QTimer
+    from PySide6.QtWidgets import QApplication
+    from PySide6.QtGui import QColor
+    import styles, ui_components as uc
+    from waveform_worker import WaveData
+    app = QApplication([]); styles.register_fonts()
+    def pump(ms):
+        loop = QEventLoop(); QTimer.singleShot(ms, loop.quit); loop.exec()
+    acc, hi, rest = (styles.token('dark', k) for k in ('accent', 'wave_hi', 'line'))
+    def make(tone=0.0):
+        wf = uc.WaveformSeek(); wf.resize(200, 32); wf.set_colors(acc, hi, rest); wf.show(); app.processEvents()
+        return wf
+    D = WaveData((1.0,) * 100, (0.0,) * 100)
+"""
+
+
+def _wf(code: str) -> str:
+    return textwrap.dedent(_WF) + textwrap.dedent(code)
+
+
+def test_waveform_seek_paints_played_in_tone_color_and_pending_dimmer() -> None:
+    assert _rc(_wf("""
+        wf = make(); wf.set_wave(D); wf.set_progress(500, 1000); pump(700)
+        img = wf.grab().toImage(); mid = wf.height() // 2
+        left = QColor(img.pixel(1, mid)); right = QColor(img.pixel(196, mid))
+        bg = QColor(img.pixel(1, 0))
+        print(left.name() == QColor(acc).name(), right.name() != left.name(), right.name() != bg.name(),
+              right.lightness() < left.lightness())
+    """)) == "True True True True"
+
+
+def test_waveform_seek_tone_mixes_from_lo_to_hi() -> None:
+    assert _rc(_wf("""
+        wf = make(); wf.set_wave(WaveData((1.0,) * 100, (1.0,) * 100)); wf.set_progress(1000, 1000); pump(700)
+        img = wf.grab().toImage(); mid = wf.height() // 2
+        print(QColor(img.pixel(1, mid)).name() == QColor(hi).name())
+    """)) == "True"
+
+
+def test_waveform_seek_animates_on_new_data_and_ends_at_full_height() -> None:
+    assert _rc(_wf("""
+        wf = make(); wf.set_wave(D)
+        start = (wf._anim.state() == wf._anim.State.Running, wf._grow < 1.0)
+        pump(700)
+        end = (wf._grow, wf._anim.state() == wf._anim.State.Running)
+        print(start, end)
+    """)) == "(True, True) (1.0, False)"
+
+
+def test_waveform_seek_same_data_none_and_progress_do_not_animate() -> None:
+    assert _rc(_wf("""
+        wf = make(); wf.set_wave(D); pump(700)
+        wf.set_wave(D); a = wf._anim.state() == wf._anim.State.Running      # mismo objeto
+        for i in range(20): wf.set_progress(i * 10, 1000)
+        b = wf._anim.state() == wf._anim.State.Running
+        wf.set_wave(WaveData((0.5,) * 100, (0.5,) * 100)); c = wf._anim.state() == wf._anim.State.Running
+        wf.set_wave(None); d = wf._anim.state() == wf._anim.State.Running   # None corta y no anima
+        print(a, b, c, d, wf._grow)
+    """)) == "False False True False 1.0"
+
+
+def test_waveform_seek_prerenders_pixmaps_once_per_data_size_and_colors() -> None:
+    assert _rc(_wf("""
+        wf = make(); wf.set_wave(D); pump(700); wf.grab()
+        base = wf._rebuilds
+        for i in range(30): wf.set_progress(i * 30, 1000); wf.grab()
+        after_progress = wf._rebuilds - base
+        wf.resize(300, 32); app.processEvents(); wf.grab(); after_resize = wf._rebuilds - base
+        wf.set_colors(acc, hi, '#555555'); wf.grab(); after_colors = wf._rebuilds - base
+        wf.set_wave(WaveData((0.3,) * 50, (0.3,) * 50)); pump(700); wf.grab(); after_data = wf._rebuilds - base
+        print(after_progress, after_resize, after_colors, after_data)
+    """)) == "0 1 2 3"
+
+
+def test_waveform_seek_destroyed_mid_animation_is_safe() -> None:
+    r = run_isolated(_wf("""
+        wf = make(); wf.set_wave(D); wf.deleteLater(); pump(700); print('alive')
+    """))
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert r.stdout.strip().splitlines()[-1] == "alive" and "Traceback" not in r.stderr
 
 
 def test_waveform_seek_click_emits_proportional_position_and_ignores_unknown_duration() -> None:
