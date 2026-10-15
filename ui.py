@@ -8,6 +8,7 @@ Layout: header-bar (title + controls) → two-column body
 from __future__ import annotations
 
 import itertools
+import logging
 import sys
 from io import BytesIO
 from functools import partial
@@ -90,6 +91,7 @@ from relocate_core import BackupInfo, RelocateScope, RestoreBackupWorker, list_b
 from traktor_relocate import RelocateWorker, is_traktor_running
 from update_checker import UpdateCheckWorker, UpdateInfo
 
+_logger = logging.getLogger("listBuddy")
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
 # Va en cada confirmación antes de escribir sobre una librería (DISCLAIMER.md §3-4).
 _RESPONSIBILITY_LINE = (
@@ -1620,6 +1622,7 @@ class MainWindow(QMainWindow):
             else:
                 # Cache miss: query a la DB (solo ocurre la primera vez)
                 tracks: list[TrackRow] = []
+                read_ok = True
                 try:
                     for i, song in enumerate(_get_songs(card.playlist)):
                         content = get_content(song)
@@ -1645,9 +1648,13 @@ class MainWindow(QMainWindow):
                             relocated = bool(getattr(content, "relocated", False)),
                             streaming = streaming,
                         ))
-                except Exception:
-                    pass
-                self._track_meta_cache[cache_key] = tracks
+                except Exception as e:
+                    # TEC-10: no cachear el vacío; el próximo toggle reintenta.
+                    read_ok = False
+                    _logger.exception("Preview: no se pudo leer la playlist %s", card.playlist.Name)
+                    self._report_unreadable_playlist(card.playlist.Name, e)
+                if read_ok:
+                    self._track_meta_cache[cache_key] = tracks
 
             groups.append(GroupData(
                 name        = card.playlist.Name,
@@ -2191,6 +2198,12 @@ class MainWindow(QMainWindow):
 
     def _log(self, text: str) -> None:
         self.log_view.appendPlainText(text)
+
+    def _report_unreadable_playlist(self, name: str, exc: Exception) -> None:
+        line = f"⚠ No se pudo leer la playlist {name}: {exc}"
+        self._log(line)
+        self.output_status.setText(line)
+        self._set_status_style("warn")
 
     # ──────────────────────────────── Relocate (F-07 ADR-001 / F-08 ADR-002) ───
 

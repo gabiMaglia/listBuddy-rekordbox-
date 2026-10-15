@@ -126,6 +126,9 @@ class ExportWorker(QThread):
         self._playlists = playlists
         self._output_root = output_root
 
+    def _report_unreadable(self, pl, exc: Exception) -> None:
+        self.log.emit(f"⚠ No se pudo leer la playlist {getattr(pl, 'Name', '?')}: {exc}")
+
     def run(self) -> None:
         copied_total = missing_total = skipped_total = 0
         missing_tracks: list[str] = []
@@ -138,7 +141,7 @@ class ExportWorker(QThread):
         # ── Pre-build: una sola query lazy por playlist ───────────────────
         playlist_songs: list[tuple] = []
         for pl in self._playlists:
-            songs = _get_songs_list(pl)
+            songs = _get_songs_list(pl, self._report_unreadable)
             if songs:
                 playlist_songs.append((pl, songs))
 
@@ -330,10 +333,14 @@ def _is_complete_copy(dest: Path, src: Path) -> bool:
         return False
 
 
-def _get_songs_list(pl) -> list:
+def _get_songs_list(pl, on_error=None) -> list:
+    """Pistas de la playlist; si no se pueden leer, se loguea y se avisa (no desaparece en silencio)."""
     try:
         return list(get_songs(pl))
-    except Exception:
+    except Exception as e:
+        _log.exception("Export: no se pudo leer la playlist %s", getattr(pl, "Name", "?"))
+        if on_error is not None:
+            on_error(pl, e)
         return []
 
 

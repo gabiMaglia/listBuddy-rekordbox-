@@ -42,3 +42,34 @@ def test_log_view_has_a_block_cap() -> None:
         "print(w.log_view.blockCount() <= 5000, w.log_view.toPlainText().endswith('l5999'))\n"
     )
     assert out == "True True"
+
+
+# ── TEC-10 ────────────────────────────────────────────────────────────────
+
+def test_export_says_which_playlist_could_not_be_read() -> None:
+    out = _run(
+        "class Rota:\n"
+        "    Name = 'Rota'\n"
+        "    @property\n"
+        "    def Songs(self): raise RuntimeError('boom')\n"
+        "logs, done = export([Rota(), pl('Ok', [track(1, 1)])])\n"
+        "print(any('⚠ No se pudo leer la playlist Rota: boom' in l for l in logs), done[0], done[3])\n"
+    )
+    assert out == "True 1 ok"
+
+
+def test_preview_reports_unreadable_playlist_and_does_not_cache_the_empty_result() -> None:
+    out = _win(
+        "from types import SimpleNamespace\n"
+        "from ui_components import PlaylistCard\n"
+        "class Rota:\n"
+        "    Name = 'Rota'; uuid = 'r1'\n"
+        "    @property\n"
+        "    def Songs(self): raise RuntimeError('boom')\n"
+        "w, _ = make()\n"
+        "card = PlaylistCard(Rota(), 3, 0)\n"
+        "g = w._extract_preview_data([card])\n"
+        "print(len(w._track_meta_cache), w.log_view.toPlainText().count('No se pudo leer la playlist Rota: boom'),\n"
+        "      'No se pudo leer' in w.output_status.text())\n"
+    )
+    assert out == "0 1 True"
