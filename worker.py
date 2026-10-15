@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import sys
 import unicodedata
 from pathlib import Path
 
@@ -41,6 +42,19 @@ def get_songs(pl):
 # cubre las tres (T-093, TEC-21).
 _MAX_STEM = 200
 _ELLIPSIS = "\u2026"
+
+
+# Windows clásico corta en MAX_PATH=260; se avisa con margen (T-093).
+_WIN_PATH_WARN = 240
+
+
+def _long_path_warning(dest: Path) -> str | None:
+    if sys.platform == "win32" and len(str(dest)) > _WIN_PATH_WARN:
+        return (
+            f"   ⚠  Ruta muy larga ({len(str(dest))} caracteres): Windows puede rechazarla "
+            f"por el límite de 260. Elegí una carpeta de destino más corta."
+        )
+    return None
 
 
 def _nbytes(text: str) -> int:
@@ -290,6 +304,9 @@ class ExportWorker(QThread):
                 title    = sanitize(getattr(content, "Title", None) or "") or "Sin título"
                 filename = _safe_filename(prefix, artist, title, src.suffix)
                 dest     = dest_dir / filename
+                long_warning = _long_path_warning(dest)
+                if long_warning:
+                    self.log.emit(long_warning)
 
                 if _is_complete_copy(dest, src):
                     self.log.emit(f"   ⏭  Ya existe: {dest.name}")
