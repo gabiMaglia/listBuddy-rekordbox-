@@ -146,8 +146,9 @@ class ExportWorker(QThread):
         self.progress.emit(0, max(total_songs, 1))
 
         # ── Chequeo de espacio en disco ───────────────────────────────────
+        folder_names = _unique_folder_names([pl.Name for pl, _ in playlist_songs])
         try:
-            total_bytes = _estimate_size(playlist_songs)
+            total_bytes = _estimate_size(playlist_songs, self._output_root, folder_names)
             if total_bytes > 0:
                 dest_check = (
                     self._output_root
@@ -170,7 +171,6 @@ class ExportWorker(QThread):
 
         # ── Loop principal ────────────────────────────────────────────────
         done = 0
-        folder_names = _unique_folder_names([pl.Name for pl, _ in playlist_songs])
         for (pl, songs), folder in zip(playlist_songs, folder_names):
             self.log.emit(f"▶  {pl.Name}")
             dest_dir = self._output_root / folder
@@ -230,11 +230,7 @@ class ExportWorker(QThread):
                     missing_total += 1
                     continue
 
-                prefix   = str(idx).zfill(pad)
-                artist   = sanitize(get_artist(content))
-                title    = sanitize(getattr(content, "Title", None) or "") or "Sin título"
-                filename = _safe_filename(prefix, artist, title, src.suffix)
-                dest     = dest_dir / filename
+                dest = _planned_dest(dest_dir, idx, pad, content, src)
 
                 if _is_complete_copy(dest, src):
                     self.log.emit(f"   ⏭  Ya existe: {dest.name}")
@@ -341,19 +337,32 @@ def _get_songs_list(pl) -> list:
         return []
 
 
-def _estimate_size(playlist_songs: list[tuple]) -> int:
-    """Suma los tamaños de los archivos fuente que existen en disco."""
+def _planned_dest(dest_dir: Path, idx: int, pad: int, content, src: Path) -> Path:
+    """Ruta final de una pista en el destino (la usan el export y la estimación)."""
+    artist = sanitize(get_artist(content))
+    title = sanitize(getattr(content, "Title", None) or "") or "Sin título"
+    return dest_dir / _safe_filename(str(idx).zfill(pad), artist, title, src.suffix)
+
+
+def _estimate_size(playlist_songs: list[tuple], output_root: Path, folder_names: list[str]) -> int:
+    """Bytes que faltan copiar: fuentes que existen, menos las que ya están completas en destino
+    (misma regla de «Ya existe»), para que un re-export incremental no pida espacio de más."""
     total = 0
-    for _, songs in playlist_songs:
-        for song in songs:
+    for (_, songs), folder in zip(playlist_songs, folder_names):
+        sorted_songs = order_playlist_songs(songs)
+        pad = len(str(len(sorted_songs)))
+        for idx, song in enumerate(sorted_songs, start=1):
             content = get_content(song)
             raw = getattr(content, "FolderPath", None) if content else None
             src = resolve_path(raw)
-            if src:
-                try:
-                    total += src.stat().st_size
-                except OSError:
-                    pass
+            if not src:
+                continue
+            if _is_complete_copy(_planned_dest(output_root / folder, idx, pad, content, src), src):
+                continue
+            try:
+                total += src.stat().st_size
+            except OSError:
+                pass
     return total
 
 
