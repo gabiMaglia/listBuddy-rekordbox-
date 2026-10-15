@@ -96,3 +96,21 @@ def test_closing_the_window_with_the_update_check_in_flight_exits_cleanly() -> N
     )
     assert r.returncode == 0, r.stderr[-2000:]
     assert "exec 0" in r.stdout
+
+
+def test_closing_the_window_while_the_preview_worker_is_running_exits_cleanly() -> None:
+    r = run_isolated(
+        BOOT + _SLOW_PREVIEW +
+        "import sys\n"
+        "w, _ = make()\n"
+        "w._all_cards = [FakeCard()]\n"
+        "w._extract_preview_data = lambda sel: groups()\n"
+        "w._start_preview_worker(); pump(150)\n"
+        "assert w._preview_worker.isRunning()\n"
+        "w._start_preview_worker(); pump(100)\n"   # uno cancelado + uno vivo
+        "w.close()\n"
+        "print('cerrada', flush=True)\n",
+        cold=True, timeout=60,
+    )
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert "cerrada" in r.stdout

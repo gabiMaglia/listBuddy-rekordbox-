@@ -2011,6 +2011,12 @@ class MainWindow(QMainWindow):
         if self._update_worker is not None:
             # Hilo daemon: no frena la salida aunque el urlopen/DNS siga colgado.
             self._update_worker.cancel()
+        # Cualquier hilo que siga corriendo (p. ej. un PreviewWorker cancelado
+        # en un stat lento) se espera con tope: destruirlo en vuelo aborta.
+        for thread in list(self._live_threads):
+            if thread.isRunning():
+                thread.requestInterruption()
+                thread.wait(2000)
         super().closeEvent(event)
 
     # ──────────────────────────────────────── Actions ────────────────────
