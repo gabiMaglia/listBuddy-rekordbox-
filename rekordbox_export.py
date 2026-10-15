@@ -19,10 +19,16 @@ from pathlib import Path
 
 
 def sanitize(name: str) -> str:
-    """Elimina caracteres inválidos para nombres de carpeta/archivo en Windows."""
+    """Elimina caracteres inválidos para nombres de carpeta/archivo en Windows.
+
+    También quita puntos y espacios en los bordes: así ni «..» ni «.» ni un
+    nombre vacío pueden apuntar fuera de la carpeta de destino (T-088, SEC-02)
+    y Windows no recorta el nombre por su cuenta. Puede devolver «»: el que
+    llama decide el reemplazo (carpeta «playlist», título «Sin título»).
+    """
     for ch in r'\/:*?"<>|':
         name = name.replace(ch, "_")
-    return name.strip()
+    return name.strip(" .\t\r\n")
 
 
 def resolve_path(raw_path: str) -> Path | None:
@@ -66,7 +72,7 @@ def get_artist(content) -> str:
 
 
 def export_playlist(playlist, output_root: Path, dry_run: bool = False):
-    folder_name = sanitize(playlist.Name)
+    folder_name = sanitize(playlist.Name) or "playlist"
     dest_dir = output_root / folder_name
 
     songs = sorted(get_songs(playlist), key=lambda s: s.TrackNo)
@@ -93,7 +99,7 @@ def export_playlist(playlist, output_root: Path, dry_run: bool = False):
 
         prefix = str(song.TrackNo).zfill(pad)
         artist = sanitize(get_artist(content))
-        title  = sanitize(getattr(content, "Title", None) or "Sin título")
+        title  = sanitize(getattr(content, "Title", None) or "") or "Sin título"
 
         parts = [prefix]
         if artist:
