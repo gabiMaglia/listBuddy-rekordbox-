@@ -304,6 +304,7 @@ class MainWindow(QMainWindow):
         self._rb_xml_path = str(self.settings.value("rb_xml_path", "") or "")
         self._tk_collection_path = str(self.settings.value("tk_collection_path", "") or "")
         self._auto_advance = self.settings.value("auto_advance", True, type=bool)
+        self._check_updates = self.settings.value("check_updates_on_start", True, type=bool)
         self._saved_device_id = str(self.settings.value("audio_device_id", "") or "")
         self._media_devices = QMediaDevices(self)
         self._media_devices.audioOutputsChanged.connect(self._refresh_audio_devices)
@@ -1049,6 +1050,17 @@ class MainWindow(QMainWindow):
         self._auto_advance_chk.toggled.connect(self._on_auto_advance_toggled)
         play_box.addWidget(self._auto_advance_chk)
 
+        # ── PRIVACIDAD ─────────────────────────────────────────────────────
+        privacy_box = section("PRIVACIDAD")
+        self._update_check_chk = QCheckBox("Buscar actualizaciones al iniciar")
+        self._update_check_chk.setObjectName("settings_check")
+        self._update_check_chk.setToolTip(
+            "Al abrir la app consulta en GitHub si hay una versión nueva. No envía datos tuyos."
+        )
+        self._update_check_chk.setChecked(self._check_updates)
+        self._update_check_chk.toggled.connect(self._on_check_updates_toggled)
+        privacy_box.addWidget(self._update_check_chk)
+
         # ── LIBRERÍAS ──────────────────────────────────────────────────────
         lib_box = section("LIBRERÍAS")
         helper = QLabel(
@@ -1151,6 +1163,10 @@ class MainWindow(QMainWindow):
     def _on_auto_advance_toggled(self, checked: bool) -> None:
         self._auto_advance = checked
         self.settings.setValue("auto_advance", checked)
+
+    def _on_check_updates_toggled(self, checked: bool) -> None:
+        self._check_updates = checked
+        self.settings.setValue("check_updates_on_start", checked)
 
     # ── Library paths ───────────────────────────────────────────────────────
 
@@ -2782,6 +2798,8 @@ class MainWindow(QMainWindow):
         __init__, después de que la ventana ya está armada — el resultado
         (si llega) solo agrega un label discreto, nunca bloquea el arranque.
         """
+        if not self._check_updates:
+            return
         self._update_worker = UpdateCheckWorker(_APP_VERSION)
         self._update_worker.update_available.connect(self._on_update_available)
         self._update_worker.start()
