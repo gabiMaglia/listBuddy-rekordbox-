@@ -1,0 +1,11 @@
+$ scripts/release_mac.sh --dry-run
+ERROR: quedan marcadores [A DEFINIR POR EL PO] sin completar en:
+  DISCLAIMER.md
+       Completalos antes de generar el release (ver T-090/T-092).
+exit=1
+$ LISTBUDDY_RELEASE_GATE=1 pytest tests/test_release_gate.py
+tests/test_release_gate.py:27: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_release_gate.py::test_no_pending_po_markers - AssertionErro...
+1 failed, 3 passed in 0.11s
+(sin marcadores: test_release_script_aborts_with_markers_and_passes_without verifica exit 0)
