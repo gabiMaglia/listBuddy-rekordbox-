@@ -1,0 +1,103 @@
+qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 9.0.1 LGPL version 2.1 or later
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7fb4832e9080] Format mov,mp4,m4a,3gp,3g2,mj2 detected only with low score of 1, misdetection possible!
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7fb4832e9080] moov atom not found
+qt.multimedia.ffmpeg.mediadataholder: Could not open media. FFmpeg error description: Invalid data found when processing input
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7fb4227a2380] Format mov,mp4,m4a,3gp,3g2,mj2 detected only with low score of 1, misdetection possible!
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7fb4227a2380] moov atom not found
+qt.multimedia.ffmpeg.mediadataholder: Could not open media. FFmpeg error description: Invalid data found when processing input
+qt.multimedia.ffmpeg.mediadataholder: Could not open media. FFmpeg error description: Invalid data found when processing input
+qt.multimedia.ffmpeg.mediadataholder: Could not open media. FFmpeg error description: Invalid data found when processing input
+[mp3 @ 0x7fb4227b73c0] Format mp3 detected only with low score of 1, misdetection possible!
+[mp3 @ 0x7fb4227b73c0] Failed to find two consecutive MPEG audio frames.
+qt.multimedia.ffmpeg.mediadataholder: Could not open media. FFmpeg error description: Invalid data found when processing input
+[mp3 @ 0x7fb4227b73c0] Format mp3 detected only with low score of 1, misdetection possible!
+[mp3 @ 0x7fb4227b73c0] Failed to find two consecutive MPEG audio frames.
+qt.multimedia.ffmpeg.mediadataholder: Could not open media. FFmpeg error description: Invalid data found when processing input
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7fb4832f8500] Format mov,mp4,m4a,3gp,3g2,mj2 detected only with low score of 1, misdetection possible!
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7fb4832f8500] moov atom not found
+qt.multimedia.ffmpeg.mediadataholder: Could not open media. FFmpeg error description: Invalid data found when processing input
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7fb482719600] Format mov,mp4,m4a,3gp,3g2,mj2 detected only with low score of 1, misdetection possible!
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7fb482719600] moov atom not found
+qt.multimedia.ffmpeg.mediadataholder: Could not open media. FFmpeg error description: Invalid data found when processing input
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/trunc.m4a':
+  Metadata:
+    major_brand     : mp42
+    minor_version   : 0
+    compatible_brands: mp42isom
+    creation_time   : 2026-10-15T19:49:33.000000Z
+  Duration: 00:06:41.12, start: 0.000000, bitrate: 65 kb/s
+  Stream #0:0[0x1](eng): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 130 kb/s (default)
+    Metadata:
+      creation_time   : 2026-10-15T19:49:33.000000Z
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/trunc.m4a':
+  Metadata:
+    major_brand     : mp42
+    minor_version   : 0
+    compatible_brands: mp42isom
+    creation_time   : 2026-10-15T19:49:33.000000Z
+  Duration: 00:06:41.12, start: 0.000000, bitrate: 65 kb/s
+  Stream #0:0[0x1](eng): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 130 kb/s (default)
+    Metadata:
+      creation_time   : 2026-10-15T19:49:33.000000Z
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7fb463821e40] Packet corrupt (stream = 0, dts = 8726464).
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7fb463821e40] stream 0, offset 0x327567: partial file
+[aac @ 0x7fb403b07400] decode_band_types: Input buffer exhausted before END element found
+[caf @ 0x7fb4227b7680] Estimating duration from bitrate, this may be inaccurate
+Input #0, caf, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/trunc.caf':
+  Metadata:
+    approximate duration in seconds: 401.12
+    source bit depth: I16
+  Duration: 00:03:20.55, start: 0.000000, bitrate: 1411 kb/s
+  Stream #0:0: Audio: pcm_s16le (lpcm / 0x6D63706C), 44100 Hz, 2 channels, s16, 1411 kb/s
+[caf @ 0x7fb473830c40] Estimating duration from bitrate, this may be inaccurate
+Input #0, caf, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/trunc.caf':
+  Metadata:
+    approximate duration in seconds: 401.12
+    source bit depth: I16
+  Duration: 00:03:20.55, start: 0.000000, bitrate: 1411 kb/s
+  Stream #0:0: Audio: pcm_s16le (lpcm / 0x6D63706C), 44100 Hz, 2 channels, s16, 1411 kb/s
+[caf @ 0x7fb473830c40] Packet corrupt (stream = 0, dts = 8843264).
+[mp3 @ 0x7fb4831cbe80] Estimating duration from bitrate, this may be inaccurate
+Input #0, mp3, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/trunc.mp3':
+  Metadata:
+    comment         : Tracks by www.loopmasters.com
+    publisher       : Loopmasters
+    title           : Demo Track 1
+    artist          : Loopmasters
+  Duration: 00:01:26.19, start: 0.000000, bitrate: 320 kb/s
+  Stream #0:0: Audio: mp3 (mp3float), 44100 Hz, stereo, fltp, 320 kb/s
+[mp3 @ 0x7fb403c06540] Estimating duration from bitrate, this may be inaccurate
+Input #0, mp3, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/trunc.mp3':
+  Metadata:
+    comment         : Tracks by www.loopmasters.com
+    publisher       : Loopmasters
+    title           : Demo Track 1
+    artist          : Loopmasters
+  Duration: 00:01:26.19, start: 0.000000, bitrate: 320 kb/s
+  Stream #0:0: Audio: mp3 (mp3float), 44100 Hz, stereo, fltp, 320 kb/s
+[mp3float @ 0x7fb4831e60c0] invalid new backstep -1
+[mp3 @ 0x7fb403c0df00] Estimating duration from bitrate, this may be inaccurate
+Input #0, mp3, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.mp3':
+  Metadata:
+    comment         : Tracks by www.loopmasters.com
+    publisher       : Loopmasters
+    title           : Demo Track 1
+    artist          : Loopmasters
+  Duration: 00:02:52.44, start: 0.000000, bitrate: 320 kb/s
+  Stream #0:0: Audio: mp3 (mp3float), 44100 Hz, stereo, fltp, 320 kb/s
+  worker_terminated= True 90.0 s
+[rand.m4a] errors=['Could not open file'] playing=False wave_levels=NO-EMIT
+  worker_terminated= True 90.5 s
+[rand.caf] errors=['Could not open file'] playing=False wave_levels=NO-EMIT
+  worker_terminated= True 90.5 s
+[rand.mp3] errors=['Could not open file'] playing=False wave_levels=NO-EMIT
+  worker_terminated= True 90.6 s
+[empty.m4a] errors=['Could not open file'] playing=False wave_levels=NO-EMIT
+  worker_terminated= True 2.5 s
+[trunc.m4a] errors=[] playing=True wave_levels=3959
+  worker_terminated= True 1.2 s
+[trunc.caf] errors=[] playing=True wave_levels=4012
+  worker_terminated= True 0.5 s
+[trunc.mp3] errors=[] playing=True wave_levels=1724
+recover after errors: playing= True
+DONE no abort

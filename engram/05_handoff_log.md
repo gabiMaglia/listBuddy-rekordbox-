@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-15 14:00] T-086 auditoría pre-release → 4 agentes en paralelo
+- Pedido del PO: auditoría en 4 patas (Apple, seguridad, legal, técnica/rendimiento). Síntoma reportado: caída de fps al agregar muchas listas nuevas hasta que terminan de abrirse.
+- Entregable: `engram/audit/T-086_{apple,seguridad,legal,tecnica}.md`, solo lectura, sin código.
+- Quien retoma: nerv-orquestador consolida hallazgos con el PO.
+
 ### [2026-10-15 13:00] CIERRE DE SESIÓN (mini)
 - Hecho hoy: QA formal de T-080..T-085 (3 nerv-qa en paralelo, 6 APROBADO, Done consolidado por nerv-qa, backlog-check OK); evidencia Cocoa de T-083 archivada; deuda D-10..D-13 registrada; D-11 resuelta (dedupe por archivo físico en el XML exportado, test con mutación). PO pusheó main y confirmó numeración «como ahora».
 - Próximo paso: PO crea certificado Developer ID + perfil notarytool → build firmado/notarizado + D-10 → tag v1.0.0.

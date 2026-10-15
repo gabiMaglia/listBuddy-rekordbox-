@@ -6,6 +6,7 @@ QThread que ejecuta la exportación sin congelar la UI.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -63,6 +64,57 @@ def _safe_filename(prefix: str, artist: str, title: str, suffix: str) -> str:
     return " - ".join(parts) + suffix
 
 
+_CHUNK = 1024 * 1024
+
+
+class _CopyInterrupted(Exception):
+    """El usuario canceló (o la app se cierra) en medio de la copia de un archivo."""
+
+
+def _copy_stream(fsrc, fdst, should_stop) -> None:
+    """Copia por bloques para poder cortar a mitad de un archivo grande."""
+    while True:
+        if should_stop():
+            raise _CopyInterrupted
+        buf = fsrc.read(_CHUNK)
+        if not buf:
+            return
+        fdst.write(buf)
+
+
+def _copy_atomic(src: Path, dest: Path, should_stop) -> None:
+    """Copia a `<dest>.part` y recién al final lo renombra al nombre definitivo.
+
+    Si algo falla a mitad (disco lleno, USB desconectado, cancelación) el
+    nombre final nunca queda con un archivo truncado que el reintento daría
+    por bueno. Modo `xb` (O_EXCL): no escribe a través de un symlink plantado.
+    """
+    part = dest.with_name(dest.name + ".part")
+    try:
+        with open(src, "rb") as fsrc, open(part, "xb") as fdst:
+            _copy_stream(fsrc, fdst, should_stop)
+        shutil.copystat(src, part)
+        os.replace(part, dest)
+    except BaseException:
+        try:
+            part.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _remove_orphan_parts(folder: Path) -> None:
+    """Borra los `.part` que dejó una copia anterior cortada de golpe (kill, USB)."""
+    try:
+        for leftover in folder.glob("*.part"):
+            try:
+                leftover.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
 class ExportWorker(QThread):
     log         = Signal(str)
     progress    = Signal(int, int)        # (hechas, total)
@@ -118,9 +170,15 @@ class ExportWorker(QThread):
 
         # ── Loop principal ────────────────────────────────────────────────
         done = 0
-        for pl, songs in playlist_songs:
+        folder_names = _unique_folder_names([pl.Name for pl, _ in playlist_songs])
+        for (pl, songs), folder in zip(playlist_songs, folder_names):
             self.log.emit(f"▶  {pl.Name}")
-            dest_dir = self._output_root / sanitize(pl.Name)
+            dest_dir = self._output_root / folder
+            if not _is_inside(dest_dir, self._output_root):
+                self.log.emit(f"✗  Nombre de playlist no válido, no se exporta: {pl.Name}")
+                _log.error("Export: %s resuelve fuera de %s", dest_dir, self._output_root)
+                self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
+                return
 
             sorted_songs = order_playlist_songs(songs)
 
@@ -136,6 +194,7 @@ class ExportWorker(QThread):
                 _log.error("Export: no se pudo crear %s: %s", dest_dir, e)
                 self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
                 return
+            _remove_orphan_parts(dest_dir)
             pad = len(str(len(sorted_songs)))
 
             for idx, song in enumerate(sorted_songs, start=1):
@@ -173,18 +232,22 @@ class ExportWorker(QThread):
 
                 prefix   = str(idx).zfill(pad)
                 artist   = sanitize(get_artist(content))
-                title    = sanitize(getattr(content, "Title", None) or "Sin título")
+                title    = sanitize(getattr(content, "Title", None) or "") or "Sin título"
                 filename = _safe_filename(prefix, artist, title, src.suffix)
                 dest     = dest_dir / filename
 
-                if dest.exists():
+                if _is_complete_copy(dest, src):
                     self.log.emit(f"   ⏭  Ya existe: {dest.name}")
                     skipped_total += 1
                 else:
                     try:
-                        shutil.copy2(src, dest)
+                        _copy_atomic(src, dest, self.isInterruptionRequested)
                         self.log.emit(f"   ✓  {dest.name}")
                         copied_total += 1
+                    except _CopyInterrupted:
+                        self.log.emit("\n⏹  Exportación cancelada.")
+                        self.finished_ok.emit(copied_total, missing_total, skipped_total, "cancelled")
+                        return
                     except OSError as e:
                         if e.errno == 28:  # ENOSPC — disco lleno
                             self.log.emit(f"   ✗  Disco lleno al copiar {dest.name}")
@@ -218,6 +281,9 @@ class ExportWorker(QThread):
         for dest_dir, lines in missing_by_dest.items():
             try:
                 report_path = dest_dir / "_no_exportados.txt"
+                if report_path.is_symlink():
+                    self.log.emit(f"   ⚠  No se escribió _no_exportados.txt en {dest_dir}: es un acceso directo")
+                    continue
                 report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
             except OSError as e:
                 self.log.emit(f"   ⚠  No se pudo escribir _no_exportados.txt en {dest_dir}: {e}")
@@ -226,6 +292,47 @@ class ExportWorker(QThread):
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
+
+def _is_inside(path: Path, root: Path) -> bool:
+    try:
+        return path.resolve().is_relative_to(root.resolve())
+    except (OSError, RuntimeError):
+        return False
+
+
+def _unique_folder_names(names: list[str]) -> list[str]:
+    """Una carpeta por playlist: si dos colisionan (mismo nombre, otra carpeta de
+    Rekordbox) la segunda en adelante lleva « (2)», « (3)»…
+
+    Se compara sin distinguir mayúsculas porque APFS/NTFS tratan igual
+    «Mix» y «mix»; si no, las dos pisarían la misma carpeta.
+    """
+    taken: set[str] = set()
+    result: list[str] = []
+    for name in names:
+        base = sanitize(name) or "playlist"
+        candidate, n = base, 1
+        while candidate.casefold() in taken:
+            n += 1
+            candidate = f"{base} ({n})"
+        taken.add(candidate.casefold())
+        result.append(candidate)
+    return result
+
+
+def _is_complete_copy(dest: Path, src: Path) -> bool:
+    """«Ya existe» solo si el archivo está y pesa lo mismo que el origen.
+
+    Un symlink (incluso colgante) en el destino cuenta como existente: no se
+    escribe a través de él (T-088, SEC-03).
+    """
+    if dest.is_symlink():
+        return True
+    try:
+        return dest.stat().st_size == src.stat().st_size
+    except OSError:
+        return False
+
 
 def _get_songs_list(pl) -> list:
     try:

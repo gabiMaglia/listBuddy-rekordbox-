@@ -1,7 +1,7 @@
 """Corre snippets Qt en un intérprete aparte.
 
 Mientras PyQt6 siga instalado, importar un módulo del proyecto y PySide6 en el
-mismo proceso cargaría dos copias de las DLL de Qt 6.11.1: el subproceso lo evita
+mismo proceso cargaría dos copias de las DLL de Qt 6.12.0: el subproceso lo evita
 y además mantiene limpio el proceso de pytest.
 """
 from __future__ import annotations

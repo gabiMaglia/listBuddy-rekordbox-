@@ -1,0 +1,51 @@
+T-089 — Medición antes/después (método de engram/audit/T-086_tecnica.md, TEC-01)
+Script: scratchpad/audit-tecnica/bench_toggle.py (QTest.mouseClick real sobre PlaylistCard, ui.MainWindow real,
+QApplication cocoa, fixture 30 playlists x 200 pistas -> 10 clicks; fixture 2 playlists x 2000 pistas -> 1 click).
+Argumentos: <fixture> <clicks> 400. ui_cpu_ms = time.thread_time() del hilo de UI por click, hasta quedar ocioso.
+IMPORTANTE: el script gira 400 ms procesando eventos tras cada click (gap_ms), y eso cuenta como CPU: el piso
+medido es ~400 ms. El costo real del click es ui_cpu_ms - ~400.
+Antes = main (cae8448); despues = rama feat/t089-preview-perf. Misma Mac (Cocoa), con otras sesiones activas
+(el "antes" salio mas lento que en la auditoria: 8.114 vs 4.779 ms en el click 10).
+El "despues" usa bench_toggle_after.py: igual al original pero sin envolver _batch_rows (ya no existe) y envolviendo
+_sync_preview_cards / PreviewGroupCard.set_lazy_rows.
+
+=== ANTES, 10 x 200 ===
+boot+load (30 pl): 2614 ms; platform=cocoa; widgets=354
+{'n': 1, 'total_ms': 2183, 'ui_cpu_ms': 1082, 'widgets': 1589, 'new_widgets': 1235, 'maxgap': 209, 'gaps_gt16': 21, 'sum_gt16': 1948, 'extract': 5.8, 'batch': 228.1, 'pump': 29.8, 'clear': 0.5} rows_made= 200
+{'n': 2, 'total_ms': 3706, 'ui_cpu_ms': 1802, 'widgets': 2820, 'new_widgets': 1231, 'maxgap': 295, 'gaps_gt16': 21, 'sum_gt16': 3462, 'extract': 7.5, 'batch': 437.8, 'pump': 55.0, 'clear': 0.3} rows_made= 600
+{'n': 3, 'total_ms': 5675, 'ui_cpu_ms': 2652, 'widgets': 4050, 'new_widgets': 1230, 'maxgap': 512, 'gaps_gt16': 18, 'sum_gt16': 5392, 'extract': 8.3, 'batch': 679.8, 'pump': 79.8, 'clear': 0.3} rows_made= 1200
+{'n': 4, 'total_ms': 6583, 'ui_cpu_ms': 3390, 'widgets': 5282, 'new_widgets': 1232, 'maxgap': 609, 'gaps_gt16': 20, 'sum_gt16': 6277, 'extract': 7.9, 'batch': 903.9, 'pump': 106.9, 'clear': 0.3} rows_made= 2000
+{'n': 5, 'total_ms': 10053, 'ui_cpu_ms': 4190, 'widgets': 6509, 'new_widgets': 1227, 'maxgap': 884, 'gaps_gt16': 20, 'sum_gt16': 9695, 'extract': 7.3, 'batch': 1118.8, 'pump': 123.6, 'clear': 0.3} rows_made= 3000
+{'n': 6, 'total_ms': 13123, 'ui_cpu_ms': 5578, 'widgets': 7742, 'new_widgets': 1233, 'maxgap': 1168, 'gaps_gt16': 22, 'sum_gt16': 12775, 'extract': 9.0, 'batch': 1405.2, 'pump': 161.3, 'clear': 0.3} rows_made= 4200
+{'n': 7, 'total_ms': 13147, 'ui_cpu_ms': 5773, 'widgets': 8970, 'new_widgets': 1228, 'maxgap': 969, 'gaps_gt16': 23, 'sum_gt16': 12798, 'extract': 20.4, 'batch': 1563.5, 'pump': 187.5, 'clear': 0.3} rows_made= 5600
+{'n': 8, 'total_ms': 11785, 'ui_cpu_ms': 6568, 'widgets': 10204, 'new_widgets': 1234, 'maxgap': 953, 'gaps_gt16': 24, 'sum_gt16': 11431, 'extract': 12.1, 'batch': 1796.8, 'pump': 206.9, 'clear': 0.3} rows_made= 7200
+{'n': 9, 'total_ms': 9249, 'ui_cpu_ms': 7335, 'widgets': 11438, 'new_widgets': 1234, 'maxgap': 758, 'gaps_gt16': 25, 'sum_gt16': 8894, 'extract': 8.3, 'batch': 2015.8, 'pump': 232.5, 'clear': 0.3} rows_made= 9000
+{'n': 10, 'total_ms': 10393, 'ui_cpu_ms': 8114, 'widgets': 12672, 'new_widgets': 1234, 'maxgap': 969, 'gaps_gt16': 28, 'sum_gt16': 10146, 'extract': 12.6, 'batch': 2323.6, 'pump': 261.4, 'clear': 0.4} rows_made= 11000
+ACC (n, sum_ms, max_ms): {'_refresh': (10, 28, 3.0), '_update_order_numbers': (10, 9, 1.5), '_clear_preview_layout': (10, 3, 0.5), '_animate_fade_in': (65, 15, 0.4), '_extract_preview_data': (10, 99, 20.4), '_start_preview_worker': (10, 110, 21.3), '_make_row_widget': (11000, 11437, 128.6), '_batch_rows': (770, 12473, 133.4), '_pump_render_queue': (55, 1445, 31.3)}
+
+=== ANTES, 1 x 2000 pistas ===
+{'n': 1, 'total_ms': 17126, 'ui_cpu_ms': 12510, 'widgets': 12211, 'new_widgets': 12063, 'maxgap': 392, 'gaps_gt16': 139, 'sum_gt16': 16763, 'extract': 43.1, 'batch': 1901.9, 'pump': 18.5, 'clear': 0.5} rows_made= 2000
+ACC (n, sum_ms, max_ms): {'_refresh': (1, 2, 1.8), '_update_order_numbers': (1, 1, 1.0), '_clear_preview_layout': (1, 1, 0.5), '_animate_fade_in': (2, 0, 0.3), '_extract_preview_data': (1, 43, 43.1), '_start_preview_worker': (1, 44, 44.5), '_make_row_widget': (2000, 1751, 7.5), '_batch_rows': (134, 1902, 21.4), '_pump_render_queue': (1, 18, 18.5)}
+
+=== DESPUES, 10 x 200 ===
+boot+load (30 pl): 1133 ms; platform=cocoa; widgets=354
+{'n': 1, 'total_ms': 731, 'ui_cpu_ms': 417, 'widgets': 446, 'new_widgets': 92, 'maxgap': 55, 'gaps_gt16': 5, 'sum_gt16': 133, 'extract': 3.5, 'batch': 0, 'pump': 16.9, 'clear': 0.3} rows_made= 12
+{'n': 2, 'total_ms': 713, 'ui_cpu_ms': 406, 'widgets': 542, 'new_widgets': 96, 'maxgap': 22, 'gaps_gt16': 3, 'sum_gt16': 56, 'extract': 3.3, 'batch': 3.7, 'pump': 15.6, 'clear': 0.0} rows_made= 24
+{'n': 3, 'total_ms': 714, 'ui_cpu_ms': 365, 'widgets': 638, 'new_widgets': 96, 'maxgap': 74, 'gaps_gt16': 3, 'sum_gt16': 134, 'extract': 3.4, 'batch': 3.7, 'pump': 15.7, 'clear': 0.0} rows_made= 36
+{'n': 4, 'total_ms': 712, 'ui_cpu_ms': 407, 'widgets': 734, 'new_widgets': 96, 'maxgap': 17, 'gaps_gt16': 1, 'sum_gt16': 17, 'extract': 4.3, 'batch': 4.7, 'pump': 16.0, 'clear': 0.0} rows_made= 48
+{'n': 5, 'total_ms': 712, 'ui_cpu_ms': 408, 'widgets': 829, 'new_widgets': 95, 'maxgap': 16, 'gaps_gt16': 0, 'sum_gt16': 0, 'extract': 3.4, 'batch': 3.7, 'pump': 14.8, 'clear': 0.0} rows_made= 60
+{'n': 6, 'total_ms': 710, 'ui_cpu_ms': 407, 'widgets': 924, 'new_widgets': 95, 'maxgap': 16, 'gaps_gt16': 0, 'sum_gt16': 0, 'extract': 4.2, 'batch': 4.5, 'pump': 15.1, 'clear': 0.0} rows_made= 72
+{'n': 7, 'total_ms': 708, 'ui_cpu_ms': 409, 'widgets': 1019, 'new_widgets': 95, 'maxgap': 17, 'gaps_gt16': 0, 'sum_gt16': 0, 'extract': 3.9, 'batch': 4.3, 'pump': 15.2, 'clear': 0.0} rows_made= 84
+{'n': 8, 'total_ms': 713, 'ui_cpu_ms': 389, 'widgets': 1114, 'new_widgets': 95, 'maxgap': 16, 'gaps_gt16': 0, 'sum_gt16': 0, 'extract': 3.4, 'batch': 3.8, 'pump': 15.2, 'clear': 0.0} rows_made= 96
+{'n': 9, 'total_ms': 712, 'ui_cpu_ms': 408, 'widgets': 1211, 'new_widgets': 97, 'maxgap': 17, 'gaps_gt16': 1, 'sum_gt16': 17, 'extract': 3.4, 'batch': 3.8, 'pump': 16.3, 'clear': 0.0} rows_made= 108
+{'n': 10, 'total_ms': 710, 'ui_cpu_ms': 410, 'widgets': 1307, 'new_widgets': 96, 'maxgap': 16, 'gaps_gt16': 0, 'sum_gt16': 0, 'extract': 3.8, 'batch': 4.2, 'pump': 15.9, 'clear': 0.0} rows_made= 120
+ACC (n, sum_ms, max_ms): {'_refresh': (10, 15, 1.6), '_update_order_numbers': (10, 7, 1.2), '_clear_preview_layout': (1, 0, 0.3), '_animate_fade_in': (11, 2, 0.2), '_extract_preview_data': (10, 37, 4.3), '_start_preview_worker': (10, 41, 4.7), '_make_row_widget': (120, 79, 1.2), 'set_lazy_rows': (10, 86, 9.4), '_pump_render_queue': (10, 157, 16.9), '_sync_preview_cards': (9, 36, 4.7)}
+
+=== DESPUES, 1 x 2000 pistas ===
+{'n': 1, 'total_ms': 720, 'ui_cpu_ms': 410, 'widgets': 239, 'new_widgets': 91, 'maxgap': 63, 'gaps_gt16': 6, 'sum_gt16': 180, 'extract': 34.8, 'batch': 0, 'pump': 16.4, 'clear': 0.3} rows_made= 12
+ACC (n, sum_ms, max_ms): {'_refresh': (1, 2, 1.6), '_update_order_numbers': (1, 1, 1.0), '_clear_preview_layout': (1, 0, 0.3), '_animate_fade_in': (2, 0, 0.2), '_extract_preview_data': (1, 35, 34.8), '_start_preview_worker': (1, 36, 35.8), '_make_row_widget': (12, 8, 0.8), 'set_lazy_rows': (1, 9, 8.7), '_pump_render_queue': (1, 16, 16.4)}
+
+RESUMEN
+click 10 con 10x200: antes 8.114 ms de CPU de UI (4.779 en la auditoria) -> despues 410 ms medidos (~10 ms netos descontando los 400 ms de espera del script). Criterio <= 1 s: CUMPLE.
+Filas construidas en 10 clicks: 11.000 -> 120. Widgets creados en el click 10: 1.234 -> 96. Huecos > 16,7 ms: 28 (max 969 ms) -> 0 (max 16 ms).
+Playlist de 2.000 pistas: antes 12.510 ms de CPU de UI, 12.063 widgets, 139 huecos > 16,7 ms (max 392 ms) -> despues 410 ms (~10 ms netos), 91 widgets, 6 huecos (max 63 ms, el arranque del click). Criterio <= 1,5 s: CUMPLE.

@@ -1,0 +1,87 @@
+# T-087 evidencia de firma — 2026-10-15T19:34:48Z — macOS 14.8.8 x86_64
+# Identidad: Apple Development: gab.maglia@gmail.com (9W7DQTVJRB). NO es Developer ID: valida hardened runtime y entitlements, no distribución.
+
+$ scripts/release_mac.sh (líneas relevantes)
+AVISO: hay DEVELOPER_ID pero no NOTARY_PROFILE: se firma pero NO se notariza;
+Python de build: 3.14.7 x86_64
+OK: dist/List Buddy.app sin pyrekordbox/sqlcipher/sqlalchemy ni .rbe_settings.ini
+AVISO: 12 módulos de PySide6/shiboken6 declaran minos mayor que 14.0 (no verificado en macOS < 14.8).
+dist/List Buddy.app: valid on disk
+dist/ListBuddy-1.0.0.dmg: valid on disk
+Listo: dist/ListBuddy-1.0.0.dmg (x86_64)
+
+$ codesign -dvvv --entitlements - "dist/List Buddy.app"
+Executable=/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/.claude/worktrees/agent-a24af8be773500344/dist/List Buddy.app/Contents/MacOS/listBuddy
+Identifier=com.gabrielmaglia.listbuddy
+Format=app bundle with Mach-O thin (x86_64)
+CodeDirectory v=20500 size=38759 flags=0x10000(runtime) hashes=1200+7 location=embedded
+Hash type=sha256 size=32
+CandidateCDHash sha256=b90abe86eb828b0238bfd87bd6039aa034fe61d0
+CandidateCDHashFull sha256=b90abe86eb828b0238bfd87bd6039aa034fe61d0f4d491c2669cc8401a9aa851
+Hash choices=sha256
+CMSDigest=b90abe86eb828b0238bfd87bd6039aa034fe61d0f4d491c2669cc8401a9aa851
+CMSDigestType=2
+CDHash=b90abe86eb828b0238bfd87bd6039aa034fe61d0
+Signature size=9099
+Authority=Apple Development: gab.maglia@gmail.com (9W7DQTVJRB)
+Authority=Apple Worldwide Developer Relations Certification Authority
+Authority=Apple Root CA
+Timestamp=15 Oct 2026 at 4:33:23 PM
+Info.plist entries=20
+TeamIdentifier=4GP6785MU4
+Runtime Version=14.5.0
+Sealed Resources version=2 rules=13 files=396
+Internal requirements count=1 size=196
+[Dict]
+	[Key] com.apple.security.cs.allow-unsigned-executable-memory
+	[Value]
+		[Bool] true
+
+$ codesign --verify --deep --strict --verbose=2 "dist/List Buddy.app"
+dist/List Buddy.app: valid on disk
+dist/List Buddy.app: satisfies its Designated Requirement
+exit=0
+
+$ codesign -dv (muestras: .so, Python.framework, QtMultimedia.framework)
+Identifier=QtCore.abi3
+CodeDirectory v=20400 size=45327 flags=0x0(none) hashes=1411+2 location=embedded
+Timestamp=15 Oct 2026 at 4:33:08 PM
+TeamIdentifier=4GP6785MU4
+
+Identifier=org.python.python
+CodeDirectory v=20400 size=43285 flags=0x0(none) hashes=1346+3 location=embedded
+Timestamp=15 Oct 2026 at 4:33:22 PM
+TeamIdentifier=4GP6785MU4
+
+Identifier=org.qt-project.QtMultimedia
+CodeDirectory v=20400 size=10687 flags=0x0(none) hashes=327+3 location=embedded
+Timestamp=15 Oct 2026 at 4:33:13 PM
+TeamIdentifier=4GP6785MU4
+
+$ codesign -dvv dist/ListBuddy-1.0.0.dmg
+Identifier=com.gabrielmaglia.listbuddy.dmg
+Authority=Apple Development: gab.maglia@gmail.com (9W7DQTVJRB)
+Authority=Apple Worldwide Developer Relations Certification Authority
+Authority=Apple Root CA
+Timestamp=15 Oct 2026 at 4:34:17 PM
+TeamIdentifier=4GP6785MU4
+
+$ spctl --assess --type execute -vv (esperado: rechazo; no es Developer ID ni está notarizado)
+dist/List Buddy.app: rejected
+origin=Apple Development: gab.maglia@gmail.com (9W7DQTVJRB)
+
+$ Mach-O sin firma Team ID distinta (conteo por TeamIdentifier)
+ 113 4GP6785MU4
+
+$ arranque del .app firmado con hardened runtime (QT_LOGGING_RULES=qt.multimedia.ffmpeg=true, 12 s; proceso vivo, luego se termina)
+INFO: ──── listBuddy 1.0.0 iniciado ────
+qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 7.1.3 LGPL version 2.1 or later
+qt.multimedia.ffmpeg: Available HW decoding frameworks:
+qt.multimedia.ffmpeg:      videotoolbox
+qt.multimedia.ffmpeg: Available HW encoding frameworks:
+qt.multimedia.ffmpeg:      videotoolbox
+INFO: Chequeo de actualización omitido (HTTPError: HTTP Error 404: Not Found)
+
+# La reproducción real de audio bajo hardened runtime NO se probó (sin GUI interactiva).
+
+# minos del bundle: 5x12.0, 45x13.0, 70x14.0, 12x15.0. Los 12 de 15.0 son módulos x86_64 de PySide6/shiboken6 (el wheel está etiquetado macosx_13_0); corre en 14.8.8.
