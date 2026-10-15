@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Callable, Literal
 
 from PySide6.QtCore import (
-    QPoint, QSize, Qt, QTimer, QUrl, QSettings,
+    QPoint, QSize, QThread, Qt, QTimer, QUrl, QSettings,
     QPropertyAnimation, QEasingCurve,
 )
 from PySide6.QtGui import (
@@ -262,6 +262,7 @@ class MainWindow(QMainWindow):
         self._wave_cache: dict[str, WaveData] = {}
         # Cancelados pero con el hilo aún vivo: se sueltan en su `finished`.
         self._live_wave_workers: set[WaveformWorker] = set()
+        self._live_threads: set[QThread] = set()  # T-088: hilos retenidos hasta su finished
 
         self._export_state: Literal["idle", "running", "cancelling"] = "idle"
         self._last_export_dest: str = ""
@@ -1473,11 +1474,25 @@ class MainWindow(QMainWindow):
                     w.deleteLater()
 
     def _cancel_preview_worker(self) -> None:
-        if self._preview_worker and self._preview_worker.isRunning():
-            self._preview_worker.group_ready.disconnect()
-            self._preview_worker.finished.disconnect()
-            self._preview_worker.cancel()
-            # Don't block — old worker dies on its own; signals already disconnected
+        worker = self._preview_worker
+        if worker is not None and worker.isRunning():
+            worker.group_ready.disconnect()
+            worker.done.disconnect()
+            worker.cancel()
+            worker.requestInterruption()
+            # No se espera: el hilo viejo termina solo (puede estar en un stat
+            # lento) y mientras tanto queda retenido, nunca destruido en vuelo.
+            self._retain_thread(worker)
+
+    def _retain_thread(self, thread: QThread) -> None:
+        """Mantiene vivo el wrapper de un hilo hasta su `finished` real.
+
+        Qt aborta el proceso si se destruye un QThread que sigue corriendo.
+        """
+        if not isinstance(thread, QThread):
+            return
+        self._live_threads.add(thread)
+        thread.finished.connect(lambda t=thread: self._live_threads.discard(t))
 
     def _start_preview_worker(self) -> None:
         """Llamado por el debounce timer. Cancela worker anterior, muestra loading, inicia nuevo."""
@@ -1508,7 +1523,7 @@ class MainWindow(QMainWindow):
             self._exists_cache,
         )
         self._preview_worker.group_ready.connect(self._queue_group)
-        self._preview_worker.finished.connect(self._on_preview_done)
+        self._preview_worker.done.connect(self._on_preview_done)
         self._preview_worker.start()
 
     def _playlist_cache_key(self, playlist) -> str:
@@ -1993,12 +2008,15 @@ class MainWindow(QMainWindow):
             # app pueda cerrar sin quedar colgada.
             self._relocate_worker.provide_answer(None)
             self._relocate_worker.wait(4000)
-        if self._update_worker and self._update_worker.isRunning():
-            # No hay forma de interrumpir un urlopen() en curso a mitad de
-            # request; el timeout corto (4s) ya acota cuánto puede tardar.
-            # Esperamos un instante corto para no demorar el cierre — si
-            # sigue vivo, el proceso termina igual al salir del intérprete.
-            self._update_worker.wait(200)
+        if self._update_worker is not None:
+            # Hilo daemon: no frena la salida aunque el urlopen/DNS siga colgado.
+            self._update_worker.cancel()
+        # Cualquier hilo que siga corriendo (p. ej. un PreviewWorker cancelado
+        # en un stat lento) se espera con tope: destruirlo en vuelo aborta.
+        for thread in list(self._live_threads):
+            if thread.isRunning():
+                thread.requestInterruption()
+                thread.wait(2000)
         super().closeEvent(event)
 
     # ──────────────────────────────────────── Actions ────────────────────
@@ -2068,6 +2086,7 @@ class MainWindow(QMainWindow):
         self._log(f"→ Destino: {output}")
 
         self._worker = ExportWorker(selected, Path(output))
+        self._retain_thread(self._worker)
         self._worker.log.connect(self._log)
         self._worker.progress.connect(self._on_progress)
         self._worker.finished_ok.connect(self._on_finished)
@@ -2182,7 +2201,7 @@ class MainWindow(QMainWindow):
             dialogs.warning(self, "Sin selección", "Marcá al menos una playlist.")
             return
         from rekordbox_export import sanitize
-        first = sanitize(str(getattr(playlists[0], "Name", "") or "playlist"))
+        first = sanitize(str(getattr(playlists[0], "Name", "") or "")) or "playlist"
         dest_str, _ = QFileDialog.getSaveFileName(
             self, "Guardar XML para Rekordbox",
             str(Path.home() / "Desktop" / f"List Buddy - {first}.xml"),
@@ -2438,6 +2457,7 @@ class MainWindow(QMainWindow):
                 self._db.path, Path(search_root), auto_resolve=auto_resolve,
                 scope=scope,
             )
+        self._retain_thread(self._relocate_worker)
         self._relocate_worker.log.connect(self._log)
         self._relocate_worker.progress.connect(self._on_progress)
         self._relocate_worker.progress.connect(self._on_relocate_progress_track)
@@ -2657,6 +2677,7 @@ class MainWindow(QMainWindow):
         self._set_status_style("active")
 
         self._restore_worker = RestoreBackupWorker(backup.path, target_path)
+        self._retain_thread(self._restore_worker)
         self._restore_worker.finished_ok.connect(
             lambda ok, err: self._on_restore_backup_finished(ok, err, target_name)
         )
