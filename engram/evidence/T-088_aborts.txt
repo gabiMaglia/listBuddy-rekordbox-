@@ -1,0 +1,27 @@
+# T-088 evidencia: sin exit 134 (offscreen, macOS Intel, Python 3.14, PySide6 6.11.1)
+## TEC-02 ANTES (arbol main sin fix): t2_inapp_preview_crash.py fx30x200 0.05
+qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 7.1.3 LGPL version 2.1 or later
+qt.qpa.fonts: Populating font family aliases took 705 ms. Replace uses of missing font family "Sans Serif" with one that exists to avoid this cost. 
+worker running: True
+QThread: Destroyed while thread '' is still running
+exit=134
+## TEC-02 DESPUES (rama feat/t088-estabilidad)
+qt.qpa.fonts: Populating font family aliases took 593 ms. Replace uses of missing font family "Sans Serif" with one that exists to avoid this cost. 
+worker running: True
+SOBREVIVIO
+CERRADA
+exit=0
+## TEC-03 ANTES: t7_quit_update.py
+qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 7.1.3 LGPL version 2.1 or later
+qt.qpa.fonts: Populating font family aliases took 228 ms. Replace uses of missing font family "Sans Serif" with one that exists to avoid this cost. 
+app.exec() devolvio 0
+QThread: Destroyed while thread '' is still running
+exit=134
+## TEC-03 DESPUES
+qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 7.1.3 LGPL version 2.1 or later
+qt.qpa.fonts: Populating font family aliases took 183 ms. Replace uses of missing font family "Sans Serif" with one that exists to avoid this cost. 
+app.exec() devolvio 0
+exit=0
+
+Nota: el script t2 del audit termina sin cerrar la ventana; para la corrida DESPUES se le agrego w.close() (la app real siempre pasa por closeEvent). Sin ese close, el hilo en vuelo aun aborta al teardown del interprete (script, no app).
+Scripts: scratchpad/audit-tecnica/t2_inapp_preview_crash.py y t7_quit_update.py; copias apuntando a la rama en scratchpad/t088/.
