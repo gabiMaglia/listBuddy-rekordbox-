@@ -281,6 +281,9 @@ class ExportWorker(QThread):
         for dest_dir, lines in missing_by_dest.items():
             try:
                 report_path = dest_dir / "_no_exportados.txt"
+                if report_path.is_symlink():
+                    self.log.emit(f"   ⚠  No se escribió _no_exportados.txt en {dest_dir}: es un acceso directo")
+                    continue
                 report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
             except OSError as e:
                 self.log.emit(f"   ⚠  No se pudo escribir _no_exportados.txt en {dest_dir}: {e}")
@@ -318,7 +321,13 @@ def _unique_folder_names(names: list[str]) -> list[str]:
 
 
 def _is_complete_copy(dest: Path, src: Path) -> bool:
-    """«Ya existe» solo si el archivo está y pesa lo mismo que el origen."""
+    """«Ya existe» solo si el archivo está y pesa lo mismo que el origen.
+
+    Un symlink (incluso colgante) en el destino cuenta como existente: no se
+    escribe a través de él (T-088, SEC-03).
+    """
+    if dest.is_symlink():
+        return True
     try:
         return dest.stat().st_size == src.stat().st_size
     except OSError:
