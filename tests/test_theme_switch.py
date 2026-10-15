@@ -43,7 +43,7 @@ def test_no_rows_are_alive_while_the_stylesheet_is_applied() -> None:
         "print(before, seen)\n"
     )
     before, seen = out.strip().splitlines()[-1].split(" ", 1)
-    assert int(before) == 120 and seen == "[(0, 0)]"   # ni filas ni tarjetas vivas al re-pulear
+    assert int(before) == 36 and seen == "[(0, 0)]"   # ni filas ni tarjetas vivas al re-pulear
 
 
 def test_preview_comes_back_after_a_theme_switch() -> None:
@@ -54,7 +54,7 @@ def test_preview_comes_back_after_a_theme_switch() -> None:
         "rows = w.findChildren(FileRow)\n"
         "print(len(rows), broken, w._broken_total, w._theme, len(w._rendered_groups))\n"
     )
-    assert out.strip().splitlines()[-1] == "120 1 1 light 3"
+    assert out.strip().splitlines()[-1] == "36 1 1 light 3"
 
 
 def test_playing_row_highlight_survives_a_theme_switch() -> None:

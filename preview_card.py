@@ -4,6 +4,8 @@ Sin animaciones ni timers propios: el fade-in lo hace MainWindow (T-029).
 """
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout, QLabel, QPushButton, QScrollArea, QScrollBar, QSizePolicy, QVBoxLayout, QWidget,
@@ -25,6 +27,8 @@ ROW_GAP = 12
 # Por debajo de este ancho de fila la columna KEY · BPM se oculta (cabecera y filas): a 820 px de
 # ventana la fila mide ~460 px y el título perdería un tercio de su ancho (T-067).
 KEYBPM_MIN_ROW_W = 560
+INITIAL_ROWS = 12           # filas que se construyen al crear la tarjeta (T-089); el resto, al scrollear
+ROW_MARGIN = 6              # filas de aire que se construyen por encima/debajo de lo visible
 ROWS_VISIBLE_HEIGHT = 190   # ≈ 5 filas de 38 px (D2): las demás se alcanzan con el scroll interno
 
 
@@ -40,7 +44,18 @@ class PreviewGroupCard(QWidget):
         self.setObjectName("preview_card")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.state = rb.group_state(len(data.tracks), data.missing_count)
-        self.rows_built = False
+        self._title: QLabel | None = None
+        self._data = data
+        # Filas perezosas (T-089): ventana contigua [_lo, _hi) entre dos espaciadores de alto fijo,
+        # así el scroll mide lo mismo que con todas las filas construidas.
+        self._rows: list[tuple[object, str]] = []
+        self._row_factory: Callable[..., QWidget] | None = None
+        self._reserve_note = False
+        self._built: list[QWidget] = []
+        self._lo = 0
+        self._hi = 0
+        self._top_spacer: QWidget | None = None
+        self._bottom_spacer: QWidget | None = None
         self.scroll_bar_width = QScrollBar().sizeHint().width()
         self._expanded = self.state != rb.ALL_BROKEN
         self._theme = theme
@@ -71,6 +86,7 @@ class PreviewGroupCard(QWidget):
         title = QLabel(f"{data.order:02d} {data.name}")
         title.setObjectName("card_title")
         title.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self._title = title
         top.addWidget(title, 1)
         count = QLabel(f"{data.total_count} archivos")
         count.setObjectName("card_count")
@@ -153,7 +169,15 @@ class PreviewGroupCard(QWidget):
         self.files_layout = QVBoxLayout(files)
         self.files_layout.setContentsMargins(0, 0, 0, 0)
         self.files_layout.setSpacing(0)
+        self._top_spacer = self._make_spacer()
+        self._bottom_spacer = self._make_spacer()
+        self.files_layout.addWidget(self._top_spacer)
+        self.files_layout.addWidget(self._bottom_spacer)
+        self.files_layout.addStretch(1)
         self.scroll.setWidget(files)
+        bar = self.scroll.verticalScrollBar()
+        bar.valueChanged.connect(self._on_scrolled)
+        bar.rangeChanged.connect(self._on_scrolled)
         root.addWidget(self.scroll)
 
         self.cols.setVisible(self._expanded)
@@ -191,12 +215,108 @@ class PreviewGroupCard(QWidget):
     def is_expanded(self) -> bool:
         return self._expanded
 
+    def set_order(self, order: int) -> None:
+        """Renumera el título sin tocar las filas (al tildar/destildar otra playlist)."""
+        self._data.order = order
+        if self._title is not None:
+            self._title.setText(f"{order:02d} {self._data.name}")
+
+    @staticmethod
+    def _make_spacer() -> QWidget:
+        spacer = QWidget()
+        spacer.setFixedHeight(0)
+        spacer.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        return spacer
+
+    def set_lazy_rows(
+        self, rows: list[tuple[object, str]], factory: Callable[..., QWidget],
+        reserve_note: bool,
+    ) -> None:
+        """Registra las filas (pista, posición de bloque) y construye solo las primeras. Una
+        carpeta 100 % rota colapsada no construye nada hasta expandirse (D4)."""
+        self._rows = rows
+        self._row_factory = factory
+        self._reserve_note = reserve_note
+        self._sync_spacers()
+        if self._expanded:
+            self._ensure_window()
+
+    @property
+    def data(self) -> GroupData:
+        return self._data
+
+    def built_row_count(self) -> int:
+        return len(self._built)
+
+    def _need_range(self) -> tuple[int, int]:
+        n = len(self._rows)
+        if not self._built:
+            return 0, min(n, INITIAL_ROWS)
+        bar = self.scroll.verticalScrollBar()
+        first = bar.value() // ROW_HEIGHT
+        last = (bar.value() + self.scroll.viewport().height()) // ROW_HEIGHT + 1
+        return max(0, first - ROW_MARGIN), min(n, last + ROW_MARGIN)
+
+    def _on_scrolled(self, *_: int) -> None:
+        if self._expanded:
+            self._ensure_window()
+
+    def _ensure_window(self) -> None:
+        if self._row_factory is None or not self._rows:
+            return
+        need_lo, need_hi = self._need_range()
+        if need_hi <= need_lo:
+            return
+        if self._built and (need_hi < self._lo or need_lo > self._hi):
+            # Salto lejos de lo construido: se rehace la ventana en vez de rellenar el hueco.
+            self._discard_rows()
+        if not self._built:
+            self._lo = self._hi = need_lo
+        while self._lo > need_lo:
+            self._lo -= 1
+            self._add_row(self._lo, prepend=True)
+        while self._hi < need_hi:
+            self._add_row(self._hi, prepend=False)
+            self._hi += 1
+        self._sync_spacers()
+
+    def _add_row(self, index: int, prepend: bool) -> None:
+        """Inserta la fila entre los dos espaciadores (el layout empieza en el índice 1)."""
+        assert self._row_factory is not None
+        track, pos = self._rows[index]
+        row = self._row_factory(track, pos, self._reserve_note)
+        if prepend:
+            self.files_layout.insertWidget(1, row)
+            self._built.insert(0, row)
+        else:
+            self.files_layout.insertWidget(1 + len(self._built), row)
+            self._built.append(row)
+
+    def _discard_rows(self) -> None:
+        for row in self._built:
+            self.files_layout.removeWidget(row)
+            row.hide()
+            row.deleteLater()
+        self._built.clear()
+        self._lo = self._hi = 0
+
+    def _sync_spacers(self) -> None:
+        assert self._top_spacer is not None and self._bottom_spacer is not None
+        if not self._built:
+            self._top_spacer.setFixedHeight(0)
+            self._bottom_spacer.setFixedHeight(len(self._rows) * ROW_HEIGHT)
+            return
+        self._top_spacer.setFixedHeight(self._lo * ROW_HEIGHT)
+        self._bottom_spacer.setFixedHeight((len(self._rows) - self._hi) * ROW_HEIGHT)
+
     def set_expanded(self, on: bool) -> None:
         if self.state != rb.ALL_BROKEN or on == self._expanded:
             return
         self._expanded = on
         self.cols.setVisible(on)
         self.scroll.setVisible(on)
+        if on:
+            self._ensure_window()
         self._head.setProperty("expanded", "true" if on else "false")
         # Solo la cabecera de ESTA tarjeta se re-pulea (no hay re-polish global).
         self._head.style().unpolish(self._head)
