@@ -59,11 +59,19 @@ def test_release_script_notarization_flow() -> None:
     assert re.search(r"DEVELOPER_ID.*NOTARY_PROFILE|NOTARY_PROFILE.*DEVELOPER_ID", code, re.S)
 
 
+_UNUSED_QT = ("QtPdf.framework", "QtQuick.framework", "QtQml.framework", "QtQmlMeta.framework",
+              "QtQmlModels.framework", "QtQmlWorkerScript.framework", "QtVirtualKeyboard.framework",
+              "QtVirtualKeyboardQml.framework", "libqpdf.dylib", "libqtvirtualkeyboardplugin.dylib")
+
+
 def _fake_bundle(tmp_path, *, dirty: str | None):
     app = tmp_path / "List Buddy.app" / "Contents" / "Frameworks"
     app.mkdir(parents=True)
     (app / "libok.dylib").write_bytes(b"")
-    if dirty == "sqlalchemy":
+    (app / "QtCore.framework").mkdir()
+    if dirty in _UNUSED_QT:
+        (app / dirty).mkdir()
+    elif dirty == "sqlalchemy":
         (app / "sqlalchemy").mkdir()
     elif dirty == "ini":
         (app.parent / "Resources").mkdir()
@@ -72,7 +80,10 @@ def _fake_bundle(tmp_path, *, dirty: str | None):
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
-@pytest.mark.parametrize("dirty,expected_ok", [(None, True), ("sqlalchemy", False), ("ini", False)])
+@pytest.mark.parametrize(
+    "dirty,expected_ok",
+    [(None, True), ("sqlalchemy", False), ("ini", False)] + [(m, False) for m in _UNUSED_QT],
+)
 def test_check_bundle_detects_forbidden_content(tmp_path, dirty, expected_ok) -> None:
     app = _fake_bundle(tmp_path, dirty=dirty)
     r = subprocess.run(["bash", str(_CHECK), str(app)], capture_output=True, text=True)
