@@ -125,3 +125,17 @@ def test_preview_titles_show_the_folder_name_the_export_will_create() -> None:
         "print(first == [f'01 {base[0]}', f'02 {base[1]}'], base[1].endswith('(2)'), second == [f'01 {base[1][:-4]}'])\n"
     )
     assert out == "True True True"
+
+
+# ── D-18 ──────────────────────────────────────────────────────────────────
+
+def test_foreign_part_files_survive_but_our_own_orphan_is_removed() -> None:
+    out = _run(
+        "(out / 'Mix').mkdir()\n"
+        "(out / 'Mix' / '1 - A - T1.mp3.part').write_bytes(b'basura')\n"
+        "(out / 'Mix' / 'descarga.part').write_bytes(b'ajeno')\n"
+        "(out / 'Mix' / 'otra.mp3.part').write_bytes(b'ajeno')\n"
+        "export([pl('Mix', [track(1, 1)])])\n"
+        "print(sorted(f.name for f in (out / 'Mix').iterdir()))\n"
+    )
+    assert out == "['1 - A - T1.mp3', 'descarga.part', 'otra.mp3.part']"
