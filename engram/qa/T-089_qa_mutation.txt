@@ -1,0 +1,15 @@
+            "a = len(w.findChildren(FileRow))\n"
+            "pc.set_expanded(True); pump(100)\n"
+            "print(a, 1 <= len(w.findChildren(FileRow)) <= 15)\n"
+        )
+>       assert out == "0 True"
+E       AssertionError: assert '0 False' == '0 True'
+E         
+E         - 0 True
+E         + 0 False
+
+tests/test_preview_lazy_t089.py:166: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_preview_lazy_t089.py::test_ticking_a_200_track_playlist_builds_at_most_15_rows
+FAILED tests/test_preview_lazy_t089.py::test_scrolling_to_the_bottom_builds_the_last_rows_and_keeps_scroll_height
+FAILED tests/test_preview_lazy_t089.py::test_all_broken_card_builds_no_rows_until_expanded

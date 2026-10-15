@@ -1,0 +1,32 @@
+"""Exportacion en curso + cierre de ventana (ventana real). argv[1]=coop|hang"""
+import sys, os, time, tempfile, pathlib
+sys.path.insert(0, "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR"); os.chdir("/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR")
+from PySide6.QtWidgets import QApplication
+import styles, ui, worker, rekordbox_xml as rx
+mode = sys.argv[1]
+app = QApplication([]); styles.register_fonts(); styles.apply_theme(app, "dark")
+ui.MainWindow._load_playlists = lambda s: None
+ui.MainWindow._start_update_check = lambda s: None
+ui.MainWindow._maybe_show_disclaimer = lambda s: None
+tmp = pathlib.Path(tempfile.mkdtemp()); out = tmp / "out"; out.mkdir()
+src = tmp / "a.mp3"; src.write_bytes(b"x" * 5_000_000)
+def slow_stream(fsrc, fdst, should_stop):
+    for _ in range(100):
+        if mode == "coop" and should_stop():
+            raise worker._CopyInterrupted
+        time.sleep(0.1)       # "hang" ignora la interrupcion 10 s (USB colgado)
+    fdst.write(fsrc.read())
+worker._copy_stream = slow_stream
+w = ui.MainWindow(settings_path=tmp / "s.ini"); w.show(); app.processEvents()
+class C:
+    def __init__(s, pl): s.playlist = pl
+    def isChecked(s): return True
+pl = rx.RbxPlaylist(name="Mix", ID="1", tracks=[rx.RbxTrack(title="T", artist="A", file_path=src, TrackNo=1)])
+w._all_cards = [C(pl)]
+w._footer.dest_text = lambda: str(out)
+w._start_export()
+end = time.time() + 0.6
+while time.time() < end: app.processEvents()
+print("export running:", w._worker.isRunning(), flush=True)
+t = time.time(); w.close(); print("close took %.1fs" % (time.time() - t), flush=True)
+print("part left:", sorted(p.name for p in (out / "Mix").iterdir()), flush=True)

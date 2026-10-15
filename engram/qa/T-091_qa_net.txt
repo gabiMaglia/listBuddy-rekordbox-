@@ -1,0 +1,21 @@
+qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 9.0.1 LGPL version 2.1 or later
+qt.multimedia.ffmpeg.mediadataholder: Could not open media. FFmpeg error description: Invalid data found when processing input
+[mp3 @ 0x7fda92a1b440] Format mp3 detected only with low score of 1, misdetection possible!
+[mp3 @ 0x7fda92a1b440] Failed to find two consecutive MPEG audio frames.
+qt.multimedia.ffmpeg.mediadataholder: Could not open media. FFmpeg error description: Invalid data found when processing input
+[hls @ 0x7fda83019900] Opening 'http://127.0.0.1:58033/seg3.ts' for reading
+[http @ 0x7fda92835a80] Protocol 'http' not on whitelist 'file,crypto,data'!
+[hls @ 0x7fda83019900] Failed to open segment 0 of playlist 0
+[hls @ 0x7fda83019900] Segment 0 of playlist 0 failed too many times, skipping
+[hls @ 0x7fda83019900] Error when loading first segment 'http://127.0.0.1:58033/seg3.ts'
+qt.multimedia.ffmpeg.mediadataholder: Could not open media. FFmpeg error description: Invalid data found when processing input
+[http @ 0x7fda92a17e80] Error reading HTTP response: End of file
+qt.multimedia.ffmpeg.mediadataholder: Could not open media. FFmpeg error description: End of file
+tree: [{'playlist': RbxPlaylist(name='P', ID='P'), 'children': []}]
+RbxTrack: http://127.0.0.1:58033/x.mp3 streaming= True file_path= http:/127.0.0.1:58033/x.mp3
+A) play('') (camino UI para streaming): hits= 0 track= ''
+B) pl.m3u8: hits=0 errs=['Could not open file']
+B) fake.mp3: hits=0 errs=['Could not open file', 'Could not open file']
+B) pl2.m3u8: hits=0 errs=['Could not open file', 'Could not open file', 'Could not open file']
+C) setSource(http://) directo: hits= 1 [b'GET /x.mp3 HTTP/1.1\r\nUser-Agent: Lavf/63.1.101\r\nAccept: */*\r']
+DONE

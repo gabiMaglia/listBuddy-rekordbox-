@@ -1,0 +1,18 @@
+qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 9.0.1 LGPL version 2.1 or later
+boot+load (30 pl): 1068 ms; platform=cocoa; widgets=354
+{'n': 1, 'total_ms': 455, 'ui_cpu_ms': 285, 'widgets': 446, 'new_widgets': 92, 'maxgap': 76, 'gaps_gt16': 5, 'sum_gt16': 196, 'extract': 3.4, 'batch': 0, 'pump': 17.2, 'clear': 0.4} rows_made= 12
+{'n': 2, 'total_ms': 465, 'ui_cpu_ms': 240, 'widgets': 542, 'new_widgets': 96, 'maxgap': 26, 'gaps_gt16': 7, 'sum_gt16': 152, 'extract': 4.6, 'batch': 5.0, 'pump': 19.5, 'clear': 0.0} rows_made= 24
+{'n': 3, 'total_ms': 455, 'ui_cpu_ms': 200, 'widgets': 638, 'new_widgets': 96, 'maxgap': 80, 'gaps_gt16': 6, 'sum_gt16': 215, 'extract': 3.3, 'batch': 3.6, 'pump': 15.9, 'clear': 0.0} rows_made= 36
+{'n': 4, 'total_ms': 440, 'ui_cpu_ms': 145, 'widgets': 734, 'new_widgets': 96, 'maxgap': 33, 'gaps_gt16': 4, 'sum_gt16': 100, 'extract': 5.3, 'batch': 5.7, 'pump': 17.6, 'clear': 0.0} rows_made= 48
+{'n': 5, 'total_ms': 432, 'ui_cpu_ms': 122, 'widgets': 829, 'new_widgets': 95, 'maxgap': 22, 'gaps_gt16': 4, 'sum_gt16': 81, 'extract': 3.3, 'batch': 3.6, 'pump': 14.6, 'clear': 0.0} rows_made= 60
+{'n': 6, 'total_ms': 424, 'ui_cpu_ms': 126, 'widgets': 924, 'new_widgets': 95, 'maxgap': 22, 'gaps_gt16': 4, 'sum_gt16': 83, 'extract': 3.5, 'batch': 3.8, 'pump': 15.0, 'clear': 0.0} rows_made= 72
+{'n': 7, 'total_ms': 433, 'ui_cpu_ms': 122, 'widgets': 1019, 'new_widgets': 95, 'maxgap': 22, 'gaps_gt16': 4, 'sum_gt16': 81, 'extract': 3.8, 'batch': 4.1, 'pump': 15.0, 'clear': 0.0} rows_made= 84
+{'n': 8, 'total_ms': 434, 'ui_cpu_ms': 121, 'widgets': 1114, 'new_widgets': 95, 'maxgap': 22, 'gaps_gt16': 4, 'sum_gt16': 81, 'extract': 3.3, 'batch': 3.6, 'pump': 14.8, 'clear': 0.0} rows_made= 96
+{'n': 9, 'total_ms': 433, 'ui_cpu_ms': 122, 'widgets': 1211, 'new_widgets': 97, 'maxgap': 23, 'gaps_gt16': 4, 'sum_gt16': 82, 'extract': 3.3, 'batch': 3.7, 'pump': 15.5, 'clear': 0.0} rows_made= 108
+{'n': 10, 'total_ms': 520, 'ui_cpu_ms': 231, 'widgets': 1307, 'new_widgets': 96, 'maxgap': 94, 'gaps_gt16': 6, 'sum_gt16': 207, 'extract': 4.1, 'batch': 4.5, 'pump': 19.1, 'clear': 0.0} rows_made= 120
+ACC (n, sum_ms, max_ms): {'_refresh': (10, 18, 2.7), '_update_order_numbers': (10, 7, 1.1), '_clear_preview_layout': (1, 0, 0.4), '_animate_fade_in': (11, 2, 0.3), '_extract_preview_data': (10, 38, 5.3), '_start_preview_worker': (10, 42, 5.8), '_make_row_widget': (120, 83, 1.5), 'set_lazy_rows': (10, 90, 11.3), '_pump_render_queue': (10, 164, 19.5), '_sync_preview_cards': (9, 38, 5.7)}
+==== 1x2000
+qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 9.0.1 LGPL version 2.1 or later
+boot+load (30 pl): 1071 ms; platform=cocoa; widgets=148
+{'n': 1, 'total_ms': 576, 'ui_cpu_ms': 326, 'widgets': 239, 'new_widgets': 91, 'maxgap': 66, 'gaps_gt16': 11, 'sum_gt16': 365, 'extract': 36.7, 'batch': 0, 'pump': 17.1, 'clear': 0.4} rows_made= 12
+ACC (n, sum_ms, max_ms): {'_refresh': (1, 2, 1.9), '_update_order_numbers': (1, 1, 1.0), '_clear_preview_layout': (1, 0, 0.4), '_animate_fade_in': (2, 0, 0.2), '_extract_preview_data': (1, 37, 36.7), '_start_preview_worker': (1, 38, 37.7), '_make_row_widget': (12, 9, 1.1), 'set_lazy_rows': (1, 9, 9.4), '_pump_render_queue': (1, 17, 17.1)}

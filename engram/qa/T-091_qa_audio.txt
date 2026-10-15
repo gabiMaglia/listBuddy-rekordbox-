@@ -1,0 +1,178 @@
+qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 9.0.1 LGPL version 2.1 or later
+[mp3 @ 0x7fe9e801a6c0] Estimating duration from bitrate, this may be inaccurate
+Input #0, mp3, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.mp3':
+  Metadata:
+    comment         : Tracks by www.loopmasters.com
+    publisher       : Loopmasters
+    title           : Demo Track 1
+    artist          : Loopmasters
+  Duration: 00:02:52.44, start: 0.000000, bitrate: 320 kb/s
+  Stream #0:0: Audio: mp3 (mp3float), 44100 Hz, stereo, fltp, 320 kb/s
+Input #0, aiff, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.aiff':
+  Metadata:
+    title           : Rock Is Dead (Original Mix)
+    artist          : Dennis Cruz
+    album           : Shahrooz Presents Tech House, Vol. 1
+    album_artist    : Dennis Cruz
+    TOPE            : Dennis Cruz
+    encoder         : Lavf58.45.100
+    TRDA            : 2021-05-07
+    TDOR            : 2021-05-07
+    TKEY            : Cm
+    genre           : Tech House
+    track           : 21
+    publisher       : Aardvark Dance
+    grouping        : 10180202
+    TBPM            : 125
+    date            : 2021
+  Duration: 00:06:41.12, start: 0.000000, bitrate: 1421 kb/s
+  Stream #0:0: Audio: pcm_s16be, 44100 Hz, 2 channels, s16, 1411 kb/s
+  Stream #0:1: Video: mjpeg (Progressive), yuvj420p(pc, bt470bg/unknown/unknown), 1400x1400 [SAR 1:1 DAR 1:1], 90k tbr, 90k tbn (attached pic)
+    Metadata:
+      title           : Album cover
+      comment         : Cover (front)
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.m4a':
+  Metadata:
+    major_brand     : mp42
+    minor_version   : 0
+    compatible_brands: mp42isom
+    creation_time   : 2026-10-15T19:49:33.000000Z
+  Duration: 00:06:41.12, start: 0.000000, bitrate: 131 kb/s
+  Stream #0:0[0x1](eng): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 130 kb/s (default)
+    Metadata:
+      creation_time   : 2026-10-15T19:49:33.000000Z
+[caf @ 0x7fe9b8911b40] Estimating duration from bitrate, this may be inaccurate
+Input #0, caf, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.caf':
+  Metadata:
+    approximate duration in seconds: 401.12
+    source bit depth: I16
+  Duration: 00:06:41.12, start: 0.000000, bitrate: 1411 kb/s
+  Stream #0:0: Audio: pcm_s16le (lpcm / 0x6D63706C), 44100 Hz, 2 channels, s16, 1411 kb/s
+[mp3 @ 0x7fe9f08aa6c0] Estimating duration from bitrate, this may be inaccurate
+Input #0, mp3, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.mp3':
+  Metadata:
+    comment         : Tracks by www.loopmasters.com
+    publisher       : Loopmasters
+    title           : Demo Track 1
+    artist          : Loopmasters
+  Duration: 00:02:52.44, start: 0.000000, bitrate: 320 kb/s
+  Stream #0:0: Audio: mp3 (mp3float), 44100 Hz, stereo, fltp, 320 kb/s
+Input #0, aiff, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.aiff':
+  Metadata:
+    title           : Rock Is Dead (Original Mix)
+    artist          : Dennis Cruz
+    album           : Shahrooz Presents Tech House, Vol. 1
+    album_artist    : Dennis Cruz
+    TOPE            : Dennis Cruz
+    encoder         : Lavf58.45.100
+    TRDA            : 2021-05-07
+    TDOR            : 2021-05-07
+    TKEY            : Cm
+    genre           : Tech House
+    track           : 21
+    publisher       : Aardvark Dance
+    grouping        : 10180202
+    TBPM            : 125
+    date            : 2021
+  Duration: 00:06:41.12, start: 0.000000, bitrate: 1421 kb/s
+  Stream #0:0: Audio: pcm_s16be, 44100 Hz, 2 channels, s16, 1411 kb/s
+  Stream #0:1: Video: mjpeg (Progressive), yuvj420p(pc, bt470bg/unknown/unknown), 1400x1400 [SAR 1:1 DAR 1:1], 90k tbr, 90k tbn (attached pic)
+    Metadata:
+      title           : Album cover
+      comment         : Cover (front)
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.m4a':
+  Metadata:
+    major_brand     : mp42
+    minor_version   : 0
+    compatible_brands: mp42isom
+    creation_time   : 2026-10-15T19:49:33.000000Z
+  Duration: 00:06:41.12, start: 0.000000, bitrate: 131 kb/s
+  Stream #0:0[0x1](eng): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 130 kb/s (default)
+    Metadata:
+      creation_time   : 2026-10-15T19:49:33.000000Z
+[caf @ 0x7fe9e801a6c0] Estimating duration from bitrate, this may be inaccurate
+Input #0, caf, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.caf':
+  Metadata:
+    approximate duration in seconds: 401.12
+    source bit depth: I16
+  Duration: 00:06:41.12, start: 0.000000, bitrate: 1411 kb/s
+  Stream #0:0: Audio: pcm_s16le (lpcm / 0x6D63706C), 44100 Hz, 2 channels, s16, 1411 kb/s
+[mp3 @ 0x7fe9efffc800] Estimating duration from bitrate, this may be inaccurate
+Input #0, mp3, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.mp3':
+  Metadata:
+    comment         : Tracks by www.loopmasters.com
+    publisher       : Loopmasters
+    title           : Demo Track 1
+    artist          : Loopmasters
+  Duration: 00:02:52.44, start: 0.000000, bitrate: 320 kb/s
+  Stream #0:0: Audio: mp3 (mp3float), 44100 Hz, stereo, fltp, 320 kb/s
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.m4a':
+  Metadata:
+    major_brand     : mp42
+    minor_version   : 0
+    compatible_brands: mp42isom
+    creation_time   : 2026-10-15T19:49:33.000000Z
+  Duration: 00:06:41.12, start: 0.000000, bitrate: 131 kb/s
+  Stream #0:0[0x1](eng): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 130 kb/s (default)
+    Metadata:
+      creation_time   : 2026-10-15T19:49:33.000000Z
+[mp3 @ 0x7fe9f0bd45c0] Estimating duration from bitrate, this may be inaccurate
+Input #0, mp3, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.mp3':
+  Metadata:
+    comment         : Tracks by www.loopmasters.com
+    publisher       : Loopmasters
+    title           : Demo Track 1
+    artist          : Loopmasters
+  Duration: 00:02:52.44, start: 0.000000, bitrate: 320 kb/s
+  Stream #0:0: Audio: mp3 (mp3float), 44100 Hz, stereo, fltp, 320 kb/s
+Input #0, aiff, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.aiff':
+  Metadata:
+    title           : Rock Is Dead (Original Mix)
+    artist          : Dennis Cruz
+    album           : Shahrooz Presents Tech House, Vol. 1
+    album_artist    : Dennis Cruz
+    TOPE            : Dennis Cruz
+    encoder         : Lavf58.45.100
+    TRDA            : 2021-05-07
+    TDOR            : 2021-05-07
+    TKEY            : Cm
+    genre           : Tech House
+    track           : 21
+    publisher       : Aardvark Dance
+    grouping        : 10180202
+    TBPM            : 125
+    date            : 2021
+  Duration: 00:06:41.12, start: 0.000000, bitrate: 1421 kb/s
+  Stream #0:0: Audio: pcm_s16be, 44100 Hz, 2 channels, s16, 1411 kb/s
+  Stream #0:1: Video: mjpeg (Progressive), yuvj420p(pc, bt470bg/unknown/unknown), 1400x1400 [SAR 1:1 DAR 1:1], 90k tbr, 90k tbn (attached pic)
+    Metadata:
+      title           : Album cover
+      comment         : Cover (front)
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.m4a':
+  Metadata:
+    major_brand     : mp42
+    minor_version   : 0
+    compatible_brands: mp42isom
+    creation_time   : 2026-10-15T19:49:33.000000Z
+  Duration: 00:06:41.12, start: 0.000000, bitrate: 131 kb/s
+  Stream #0:0[0x1](eng): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 130 kb/s (default)
+    Metadata:
+      creation_time   : 2026-10-15T19:49:33.000000Z
+[caf @ 0x7fe9b8926100] Estimating duration from bitrate, this may be inaccurate
+Input #0, caf, from '/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/0eba9834-e91d-46a2-813c-c2d961ec1706/scratchpad/m/t.caf':
+  Metadata:
+    approximate duration in seconds: 401.12
+    source bit depth: I16
+  Duration: 00:06:41.12, start: 0.000000, bitrate: 1411 kb/s
+  Stream #0:0: Audio: pcm_s16le (lpcm / 0x6D63706C), 44100 Hz, 2 channels, s16, 1411 kb/s
+PySide6 6.12.0 platform cocoa
+[mp3] dur=172437 pos_max_5s=4963 playing_signal=[True, False, True] play_ok=True pause=True resume=True seek=True track_finished=1 err=[]
+[aiff] dur=401119 pos_max_5s=5085 playing_signal=[True, False, True] play_ok=True pause=True resume=True seek=True track_finished=1 err=[]
+[m4a] dur=401119 pos_max_5s=5199 playing_signal=[True, False, True] play_ok=True pause=True resume=True seek=True track_finished=1 err=[]
+[caf] dur=401119 pos_max_5s=5178 playing_signal=[True, False, True] play_ok=True pause=True resume=True seek=True track_finished=1 err=[]
+rapid switch x6: playing= True path= /m/t.m4a errs= []
+[wave mp3] levels=3450 tone=3450 max=1.0
+[wave aiff] levels=8026 tone=8026 max=1.0
+[wave m4a] levels=8026 tone=8026 max=1.0
+[wave caf] levels=8026 tone=8026 max=1.0
+RESULT OK {'mp3': True, 'aiff': True, 'm4a': True, 'caf': True, 'rapid': True, 'wavemp3': True, 'waveaiff': True, 'wavem4a': True, 'wavecaf': True}

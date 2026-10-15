@@ -1,0 +1,53 @@
+QA T-087 evidencia (2026-10-15) - PySide6 6.12.0, PyInstaller 6.20.0, macOS 14.8.8 x86_64
+== 1 entitlements
+entitlements.plist: OK
+xmllint OK
+codesign ad-hoc binario trivial: OK, entitlements = solo allow-unsigned-executable-memory
+mutacion '--' en comentario: plutil OK (no lo detecta) / codesign FALLA 'AMFIUnserializeXML: syntax error near line 4'
+== 2 release_mac.sh
+PRIMER intento en clon limpio (modo 100644 de check_bundle.sh): 'scripts/release_mac.sh: line 59: scripts/check_bundle.sh: Permission denied', exit 1
+tras chmod +x temporal (revertido): --dry-run exit 0; ad-hoc corrida 1 exit 0; corrida 2 exit 0; DEVELOPER_ID sin NOTARY_PROFILE:
+AVISO: hay DEVELOPER_ID pero no NOTARY_PROFILE: se firma pero NO se notariza;
+AVISO: 53 módulos de PySide6/shiboken6 declaran minos mayor que 14.0 (no verificado en macOS < 14.8).
+OK: dist/List Buddy.app sin pyrekordbox/sqlcipher/sqlalchemy ni .rbe_settings.ini
+AVISO: 53 módulos de PySide6/shiboken6 declaran minos mayor que 14.0 (no verificado en macOS < 14.8).
+Listo: dist/ListBuddy-1.0.0.dmg (x86_64)
+codesign -dvvv:
+CodeDirectory v=20400 size=38804 flags=0x2(adhoc) hashes=1202+7 location=embedded
+Signature=adhoc
+verify OK
+arranque binario 15 s (QT_LOGGING_RULES=qt.multimedia.*=true): ALIVE
+qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg version 9.0.1 LGPL version 2.1 or later
+hardened runtime: ad-hoc + runtime sin disable-library-validation NO arranca (Team IDs distintos: esperado en ad-hoc; con Developer ID no verificado). ad-hoc+runtime+allow-unsigned-exec-mem+disable-library-validation(solo prueba): ALIVE, FFmpeg 9.0.1
+== 3 Info.plist
+{
+  "CFBundleDisplayName" => "List Buddy"
+  "CFBundleExecutable" => "listBuddy"
+  "CFBundleIconFile" => "icon.icns"
+  "CFBundleIdentifier" => "com.gabrielmaglia.listbuddy"
+  "CFBundleInfoDictionaryVersion" => "6.0"
+  "CFBundleName" => "List Buddy"
+  "CFBundlePackageType" => "APPL"
+  "CFBundleShortVersionString" => "1.0.0"
+  "CFBundleVersion" => "1.0.0"
+  "LSApplicationCategoryType" => "public.app-category.music"
+  "LSMinimumSystemVersion" => "14.0"
+  "NSAppleScriptEnabled" => 0
+  "NSDesktopFolderUsageDescription" => "List Buddy necesita acceder a tu Escritorio para leer y copiar las canciones de tus playlists."
+  "NSDocumentsFolderUsageDescription" => "List Buddy necesita acceder a Documentos para leer tu colección y las canciones de tus playlists."
+  "NSDownloadsFolderUsageDescription" => "List Buddy necesita acceder a Descargas para leer el XML exportado y las canciones de tus playlists."
+  "NSHighResolutionCapable" => 1
+  "NSHumanReadableCopyright" => "© 2025-2026 Gabriel Maglia. GPL v3."
+  "NSNetworkVolumesUsageDescription" => "List Buddy necesita acceder a volúmenes de red para leer o copiar tus canciones."
+  "NSPrincipalClass" => "NSApplication"
+  "NSRemovableVolumesUsageDescription" => "List Buddy necesita acceder a discos externos y pendrives para leer o copiar tus canciones."
+}
+minos (Mach-O del bundle):
+   5 12.0
+   2 13.0
+  70 14.0
+  41 14.4
+  12 26.0
+   1 dist/List
+== 4 mutaciones: M1 '--' comentario -> 2 tests fallan; M2 quitar LSApplicationCategoryType -> falla; M3 LSMinimumSystemVersion 15.0 -> falla; M4 --options runtime -> falla; M5 --deep en codesign -> falla. Todas revertidas (git checkout).
+== 5 suite completa: python -m pytest -q exit 0
