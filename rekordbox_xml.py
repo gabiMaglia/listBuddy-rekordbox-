@@ -242,7 +242,7 @@ def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
     with open(path, "rb") as fh:
         for event, el in ET.iterparse(fh, events=("start", "end")):
             ticks += 1
-            if should_cancel is not None and ticks % CHECK_EVERY == 0 and should_cancel():
+            if should_cancel is not None and ticks % CHECK_EVERY == 1 and should_cancel():
                 raise LoadCancelled()
             tag = el.tag
             if event == "start":
