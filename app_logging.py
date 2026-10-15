@@ -81,19 +81,31 @@ def install_excepthook() -> None:
         log.error("Excepción no capturada:\n%s", tb_text)
 
         try:
+            from PySide6.QtCore import QThread, QTimer
             from PySide6.QtWidgets import QApplication, QMessageBox
             import dialogs
-            if QApplication.instance() is None:
+            app = QApplication.instance()
+            if app is None:
                 return
-            box = dialogs.build_message(
-                QApplication.activeWindow(), QMessageBox.Icon.Warning,
-                f"{APP_NAME} — error inesperado",
-                "Ocurrió un error inesperado, pero la app sigue funcionando.",
-            )
-            box.setInformativeText(f"{exc_type.__name__}: {exc_value}")
-            box.setDetailedText(tb_text)
-            dialogs.localize_details_button(box)
-            box.exec()
+
+            def show() -> None:
+                box = dialogs.build_message(
+                    QApplication.activeWindow(), QMessageBox.Icon.Warning,
+                    f"{APP_NAME} — error inesperado",
+                    "Ocurrió un error inesperado, pero la app sigue funcionando.",
+                )
+                box.setInformativeText(f"{exc_type.__name__}: {exc_value}")
+                box.setDetailedText(tb_text)
+                dialogs.localize_details_button(box)
+                box.exec()
+
+            if QThread.currentThread() is app.thread():
+                show()
+            else:
+                # Una excepción en un QThread llega acá desde ese hilo; crear la
+                # ventana ahí aborta la app en macOS («NSWindow should only be
+                # instantiated on the main thread»). Se encola en el hilo de UI.
+                QTimer.singleShot(0, app, show)
         except Exception:  # nunca dejar que el hook tire otra excepción
             pass
 
