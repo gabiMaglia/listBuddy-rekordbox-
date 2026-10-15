@@ -1489,6 +1489,8 @@ class MainWindow(QMainWindow):
 
         Qt aborta el proceso si se destruye un QThread que sigue corriendo.
         """
+        if not isinstance(thread, QThread):
+            return
         self._live_threads.add(thread)
         thread.finished.connect(lambda t=thread: self._live_threads.discard(t))
 
@@ -2193,7 +2195,7 @@ class MainWindow(QMainWindow):
             dialogs.warning(self, "Sin selección", "Marcá al menos una playlist.")
             return
         from rekordbox_export import sanitize
-        first = sanitize(str(getattr(playlists[0], "Name", "") or "playlist"))
+        first = sanitize(str(getattr(playlists[0], "Name", "") or "")) or "playlist"
         dest_str, _ = QFileDialog.getSaveFileName(
             self, "Guardar XML para Rekordbox",
             str(Path.home() / "Desktop" / f"List Buddy - {first}.xml"),

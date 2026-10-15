@@ -174,6 +174,11 @@ class ExportWorker(QThread):
         for (pl, songs), folder in zip(playlist_songs, folder_names):
             self.log.emit(f"▶  {pl.Name}")
             dest_dir = self._output_root / folder
+            if not _is_inside(dest_dir, self._output_root):
+                self.log.emit(f"✗  Nombre de playlist no válido, no se exporta: {pl.Name}")
+                _log.error("Export: %s resuelve fuera de %s", dest_dir, self._output_root)
+                self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
+                return
 
             sorted_songs = order_playlist_songs(songs)
 
@@ -227,7 +232,7 @@ class ExportWorker(QThread):
 
                 prefix   = str(idx).zfill(pad)
                 artist   = sanitize(get_artist(content))
-                title    = sanitize(getattr(content, "Title", None) or "Sin título")
+                title    = sanitize(getattr(content, "Title", None) or "") or "Sin título"
                 filename = _safe_filename(prefix, artist, title, src.suffix)
                 dest     = dest_dir / filename
 
@@ -285,6 +290,13 @@ class ExportWorker(QThread):
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 
+def _is_inside(path: Path, root: Path) -> bool:
+    try:
+        return path.resolve().is_relative_to(root.resolve())
+    except (OSError, RuntimeError):
+        return False
+
+
 def _unique_folder_names(names: list[str]) -> list[str]:
     """Una carpeta por playlist: si dos colisionan (mismo nombre, otra carpeta de
     Rekordbox) la segunda en adelante lleva « (2)», « (3)»…
@@ -295,7 +307,7 @@ def _unique_folder_names(names: list[str]) -> list[str]:
     taken: set[str] = set()
     result: list[str] = []
     for name in names:
-        base = sanitize(name)
+        base = sanitize(name) or "playlist"
         candidate, n = base, 1
         while candidate.casefold() in taken:
             n += 1
