@@ -1,4 +1,4 @@
-"""T-063: picos de la onda, alturas de barras y WaveformSeek."""
+"""T-063: energía/tono de la onda, alturas de barras y WaveformSeek."""
 from __future__ import annotations
 
 import numpy as np
@@ -9,41 +9,72 @@ from _qt_isolated import run_isolated
 import waveform_worker as ww
 
 
-def test_window_peaks_is_invariant_to_chunking() -> None:
+E0 = np.empty(0, np.float32)
+SR = ww.TARGET_SR
+
+
+def _sine(freq: float, n: int, amp: float = 0.9) -> np.ndarray:
+    return (amp * np.sin(2 * np.pi * freq * np.arange(n) / SR)).astype(np.float32)
+
+
+def test_window_features_is_invariant_to_chunking() -> None:
     rng = np.random.default_rng(7)
     y = (rng.random(5000).astype(np.float32) * 2 - 1)
-    whole, _ = ww.window_peaks(y, np.empty(0, np.float32), win=100)
-    carry = np.empty(0, np.float32)
-    parts: list[np.ndarray] = []
+    r0, t0, _ = ww.window_features(y, E0, win=100)
+    carry = E0
+    rs: list[np.ndarray] = []
+    ts: list[np.ndarray] = []
     for a, b in ((0, 730), (730, 1063), (1063, 5000)):  # cortes que NO caen en múltiplos de 100
-        p, carry = ww.window_peaks(y[a:b], carry, win=100)
-        parts.append(p)
-    assert np.array_equal(np.concatenate(parts), whole)
-    assert whole.size == 50
+        r, t, carry = ww.window_features(y[a:b], carry, win=100)
+        rs.append(r)
+        ts.append(t)
+    assert np.allclose(np.concatenate(rs), r0) and np.allclose(np.concatenate(ts), t0)
+    assert r0.size == t0.size == 50
 
 
-def test_window_peaks_returns_the_leftover_as_carry() -> None:
-    p, carry = ww.window_peaks(np.ones(250, np.float32), np.empty(0, np.float32), win=100)
-    assert p.size == 2 and carry.size == 50
+def test_window_features_returns_the_leftover_as_carry_and_handles_empty() -> None:
+    r, t, carry = ww.window_features(np.ones(250, np.float32), E0, win=100)
+    assert r.size == t.size == 2 and carry.size == 50
+    r, t, carry = ww.window_features(E0, E0)
+    assert r.size == t.size == 0 and carry.size == 0
 
 
-def test_window_peaks_uses_absolute_value() -> None:
-    p, _ = ww.window_peaks(-np.ones(100, np.float32) * 0.5, np.empty(0, np.float32), win=100)
-    assert p.tolist() == [0.5]
+def test_window_rms_of_a_sine_is_amp_over_sqrt2() -> None:
+    r, _, _ = ww.window_features(_sine(440, ww.WIN * 4), E0)
+    assert np.allclose(r, 0.9 / np.sqrt(2), atol=0.02)
 
 
-def test_normalize_silence_is_zeros_not_nan() -> None:
-    assert ww.normalize_peaks(np.zeros(10, np.float32)) == [0.0] * 10
-    assert ww.normalize_peaks(np.empty(0, np.float32)) == []
+def test_tone_is_low_for_a_bass_sine_and_high_for_a_treble_sine() -> None:
+    _, bass, _ = ww.window_features(_sine(60, ww.WIN * 8), E0)
+    _, treble, _ = ww.window_features(_sine(4000, ww.WIN * 8), E0)
+    assert bass.max() < 0.15 and treble.min() > 0.85
 
 
-def test_normalize_keeps_quiet_and_loud_apart_and_clips_spikes() -> None:
-    peaks = np.concatenate([np.full(500, 0.1), np.full(500, 0.5), [10.0]]).astype(np.float32)
-    out = ww.normalize_peaks(peaks)
-    assert max(out) == 1.0 and min(out) >= 0.0
-    quiet, loud = out[:500], out[500:1000]
-    assert max(quiet) < min(loud)          # el orden de volumen se conserva
-    assert min(loud) > 0.9                 # un pico aislado no aplasta el resto
+def test_levels_separate_a_dense_signal_from_a_sparse_one_with_equal_peaks() -> None:
+    n = ww.WIN * 40
+    dense = _sine(440, n)
+    sparse = np.zeros(n, np.float32)
+    sparse[::ww.WIN] = 0.9                        # mismo pico (0.9), muchísima menos energía
+    r, t, _ = ww.window_features(np.concatenate([dense, sparse]), E0)
+    wd = ww.finalize_wave(r, t)
+    assert len(wd.levels) == len(wd.tone) == r.size
+    assert min(wd.levels[:40]) > 0.9              # el denso está arriba del todo
+    assert max(wd.levels[40:]) < 0.4              # el ralo queda claramente más abajo
+    assert 0.0 <= min(wd.levels) and max(wd.levels) <= 1.0
+
+
+def test_finalize_wave_empty_silence_and_flat_tone() -> None:
+    assert ww.finalize_wave(E0, E0) == ww.WaveData((), ())
+    z = np.zeros(10, np.float32)
+    wd = ww.finalize_wave(z, z)
+    assert wd.levels == (0.0,) * 10 and wd.tone == (0.5,) * 10   # sin rango de tono → 0.5, sin NaN
+
+
+def test_finalize_wave_normalizes_tone_by_percentiles() -> None:
+    r = np.full(100, 0.3, np.float32)
+    t = np.linspace(0.2, 0.6, 100).astype(np.float32)
+    wd = ww.finalize_wave(r, t)
+    assert min(wd.tone) == 0.0 and max(wd.tone) == 1.0 and wd.tone[50] > 0.3
 
 
 def test_worker_decodes_a_real_wav_and_tracks_loudness(tmp_path) -> None:
@@ -61,12 +92,13 @@ def test_worker_decodes_a_real_wav_and_tracks_loudness(tmp_path) -> None:
         app = QCoreApplication([])
         got = []
         w = ww.WaveformWorker({str(path)!r}, 5)
-        w.ready.connect(lambda peaks, gen: got.append((peaks, gen)))
+        w.ready.connect(lambda data, gen: got.append((data, gen)))
         w.finished.connect(app.quit)
         w.start(); app.exec(); w.wait(5000)
-        peaks, gen = got[0]
-        h = len(peaks) // 2
-        print(gen, len(peaks) > 30, max(peaks[:h - 2]) < 0.05, min(peaks[h + 2:]) > 0.5)
+        data, gen = got[0]
+        lv = data.levels
+        h = len(lv) // 2
+        print(gen, len(lv) > 30 and len(lv) == len(data.tone), max(lv[:h - 2]) < 0.05, min(lv[h + 2:]) > 0.9)
     """, timeout=90)
     assert r.returncode == 0, r.stderr[-2000:]
     assert r.stdout.split()[-4:] == ["5", "True", "True", "True"]
