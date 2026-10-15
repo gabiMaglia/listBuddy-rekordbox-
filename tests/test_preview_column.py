@@ -158,8 +158,14 @@ def test_expanding_all_broken_builds_its_rows_once() -> None:
         "b = c.findChild(QPushButton, 'card_expand_btn')\n"
         "b.click(); pump(800); n1 = len(c.findChildren(FileRow))\n"
         "b.click(); b.click(); pump(800)\n"
-        "print(n1, len(c.findChildren(FileRow)), c.is_expanded())\n")
-    assert out == "27 27 True"
+        "n2 = len(c.findChildren(FileRow))\n"
+        "bar = c.scroll.verticalScrollBar(); bar.setValue(bar.maximum()); pump(200)\n"
+        "print(n1, n2, len(c._built) == len(c.findChildren(FileRow)), c.built_row_count() <= 27,\n"
+        "      c.scroll.widget().height(), c.is_expanded())\n")
+    # T-089: al expandir se construye una ventana (≤ 15, una sola vez); el alto sigue siendo el de 27 filas
+    n1, n2, same, le, height, expanded = out.split()
+    assert 1 <= int(n1) <= 15 and n1 == n2 and same == le == "True" and height == str(27 * 38)
+    assert expanded == "True"
 
 
 def test_expand_button_has_an_accessible_name_that_follows_the_state() -> None:
@@ -176,8 +182,10 @@ def test_card_scroll_is_fixed_and_keeps_all_rows() -> None:
     out = run(CARD_IMPORT +
         "w, _ = make(); fill(w, [(40, 5)])\n"
         "c = w.findChildren(PreviewGroupCard)[0]\n"
-        "print(len(c.findChildren(FileRow)), c.findChild(QScrollArea, 'card_scroll').height())\n")
-    assert out == "40 190"   # D2: todas las filas, alto fijo
+        "bar = c.scroll.verticalScrollBar(); bar.setValue(bar.maximum()); pump(200)\n"
+        "print('T0-39' in {r.track.title for r in c.findChildren(FileRow)}, c.scroll.widget().height(),\n"
+        "      c.findChild(QScrollArea, 'card_scroll').height())\n")
+    assert out == "True 1520 190"   # D2 + T-089: alto de las 40 filas, scroll fijo; las filas se construyen al llegar
 
 
 def test_card_close_button_unchecks_the_real_playlist_card() -> None:
