@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Literal
 
 from PySide6.QtCore import (
-    QPoint, QSize, QThread, Qt, QTimer, QUrl, QSettings,
+    QEventLoop, QPoint, QSize, QThread, Qt, QTimer, QUrl, QSettings,
     QPropertyAnimation, QEasingCurve,
 )
 from PySide6.QtGui import (
@@ -2025,8 +2025,7 @@ class MainWindow(QMainWindow):
             w.wait(1500)
         self._cancel_preview_worker()
         if self._worker and self._worker.isRunning():
-            self._worker.requestInterruption()
-            self._worker.wait(4000)
+            self._wait_export_block(self._worker)
         if self._relocate_worker and self._relocate_worker.isRunning():
             self._relocate_worker.requestInterruption()
             # Si está bloqueado esperando el modal de desambiguación, nadie
@@ -2044,6 +2043,19 @@ class MainWindow(QMainWindow):
                 thread.requestInterruption()
                 thread.wait(2000)
         super().closeEvent(event)
+
+    def _wait_export_block(self, worker: QThread) -> None:
+        """Cierra sin abortar: la copia corta entre bloques de 1 MiB, pero un disco lento puede
+        tardar en devolver el bloque actual. Se espera sin tope (con cursor de espera); si el
+        disco está colgado de verdad, el usuario lo resuelve desconectándolo, no con un SIGABRT."""
+        worker.requestInterruption()
+        self.output_status.setText("Esperando que termine la copia…")
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            while not worker.wait(50):
+                QApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
+        finally:
+            QApplication.restoreOverrideCursor()
 
     # ──────────────────────────────────────── Actions ────────────────────
 
