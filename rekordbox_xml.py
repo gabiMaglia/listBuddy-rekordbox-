@@ -23,7 +23,32 @@ from pathlib import Path, PurePath, PureWindowsPath
 from urllib.parse import quote, unquote
 from xml.etree import ElementTree as ET
 
+from load_cancel import CHECK_EVERY, CancelCheck, LoadCancelled
+
+__all__ = ["LoadCancelled"]  # re-export: lo importan los tests y la UI desde acá
+
 _DRIVE = re.compile(r"^/[A-Za-z]:")
+
+
+@dataclass(slots=True, eq=False)
+class _TrackSrc:
+    """`<TRACK>` del XML sin el DOM: atributos, texto y los hijos (TEMPO,
+    POSITION_MARK…) serializados con sus colas, para reconstruirlo idéntico."""
+    attrib: dict[str, str]
+    text: str | None
+    children: str
+
+    @classmethod
+    def from_element(cls, el: ET.Element) -> "_TrackSrc":
+        kids = "".join(ET.tostring(c, encoding="unicode") for c in el)
+        return cls(dict(el.attrib), el.text, kids)
+
+    def to_element(self) -> ET.Element:
+        el = ET.Element("TRACK", self.attrib)
+        el.text = self.text
+        if self.children:
+            el.extend(ET.fromstring(f"<r>{self.children}</r>"))
+        return el
 
 
 @dataclass
@@ -37,7 +62,14 @@ class RbxTrack:
     location: str = ""    # URI Location original del XML (clave de las reparaciones)
     relocated: bool = False  # True si la ruta viene de una reparación de List Buddy
     streaming: bool = False   # Location que no es un archivo (Beatport, TIDAL, SoundCloud…)
-    element: ET.Element | None = field(default=None, repr=False, compare=False)
+    # Fuente compacta del TRACK original (atributos + cues/beatgrid serializados),
+    # solo para write_playlists_xml. No es un DOM vivo (T-094 / SEC-09).
+    _src: "_TrackSrc | None" = field(default=None, repr=False, compare=False)
+
+    @property
+    def element(self) -> ET.Element | None:
+        """TRACK original reconstruido a pedido (copia nueva en cada llamada)."""
+        return self._src.to_element() if self._src is not None else None
 
     @property
     def FolderPath(self) -> str:
@@ -149,94 +181,161 @@ def _float_or_none(raw: str | None) -> float | None:
     return value if value > 0 else None
 
 
-def _index_collection(root: ET.Element) -> tuple[dict[str, ET.Element], dict[str, ET.Element]]:
-    by_id: dict[str, ET.Element] = {}
-    by_location: dict[str, ET.Element] = {}
-    for el in root.iterfind("./COLLECTION/TRACK"):
-        if el.get("TrackID"):
-            by_id[el.get("TrackID", "")] = el
-        if el.get("Location"):
-            by_location[el.get("Location", "")] = el
-    return by_id, by_location
-
-
 def is_streaming_location(location: str) -> bool:
     """Una Location que no es `file:` es una pista de streaming: no hay archivo que copiar."""
     return bool(location) and not location.lower().startswith("file:")
 
 
-def _track(el: ET.Element, position: int, fixes: dict[str, str]) -> RbxTrack:
-    location = el.get("Location", "") or ""
+def _track(src: _TrackSrc, position: int, fixes: dict[str, str]) -> RbxTrack:
+    attrs = src.attrib
+    location = attrs.get("Location", "") or ""
     streaming = is_streaming_location(location)
     original = Path(location) if streaming else location_to_path(location)
     fixed = None if streaming else fixes.get(location)
     # Una reparación solo vale mientras el archivo original siga ausente.
-    # El chequeo de disco solo se hace si hay reparación guardada (drives lentos).
+    # El chequeo de disco solo se hace si hay reparación guardada (drives lentos);
+    # corre en el hilo de carga, nunca en el de UI (TEC-17).
     use_fix = bool(fixed) and not original.exists()
     return RbxTrack(
-        title=el.get("Name", "") or "",
-        artist=el.get("Artist", "") or "",
+        title=attrs.get("Name", "") or "",
+        artist=attrs.get("Artist", "") or "",
         file_path=Path(fixed) if use_fix else original,
-        bpm=_float_or_none(el.get("AverageBpm")),
-        key=(el.get("Tonality", "") or "").strip(),
+        bpm=_float_or_none(attrs.get("AverageBpm")),
+        key=(attrs.get("Tonality", "") or "").strip(),
         TrackNo=position,
         location=location,
         relocated=use_fix,
         streaming=streaming,
-        element=el,
+        _src=src,
     )
 
 
-def _build_tree(root: ET.Element, fixes: dict[str, str]) -> list[dict]:
-    by_id, by_location = _index_collection(root)
+@dataclass(slots=True)
+class _Node:
+    """NODE de PLAYLISTS sin DOM: nombre, tipo y las referencias a pistas."""
+    name: str
+    type: str
+    key_type: str
+    keys: list[str] = field(default_factory=list)
+    children: list["_Node"] = field(default_factory=list)
 
-    def walk(node: ET.Element, prefix: str, node_id: str) -> dict:
-        name = node.get("Name", "") or ""
-        if node.get("Type") == "1":
-            index = by_location if node.get("KeyType") == "1" else by_id
+
+@dataclass(slots=True)
+class _Parsed:
+    by_id: dict[str, _TrackSrc]
+    by_location: dict[str, _TrackSrc]
+    root_node: _Node | None
+
+
+def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
+    """Un solo pasaje en streaming: COLLECTION/TRACK → `_TrackSrc`, PLAYLISTS → `_Node`.
+
+    Cada elemento terminado se vacía y su padre se vacía también, así el DOM
+    nunca crece más que un TRACK a la vez (memoria ~ lo que se retiene, no el XML).
+    """
+    by_id: dict[str, _TrackSrc] = {}
+    by_location: dict[str, _TrackSrc] = {}
+    root_node: _Node | None = None
+    estack: list[ET.Element] = []
+    nstack: list[_Node] = []
+    ticks = 0
+    with open(path, "rb") as fh:
+        for event, el in ET.iterparse(fh, events=("start", "end")):
+            ticks += 1
+            if should_cancel is not None and ticks % CHECK_EVERY == 0 and should_cancel():
+                raise LoadCancelled()
+            tag = el.tag
+            if event == "start":
+                if not estack and tag != "DJ_PLAYLISTS":
+                    raise RuntimeError(f"Ese archivo no es un XML de Rekordbox.\n\n{_HOW_TO_EXPORT}")
+                estack.append(el)
+                if tag == "NODE" and len(estack) >= 3 and estack[1].tag == "PLAYLISTS":
+                    if len(estack) == 3 and root_node is not None:
+                        nstack.append(_Node("", "", ""))   # NODE raíz repetido: se descarta
+                    else:
+                        nstack.append(_Node(el.get("Name", "") or "", el.get("Type", "") or "",
+                                            el.get("KeyType", "") or ""))
+                continue
+            estack.pop()
+            parent = estack[-1] if estack else None
+            if parent is None:
+                continue
+            if tag == "TRACK" and parent.tag == "COLLECTION" and len(estack) == 2:
+                src = _TrackSrc.from_element(el)
+                track_id = src.attrib.get("TrackID")
+                if track_id:
+                    by_id[track_id] = src
+                loc = src.attrib.get("Location")
+                if loc:
+                    by_location[loc] = src
+                el.clear()
+                parent.clear()
+            elif tag == "TRACK" and parent.tag == "NODE" and nstack:
+                key = el.get("Key", "") or ""
+                nstack[-1].keys.append(key)
+                el.clear()
+                parent.clear()
+            elif tag == "NODE" and nstack and estack[1].tag == "PLAYLISTS":
+                node = nstack.pop()
+                if len(estack) == 2:                      # era el NODE raíz de PLAYLISTS
+                    if root_node is None:
+                        root_node = node
+                elif nstack:
+                    nstack[-1].children.append(node)
+                el.clear()
+    return _Parsed(by_id, by_location, root_node)
+
+
+def _build_tree(parsed: _Parsed, fixes: dict[str, str], should_cancel: CancelCheck | None = None) -> list[dict]:
+    def walk(node: _Node, prefix: str, node_id: str) -> dict:
+        if node.type == "1":
+            index = parsed.by_location if node.key_type == "1" else parsed.by_id
             tracks: list[RbxTrack] = []
-            for ref in node.iterfind("./TRACK"):
-                el = index.get(ref.get("Key", ""))
-                if el is None or not el.get("Location"):
+            for key in node.keys:
+                if should_cancel is not None and len(tracks) % 512 == 0 and should_cancel():
+                    raise LoadCancelled()
+                src = index.get(key)
+                if src is None or not src.attrib.get("Location"):
                     continue
-                track = _track(el, len(tracks) + 1, fixes)
+                track = _track(src, len(tracks) + 1, fixes)
                 if track.file_path.name:
                     tracks.append(track)
-            return {"playlist": RbxPlaylist(name, node_id, tracks), "children": []}
-        return {"playlist": RbxFolder(name, node_id), "children": walk_children(node, node_id)}
+            return {"playlist": RbxPlaylist(node.name, node_id, tracks), "children": []}
+        return {"playlist": RbxFolder(node.name, node_id), "children": walk_children(node, node_id)}
 
-    def walk_children(parent: ET.Element, prefix: str) -> list[dict]:
+    def walk_children(parent: _Node, prefix: str) -> list[dict]:
         seen: dict[str, int] = {}
         out: list[dict] = []
-        for child in parent.iterfind("./NODE"):
-            name = child.get("Name", "") or ""
-            seen[name] = seen.get(name, 0) + 1
-            unique = name if seen[name] == 1 else f"{name}#{seen[name]}"
+        for child in parent.children:
+            seen[child.name] = seen.get(child.name, 0) + 1
+            unique = child.name if seen[child.name] == 1 else f"{child.name}#{seen[child.name]}"
             out.append(walk(child, prefix, f"{prefix}/{unique}" if prefix else unique))
         return out
 
-    root_node = root.find("./PLAYLISTS/NODE")
-    if root_node is None:
+    if parsed.root_node is None:
         return []
-    return walk_children(root_node, "")
+    return walk_children(parsed.root_node, "")
 
 
-def open_library(path: Path | None, fixes: dict[str, str] | None = None) -> RekordboxXmlLibrary:
-    """Abre el rekordbox.xml exportado. RuntimeError con texto para el usuario si falla."""
+def open_library(
+    path: Path | None, fixes: dict[str, str] | None = None, *,
+    should_cancel: CancelCheck | None = None,
+) -> RekordboxXmlLibrary:
+    """Abre el rekordbox.xml exportado. RuntimeError con texto para el usuario si falla.
+
+    `should_cancel` se consulta durante el parseo; si devuelve True se lanza `LoadCancelled`."""
     if path is None:
         raise RuntimeError(f"Todavía no elegiste el XML de Rekordbox.\n\n{_HOW_TO_EXPORT}")
     if not path.is_file():
         raise RuntimeError(f"No se encontró el archivo:\n{path}\n\n{_HOW_TO_EXPORT}")
     try:
-        root = ET.parse(path).getroot()
+        parsed = _scan(path, should_cancel)
     except (ET.ParseError, OSError) as e:
         raise RuntimeError(
             f"El XML de Rekordbox no se pudo leer (¿quedó a medio exportar?).\n\n"
             f"Volvé a exportarlo desde Rekordbox.\n\nDetalle: {e}"
         ) from e
-    if root.tag != "DJ_PLAYLISTS":
-        raise RuntimeError(f"Ese archivo no es un XML de Rekordbox.\n\n{_HOW_TO_EXPORT}")
-    return RekordboxXmlLibrary(path, _build_tree(root, fixes or {}))
+    return RekordboxXmlLibrary(path, _build_tree(parsed, fixes or {}, should_cancel))
 
 
 def get_playlist_tree(library: RekordboxXmlLibrary) -> list[dict]:
