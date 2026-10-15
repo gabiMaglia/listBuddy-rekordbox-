@@ -4,6 +4,11 @@
 > cierre (P-10). Las lecciones de proceso que aplican a CUALQUIER proyecto se promueven
 > a ~/.nerv/playbook.md; lo específico de este proyecto queda acá.
 
+### 2026-10-13/15 — Sprint 2: release 1.0.0 (legal, XML oficial, reparar/exportar XML, onda)
+**Bien:** la auditoría legal antes de lanzar cambió el producto a tiempo: se sacó pyrekordbox (clave embebida, EULA §2.2) y Rekordbox pasó al XML oficial (ADR-004). Planes T-080/T-081 ejecutados con un subagente por tarea + revisión por tarea + revisión final: la revisión atrapó 3 bugs reales (restore de Traktor podía pisar rekordbox.xml, `REKORDBOX.XML` en macOS pisaba el origen, desmarcado de playlists tras reparar). Las opciones de onda se mostraron renderizadas con audio real del PO y eligió en un mensaje. La investigación de mercado trajo 2 bugs de producto (rutas duplicadas, streaming).
+**Mal:** el crash del PO al exportar a un disco desmontado venía de antes (excepthook armando UI en un QThread) y ninguna revisión lo vio; se encontró recién en uso real. Un test de limpieza de .tmp pasaba sin el arreglo (vacío). La onda (T-084) y streaming (T-085) se mergearon sin revisión independiente. Los scripts NERV se volvieron a buscar en `~/.claude/nerv-bin` (están en `~/Documents/NERV/bin`).
+**Acción concreta:** QA formal de T-080..T-085 con `nerv-gate.sh`, y probar la app empaquetada con un XML real antes del tag v1.0.0.
+
 ### 2026-10-12/13 — Menores: T-067 (Key·BPM) y T-079 (SSL)
 **Bien:** recon propio antes del handoff (campos de pyrekordbox con `dir()` + librería real en solo lectura) → el ticket llegó con datos exactos (BPM ×100, ScaleName en Camelot, INFO@KEY en Traktor) y CLAUDE.md corregido; 0 rechazos. Primer `nerv-gate.sh` oficial con proof of red. QA con artefactos `qa/<T-ID>.md` pedidos explícitamente. El 404 del chequeo de updates se diagnosticó con curl (repo sin releases), no se tomó por bug.
 **Mal:** QA volvió a escribir «Done 2026-10-12» sin paréntesis y el backlog-check lo rechazó (segunda vez en la sesión).
