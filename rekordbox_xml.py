@@ -34,6 +34,7 @@ class RbxTrack:
     TrackNo: int = 0      # posición 1..n dentro de la playlist
     location: str = ""    # URI Location original del XML (clave de las reparaciones)
     relocated: bool = False  # True si la ruta viene de una reparación de List Buddy
+    streaming: bool = False   # Location que no es un archivo (Beatport, TIDAL, SoundCloud…)
     element: ET.Element | None = field(default=None, repr=False, compare=False)
 
     @property
@@ -157,10 +158,16 @@ def _index_collection(root: ET.Element) -> tuple[dict[str, ET.Element], dict[str
     return by_id, by_location
 
 
+def is_streaming_location(location: str) -> bool:
+    """Una Location que no es `file:` es una pista de streaming: no hay archivo que copiar."""
+    return bool(location) and not location.lower().startswith("file:")
+
+
 def _track(el: ET.Element, position: int, fixes: dict[str, str]) -> RbxTrack:
     location = el.get("Location", "") or ""
-    original = location_to_path(location)
-    fixed = fixes.get(location)
+    streaming = is_streaming_location(location)
+    original = Path(location) if streaming else location_to_path(location)
+    fixed = None if streaming else fixes.get(location)
     # Una reparación solo vale mientras el archivo original siga ausente.
     # El chequeo de disco solo se hace si hay reparación guardada (drives lentos).
     use_fix = bool(fixed) and not original.exists()
@@ -173,6 +180,7 @@ def _track(el: ET.Element, position: int, fixes: dict[str, str]) -> RbxTrack:
         TrackNo=position,
         location=location,
         relocated=use_fix,
+        streaming=streaming,
         element=el,
     )
 
@@ -277,23 +285,29 @@ def write_playlists_xml(
     root = ET.Element("DJ_PLAYLISTS", Version="1.0.0")
     ET.SubElement(root, "PRODUCT", Name="List Buddy", Version=app_version, Company="")
     collection = ET.SubElement(root, "COLLECTION")
+    # Una entrada por Location FINAL: Rekordbox rechaza el import si dos TRACK
+    # comparten ruta (pasa si dos pistas rotas se repararon al mismo archivo).
+    def final_location(t: RbxTrack) -> str:
+        return path_to_location(t.file_path) if t.relocated else t.location
+
     ids: dict[str, str] = {}
     relocated = missing = 0
     for pl in playlists:
         for t in pl.tracks:
-            if t.location in ids:
+            location = final_location(t)
+            if location in ids:
                 continue
             new_id = str(len(ids) + 1)
-            ids[t.location] = new_id
+            ids[location] = new_id
             el = copy.deepcopy(t.element) if t.element is not None else ET.Element(
                 "TRACK", Name=t.title, Artist=t.artist)
             el.set("TrackID", new_id)
-            el.set("Location", path_to_location(t.file_path) if t.relocated else t.location)
+            el.set("Location", location)
             if t.relocated:
                 _adapt_relocated(el, t)
             collection.append(el)
             relocated += int(t.relocated)
-            missing += int(not t.file_path.exists())
+            missing += int(not t.streaming and not t.file_path.exists())
     collection.set("Entries", str(len(ids)))
     root_node = ET.SubElement(ET.SubElement(root, "PLAYLISTS"), "NODE",
                               Type="0", Name="ROOT", Count=str(len(playlists)))
@@ -301,7 +315,7 @@ def write_playlists_xml(
         node = ET.SubElement(root_node, "NODE", Name=pl.name + name_suffix, Type="1",
                              KeyType="0", Entries=str(len(pl.tracks)))
         for t in pl.tracks:
-            ET.SubElement(node, "TRACK", Key=ids[t.location])
+            ET.SubElement(node, "TRACK", Key=ids[final_location(t)])
     ET.indent(root)
     dest.parent.mkdir(parents=True, exist_ok=True)
     try:
