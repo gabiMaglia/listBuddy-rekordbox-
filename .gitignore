@@ -13,3 +13,4 @@ _*.png
 .venv-build/
 .superpowers/
 rekordbox_fixes.json*
+.venv-build/
