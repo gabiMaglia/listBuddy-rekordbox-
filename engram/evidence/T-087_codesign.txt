@@ -11,7 +11,7 @@ dist/ListBuddy-1.0.0.dmg: valid on disk
 Listo: dist/ListBuddy-1.0.0.dmg (x86_64)
 
 $ codesign -dvvv --entitlements - "dist/List Buddy.app"
-Executable=/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/.claude/worktrees/agent-a24af8be773500344/dist/List Buddy.app/Contents/MacOS/listBuddy
+Executable=<HOME>/Desktop/REKORDBOX_EXTRACTOR/.claude/worktrees/agent-a24af8be773500344/dist/List Buddy.app/Contents/MacOS/listBuddy
 Identifier=com.gabrielmaglia.listbuddy
 Format=app bundle with Mach-O thin (x86_64)
 CodeDirectory v=20500 size=38759 flags=0x10000(runtime) hashes=1200+7 location=embedded
