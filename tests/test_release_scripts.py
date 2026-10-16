@@ -724,3 +724,58 @@ def test_t107_release_docs_cover_min_macos_bindings_warning_and_first_release_or
     assert positions == sorted(positions)
     for needle in ("stapler staple", "reintenta", "syspolicy_check", "notary-app-", "--build-only"):
         assert needle in doc, needle
+
+
+def _mk_dist(tmp_path, names: list[str]):
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    for n in names:
+        p = dist / n
+        if n.endswith(".app") or n == "List Buddy":
+            (p / "Contents").mkdir(parents=True)
+            (p / "Contents" / "x").write_text("x")
+        else:
+            p.write_text("x")
+    return dist
+
+
+_OURS = ["List Buddy.app", "List Buddy", "listBuddy-1.0.dmg", "ListBuddy-1.0.0-arm64.dmg",
+         "ListBuddy-1.0.0-arm64.dmg.sha256", "listbuddy-1.0.0-src.tar.gz", "notary-app-1.0.0.json", ".DS_Store"]
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+@pytest.mark.parametrize("skip_build,kept", [(0, []), (1, ["List Buddy.app"])])
+def test_t107_clean_dist_removes_our_old_artifacts(tmp_path, skip_build, kept) -> None:
+    """TEC-27: los artefactos viejos propios se borran; con --skip-build el .app recién buildeado se conserva."""
+    dist = _mk_dist(tmp_path, _OURS)
+    r = _run_snippet(tmp_path, "clean-dist", "clean_dist", _fake_bin(tmp_path), SKIP_BUILD=str(skip_build),
+                     DRY_RUN="0", APP="dist/List Buddy.app")
+    assert r.returncode == 0, r.stderr
+    assert sorted(p.name for p in dist.iterdir()) == kept
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t107_clean_dist_aborts_on_foreign_files_and_deletes_nothing(tmp_path) -> None:
+    dist = _mk_dist(tmp_path, _OURS + ["tesis-final.pdf"])
+    r = _run_snippet(tmp_path, "clean-dist", "clean_dist", _fake_bin(tmp_path), SKIP_BUILD="0", DRY_RUN="0",
+                     APP="dist/List Buddy.app")
+    assert r.returncode == 1 and "tesis-final.pdf" in r.stderr
+    assert len(list(dist.iterdir())) == len(_OURS) + 1
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t107_clean_dist_dry_run_lists_without_touching(tmp_path) -> None:
+    dist = _mk_dist(tmp_path, _OURS + ["tesis-final.pdf"])
+    r = _run_snippet(tmp_path, "clean-dist", "clean_dist", _fake_bin(tmp_path), SKIP_BUILD="0", DRY_RUN="1",
+                     APP="dist/List Buddy.app")
+    assert r.returncode == 0
+    out = r.stdout + r.stderr
+    assert "[dry-run]" in out and "ListBuddy-1.0.0-arm64.dmg" in out and "tesis-final.pdf" in out
+    assert len(list(dist.iterdir())) == len(_OURS) + 1
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t107_clean_dist_without_dist_dir_is_noop(tmp_path) -> None:
+    r = _run_snippet(tmp_path, "clean-dist", "clean_dist", _fake_bin(tmp_path), SKIP_BUILD="0", DRY_RUN="0",
+                     APP="dist/List Buddy.app")
+    assert r.returncode == 0 and not (tmp_path / "dist").exists()

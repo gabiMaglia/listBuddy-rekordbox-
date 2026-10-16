@@ -105,6 +105,41 @@ if [ "$DRY_RUN" = 0 ] && [ -x .venv/bin/python ]; then
   .venv/bin/python -m pytest -q -n 0 tests/test_release_gate.py
 fi
 
+# >>> clean-dist
+# clean_dist: deja en dist/ solo lo que produce esta corrida (TEC-27/LEG-32). Lo «nuestro» (builds y DMG
+# viejos, logs del notary) se borra; con --skip-build se conserva el .app recién buildeado. Si hay algo
+# ajeno aborta SIN borrar nada: dist/ no es un cajón de uso general. En --dry-run solo informa.
+clean_dist() {
+  [ -d dist ] || return 0
+  local f name foreign=() ours=()
+  for f in dist/* dist/.[!.]*; do
+    [ -e "$f" ] || continue
+    name=$(basename "$f")
+    case "$name" in
+      "List Buddy"|"List Buddy.app"|listBuddy|listBuddy-*|ListBuddy-*|listbuddy-*|notary-*|.DS_Store) ;;
+      *) foreign+=("$f"); continue ;;
+    esac
+    if [ "${SKIP_BUILD:-0}" = 1 ] && [ "$f" = "$APP" ]; then continue; fi
+    ours+=("$f")
+  done
+  if [ "${#foreign[@]}" -gt 0 ]; then
+    if [ "${DRY_RUN:-0}" = 1 ]; then
+      echo "[dry-run] dist/: el release real ABORTARÍA; hay archivos ajenos: ${foreign[*]}" >&2
+    else
+      echo "ERROR: dist/ tiene archivos que no son de List Buddy; no borro nada. Movelos o borralos vos:" >&2
+      printf '  %s\n' "${foreign[@]}" >&2
+      return 1
+    fi
+  fi
+  [ "${#ours[@]}" -gt 0 ] || return 0
+  if [ "${DRY_RUN:-0}" = 1 ]; then
+    echo "[dry-run] limpiaría de dist/: ${ours[*]}"
+  else
+    rm -rf "${ours[@]}"
+  fi
+}
+# <<< clean-dist
+
 # plutil -lint no detecta «--» en un comentario XML y codesign aborta: xmllint sí.
 xmllint --noout entitlements.plist
 
@@ -120,6 +155,7 @@ SUMS_SRC="dist/listbuddy-${VERSION}-src.tar.gz.sha256"
 
 if [ "$DRY_RUN" = 1 ]; then
   # Solo prerrequisitos (arriba) y plan: no se buildea, no se firma, no se toca dist/.
+  clean_dist
   echo "[dry-run] versión $VERSION · identidad: $IDENTITY · intérprete: $PY"
   if [ "$SKIP_BUILD" = 1 ]; then
     echo "[dry-run] reusa $APP existente (--skip-build)"
@@ -141,6 +177,7 @@ if [ "$DRY_RUN" = 1 ]; then
   exit 0
 fi
 
+clean_dist
 rm -f "$DMG" "$ZIP" "$SUMS_DMG" "$SRC" "$SUMS_SRC"
 if [ "$SKIP_BUILD" = 0 ]; then
   if [ ! -x .venv-build/bin/python ]; then
