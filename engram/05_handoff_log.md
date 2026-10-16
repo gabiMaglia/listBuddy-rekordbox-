@@ -3,6 +3,10 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-15 23:30] QA T-096 APROBADO (intento 2) · QA T-097 RECHAZADO → nerv-desktop (intento 2, X)
+- T-097 S RECHAZADO con 5 defectos (secrets en PR del mismo repo, tarball duplicado entre patas, bug de expansión en Resumen, test que asserta texto fuente, cifra sin fuente). No es simple → handoff a nerv-desktop en worktree `fix/t097-qa1` desde `release/1.0.0-rc2` (release_mac.sh ya fusionado con T-096). Nivel X para la re-QA.
+- Quien retoma: nerv-desktop → nerv-orquestador → nerv-qa.
+
 ### [2026-10-15 23:05] QA T-095 APROBADO · T-092 APROBADO (intento 2) · T-096 RECHAZADO → fix → re-QA (X)
 - T-095 S APROBADO 10/10 (deudas D-29/D-30). T-092 X APROBADO 3/3. T-096 S RECHAZADO: D1 sin test para 3.14.10 en `version_ge` (mutación `sort -V`→`sort` sobrevive). Fix del Orquestador (simple, autorizado por el PO): caso `("3.14.10", {})` en la parametrización; rojo con la mutación, verde sin ella.
 - Re-QA T-096 nivel X (2º intento). T-094 en QA. Falta T-097 y los nerv-verifier.
