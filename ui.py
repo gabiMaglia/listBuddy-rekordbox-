@@ -242,7 +242,14 @@ class MainWindow(QMainWindow):
         self._all_cards: list[PlaylistCard] = []
         self._groups: list[PlaylistGroup] = []
         self._source: str = "rekordbox"  # "rekordbox" | "traktor"
-        self._preview_worker: PreviewWorker | None = None
+        self._preview_worker: PreviewWorker | None = None   # el último lanzado
+        self._preview_workers: list[PreviewWorker] = []      # T-106: uno por lote de extracción
+        # T-106 (TEC-23): trabajo por lotes con presupuesto de tiempo por tick del event loop.
+        self._mark_queue: list[PlaylistCard] = []            # «Marcar todas» pendiente
+        self._mark_value = True
+        self._feed_queue: list[PlaylistCard] = []            # tarjetas por extraer para la previa
+        self._feed_order: dict[PlaylistCard, int] = {}
+        self._feed_folders: dict[PlaylistCard, str] = {}
         self._relocate_worker: RelocateWorker | None = None
         self._relocate_source: str = "rekordbox"  # fuente activa al arrancar el relocate en curso
         # I-1: progreso conocido del relocate en curso (último valor de la
@@ -1379,6 +1386,7 @@ class MainWindow(QMainWindow):
         self._no_results.setVisible(active and none_visible)
 
     def _clear_playlist_area(self) -> None:
+        self._mark_queue.clear()
         self._all_cards.clear()
         self._groups.clear()
         layout = self.playlist_container_layout
@@ -1452,7 +1460,9 @@ class MainWindow(QMainWindow):
 
     # ──────────────────────────────────────── Order tracking ─────────────
 
-    def _on_card_toggled(self, _card: PlaylistCard) -> None:
+    def _on_card_toggled(self, card: PlaylistCard) -> None:
+        if card in self._mark_queue:
+            self._mark_queue.remove(card)   # el usuario decidió esta: el lote no la pisa
         self._update_order_numbers()
 
     def _update_order_numbers(self) -> None:
@@ -1563,15 +1573,19 @@ class MainWindow(QMainWindow):
                     w.deleteLater()
 
     def _cancel_preview_worker(self) -> None:
-        worker = self._preview_worker
-        if worker is not None and worker.isRunning():
-            worker.group_ready.disconnect()
-            worker.done.disconnect()
-            worker.cancel()
-            worker.requestInterruption()
-            # No se espera: el hilo viejo termina solo (puede estar en un stat
-            # lento) y mientras tanto queda retenido, nunca destruido en vuelo.
-            self._retain_thread(worker)
+        self._feed_queue = []   # lo que no se alcanzó a extraer se vuelve a pedir
+        workers, self._preview_workers = self._preview_workers, []
+        if self._preview_worker is not None and self._preview_worker not in workers:
+            workers.append(self._preview_worker)
+        for worker in workers:
+            if worker.isRunning():
+                worker.group_ready.disconnect()
+                worker.done.disconnect()
+                worker.cancel()
+                worker.requestInterruption()
+                # No se espera: el hilo viejo termina solo (puede estar en un stat
+                # lento) y mientras tanto queda retenido, nunca destruido en vuelo.
+                self._retain_thread(worker)
 
     def _retain_thread(self, thread: QThread) -> None:
         """Mantiene vivo el wrapper de un hilo hasta su `finished` real.
@@ -1604,22 +1618,54 @@ class MainWindow(QMainWindow):
         self.preview_layout.addStretch(1)
         self._animate_fade_in(loading, duration=120)
 
-        # ── Extracción de metadata en el main thread (rápido: sólo queries a DB) ──
-        groups = self._extract_preview_data(selected)
-        self._name_groups_like_folders(groups)
-        self._launch_preview_worker(groups)
+        self._feed_preview(selected, {c: i for i, c in enumerate(selected, start=1)},
+                           self._folder_names_of(selected))
+
+    def _feed_preview(
+        self, cards: list[PlaylistCard], order: dict[PlaylistCard, int],
+        folders: dict[PlaylistCard, str],
+    ) -> None:
+        """T-106: extrae la metadata en el hilo de UI pero por lotes (≈25 ms por tick) y lanza un
+        `PreviewWorker` por lote, así las tarjetas empiezan a aparecer y la ventana responde."""
+        self._render_queue.clear()
+        self._feed_queue = list(cards)
+        self._feed_order = order
+        self._feed_folders = folders
+        self._pump_feed()
+
+    def _pump_feed(self) -> None:
+        queue = self._feed_queue
+        if not queue:
+            return
+        if not isValid(self.preview_layout):
+            queue.clear()
+            return
+        deadline = time.perf_counter() + self._BATCH_BUDGET_S
+        groups: list[GroupData] = []
+        while queue and (not groups or time.perf_counter() < deadline):
+            chunk = queue[:4]
+            del queue[:4]
+            groups.extend(self._extract_preview_data(chunk))
+        for g in groups:
+            g.order = self._feed_order.get(g.card, g.order)
+            g.name = self._feed_folders.get(g.card, g.name)
+        self._start_group_worker(groups)
+        if queue:
+            QTimer.singleShot(0, self._pump_feed)
 
     def _launch_preview_worker(self, groups: list[GroupData]) -> None:
-        # ── Worker: existence checks en background con cache compartido ──
         self._render_queue.clear()
-        self._preview_worker = PreviewWorker(
-            groups,
-            self._source == "traktor",
-            self._exists_cache,
-        )
-        self._preview_worker.group_ready.connect(self._queue_group)
-        self._preview_worker.done.connect(self._on_preview_done)
-        self._preview_worker.start()
+        self._start_group_worker(groups)
+
+    def _start_group_worker(self, groups: list[GroupData]) -> None:
+        # ── Worker: existence checks en background con cache compartido ──
+        worker = PreviewWorker(groups, self._source == "traktor", self._exists_cache)
+        worker.group_ready.connect(self._queue_group)
+        worker.done.connect(self._on_preview_done)
+        self._preview_workers = [w for w in self._preview_workers if w.isRunning()]
+        self._preview_workers.append(worker)
+        self._preview_worker = worker
+        worker.start()
 
     def _sync_preview_cards(self, selected: list[PlaylistCard]) -> None:
         """Tildar/destildar con la vista previa ya armada (T-089): quita las tarjetas de las
@@ -1638,11 +1684,7 @@ class MainWindow(QMainWindow):
         new = [c for c in selected if c not in self._preview_cards]
         if not new:
             return
-        groups = self._extract_preview_data(new)
-        self._name_groups_like_folders(groups)
-        for group in groups:
-            group.order = selected.index(group.card) + 1
-        self._launch_preview_worker(groups)
+        self._feed_preview(new, {c: i for i, c in enumerate(selected, start=1)}, folders)
 
     def _remove_preview_card(self, key: object) -> None:
         card = self._preview_cards.pop(key)
@@ -1819,12 +1861,17 @@ class MainWindow(QMainWindow):
         lo.addStretch(1)
         self._animate_fade_in(card, duration=180)
 
+        # T-106: armazón en este tick y filas en el siguiente, así ningún tick junta ambos costos.
+        QTimer.singleShot(0, partial(self._finish_group_rows, data, card))
+
+    def _finish_group_rows(self, data: GroupData, card: PreviewGroupCard) -> None:
         # Filas perezosas (T-089): la tarjeta construye ~12 y el resto al scrollear. Una carpeta
         # 100 % rota nace colapsada y no crea sus filas hasta que se expande (D4).
-        positions = block_positions([t.exists for t in data.tracks])
-        card.set_lazy_rows(list(zip(data.tracks, positions)), self._make_row_widget,
-                           data.missing_count > 0)
-
+        key = data.card if data.card is not None else card
+        if isValid(card) and self._preview_cards.get(key) is card:
+            positions = block_positions([t.exists for t in data.tracks])
+            card.set_lazy_rows(list(zip(data.tracks, positions)), self._make_row_widget,
+                               data.missing_count > 0)
         # Continuar con el siguiente grupo en el próximo tick
         if self._render_queue:
             QTimer.singleShot(0, self._pump_render_queue)
@@ -2259,17 +2306,38 @@ class MainWindow(QMainWindow):
         if text.strip():
             self.settings.setValue("last_dest_folder", text.strip())
 
+    # Presupuesto de trabajo por tick: deja pasar el input y el repintado (TEC-23, ≤ 100 ms).
+    _BATCH_BUDGET_S = 0.025
+
     def _set_all(self, checked: bool, only_visible: bool = False) -> None:
-        for card in self._all_cards:
-            if only_visible and card.isHidden():
-                continue
-            card.setChecked(checked)
+        """Marca/desmarca en lotes: con cientos de playlists un solo bucle congelaba la ventana.
+        El primer lote corre acá mismo, así que las listas chicas quedan listas al volver."""
+        self._mark_queue = [c for c in self._all_cards if not (only_visible and c.isHidden())]
+        self._mark_value = checked
+        self._pump_mark()
+
+    def _pump_mark(self) -> None:
+        queue = self._mark_queue
+        if not queue or not isValid(self.playlist_container_layout):
+            return
+        deadline = time.perf_counter() + self._BATCH_BUDGET_S
+        done = 0
+        for card in queue:
+            card.setChecked(self._mark_value)
+            done += 1
+            if time.perf_counter() >= deadline:
+                break
+        del queue[:done]
         self._update_order_numbers()
+        if queue:
+            QTimer.singleShot(0, self._pump_mark)
 
     def _close_group_card(self, card: PlaylistCard) -> None:
         """T-015: botón de cerrar del header de un grupo en el preview — destilda
         el checkbox real de esa playlist en el árbol izquierdo (mismo efecto
         que destildarla ahí a mano)."""
+        if card in self._mark_queue:
+            self._mark_queue.remove(card)
         card.setChecked(False)
         self._update_order_numbers()
 
