@@ -90,15 +90,15 @@ def test_disclaimer_version_bumped_so_notice_shows_again() -> None:
     assert version != "2026-10-15"
 
 
-def test_third_party_notices_ffmpeg_exact_version_and_qt_pdf_license() -> None:
+def test_third_party_notices_ffmpeg_exact_version_and_no_qt_pdf_row() -> None:
     notices = _read("THIRD_PARTY_NOTICES.md")
     # La versión exacta la fija el bump de PySide6 (T-091); acá solo se exige
     # que sea x.y.z y que no quede la forma truncada «7.1».
     assert re.search(r"^\| FFmpeg \(libavcodec[^|]*\| \d+\.\d+\.\d+ \|", notices, re.M)
     assert re.search(r"^- FFmpeg \d+\.\d+\.\d+: <https://ffmpeg\.org/releases/>", notices, re.M)
     assert "FFmpeg 7.1:" not in notices and "| 7.1 |" not in notices
-    row = next(r for r in notices.splitlines() if r.startswith("| Qt PDF"))
-    assert "LGPL-3.0" in row
+    # T-096: Qt PDF salió del bundle, así que su fila ya no debe figurar.
+    assert not any(r.startswith("| Qt PDF") for r in notices.splitlines())
 
 
 def test_trademark_attribution_in_about_and_readme() -> None:

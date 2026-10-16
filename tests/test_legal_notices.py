@@ -4,14 +4,15 @@ from __future__ import annotations
 import re
 
 from _qt_isolated import PROJECT_ROOT, run_isolated
+from _reqs import pinned
 from _window_boot import BOOT
 
 _NOTICES = (PROJECT_ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
 _SPEC = (PROJECT_ROOT / "rb_exporter.spec").read_text(encoding="utf-8")
-_REQS = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+_REQS = pinned(PROJECT_ROOT / "requirements.txt")
 
 # Las tres ruedas de PySide6 y shiboken6 van juntas en una sola fila «Qt for Python».
-_SAME_ROW_AS_PYSIDE6 = {"PySide6_Essentials", "PySide6_Addons", "shiboken6"}
+_SAME_ROW_AS_PYSIDE6 = {"pyside6-essentials", "pyside6-addons", "shiboken6"}
 
 
 def test_license_file_has_full_gpl3_text() -> None:
@@ -44,13 +45,10 @@ def test_no_license_file_left_out_of_notices() -> None:
 
 def test_notices_list_each_pinned_requirement_with_its_version() -> None:
     stale = []
-    for line in _REQS:
-        if "==" not in line:
-            continue
-        name, version = line.strip().split("==")
+    for name, version in _REQS.items():
         if name in _SAME_ROW_AS_PYSIDE6:
-            name = "PySide6"
-        row = next((r for r in _NOTICES.splitlines() if r.startswith("|") and name in r), "")
+            name = "pyside6"
+        row = next((r for r in _NOTICES.splitlines() if r.startswith("|") and name in r.lower()), "")
         if version not in row:
             stale.append(f"{name}=={version}")
     assert stale == []
@@ -103,5 +101,6 @@ def test_notices_cover_native_libraries_shipped_in_the_bundle() -> None:
         assert lib in _NOTICES, lib
     for marker in ("Licenses and Acknowledgements for Incorporated Software", "expat", "libmpdec", "Zstandard"):
         assert marker in python_txt, marker
-    assert "Qt Virtual Keyboard" in _NOTICES and "GPL-3.0" in _NOTICES
-    assert "Qt PDF" in _NOTICES and "PDFium" in _NOTICES
+    # T-096: el bundle ya no lleva QtVirtualKeyboard (GPL-3.0) ni QtPdf; los avisos no los listan.
+    assert "Qt Virtual Keyboard" not in _NOTICES
+    assert "Qt PDF" not in _NOTICES and "PDFium" not in _NOTICES
