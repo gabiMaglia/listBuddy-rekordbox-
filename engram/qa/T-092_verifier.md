@@ -12,7 +12,7 @@ Criterios: fila T-092 en `engram/03_backlog.md:70` + `engram/plans/T-092.md` (QU
 | TEC-16 | qrcode real | `requirements.in:10`, `requirements.txt:101-104` (hash `16e64e07…` = sha256 del wheel `qrcode-8.2-py3-none-any.whl` que bajé de PyPI), `rb_exporter.spec:48`, `ui.py:194-214` (`get_matrix`+QImage, sin Pillow), `THIRD_PARTY_NOTICES.md:25`, `tests/test_donation_qr.py:9-30` (en verde). **En Windows no se puede instalar: ver D1.** | CUMPLE en macOS; FALLA en Windows (D1) |
 | TEC-11/APP-19 | build_windows.ps1 one-dir | `scripts/build_windows.ps1:53-57` coincide con `rb_exporter.spec:148-183` (EXE `exclude_binaries=True` + COLLECT `name='listBuddy'`); `:43` pinea `pyinstaller==6.20.0`; `tests/test_release_scripts.py:117-127`. **Pero `:42` falla en Windows (D1).** | FALLA (D1) |
 | APP-18 | doc UPX | `CLAUDE.md:216` («UPX está deshabilitado»), spec `upx=False` en `:92,110,158,176`; `tests/test_release_scripts.py:130-134` | CUMPLE |
-| SEC-12 | sin rutas personales | `git grep -I -c "Users/gabrielsk"` ⇒ rc=1 (vacío) en rc2; `tests/test_no_personal_paths.py:9-15` | CUMPLE |
+| SEC-12 | sin rutas personales | `git grep -I -c "<HOME>"` ⇒ rc=1 (vacío) en rc2; `tests/test_no_personal_paths.py:9-15` | CUMPLE |
 | SEC-10 | URL del release validada | `update_checker.py:49-69` (`safe_release_url`), `:176` (primera barrera, en el worker), `ui.py:2960-2964` (segunda barrera: revalida al hacer click, así que un `_update_url` que cambie después de validado no se abre); `tests/test_update_link_barrier.py:23-42`, `tests/test_update_checker.py:139-161`. Mutación (quitar el chequeo de `..`) ⇒ rojo. **Se pasa con segmentos `..` codificados (D2).** | CUMPLE el esquema y el host; el chequeo de path es incompleto (D2) |
 | LEG-15 | «Buscar actualizaciones al iniciar» | `ui.py:319` (default True), `ui.py:1069-1078` (checkbox en PRIVACIDAD), `ui.py:1183-1185` (persiste), `ui.py:2950-2951` (`_start_update_check` lo respeta); `tests/test_update_check_option.py:32-52` | CUMPLE |
 
@@ -34,3 +34,57 @@ Criterio 3 de la fila («Suite exit 0»): **me abstengo**. Por instrucción no c
 **Suposiciones marcadas:**
 - El efecto real en Windows de D1 está inferido: reproduje la mecánica de pip con los marcadores win32, no corrí en un Windows real.
 - Que el navegador normaliza `../` está inferido del estándar WHATWG; no abrí un navegador.
+
+## Verificación 2 (2026-10-16)
+
+Árbol juzgado: `release/1.0.0-rc2` @ 67cd9d1 (worktree aparte, detached). El fix bajo juicio es dcf7073. No leí `engram/qa/T-092.md` ni `engram/qa/handoffs/`. Python del `.venv`, cada archivo de tests con `-n 0`; no corrí la suite completa.
+
+### §Criterios
+
+| # | Ítem | Evidencia (archivo:línea abierto) | Resultado |
+|---|---|---|---|
+| D-14 | gate de marcadores | `scripts/release_mac.sh:30` (`DRY_RUN=0`), `:90-101`, `:103-106`. Entre 7416c0f y HEAD el diff de `release_mac.sh` y de `tests/test_release_gate.py` está vacío. `tests/test_release_gate.py` en verde (1 skip con el gate desarmado). Mutación `:99` `exit 1`→`true` ⇒ `test_release_script_aborts_with_markers_and_passes_without` en rojo. Con `LISTBUDDY_RELEASE_GATE=1`, `test_no_pending_po_markers` falla. Es lo correcto: `DISCLAIMER.md` todavía tiene marcadores del PO. | CUMPLE |
+| APP-13 | nota Gatekeeper | `README.md:63-66` | CUMPLE |
+| TEC-16 | qrcode real | `requirements.txt:105-108` (con hash), `rb_exporter.spec:48`, `THIRD_PARTY_NOTICES.md:25`, `licenses/qrcode.txt`. `tests/test_donation_qr.py` en verde. Ahora también se instala en Windows: ver D1 en el pase hostil. | CUMPLE |
+| TEC-11/APP-19 | build_windows.ps1 one-dir | `scripts/build_windows.ps1:53-57` (one-dir). `:39-47`: los 3 `& $pip install` van seguidos de `if ($LASTEXITCODE -ne 0) { …; exit 1 }` en `:40,45,47`. Con `$ErrorActionPreference="Stop"` (`:11`), `Write-Error` ya corta el script, y el `exit 1` queda de respaldo. Los locks se instalan con marcadores win32 (pase hostil). | CUMPLE |
+| APP-18 | doc UPX | `CLAUDE.md:216`, `rb_exporter.spec:92,110,158,176` (`upx=False`) | CUMPLE |
+| SEC-12 | sin rutas personales | **FALLA en HEAD.** `git grep -I -n` de la ruta del home del autor da 1 resultado: `engram/qa/T-092_verifier.md:15`, que es la fila SEC-12 del informe anterior (cita el patrón literal). Ese archivo se versionó en dcf7073. `tests/test_no_personal_paths.py::test_no_tracked_file_contains_personal_home_path` ⇒ FAILED (`returncode 0 != 1`, stdout `engram/qa/T-092_verifier.md`). Ver D3. | FALLA (D3) |
+| SEC-10 | URL del release validada | `update_checker.py:65-75` (`url.strip()`, segmentos crudos más los decodificados con `unquote`, prefijo `/releases`). Primera barrera en el worker: `update_checker.py:182`. Segunda barrera al hacer click: `ui.py:2960-2964`. Tests: `tests/test_update_checker.py:164-177`, `tests/test_update_link_barrier.py`, `tests/test_update_url_run.py`, todos en verde. Mutaciones: quitar `+ unquote(path).split("/")` ⇒ rojo; neutralizar `url != url.strip()` ⇒ rojo. | CUMPLE |
+| LEG-15 | toggle del chequeo | `ui.py:319` (default True), `:1071-1078`, `:1183`. Sin diff desde 7416c0f. `tests/test_update_check_option.py` en verde. | CUMPLE |
+
+Criterio 2 de la fila («cada ítem con test o evidencia»): CUMPLE, 8/8 ítems con test o evidencia, aunque SEC-12 hoy esté en rojo. Criterio 3 («Suite exit 0»): **FALLA** por D3, que es un test de la propia suite en rojo. No necesito correr la suite completa para afirmarlo: con un test rojo ya no puede dar exit 0. Criterio 1: CUMPLE (fila D-14).
+
+### §Pase hostil
+
+- **D1 (resuelto).** `requirements.in:13` agrega `colorama`. Los locks la pinean con hash: `requirements.txt:11-13` y `requirements-dev.txt:11-13`. Simulé el resolver de Windows con `pip install --require-hashes --dry-run --ignore-installed --platform win_amd64 --only-binary=:all: --python-version 3.14`, con los marcadores de pip forzados (`sys_platform=win32`, `platform_system=Windows`, `os_name=nt`):
+  - `requirements.txt` ⇒ rc=0, «Would install PySide6_Addons PySide6_Essentials certifi colorama-0.4.6 numpy qrcode shiboken6».
+  - `requirements-dev.txt` ⇒ rc=0, con colorama, pytest, pytest-xdist, execnet, iniconfig, packaging, pluggy y Pygments.
+  - Control negativo (el mismo lock sin colorama): con win32 ⇒ «ERROR: In --require-hashes mode, all requirements must have their versions pinned». En darwin ⇒ OK. La simulación distingue los dos casos.
+  - Todos los pines tienen wheel win_amd64/cp314 o wheel universal (`--only-binary=:all:` resolvió).
+  - Bajé `colorama-0.4.6-py2.py3-none-any.whl` (wheel universal). Su sha256 `4f1d9991…85fc6` coincide con `requirements.txt:13`. `licenses/colorama.txt` es idéntico al `LICENSE.txt` del wheel (más un encabezado), BSD-3-Clause. `THIRD_PARTY_NOTICES.md:26` y `scripts/collect_licenses.py:28` la registran.
+  - Mutación: borrar el chequeo de `$LASTEXITCODE` del pip con hashes ⇒ `test_windows_lock_has_colorama_and_build_script_stops_on_pip_failure` en rojo.
+- **D2 (resuelto).** Corrí `safe_release_url` con 35 entradas.
+  - Rechaza: `%2e%2e`, `%2E%2E`, `.%2e`, `%2e.`, `%2e`, `%2f..%2f..`, `..%2f..%2f`, `tag%2f..%2f..%2f..`, `listBuddy-rekordbox-%2freleases`, `releases%2f..%2f..`, `x/..%2fgabiMaglia/…`, `\n`/`\t`/`\r`/espacio al final y espacio o `\n` al inicio. También rechaza `.\n.` (urlsplit quita el `\n` y queda `..`).
+  - Acepta, sin riesgo, porque QUrl (`toEncoded`, lo capturé en PySide6) los deja bajo `/releases/`:
+    - `%252e%252e` sale `%252e%252e`: no es un segmento de punto para WHATWG y GitHub decodifica una sola vez.
+    - `v1.0.0%2Brc1` sale igual: el tag legítimo sigue funcionando.
+    - El `\` crudo y `%5c` salen `%5C`: codificado, no separa segmentos.
+    - El `\n` interno sale `%0A`.
+    - Los espacios internos salen `%20`.
+    - `%c0%ae%c0%ae` (UTF-8 overlong) queda literal.
+    - `#x/../..` y `?x=/../..` no forman parte del path.
+  - Las dos barreras llaman a la misma función (`update_checker.py:182`, `ui.py:2962`). No encontré una URL que pase la validación y que el navegador resuelva fuera de `/gabiMaglia/listBuddy-rekordbox-/releases`.
+- **Gate D-14 dry-run vs real**: lo cubre el test con la mutación de `:99` de arriba. La observación anterior (`2>/dev/null || true` si faltan los 4 archivos) sigue igual; no es defecto.
+- **qrcode e hiddenimports**: `rb_exporter.spec:48`. colorama no necesita hiddenimport: el import de qrcode que hace la app no la carga. No lo verifiqué en un bundle de Windows: suposición marcada.
+- Observación (no es defecto): `requirements.in:13` deja `colorama` sin `==`, mientras que el encabezado (`:1`) dice «pins exactos». El lock la fija en 0.4.6, pero un `pip-compile` futuro la puede mover sin que nadie lo decida.
+
+### §Veredicto: REFUTADO
+
+D1 y D2 están resueltos sin regresión funcional. El fix introdujo una regresión en otro criterio:
+
+3. **D3. `engram/qa/T-092_verifier.md:15` (versionado en dcf7073) contiene la ruta personal del home del autor.** Está en la cita literal del comando `git grep` de la fila SEC-12 del informe anterior. Consecuencias: `tests/test_no_personal_paths.py:15` falla en HEAD 67cd9d1 (lo corrí: FAILED, stdout `engram/qa/T-092_verifier.md`), SEC-12 (fila T-092, ítem «SEC-12 rutas `<HOME>` en archivos trackeados») vuelve a fallar y el criterio 3 («Suite exit 0») no se cumple. No lo corrijo (scope). Este apéndice evita el literal a propósito.
+
+**Suposiciones marcadas:**
+- No hay Windows real. D1 se verificó con marcadores forzados y un control negativo, y el corte del `.ps1` leyendo el script.
+- El comportamiento del navegador ante `%5C`/`%252e` está inferido del estándar WHATWG; no abrí un navegador.
+- No verifiqué en un bundle de Windows si colorama queda o no incluida en el bundle.

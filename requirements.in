@@ -10,4 +10,4 @@ certifi==2026.7.22
 qrcode==8.2
 # colorama la exigen qrcode y pytest solo en win32; el lock se compila en macOS y no la traería:
 # se pinea explícita para que `pip install --require-hashes` funcione también en Windows (verifier T-092).
-colorama
+colorama==0.4.6
