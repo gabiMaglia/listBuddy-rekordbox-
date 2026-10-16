@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-15 20:10] Retoma sesión (rekordbox-extractor-e7) — coordinación con la sesión anterior
+- Hallazgo: la sesión anterior (`rekordbox-extractor-ad`) sigue viva con los 6 agentes nerv-desktop de T-092..T-097 commiteando en `feat/t09x` (no quedaron a medias). PO decide: dejarla terminar; esta sesión integra, QA y cierra. Se le pidió por mensaje cross-session no lanzar trabajo nuevo y quedar idle.
+- Lista de pendientes del PO (TEC-05/06/08/09/10/12/16, D-16..D-26, TEC-21) mapeada 1:1 a T-092..T-096 ya aprobados: sin brainstorm nuevo. Altas: T-098 (TEC-20, Windows) y T-099 (TEC-14, 1.1).
+- Próximo paso: al quedar idle la otra sesión → suite por rama → merge en orden T-092 → T-093 → T-095 → T-094 → T-096 → T-097 en `release/1.0.0-audit` → QA por ticket → main → push.
+- Quien retoma: nerv-orquestador.
+
 ### [2026-10-15 19:30] CIERRE DE SESIÓN
 - Hecho hoy: T-086 auditoría pre-release en 4 patas (Apple, seguridad, legal, técnica; informes en engram/audit/) → corte aprobado por el PO → T-087..T-091 implementados en worktrees paralelos, integrados en release/1.0.0-audit, QA formal (T-087 rechazada 1 vez por bit de ejecución, re-aprobada), mergeado a main (4922586). PySide6 6.12/FFmpeg 9.0.1, drop de fps resuelto, aborts, copia atómica, textos legales, release firmable. T-092..T-097 lanzados al cierre (ver _state).
 - Próximo paso: revisar las 6 ramas T-092..T-097 (pueden estar incompletas), completar, integrar, QA, push. PO: cert Developer ID, datos legales, renombrar repo, liberar disco.
