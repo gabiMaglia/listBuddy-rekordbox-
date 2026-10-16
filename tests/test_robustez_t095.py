@@ -219,3 +219,48 @@ def test_pump_render_queue_after_the_window_is_destroyed_is_silent() -> None:
         cold=True,
     )
     assert r.returncode == 0 and "already deleted" not in r.stderr, r.stderr[-1500:]
+
+
+# ── TEC-18 ────────────────────────────────────────────────────────────────
+
+_REFOCUS = (
+    "import tempfile, pathlib\n"
+    "from PySide6.QtCore import QEvent, QEventLoop, QTimer\n"
+    "import rekordbox_xml as rx\n"
+    "from ui_components import PlaylistCard\n"
+    "def pump(ms=700):\n"
+    "    loop = QEventLoop(); QTimer.singleShot(ms, loop.quit); loop.exec()\n"
+    "d = pathlib.Path(tempfile.mkdtemp())\n"
+    "(d / 'a.mp3').write_bytes(b'x')\n"
+    "tracks = [rx.RbxTrack(title=n, artist='A', file_path=d / f'{n}.mp3', TrackNo=i) for i, n in enumerate('ab', 1)]\n"
+    "w, _ = make()\n"
+    "card = PlaylistCard(rx.RbxPlaylist(name='P', ID='p', tracks=tracks), 2, 0)\n"
+    "w._all_cards.append(card); card.setChecked(True)\n"
+    "w._start_preview_worker(); pump()\n"
+    "starts = []\n"
+    "orig = ui.ExistenceRecheckWorker.start\n"
+    "ui.ExistenceRecheckWorker.start = lambda self: (starts.append(1), orig(self))[1]\n"
+    "def activate(): app.sendEvent(w, QEvent(QEvent.Type.WindowActivate))\n"
+)
+
+
+def test_regaining_focus_after_5s_rechecks_files_that_came_back() -> None:
+    out = _win(
+        _REFOCUS +
+        "before = w._broken_total\n"
+        "(d / 'b.mp3').write_bytes(b'x')\n"
+        "w._last_exists_check -= 10\n"
+        "activate(); pump(1500)\n"
+        "print(before, w._broken_total, len(starts))\n"
+    )
+    assert out == "1 0 1"
+
+
+def test_regaining_focus_within_5s_does_not_recheck() -> None:
+    out = _win(
+        _REFOCUS +
+        "(d / 'b.mp3').write_bytes(b'x')\n"
+        "activate(); activate(); pump(500)\n"
+        "print(w._broken_total, len(starts))\n"
+    )
+    assert out == "1 0"
