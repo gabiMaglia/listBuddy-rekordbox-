@@ -40,7 +40,7 @@ def run(code: str) -> str:
 def test_normal_case_advances_to_next_existing_track() -> None:
     out = run(
         "w, _ = make(); fill(w); played = spy_audio(w)\n"
-        "w._playing_path = '/x/0/1.mp3'; w._on_track_finished()\n"
+        "w._playing_path = '/x/0/1.mp3'; w._on_track_finished(); pump(300)\n"
         "print(played)\n"
     )
     assert out == "['/x/0/3.mp3']"
@@ -51,7 +51,7 @@ def test_advance_right_after_theme_switch_is_not_lost() -> None:
         "w, _ = make(); fill(w); played = spy_audio(w)\n"
         "w._playing_path = '/x/0/1.mp3'\n"
         "w._apply_theme('light')\n"
-        "w._on_track_finished()\n"            # sin pump: la vista previa aún no se reconstruyó
+        "w._on_track_finished(); pump(300)\n"            # sin pump: la vista previa aún no se reconstruyó
         "print(played)\n"
     )
     assert out == "['/x/0/3.mp3']"
@@ -62,7 +62,7 @@ def test_advance_in_the_middle_of_the_rerender_is_not_lost() -> None:
         "w, _ = make(); fill(w); played = spy_audio(w)\n"
         "w._playing_path = '/x/0/1.mp3'\n"
         "w._apply_theme('light'); app.processEvents()\n"   # un tick: reconstrucción a medias
-        "w._on_track_finished()\n"
+        "w._on_track_finished(); pump(300)\n"
         "print(played)\n"
     )
     assert out == "['/x/0/3.mp3']"
@@ -72,7 +72,7 @@ def test_advance_crosses_to_the_next_folder_after_theme_switch() -> None:
     out = run(
         "w, _ = make(); fill(w); played = spy_audio(w)\n"
         "w._playing_path = '/x/0/5.mp3'\n"
-        "w._apply_theme('light'); w._on_track_finished()\n"
+        "w._apply_theme('light'); w._on_track_finished(); pump(300)\n"
         "print(played)\n"
     )
     assert out == "['/x/1/0.mp3']"
@@ -82,7 +82,7 @@ def test_last_track_of_the_queue_does_not_advance() -> None:
     out = run(
         "w, _ = make(); fill(w); played = spy_audio(w)\n"
         "w._playing_path = '/x/1/5.mp3'\n"
-        "w._apply_theme('light'); w._on_track_finished()\n"
+        "w._apply_theme('light'); w._on_track_finished(); pump(300)\n"
         "print(played)\n"
     )
     assert out == "[]"
@@ -92,7 +92,7 @@ def test_auto_advance_off_does_nothing_even_after_theme_switch() -> None:
     out = run(
         "w, _ = make(); fill(w); played = spy_audio(w)\n"
         "w._auto_advance = False; w._playing_path = '/x/0/1.mp3'\n"
-        "w._apply_theme('light'); w._on_track_finished()\n"
+        "w._apply_theme('light'); w._on_track_finished(); pump(300)\n"
         "print(played)\n"
     )
     assert out == "[]"
@@ -102,7 +102,7 @@ def test_footer_shows_the_next_track_even_if_its_row_is_not_drawn_yet() -> None:
     out = run(
         "w, _ = make(); fill(w); played = spy_audio(w)\n"
         "w._playing_path = '/x/0/1.mp3'\n"
-        "w._apply_theme('light'); w._on_track_finished()\n"
+        "w._apply_theme('light'); w._on_track_finished(); pump(300)\n"
         "print(w._footer.title_lbl.full_text(), w._footer.artist_lbl.full_text())\n"
     )
     assert out == "T0-3 A0"
@@ -124,7 +124,7 @@ def test_selection_change_empties_the_queue() -> None:
     out = run(
         "w, _ = make(); fill(w); played = spy_audio(w)\n"
         "w._playing_path = '/x/0/1.mp3'\n"
-        "w._clear_preview_layout(); w._on_track_finished()\n"
+        "w._clear_preview_layout(); w._on_track_finished(); pump(300)\n"
         "print(played)\n"
     )
     assert out == "[]"

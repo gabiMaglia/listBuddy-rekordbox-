@@ -66,6 +66,7 @@ from about_dialog import (
     mark_disclaimer_accepted,
 )
 import dialogs
+from audio_formats import NOT_PLAYABLE_MESSAGE, is_playable_audio
 import icons
 from branding import APP_NAME
 from preview_card import (
@@ -74,7 +75,7 @@ from preview_card import (
 from row_blocks import ALL_BROKEN, NONE, block_positions, broken_notice_text, ext_chip_text, format_key_bpm
 from playlist_filter import matches
 from styles import apply_title_tracking, status_style, token
-from worker import ExportWorker, folder_names_by_playlist
+from worker import DestinationCheck, ExportWorker, folder_names_by_playlist
 from ui_components import (
     ClickableLabel,
     WrapLabel,
@@ -86,7 +87,7 @@ from ui_components import (
     RestoreBackupDialog,
     TitleBar,
 )
-from preview_worker import ExistenceRecheckWorker, PreviewWorker, GroupData, TrackRow
+from preview_worker import ExistenceRecheckWorker, PlayResolveWorker, PreviewWorker, GroupData, TrackRow
 from library_load_worker import LibraryLoadResult, LibraryLoadWorker
 from audio_player import AudioPlayer
 from footer import FooterBar
@@ -280,6 +281,8 @@ class MainWindow(QMainWindow):
 
         self._export_state: Literal["idle", "running", "cancelling"] = "idle"
         self._last_export_dest: str = ""
+        self._dest_check: DestinationCheck | None = None
+        self._play_gen = 0
 
         # Cache de metadata de tracks: evita re-queries SQLAlchemy (N+1 problem)
         # key: "<source>:<playlist_name>"  value: list[TrackRow] sin exists flags
@@ -1964,15 +1967,28 @@ class MainWindow(QMainWindow):
             self._audio.toggle()
             return
 
-        if self._source == "traktor":
-            resolved = raw_path if raw_path and Path(raw_path).exists() else None
-        else:
-            from rekordbox_export import resolve_path
-            resolved = resolve_path(raw_path)
-        if not resolved:
-            return
-        resolved = str(resolved)
+        # exists()/resolve_path() pueden tardar en USB o red: se resuelven en un hilo corto y el
+        # último click gana (TEC-15).
+        self._play_gen += 1
+        resolver = PlayResolveWorker(raw_path, self._source == "traktor", self._play_gen)
+        self._retain_thread(resolver)
+        resolver.resolved.connect(
+            lambda gen, path, r=row, raw=raw_path, t=track: self._on_play_resolved(gen, path, r, raw, t)
+        )
+        resolver.start()
 
+    def _on_play_resolved(
+        self, gen: int, resolved: str | None, row: FileRow | None, raw_path: str,
+        track: TrackRow | None,
+    ) -> None:
+        if gen != self._play_gen or not resolved:
+            return
+        if not is_playable_audio(resolved):
+            self._on_audio_error(NOT_PLAYABLE_MESSAGE)   # SEC-18: ni se abre
+            return
+        from shiboken6 import isValid
+        if row is None or not isValid(row):
+            row = self._row_for(raw_path)   # pudo dibujarse mientras se resolvía la ruta
         self._audio.play(resolved)
         self._playing_path = raw_path
 
@@ -2251,9 +2267,17 @@ class MainWindow(QMainWindow):
         if not selected:
             dialogs.warning(self, "Sin selección", "Marcá al menos una playlist.")
             return
-        try:
-            Path(output).mkdir(parents=True, exist_ok=True)
-        except OSError:
+        if self._dest_check is not None:
+            return   # ya se está comprobando el destino de un click anterior
+        check = DestinationCheck(Path(output))
+        self._dest_check = check
+        self._retain_thread(check)
+        check.checked.connect(lambda ok, o=output, s=selected: self._on_dest_checked(o, s, ok))
+        check.start()
+
+    def _on_dest_checked(self, output: str, selected: list, ok: bool) -> None:
+        self._dest_check = None
+        if not ok:
             # Típico: el destino guardado está en un disco que hoy no está montado.
             dialogs.warning(
                 self, "No se puede usar la carpeta de destino",
@@ -2337,8 +2361,8 @@ class MainWindow(QMainWindow):
         self._log(f"\n{'⏹' if status == 'cancelled' else '✓'}  {summary}")
 
         # ── Botón "Abrir en Finder" ───────────────────────────────────────
-        output_path = Path(self._last_export_dest)
-        if copied > 0 and output_path.exists():
+        # El worker ya miró el disco (TEC-31): acá no hay E/S.
+        if copied > 0 and getattr(self._worker, "dest_exists", False):
             self._footer.set_finder_visible(True)
 
         self.log_view.setVisible(False)
