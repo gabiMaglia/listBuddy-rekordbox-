@@ -88,3 +88,20 @@ D1 y D2 están resueltos sin regresión funcional. El fix introdujo una regresi�
 - No hay Windows real. D1 se verificó con marcadores forzados y un control negativo, y el corte del `.ps1` leyendo el script.
 - El comportamiento del navegador ante `%5C`/`%252e` está inferido del estándar WHATWG; no abrí un navegador.
 - No verifiqué en un bundle de Windows si colorama queda o no incluida en el bundle.
+
+### Addendum D3 (2026-10-16), re-verificación sobre 781d3e1
+
+Verificación acotada en un worktree detached sobre 781d3e1. No repetí D1 ni D2.
+
+- **D3 resuelto.**
+  - `git grep -I` de la ruta del home del autor ⇒ rc=1 (vacío).
+  - `tests/test_no_personal_paths.py` con `-n 0` ⇒ 1 passed.
+  - La fila SEC-12 del informe (`:15`) ahora dice `<HOME>`.
+- **Pins exactos.**
+  - `requirements.in:13` ⇒ `colorama==0.4.6`.
+  - En `requirements.in` y `requirements-dev.in`, la única línea que no es comentario y no lleva `==` es `-r requirements.in` (`requirements-dev.in:3`), que es un include.
+  - `git diff 67cd9d1 781d3e1 -- requirements.txt requirements-dev.txt` no tiene líneas de paquete cambiadas: los pins y los hashes siguen iguales.
+- **Sin regresión.** `tests/test_release_scripts.py`, que cambió en el rango, sigue en verde (`-n 0`).
+
+**Veredicto final de la Verificación 2: CONFIRMADO.** D1, D2 y D3 están resueltos. Hay cita para los 8 ítems y para los criterios 1 y 2. Sobre el criterio 3 («Suite exit 0»): el test que estaba en rojo ahora pasa. Me abstengo de afirmar el exit 0 de la suite completa porque no la corrí, por instrucción.
+Suposiciones: las mismas de la Verificación 2 (sin Windows real; comportamiento del navegador según WHATWG).
