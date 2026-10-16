@@ -11,12 +11,14 @@ import contextlib
 import json
 import logging
 import os
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from app_paths import make_private
 
 _log = logging.getLogger("listBuddy")
 _VERSION = 1
+# Flavour de «ruta absoluta» = la del SO en curso; los tests lo cambian para simular Windows.
+_PURE: type[PurePath] = PurePath
 
 
 def fixes_path_for(settings_file: Path) -> Path:
@@ -28,6 +30,12 @@ class FixStore:
         self.path = path
 
     def load(self) -> dict[str, str]:
+        """Lee las reparaciones; descarta entradas inválidas.
+
+        Estricto: solo se aceptan rutas absolutas del SO actual. En Windows una ruta
+        POSIX (`/x/y`) se descarta: el JSON es por máquina (vive en la carpeta de datos
+        del usuario), así que no hace falta interpretar rutas de otro sistema.
+        """
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
         except FileNotFoundError:
@@ -45,7 +53,7 @@ class FixStore:
         for k, v in fixes.items():
             if not isinstance(k, str) or not k:
                 _log.warning("Reparación descartada: clave inválida (%r)", k)
-            elif not isinstance(v, str) or not v or not Path(v).is_absolute():
+            elif not isinstance(v, str) or not v or not _PURE(v).is_absolute():
                 _log.warning("Reparación descartada para %s: se esperaba una ruta absoluta (%s)",
                              k, type(v).__name__)
             else:
