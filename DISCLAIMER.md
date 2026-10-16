@@ -167,10 +167,9 @@ Si hacés una donación desde la pantalla Apoyar, Ko-fi procesa la donación
 según sus propios términos y su política de privacidad; List Buddy no recibe ni
 guarda tus datos de pago.
 
-Si comprás List Buddy, la
-plataforma de pago [A DEFINIR POR EL PO: nombre del merchant of record]
-procesa tus datos de compra como vendedor de la licencia, según su política de
-privacidad; nosotros solo recibimos lo necesario para atender tu reclamo.
+Si comprás List Buddy, Polar Software Inc. (operador de polar.sh) procesa tus
+datos de compra como vendedor de la licencia, según su política de privacidad;
+nosotros solo recibimos lo necesario para atender tu reclamo.
 
 ## 9. Cambios a este aviso
 
@@ -184,8 +183,7 @@ Este aviso se rige por las leyes de la República Argentina. Si sos consumidor,
 también te amparan las normas imperativas del país donde vivís, y cualquier
 reclamo puede presentarse ante los tribunales o autoridades de defensa del
 consumidor de tu domicilio. Para cualquier otro caso, son competentes los
-tribunales ordinarios de la Ciudad Autónoma de Buenos Aires. [A DEFINIR POR EL
-PO: jurisdicción según el domicilio real del autor; la confirma el abogado.]
+tribunales ordinarios de Rosario, Argentina.
 
 ## 9 ter. Edad
 
@@ -195,9 +193,8 @@ requiere edad mínima; no recolecta datos de nadie.
 
 ## 10. Contacto
 
-Vendedor/autor: Gabriel Maglia, [A DEFINIR POR EL PO: CUIT o «Monotributista,
-CUIT …»], [A DEFINIR POR EL PO: domicilio o ciudad], Argentina. Consultas,
-reclamos y devoluciones: [A DEFINIR POR EL PO: email] ·
+Vendedor/autor: Gabriel Maglia, Monotributista, CUIT 20-32758971-8, Rosario,
+Argentina. Consultas, reclamos y devoluciones: gab.maglia@gmail.com ·
 <https://github.com/gabiMaglia/listBuddy-rekordbox-/issues>
 
 ---
