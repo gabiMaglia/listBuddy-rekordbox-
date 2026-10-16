@@ -15,6 +15,7 @@ from io import BytesIO
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Literal
+from xml.etree import ElementTree as ET
 
 from shiboken6 import isValid
 from PySide6.QtCore import (
@@ -2389,6 +2390,14 @@ class MainWindow(QMainWindow):
             )
         except ValueError as e:
             dialogs.warning(self, "No se puede guardar ahí", str(e))
+            return
+        except ET.ParseError as e:
+            # Texto crudo de una pista que no se puede rearmar (p. ej. entidades del DTD).
+            dialogs.critical(
+                self, "No se pudo armar el XML",
+                "Una de las pistas del XML cargado no se pudo reconstruir, así que no se guardó nada.\n\n"
+                f"Volvé a exportar el XML desde Rekordbox y cargalo de nuevo.\n\nDetalle: {e}",
+            )
             return
         except OSError as e:
             dialogs.critical(self, "Error al guardar", f"No se pudo guardar el XML: {e}")
