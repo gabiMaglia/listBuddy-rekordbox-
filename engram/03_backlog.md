@@ -123,6 +123,7 @@
 | T-088 | APROBADO CON DEUDA | — sin defecto bloqueante; 6 ítems con test, sin exit 134 en ventana real, suite exit 0; deudas D-16..D-20 |
 | T-089 | APROBADO | — 3/3 criterios; click 10 medido ≤ 1 s, suite exit 0; deudas D-24/D-25 |
 | T-090 | APROBADO | — 3/3 criterios; deuda D-14 bloquea el tag (no el ticket) |
+| T-092 | RECHAZADO | 1) `ui._open_update_link` (2ª barrera SEC-10) sin test: mutación sobrevive. 2) `git grep` de la ruta personal (`<HOME>`) no vacío en rc2 (engram/qa/T-093.md) → suite ≠ exit 0. Deducidos: `safe_release_url` acepta `%2e%2e` y `\n` finales (host github.com, riesgo bajo); clave `check_updates_on_start` ≠ plan; opción no figura en DISCLAIMER §8 | 2026-10-15 |
 | T-093 | APROBADO | — 3/3 criterios (nivel A, gate PASS); mutaciones TEC-06/SEC-13/TEC-19/aviso ruta larga; Deducidos al PO: corte de grafemas ≈ UAX #29, `_WIN_TOP_DIRS` heurística, aviso >240 por archivo, superíndices ¹²³ como reservados; deuda: límites no verificados en Windows real | 2026-10-15 |
 | T-091 | APROBADO | — 3/3 criterios; PySide6 6.12.0 (FFmpeg 9.0.1), suite exit 0, audio real; deudas D-21..D-23 |
 

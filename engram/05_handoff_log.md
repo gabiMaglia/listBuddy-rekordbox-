@@ -3,6 +3,18 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-15 22:40] QA T-092 RECHAZADO (1/2) → fix del Orquestador → re-QA (intento 2, X)
+- Defectos: D1 `_open_update_link` sin test (mutación sobrevive) · D2 ruta personal en engram/qa/T-093.md rompe la suite en rc2. Ambos simples: el PO autorizó al Orquestador a resolver lo simple («si es simple hacelo vos»).
+- Fix: `tests/test_update_link_barrier.py` (2 tests en subproceso; proof of red: con `url = self._update_url` falla, con `safe_release_url` pasa); rutas personales saneadas a `<HOME>` (`git grep` vacío, test verde).
+- Re-QA T-092 en nivel X (2º intento, P-11): nerv-qa con pase hostil sobre el fix y el resto del ticket.
+- Quien retoma: nerv-orquestador.
+
+### [2026-10-15 22:20] nerv-orquestador → nerv-qa T-092 (S) + T-095 (S)
+- Gate run 3: PASS en T-092/094/095/096/097 (nivel S, plan estampado con ratificación del PO, proof of red OK, suite verde). QA de a dos (lección retro: 5 en paralelo dieron flakiness), worktrees propios sobre `release/1.0.0-rc2`.
+- T-092: revisar también el ajuste de integración del gate D-14 (`--dry-run` avisa, release aborta). T-095: revisar la resolución en worker.py (`_planned_dest` + `_long_path_warning`) y las «Diferencias con el encargo» del handoff.
+- Siguen: T-094 + T-096, luego T-097; después nerv-verifier (P-12) por cada Strong.
+- Quien retoma: nerv-orquestador.
+
 ### [2026-10-15 22:05] nerv-orquestador → nerv-qa T-093 (A)
 - Gate PASS (A, 339 líneas, proof of red OK, suite verde). QA en worktree propio sobre `release/1.0.0-rc2`; diff `main...feat/t093-nombres` (7 archivos). Entregable `engram/qa/T-093.md` (§Plan · §GAP · §Casos · §Defectos).
 - Pendiente: gate run 3 de T-092/094/095/096/097 (plan OK; handoffs con índice P-1) → QA Strong de a dos, luego nerv-verifier.
