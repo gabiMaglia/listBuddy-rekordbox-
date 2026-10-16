@@ -12,6 +12,7 @@
 #   Verificar en runtime: "qt.multimedia.ffmpeg: Using Qt multimedia with FFmpeg ..."
 
 import re
+import ssl
 import sys
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files
@@ -25,6 +26,12 @@ APP_VERSION = re.search(r'^_APP_VERSION = "([^"]+)"', Path('ui.py').read_text(en
 # cacert.pem de certifi: sin él el chequeo de updates falla el SSL en el bundle.
 certifi_datas = collect_data_files('certifi')
 
+# LEG-24: el OpenSSL que viaja es el del Python que corre PyInstaller; se anota su
+# versión real en el bundle en vez de fijarla a mano en los avisos.
+openssl_version_file = Path('build') / 'openssl-version.txt'
+openssl_version_file.parent.mkdir(exist_ok=True)
+openssl_version_file.write_text(ssl.OPENSSL_VERSION + '\n', encoding='utf-8')
+
 a = Analysis(
     ['main.py'],
     pathex=['.'],
@@ -34,6 +41,7 @@ a = Analysis(
     datas=certifi_datas + [
         ('qss', 'qss'), ('fonts', 'fonts'),
         ('LICENSE', '.'), ('THIRD_PARTY_NOTICES.md', '.'), ('DISCLAIMER.md', '.'), ('licenses', 'licenses'),
+        (str(openssl_version_file), 'licenses'),
     ],
     # Nota: los módulos locales (traktor_relocate, traktor_db, worker,
     # preview_worker, etc.) NO van acá: se importan de forma estática desde

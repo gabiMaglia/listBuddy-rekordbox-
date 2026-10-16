@@ -1,2 +1,3 @@
 # El tarball de fuentes (scripts/release_mac.sh) no lleva la carpeta de gestión.
 engram/ export-ignore
+listBuddy_design/ export-ignore

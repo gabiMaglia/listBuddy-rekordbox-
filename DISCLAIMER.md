@@ -1,6 +1,6 @@
 # Aviso legal y descargo de responsabilidad — List Buddy
 
-Versión del aviso: 2026-10-16.1
+Versión del aviso: 2026-10-16.2
 
 Este aviso explica qué hace List Buddy con tus archivos, qué garantías tenés y
 cuáles no, y cómo reclamar. Complementa las secciones 15 («Disclaimer of
@@ -85,9 +85,15 @@ República Argentina, la Ley 24.240) cuando correspondan.
 
 Si compraste List Buddy, tenés derecho a que haga lo que dice esta
 documentación (sección 2 y README) en los sistemas indicados (macOS 14.4 o
-posterior; Rekordbox 6 o 7 por su XML exportado; Traktor Pro 3 o 4). Si no
-funciona como se describe, avisanos y lo corregimos, te damos una versión
+posterior; Windows 10 u 11 de 64 bits; Rekordbox 6 o 7 por su XML exportado;
+Traktor Pro 3 o 4). Si no funciona como se describe, avisanos y lo corregimos, te damos una versión
 equivalente o te devolvemos el dinero, a tu elección, según la ley de tu país.
+
+El ejecutable de Windows, cuando se publique, se distribuye **sin firma de
+código**: Windows puede
+mostrar el aviso de SmartScreen al abrirlo por primera vez. Para verificar que
+lo que descargaste es el archivo publicado, comparalo con el `.sha256` que se
+publica junto a cada descarga, igual que en macOS.
 
 Además, podés **revocar la compra sin dar motivos dentro de los 14 días
 corridos** desde que la hiciste (en Argentina, el plazo legal mínimo es de 10
@@ -110,6 +116,8 @@ modifica, descompila ni usa componentes de esos programas. Sus programas y
 formatos pueden cambiar en cualquier actualización y dejar de funcionar con
 List Buddy sin aviso. Cualquier uso de esos programas se rige por sus propias
 licencias, que vos aceptaste con ellos.
+«QR Code» es marca registrada de DENSO WAVE INCORPORATED; List Buddy usa el
+símbolo solo para mostrar el código de la pantalla Apoyar.
 
 ## 7. Tu música y tus derechos
 
@@ -137,11 +145,27 @@ Todo lo que List Buddy guarda queda solo en tu equipo:
   de tus librerías y de tu destino. Vive en la carpeta de datos de List Buddy:
   `~/Library/Application Support/listBuddy` en macOS y `%APPDATA%\listBuddy`
   en Windows.
+- **`rekordbox_fixes.json`** (reparaciones de Rekordbox): guarda, por cada
+  enlace que reparaste, la **ruta real de tu música** en tu disco. Vive en la
+  misma carpeta de datos que `settings.ini`.
+- **`listBuddy_backups/`** (copias del NML de Traktor): se crea **junto a tu
+  `collection.nml`**, no en la carpeta de datos, y guarda copias completas de
+  tu colección (retención de 10 copias; las más viejas se borran). Esas copias
+  tienen las rutas de toda tu música: tenelo en cuenta si compartís o
+  sincronizás esa carpeta.
 
-Para borrarlos, cerrá List Buddy y borrá `listBuddy.log` (o la carpeta de logs)
-y la carpeta de datos (o solo `settings.ini`). Se vuelven a crear vacíos la
-próxima vez que abras la app. En macOS y Linux estos archivos se crean legibles
-solo por tu usuario.
+Para borrarlos, cerrá List Buddy y borrá `listBuddy.log` (o la carpeta de logs),
+la carpeta de datos (o solo `settings.ini` y `rekordbox_fixes.json`) y, si
+querés, la carpeta `listBuddy_backups/`. Los archivos de logs y de datos se
+vuelven a crear vacíos la próxima vez que abras la app. En macOS y Linux el
+log, `settings.ini`, `rekordbox_fixes.json` y las carpetas de datos y de logs
+quedan accesibles solo por tu usuario; `listBuddy_backups/` hereda los
+permisos de la carpeta de tu colección. En Windows se apoyan en los permisos
+de tu perfil de usuario.
+
+Si hacés una donación desde la pantalla Apoyar, Ko-fi procesa la donación
+según sus propios términos y su política de privacidad; List Buddy no recibe ni
+guarda tus datos de pago.
 
 Si comprás List Buddy, la
 plataforma de pago [A DEFINIR POR EL PO: nombre del merchant of record]
