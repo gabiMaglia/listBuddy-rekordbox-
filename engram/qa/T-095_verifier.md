@@ -41,3 +41,45 @@ Criterios con cita: 13/13. Abstenciones: ninguna sobre criterios.
 2. **D-21 — regresión: tras un archivo que no abre, la UI no se entera de que vuelve a sonar.** `audio_player.py:100-101` suprime el `False` durante `play()` y `_last_playing` (l.102-103) queda en `True` aunque el reproductor terminó en `StoppedState`. `ui._on_audio_error` pone `_is_playing = False` (`ui.py:2061-2064`); al reproducir la pista siguiente el estado pasa a `Playing`, igual a `_last_playing`, y no se emite nada. Sonda P3 (AudioPlayer): rama `[True]` vs main `[True, False]` y luego main emite `True` y la rama no emite nada. Sonda P6 (ventana real): rama `_is_playing=False`, glifo `note` con `PlayingState`; con `main:audio_player.py` en el mismo árbol: `True`, `pause`. Viola plan QUÉ 8 (debe emitir los cambios reales) y la regla del backlog «Cada ítem con test» no cubre el camino de error (`tests/test_robustez_t095.py:182` solo prueba archivos válidos).
 
 Suposiciones marcadas: ninguna afirmación de esta verificación queda sin cita o sin comando. El comportamiento de Rekordbox/Traktor real no se probó (solo dobles `rekordbox_xml.RbxPlaylist`/`RbxTrack`).
+
+## Verificación 2 (2026-10-16)
+
+Árbol juzgado: `release/1.0.0-rc2` @ 0a1ef77 (worktree aislado `scratchpad/ver-T-095b`, ya retirado). Fix bajo examen: `bfa3147` (V1/D-17) y `23c9dbf` (V2/D-21). No se leyó `engram/qa/T-095.md` ni handoffs.
+Evidencia de ejecución: `pytest -n 0 tests/test_robustez_t095.py tests/test_thread_lifecycle.py` → 21 passed. Sondas (vía `run_isolated`, subproceso Qt) en `scratchpad/probes/v1.py`, `v2.py`, `perf.py`. Mutaciones revertidas (`git status` limpio al final).
+
+### §Criterios
+
+| # | Criterio | Veredicto | Cita |
+|---|---|---|---|
+| 1 | TEC-08 estimación descuenta lo completo en destino | Cumple | `worker.py:454-466` (`_is_complete_copy(_planned_dest(...))` l.466); test `tests/test_robustez_t095.py:23` |
+| 2 | TEC-09 `setMaximumBlockCount(5000)` | Cumple | `ui.py:988`; test `tests/test_robustez_t095.py:38` |
+| 3 | TEC-10 fallo de lectura logueado + visible, sin cachear vacío | Cumple | export `worker.py:198-200`, `worker.py:213-216`, `worker.py:425-433`; previa `ui.py:1741-1747`, `ui.py:2344`; tests `:49`, `:61` |
+| 4 | D-16 cierre espera sin tope con cursor + aviso | Cumple | `ui.py:2177-2189` (`while not worker.wait(50)` l.2185, `setOverrideCursor` l.2183); test `:80` |
+| 5 | D-17 previa muestra el nombre real de carpeta | **Cumple (V1 resuelto)** | Regla única: `worker.py:395-401` (`_folder_names_for_readable`, solo playlists con pistas) usada por el export `worker.py:222` y por la previa vía `worker.py:404-408` → `ui.py:1669-1674`, aplicada en `ui.py:1663-1667` y `ui.py:1621-1625`; test `tests/test_robustez_t095.py:130` (rojo con la mutación que hace consumir nombre a las vacías) |
+| 6 | D-18 solo borra `.part` propios | Cumple | `worker.py:175-185`, `worker.py:271`, `worker.py:443`; test `:160` |
+| 7 | D-20 `WaveformWorker` sale ante error del decoder / cancel | Cumple | `waveform_worker.py:136-150`; tests `:180`, `:195` |
+| 8 | D-21 `playing_changed` solo cambios reales | **Cumple (V2 resuelto)** | `audio_player.py:98-104` (sin rebote al cambiar de pista) + `audio_player.py:106-112` (error resetea `_last_playing` y emite `False` solo si estaba en `True`); tests `:210`, `:233`, `:259` (los dos últimos rojos con la mutación `if self._last_playing:`→`if False:`) |
+| 9 | D-22 `_pump_render_queue` tolera layout destruido | Cumple | `ui.py:1768-1775` (`isValid(self.preview_layout)`); test `:289` |
+| 10 | TEC-18 re-chequeo al recuperar foco (>5 s, throttling) | Cumple | `ui.py:2143-2175` (`_RECHECK_EVERY_S` l.2143, throttle l.2154); tests `:329`, `:341` |
+| D1 | `ExportWorker.run()` no toca widgets | Cumple | `worker.py:198-200` emite señal `log` |
+| D2 | `total_songs` fijo antes del loop | Cumple | `worker.py:218-219`, calculado antes del chequeo de espacio y del loop |
+| D3 | Cada ítem con test (backlog l.73) | Cumple | tests citados en cada fila |
+
+Criterios con cita: 13/13. Abstenciones sobre criterios: ninguna.
+
+### §Pase hostil
+
+1. **V1 sonda original** («Mix» ilegible + «Mix» legible): títulos de previa `['01 Mix', '02 Mix']`, export crea `['Mix']`. La legible se nombra «Mix» en ambos. Resuelto.
+2. **V1, dos ilegibles homónimas + una legible:** previa `['01 Mix', '02 Mix', '03 Mix']`, export `['Mix']`. La legible = «Mix». Resuelto.
+3. **V1, playlist vacía (0 pistas) + homónima legible:** previa `['01 Mix', '02 Mix']`, export `['Mix']`. Resuelto (`worker.py:406` filtra `if songs`).
+4. **V1, mezcla y casefold:** `[Mix, Rota Mix, mix]` → previa `03 mix (2)`, export `['Mix', 'mix (2)']`; `[Mix, vacía Mix, Mix, «Mix (2)»]` → previa `Mix`, `Mix (2)`, `Mix (2) (2)` = export. Al destildar/volver a tildar la primera (camino incremental `ui.py:1614-1635`) los nombres se recalculan bien (`02 mix` → `03 mix (2)`). Sin regresión.
+5. **V2 sonda original** (válido → roto → válido): `playing_changed` `[True, False, True]`, `is_playing()` True; en ventana real el test `:259` da glifo `pause`. Resuelto.
+6. **V2 variantes:** roto primero → válido: `[True]`. Roto → roto → válido: `[True, False, True]` (el segundo error no reemite, `_last_playing` ya False). Stop → roto → válido: `[True, False, True]` (el error no emite un `False` duplicado). Roto e inmediatamente válido sin bombear eventos: `[True]`, sin error (la fuente cambió antes). Válido → válido → válido: `[True]`, **sin parpadeo** True/False/True.
+7. **V2 error síncrono dentro de `play()`:** en 4 corridas `errorOccurred` llegó siempre fuera de `play()` (`_switching` False al recibirlo). El código no depende de `_switching` en `_on_error` (`audio_player.py:106-112`), así que un error síncrono seguiría reseteando. Me abstengo de afirmar empíricamente que el backend FFmpeg nunca lo emite síncrono.
+8. **V2 error en mitad de reproducción:** no logré provocarlo con un archivo real (truncar el wav mientras suena no produjo error, FFmpeg ya tenía el buffer). Con error inyectado (`_on_error(ResourceError)`) mientras el player sigue en `PlayingState`: `[True, False]`, y luego pausa/reanuda → `True`. Coherente. Me abstengo sobre el comportamiento real del backend en ese caso.
+9. **Presupuesto T-089** (click 10 con 10×200 ≤ 1 s, `engram/03_backlog.md:68`): `_start_preview_worker` en el click 10 = 0,006 s (Rekordbox, `RbxPlaylist`) y 0,019 s (Traktor, `TraktorPlaylist`); `folder_names_by_playlist` sobre 10×200 = 0,3 ms / 6,2 ms. La lectura extra en el hilo de UI no rompe el presupuesto.
+10. **Observaciones al PO (Deducidas, no defectos; ningún criterio las cubre):** (a) una playlist ilegible o vacía conserva en la previa su tarjeta con el nombre crudo (`ui.py:1625`, `ui.py:1667` `folders.get(..., g.name)`), así que el usuario ve dos tarjetas «Mix» aunque el export cree una sola carpeta; (b) `folder_names_by_playlist` llama `_get_songs_list` sin `on_error` (`worker.py:406`), que registra `_log.exception("Export: no se pudo leer…")` (`worker.py:430`) en cada toggle de la previa: ruido en el log con la etiqueta «Export» aunque nadie exporte; (c) las notas no contadas de la verificación 1 (`.part` huérfano de otra numeración, pre-loop no interrumpible, TEC-18 pierde scroll) siguen igual.
+
+### §Veredicto: CONFIRMADO
+
+Sin defectos. V1 (D-17) y V2 (D-21) resueltos con tests que discriminan (mutación de cada fix → rojo). Sin regresión en el cambio entre pistas válidas ni en el presupuesto de T-089. Suposiciones marcadas: ninguna afirmación sobre correctitud queda sin cita o sin comando; abstenciones solo sobre el comportamiento empírico del backend FFmpeg (error síncrono y error en mitad de reproducción, puntos 7-8), cubiertos por lectura de código.
