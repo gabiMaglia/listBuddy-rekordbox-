@@ -160,26 +160,35 @@ fi
 
 scripts/check_bundle.sh "$APP"
 
-# Mínimo real del bundle vs. lo declarado en Info.plist (T-086 APP-05).
+# >>> minos-check
+# Mínimo real del bundle vs. lo declarado en Info.plist (T-086 APP-05, T-103/D-15).
+# Los frameworks de Qt 6.12 piden 14.4 (= el mínimo declarado). Solo estos 12 bindings de
+# PySide6/shiboken declaran minos 26.0 y cargan igual en macOS 14.8 (T-087); no se probó en
+# 14.4-14.7. Cualquier OTRO Mach-O por encima del mínimo cambia el mínimo real: aborta.
 MIN_OS=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP/Contents/Info.plist")
 MINOS_WARN=0
+MINOS_FILES=""
 while IFS= read -r f; do
   file -b "$f" | grep -q Mach-O || continue
   minos=$(otool -l "$f" | awk '/LC_BUILD_VERSION/{b=1} b&&/minos/{print $2; exit}')
   [ -z "$minos" ] && continue
   if [ "$(printf '%s\n%s\n' "$MIN_OS" "$minos" | sort -V | tail -1)" != "$MIN_OS" ]; then
-    case "$f" in
-      # El wheel de PySide6 está etiquetado macosx_13_0 pero sus módulos x86_64 dicen
-      # minos 15.0; en macOS 14.8.8 arrancan y cargan FFmpeg (T-087). Solo se avisa.
-      */Frameworks/PySide6/*|*/Frameworks/shiboken6/*) MINOS_WARN=$((MINOS_WARN + 1)) ;;
+    case "$(basename "$f")" in
+      QtCore.abi3.so|QtGui.abi3.so|QtWidgets.abi3.so|QtSvg.abi3.so|QtNetwork.abi3.so|\
+      QtDBus.abi3.so|QtMultimedia.abi3.so|QtMultimediaWidgets.abi3.so|QtConcurrent.abi3.so|\
+      Shiboken.abi3.so|libshiboken6.abi3.6.12.dylib|libpyside6.abi3.6.12.dylib)
+        MINOS_WARN=$((MINOS_WARN + 1))
+        MINOS_FILES="$MINOS_FILES
+  - $f (minos $minos)" ;;
       *) echo "ERROR: $f pide macOS $minos pero Info.plist declara $MIN_OS" >&2; exit 1 ;;
     esac
   fi
 done < <(find "$APP/Contents" -type f \( -name '*.dylib' -o -name '*.so' -o -perm -u=x \))
 
 if [ "$MINOS_WARN" -gt 0 ]; then
-  echo "AVISO: $MINOS_WARN módulos de PySide6/shiboken6 declaran minos mayor que $MIN_OS (no verificado en macOS < 14.8)." >&2
+  echo "AVISO: $MINOS_WARN bindings de PySide6/shiboken declaran minos 26.0 (> $MIN_OS); cargan en macOS 14.8 pero no están probados en 14.4-14.7:$MINOS_FILES" >&2
 fi
+# <<< minos-check
 
 # ── Firma inside-out ────────────────────────────────────────────────────────
 if [ "$IDENTITY" = "-" ]; then
