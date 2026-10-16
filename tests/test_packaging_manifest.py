@@ -123,12 +123,14 @@ def test_requirements_are_hash_locked_t096() -> None:
 
 
 def test_pyinstaller_pinned_in_both_build_scripts_t096() -> None:
-    # T-107: macOS lo instala del lock de build (requirements-build.txt, con hashes); el .ps1 mantiene su pin hasta T-108.
+    # T-107: macOS lo instala del lock de build (requirements-build.txt, con hashes); Windows, del suyo (T-108).
     mac = (PROJECT_ROOT / "scripts" / "release_mac.sh").read_text(encoding="utf-8")
     assert "requirements-build.txt" in mac and "--require-hashes" in mac
     assert pinned(PROJECT_ROOT / "requirements-build.txt")["pyinstaller"].startswith("6.22.")
     ps1 = (PROJECT_ROOT / "scripts" / "build_windows.ps1").read_text(encoding="utf-8")
-    assert "pyinstaller==" in ps1.lower() and "--require-hashes" in ps1
+    assert "requirements-build-windows.txt" in ps1 and "--require-hashes" in ps1
+    win = pinned(PROJECT_ROOT / "requirements-build-windows.txt")
+    assert win["pyinstaller"] == pinned(PROJECT_ROOT / "requirements-build.txt")["pyinstaller"]
 
 
 def test_docs_state_macos_14_4_as_minimum() -> None:
