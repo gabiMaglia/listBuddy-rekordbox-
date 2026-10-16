@@ -11,8 +11,8 @@ con los DMG y sus `.sha256`. Todo el trabajo de build/firma/notarización lo hac
 | `workflow_dispatch` (botón «Run workflow») | Igual, sin crear Release (los DMG quedan como artefactos del run) |
 | Pull request que toca `release_mac.sh`, `check_bundle.sh`, el spec, `entitlements.plist` o `requirements.txt` | Build de humo con firma ad-hoc; **nunca** importa el certificado ni guarda credenciales, aunque el PR sea del mismo repo |
 
-Sin secrets (fork, repo recién clonado) o en un pull request el workflow **no falla**: firma ad-hoc y avisa con un
-`::warning::`. Ese DMG no sirve para distribuir.
+En un pull request, un dispatch sobre una rama o un fork (sin secrets) el workflow **no falla**: firma ad-hoc y
+avisa con un `::warning::`. Ese DMG no sirve para distribuir.
 
 Runners (verificados el 2026-10-15 en [actions/runner-images](https://github.com/actions/runner-images/blob/main/README.md)):
 `macos-15` = arm64, `macos-15-intel` = x86_64. GitHub deja de ofrecer Intel cuando retire la imagen
@@ -22,7 +22,21 @@ después de eso solo queda el build arm64 (o buildear Intel a mano con `scripts/
 
 ## Secrets necesarios
 
-Settings → Secrets and variables → Actions → **New repository secret**.
+Los secrets **no** van como secrets de repositorio: van en un *environment* llamado `release`, que solo
+acepta tags `v*`. Así un pull request o un `workflow_dispatch` sobre una rama (que corren el YAML de esa
+rama, editable por cualquiera con write) nunca los reciben: GitHub aplica la regla del lado del servidor.
+
+1. Settings → **Environments** → **New environment** → nombre exacto `release`.
+2. **Deployment branches and tags** → *Selected branches and tags* → **Add deployment branch or tag rule**
+   → tipo *Tag* → patrón `v*`. No agregues ramas ni `refs/pull/*/merge`.
+3. **Environment secrets** → **Add environment secret** (los cinco de la tabla; no uses «New repository
+   secret», y borrá del repositorio cualquier secret con estos nombres que exista de antes).
+4. Opcional, **decisión del PO**: **Required reviewers** con tu usuario. Suma un click de aprobación por
+   release y frena un token comprometido que pushee un tag.
+5. Recomendado: Settings → Rules → **New tag ruleset** sobre `refs/tags/v*` con *Restrict creations*
+   (solo el mantenedor puede crear tags de release).
+
+Fuera de un tag el job usa el environment `smoke` (GitHub lo crea solo; no le cargues secrets ni reglas).
 
 | Secret | Contenido |
 |---|---|
@@ -72,8 +86,10 @@ y [TN3147](https://developer.apple.com/documentation/technotes/tn3147-migrating-
    ```
    Tiene que responder (lista vacía si nunca notarizaste) sin error de autenticación.
 
-En CI el workflow hace `xcrun notarytool store-credentials listbuddy --key … --key-id … --issuer …`
-en el runner y le pasa `NOTARY_PROFILE=listbuddy` al script, igual que en una release manual.
+En CI el workflow hace `xcrun notarytool store-credentials listbuddy --key … --key-id … --issuer … --keychain <temporal>`
+en el keychain temporal del runner y le pasa `NOTARY_PROFILE=listbuddy` y `NOTARY_KEYCHAIN=<temporal>` al script
+(que los usa en `notarytool submit`/`log`). Al terminar, el paso de limpieza borra el keychain y con él las
+credenciales. En tu Mac, sin `NOTARY_KEYCHAIN`, el script usa el perfil del keychain por defecto.
 
 ## Cómo publicar una versión
 

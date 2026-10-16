@@ -7,7 +7,7 @@
 #                        del mismo repo y GitHub le pase secrets.
 #
 # Sin secrets (fork, repo sin configurar) o en pull_request el script firma ad-hoc y no falla.
-# Secrets (ver docs/RELEASE.md): MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD,
+# Environment secrets de `release` (ver docs/RELEASE.md): MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD,
 # NOTARY_KEY_ID, NOTARY_ISSUER_ID, NOTARY_KEY_P8_BASE64.
 #
 # Runners (verificados 2026-10-15, actions/runner-images README): `macos-15` es arm64 y
@@ -42,6 +42,11 @@ jobs:
     name: Build ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+    # Frontera de los secrets (docs/RELEASE.md): solo un tag v* entra al environment `release`
+    # (GitHub aplica la regla «Deployment branches and tags» en el servidor); cualquier otro ref
+    # cae a `smoke`, que no tiene secrets. Un `if:` del propio archivo no es una frontera.
+    environment:
+      name: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'smoke' }}
     strategy:
       fail-fast: false
       matrix:
@@ -119,9 +124,27 @@ jobs:
           KEY_PATH="$RUNNER_TEMP/AuthKey_${NOTARY_KEY_ID}.p8"
           echo -n "$NOTARY_KEY_P8_BASE64" | base64 --decode -o "$KEY_PATH"
           xcrun notarytool store-credentials listbuddy \
-            --key "$KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID"
+            --key "$KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID" \
+            --keychain "$KEYCHAIN_PATH"
           rm -f "$KEY_PATH"
+          # Perfil en el keychain temporal (el único en la lista de búsqueda); la limpieza lo borra.
+          echo "NOTARY_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "NOTARY_PROFILE=listbuddy" >> "$GITHUB_ENV"
+
+      # Fail-closed: un tag nunca produce un borrador con DMG ad-hoc o sin notarizar, ni siquiera
+      # si el environment `release` quedó mal configurado. Corre antes del build (~15 min de firma).
+      - name: Exigir firma y notarización en tags
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request'
+        run: |
+          missing=""
+          [ "$SIGNING" = "true" ] || missing="$missing SIGNING"
+          [ "$NOTARIZING" = "true" ] || missing="$missing NOTARIZING"
+          [ -n "${DEVELOPER_ID:-}" ] || missing="$missing DEVELOPER_ID"
+          [ -n "${NOTARY_PROFILE:-}" ] || missing="$missing NOTARY_PROFILE"
+          if [ -n "$missing" ]; then
+            echo "::error::un tag v* exige firma Developer ID y notarización; falta:$missing (revisá el environment release, docs/RELEASE.md)"
+            exit 1
+          fi
 
       - name: Aviso si no hay secrets
         if: github.event_name == 'pull_request' || env.SIGNING != 'true' || env.NOTARIZING != 'true'
@@ -190,13 +213,25 @@ jobs:
       - name: Listar assets
         run: ls -la assets
 
-      - uses: softprops/action-gh-release@v3
-        with:
-          draft: true
-          name: List Buddy ${{ github.ref_name }}
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          files: |
-            assets/*.dmg
-            assets/*-src.tar.gz
-            assets/*.sha256
+      # Los 6 assets esperados; sin ellos no se crea el borrador (reemplaza fail_on_unmatched_files).
+      - name: Verificar assets esperados
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          for f in "ListBuddy-${VERSION}-arm64.dmg" "ListBuddy-${VERSION}-arm64.dmg.sha256" \
+                   "ListBuddy-${VERSION}-x86_64.dmg" "ListBuddy-${VERSION}-x86_64.dmg.sha256" \
+                   "listbuddy-${VERSION}-src.tar.gz" "listbuddy-${VERSION}-src.tar.gz.sha256"; do
+            [ -f "assets/$f" ] || { echo "::error::falta el asset assets/$f"; exit 1; }
+          done
+
+      # `gh` es first-party (viene en el runner): ninguna action de terceros toca el token de escritura.
+      - name: Crear release en borrador
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes \
+            --title "List Buddy ${GITHUB_REF_NAME}" \
+            "assets/ListBuddy-${VERSION}-arm64.dmg" "assets/ListBuddy-${VERSION}-arm64.dmg.sha256" \
+            "assets/ListBuddy-${VERSION}-x86_64.dmg" "assets/ListBuddy-${VERSION}-x86_64.dmg.sha256" \
+            "assets/listbuddy-${VERSION}-src.tar.gz" "assets/listbuddy-${VERSION}-src.tar.gz.sha256"
