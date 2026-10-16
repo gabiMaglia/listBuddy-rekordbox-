@@ -115,3 +115,18 @@ Regresiones:
 - La suite completa no la corrí: me abstengo.
 
 **Veredicto: REFUTADO.** D1-D6 quedan corregidos, pero sigue un defecto de cierre: **V7**. Arreglo esperado: que `_on_relocate_finished` no recargue (ni abra modales) si `self._closing`.
+
+## Verificación 3
+
+Juzgué `05bf4a6` en un worktree detached aparte. Esta vez fue acotada a V7 y a los callbacks que llegan tarde durante el cierre.
+
+| Caso | Estado | Cita / evidencia |
+|---|---|---|
+| V7: relocate que termina durante el cierre | **CORREGIDO** | `ui.py:2792` (`_on_relocate_finished` sale si `_closing`). Repetí `p_reloc_race.py`: `load worker after exec: None`, sin «Destroyed while thread», rc=0 (antes rc=250). |
+| Restore que termina durante el cierre | **OK** | `ui.py:2978`. Restore falso de 3 s y `close()` a los 0,1 s: el cierre espera al restore (es un escritor, `ui.py:2196-2203`), el callback no hace nada (`side effects: []`), rc=0. |
+| `_on_relocate_ask` durante el cierre | **OK, no se cuelga** | `ui.py:2766-2770`. Probé el peor orden: el worker pregunta *después* del `provide_answer(None)` de `closeEvent` (`ui.py:2166`). No se abre ningún modal (`dialogs: 0`), las respuestas son `[None, None]` y el proceso sale con rc=0. La respuesta llega por el `processEvents` del bucle de escritores en `_exit_if_threads_hung`. Tarda 6,2 s (4 s de `wait(4000)` en `ui.py:2167`, que no procesa eventos, más 2 s de la espera con tope de `_live_threads`). Es lento pero termina. No es un defecto. |
+| `_on_finished` del export sin guarda | **No puede tocar widgets destruidos** | La ventana nunca se destruye mientras corre el event loop: no hay `WA_DeleteOnClose` (grep vacío en `ui.py`) y `main.py:42-44` mantiene `win` hasta `sys.exit(app.exec())`. Después de `exec` u `os._exit` ya no se despacha ningún slot. Además `_on_finished` (`ui.py:2380-2424`) solo toca widgets y un `QTimer.singleShot` de 8 s, que en un loop ya terminado no corre. No arranca hilos. |
+
+Regresiones: `tests/test_close_races_t105.py` y `tests/test_close_hung_t105.py` con `-n 0` dan **18 passed**.
+
+**Veredicto: CONFIRMADO.** V7 está corregido y no encontré otros caminos de cierre que fallen en lo que probé.
