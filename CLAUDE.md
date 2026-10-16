@@ -49,6 +49,7 @@ preview_worker.py    → PreviewWorker (QThread). Existence checks en background
 audio_player.py      → AudioPlayer (QMediaPlayer+FFmpeg). play/pause/seek; señales playing_changed, position_changed, track_finished.
 waveform_worker.py   → WaveformWorker (QThread). Picos de la onda del footer.
 audio_decode.py      → buffer_to_mono (helper de decode compartido).
+audio_formats.py     → Lista blanca de extensiones de audio reproducibles (SEC-18); la consultan AudioPlayer y WaveformWorker antes de abrir un archivo.
 footer.py            → FooterBar (reproductor, destino, exportar, progreso).
 ui_components.py     → PlaylistCard, PlaylistGroup, SeekBar, WaveformSeek, ElidedLabel, FileRow, ClickableLabel.
 styles.py            → Tokens de diseño dark/light + load_qss().
