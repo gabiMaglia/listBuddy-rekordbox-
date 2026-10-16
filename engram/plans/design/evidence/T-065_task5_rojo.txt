@@ -1,4 +1,4 @@
-E        +  where 1 = CompletedProcess(args=['/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/.venv/bin/python', '-c', '\nimport pathlib, tempf...).isNull()\n           ^^^^^^^^^^^^^^^^^^^\nAttributeError: \'NoneType\' object has no attribute \'accessibleName\'\n').returncode
+E        +  where 1 = CompletedProcess(args=['<HOME>/Desktop/REKORDBOX_EXTRACTOR/.venv/bin/python', '-c', '\nimport pathlib, tempf...).isNull()\n           ^^^^^^^^^^^^^^^^^^^\nAttributeError: \'NoneType\' object has no attribute \'accessibleName\'\n').returncode
 
 tests/test_row_blocks.py:70: AssertionError
 =========================== short test summary info ============================

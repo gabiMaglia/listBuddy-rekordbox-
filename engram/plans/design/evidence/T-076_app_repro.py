@@ -1,6 +1,6 @@
 import faulthandler, sys, tempfile, pathlib, os, time
 faulthandler.enable(); faulthandler.dump_traceback_later(80, exit=True)
-sys.path.insert(0, "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR")
+sys.path.insert(0, str(__import__("pathlib").Path.home() / "Desktop" / "REKORDBOX_EXTRACTOR"))
 from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 from PySide6.QtCore import Qt

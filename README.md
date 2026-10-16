@@ -52,6 +52,11 @@ Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBud
 - **macOS 14 o posterior.** Abrí el `.dmg` y arrastrá **List Buddy** a Aplicaciones.
 - **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente.
 
+> **Si macOS bloquea la app** («no se puede abrir porque no se puede verificar al desarrollador»):
+> andá a **Ajustes del Sistema → Privacidad y seguridad**, bajá hasta el aviso de List Buddy y
+> tocá **Abrir de todos modos**. En macOS 15 ya no alcanza con Control-clic → Abrir.
+> La versión notarizada no debería pedirte esto; si te lo pide, avisanos.
+
 ## Requisitos
 
 - **Python 3.11+** (solo para correrlo desde el código fuente)
@@ -155,6 +160,7 @@ La configuración y las reparaciones viven en `~/Library/Application Support/lis
 
 - **Dispositivo de salida de audio** — elegí por qué salida suena la previsualización.
 - **Auto-avance** — on/off.
+- **Buscar actualizaciones al iniciar** — activado por defecto; apagalo si no querés que la app consulte GitHub al abrir.
 - **Librerías** — elegí acá el `rekordbox.xml` exportado (Rekordbox) y, si está en una
   ubicación no estándar, el `collection.nml` (Traktor). El botón
   **Auto** vuelve a la autodetección.
