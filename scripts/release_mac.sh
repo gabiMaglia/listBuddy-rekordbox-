@@ -7,12 +7,15 @@
 #   scripts/release_mac.sh --dry-run       # valida prerrequisitos e imprime el plan; no buildea ni firma
 #   scripts/release_mac.sh --skip-build    # reusa dist/List Buddy.app existente (solo firma, .dmg, checksums)
 #   PYTHON=/ruta/a/python3.14 scripts/release_mac.sh   # fija el intérprete (si no, el primer python3 del PATH)
+#   scripts/release_mac.sh --arch-suffix   # DMG «ListBuddy-<v>-<arm64|x86_64>.dmg» (CI, T-097)
 #
 # Python >= 3.14.8 (trae libexpat 2.8.5, CVE-2026-93990); ALLOW_OLD_PYTHON=1 lo saltea bajo tu riesgo.
 # Deja en dist/: el .dmg con su .sha256 y listbuddy-<v>-src.tar.gz (fuente del commit HEAD) con su .sha256.
 #
 # NOTARY_PROFILE se crea una sola vez con:
 #   xcrun notarytool store-credentials listbuddy --apple-id <mail> --team-id <TEAMID>
+# o con una API key de App Store Connect (CI):
+#   xcrun notarytool store-credentials listbuddy --key AuthKey.p8 --key-id <ID> --issuer <UUID>
 #
 # Usa un venv limpio (.venv-build) para que PyQt6 u otros restos del venv de
 # desarrollo no entren al bundle. La arquitectura es la de la Mac que buildea.
@@ -23,16 +26,19 @@ cd "$(dirname "$0")/.."
 
 DRY_RUN=0
 SKIP_BUILD=0
+ARCH_SUFFIX=""
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --skip-build) SKIP_BUILD=1 ;;
-    *) echo "Uso: $0 [--dry-run] [--skip-build]" >&2; exit 2 ;;
+    --arch-suffix) ARCH_SUFFIX="-$(uname -m)" ;;   # arm64 | x86_64 (CI, T-097)
+    *) echo "Uso: $0 [--dry-run] [--skip-build] [--arch-suffix]" >&2; exit 2 ;;
   esac
 done
 
 MIN_PYTHON="3.14.8"
-PY="${PYTHON:-python3}"
+PYTHON="${PYTHON:-python3}"   # intérprete con el que se crea .venv-build (CI lo fija al de setup-python)
+PY="$PYTHON"
 PYINSTALLER_PIN="pyinstaller==6.20.0"
 
 # py_version INTERPRETE -> «3.14.8». Con --skip-build no hace falta un intérprete.
@@ -61,8 +67,8 @@ check_python() {
 
 VERSION=$(sed -n 's/^_APP_VERSION = "\(.*\)"/\1/p' ui.py)
 APP="dist/List Buddy.app"
-DMG="dist/ListBuddy-${VERSION}.dmg"
-ZIP="dist/ListBuddy-${VERSION}.zip"      # solo para subir a notarización (un zip no se estampa)
+DMG="dist/ListBuddy-${VERSION}${ARCH_SUFFIX}.dmg"
+ZIP="dist/ListBuddy-${VERSION}${ARCH_SUFFIX}.zip"      # solo para subir a notarización (un zip no se estampa)
 DMG_ID="com.gabrielmaglia.listbuddy.dmg"
 IDENTITY="${DEVELOPER_ID:--}"             # «-» = ad-hoc
 STAGE=""
@@ -98,7 +104,7 @@ else
   check_python "$PY"
 fi
 
-SUMS_DMG="dist/ListBuddy-${VERSION}.dmg.sha256"
+SUMS_DMG="dist/ListBuddy-${VERSION}${ARCH_SUFFIX}.dmg.sha256"
 SRC="dist/listbuddy-${VERSION}-src.tar.gz"
 SUMS_SRC="dist/listbuddy-${VERSION}-src.tar.gz.sha256"
 
