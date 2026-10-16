@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 01:30] Arquitectos T-094 y T-097: DISEÑO CON CORRECCIONES → nerv-desktop (intento 3)
+- T-097: modelo de confianza mal (solo un `if` en el propio YAML guardaba el certificado). C1 secrets en environment `release` atado a tags `v*`; C2 tag sin firma+notarización aborta antes del build; C3 `gh release create --draft --verify-tag` en vez de acción de terceros con `contents: write`; C4 credenciales de notarytool en el keychain temporal (`--keychain`, `NOTARY_KEYCHAIN`). Deuda D-a..D-f a 1.0.1. ADR-005 Propuesto. Recomienda nerv-devops antes del primer tag real (settings de GitHub fuera del repo). Rama `fix/t097-arq`.
+- T-094: diseño apto (texto crudo con expat, cancelación por generación) con 3 defectos reales: C1 ventana de bytes corrompe el texto crudo si una etiqueta de TRACK > 64 KiB cruza el bloque; C2 export sin capturar `ET.ParseError`; C3 declaración acepta codecs no textuales (`zlib_codec`). Deuda: diferir carga al primer paint (1.1). ADR-006 Propuesto (renumerado: ambos arquitectos usaron 005). Rama `fix/t094-arq`.
+- Quien retoma: nerv-desktop ×2 → nerv-orquestador → nerv-qa (3ª QA, X). Pendiente del PO: ratificar ADR-005 y ADR-006.
+
 ### [2026-10-16 00:55] nerv-orquestador → nerv-arquitecto T-094 + T-097 (tope P-2, decisión del PO)
 - El PO eligió cumplir P-2 al pie: revisión de diseño post-hoc (P-19.7) de cada entrega antes de una 3ª QA. Entregable: sección «Revisión de arquitectura» en engram/plans/T-09x.md con veredicto y correcciones (bloqueantes vs deuda); ADR si corresponde.
 - T-094: parser expat crudo + reparseo por pista, ventana de bytes, carga en constructor, cancelación por token. T-097: modelo de confianza del workflow (secrets en PR, environment), thin builds, corte script/YAML, deducidos de QA.
