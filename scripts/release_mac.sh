@@ -124,7 +124,8 @@ clean_dist() {
     [ -e "$f" ] || continue
     name=$(basename "$f")
     case "$name" in
-      "List Buddy"|"List Buddy.app"|listBuddy|listBuddy-*|ListBuddy-*|listbuddy-*|notary-*|.DS_Store) ;;
+      # También los builds viejos del spec anterior (junio): «listBuddy.app» y el one-file «listBuddy».
+      "List Buddy"|"List Buddy.app"|listBuddy|listBuddy.app|listBuddy-*|ListBuddy-*|listbuddy-*|notary-*|.DS_Store) ;;
       *) foreign+=("$f"); continue ;;
     esac
     if [ "${SKIP_BUILD:-0}" = 1 ] && [ "$f" = "$APP" ]; then continue; fi
