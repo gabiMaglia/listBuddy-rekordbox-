@@ -6,6 +6,8 @@
 #   NOTARY_PROFILE=listbuddy scripts/release_mac.sh   # firma Developer ID + notariza
 #   scripts/release_mac.sh --dry-run       # valida prerrequisitos e imprime el plan; no buildea ni firma
 #   scripts/release_mac.sh --skip-build    # reusa dist/List Buddy.app existente (solo firma, .dmg, checksums)
+#   scripts/release_mac.sh --build-only    # solo venv + deps con hashes + PyInstaller + check_bundle + minos; NO firma
+#                                          # (CI fase 1, T-107: pip/PyInstaller corren antes de importar el certificado)
 #   PYTHON=/ruta/a/python3.14 scripts/release_mac.sh   # fija el intérprete (si no, el primer python3 del PATH)
 #   scripts/release_mac.sh --arch-suffix   # DMG «ListBuddy-<v>-<arm64|x86_64>.dmg» (CI, T-097)
 #
@@ -29,20 +31,26 @@ cd "$(dirname "$0")/.."
 
 DRY_RUN=0
 SKIP_BUILD=0
+BUILD_ONLY=0
 ARCH_SUFFIX=""
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --skip-build) SKIP_BUILD=1 ;;
+    --build-only) BUILD_ONLY=1 ;;
     --arch-suffix) ARCH_SUFFIX="-$(uname -m)" ;;   # arm64 | x86_64 (CI, T-097)
-    *) echo "Uso: $0 [--dry-run] [--skip-build] [--arch-suffix]" >&2; exit 2 ;;
+    *) echo "Uso: $0 [--dry-run] [--skip-build|--build-only] [--arch-suffix]" >&2; exit 2 ;;
   esac
 done
+
+if [ "$BUILD_ONLY" = 1 ] && [ "$SKIP_BUILD" = 1 ]; then
+  echo "ERROR: --build-only y --skip-build son excluyentes (uno solo buildea, el otro solo firma)." >&2
+  exit 2
+fi
 
 MIN_PYTHON="3.14.8"
 PYTHON="${PYTHON:-python3}"   # intérprete con el que se crea .venv-build (CI lo fija al de setup-python)
 PY="$PYTHON"
-PYINSTALLER_PIN="pyinstaller==6.20.0"
 
 # py_version INTERPRETE -> «3.14.8». Con --skip-build no hace falta un intérprete.
 py_version() { "$1" -c 'import sys; print(".".join(map(str, sys.version_info[:3])))'; }
@@ -161,10 +169,14 @@ if [ "$DRY_RUN" = 1 ]; then
     echo "[dry-run] reusa $APP existente (--skip-build)"
   else
     echo "[dry-run] .venv-build/bin/pip install --require-hashes -r requirements.txt"
-    echo "[dry-run] .venv-build/bin/pip install $PYINSTALLER_PIN"
+    echo "[dry-run] .venv-build/bin/pip install --require-hashes -r requirements-build.txt (PyInstaller + deps con hash)"
     echo "[dry-run] .venv-build/bin/pyinstaller --noconfirm rb_exporter.spec"
   fi
   echo "[dry-run] scripts/check_bundle.sh \"$APP\" + verificación de minos con otool"
+  if [ "$BUILD_ONLY" = 1 ]; then
+    echo "[dry-run] --build-only: termina acá (sin firma, DMG ni notarización; sigue con --skip-build)"
+    exit 0
+  fi
   echo "[dry-run] codesign inside-out (--sign $IDENTITY): Mach-O sueltos, frameworks y el .app"
   if [ "$IDENTITY" != "-" ] && [ -n "${NOTARY_PROFILE:-}" ]; then
     echo "[dry-run] xcrun notarytool submit (app y dmg) --keychain-profile $NOTARY_PROFILE${NOTARY_KC[*]+ ${NOTARY_KC[*]}} + stapler staple"
@@ -186,10 +198,11 @@ if [ "$SKIP_BUILD" = 0 ]; then
   check_python .venv-build/bin/python
   echo "Python de build: $(.venv-build/bin/python -c 'import sys,platform;print(sys.version.split()[0], platform.machine())')"
   # Siempre: un venv viejo con dependencias desactualizadas no puede buildear en silencio.
-  # --require-hashes rechaza cualquier paquete que no esté en el lock (SEC-07). PyInstaller va
-  # aparte: con hashes activos pip exige hash en TODO lo que se instale en esa corrida.
+  # --require-hashes rechaza cualquier paquete que no esté en el lock (SEC-07). El toolchain (PyInstaller,
+  # hooks-contrib, setuptools, pip) tiene su propio lock: con hashes activos pip exige hash en TODO lo que
+  # se instale en esa corrida, y el toolchain no debe viajar en requirements.txt (SEC-17).
   .venv-build/bin/pip install -q --require-hashes -r requirements.txt
-  .venv-build/bin/pip install -q "$PYINSTALLER_PIN"
+  .venv-build/bin/pip install -q --require-hashes -r requirements-build.txt
 
   rm -rf build "$APP"
   .venv-build/bin/pyinstaller --noconfirm rb_exporter.spec
@@ -226,6 +239,11 @@ if [ "$MINOS_WARN" -gt 0 ]; then
   echo "AVISO: $MINOS_WARN bindings de PySide6/shiboken declaran minos 26.0 (> $MIN_OS); cargan en macOS 14.8 pero no están probados en 14.4-14.7:$MINOS_FILES" >&2
 fi
 # <<< minos-check
+
+if [ "$BUILD_ONLY" = 1 ]; then
+  echo "Build listo (--build-only): $APP sin firma final. Siguiente fase: $0 --skip-build"
+  exit 0
+fi
 
 # ── Firma inside-out ────────────────────────────────────────────────────────
 if [ "$IDENTITY" = "-" ]; then

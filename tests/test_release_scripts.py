@@ -121,9 +121,8 @@ def test_build_windows_matches_spec_output_and_pins_pyinstaller() -> None:
     assert "name='listBuddy'" in spec and "COLLECT(" in spec          # one-dir
     assert r"dist\listBuddy\listBuddy.exe" in ps1
     assert r'"dist\listBuddy.exe"' not in ps1
-    release = _RELEASE.read_text(encoding="utf-8")
-    pin = re.search(r"pyinstaller==([\d.]+)", ps1)
-    assert pin and pin.group(1) == re.search(r"pyinstaller==([\d.]+)", release).group(1)
+    # T-107: macOS toma PyInstaller de requirements-build.txt; el .ps1 sigue con su pin hasta T-108.
+    assert re.search(r"pyinstaller==[\d.]+", ps1)
     assert not re.search(r"install pyinstaller\s*--quiet", ps1)
 
 
@@ -224,7 +223,7 @@ def test_release_publishes_checksums_and_source_tarball_static() -> None:
     for needle in ("shasum -a 256", ".dmg.sha256", "-src.tar.gz", ".tar.gz.sha256",
                    "git archive --format=tar.gz --prefix=listbuddy-${VERSION}/"):
         assert needle in code, needle
-    assert "--require-hashes" in code and "pyinstaller==6.20.0" in code
+    assert "--require-hashes" in code and "requirements-build.txt" in code   # PyInstaller viene del lock (T-107)
 
 
 def test_source_tarball_has_licenses_and_no_dev_or_engram_files(tmp_path) -> None:
@@ -374,7 +373,7 @@ def test_c2_tag_aborts_before_build_without_signing_or_notarization() -> None:
     # Orden: después de importar cert y credenciales, antes del build.
     at = build.index(f"- name: {name}")
     assert build.index("- name: Importar certificado") < at
-    assert at < build.index("- name: Build, firma, DMG y notarización")
+    assert at < build.index("- name: Firma, DMG y notarización")
     assert build.index("- name: Guardar credenciales") < at
 
 
@@ -779,3 +778,77 @@ def test_t107_clean_dist_without_dist_dir_is_noop(tmp_path) -> None:
     r = _run_snippet(tmp_path, "clean-dist", "clean_dist", _fake_bin(tmp_path), SKIP_BUILD="0", DRY_RUN="0",
                      APP="dist/List Buddy.app")
     assert r.returncode == 0 and not (tmp_path / "dist").exists()
+
+
+# ── T-107 SEC-17/SEC-23: toolchain de build con hashes y build antes de la clave ──
+
+_BUILD_LOCK = PROJECT_ROOT / "requirements-build.txt"
+
+
+def test_t107_build_lock_is_fully_hashed_and_pins_pyinstaller_6_22() -> None:
+    from _reqs import pinned, unhashed
+    assert (PROJECT_ROOT / "requirements-build.in").is_file()
+    assert unhashed(_BUILD_LOCK) == []
+    locked = pinned(_BUILD_LOCK)
+    assert re.fullmatch(r"6\.22\.\d+", locked["pyinstaller"])
+    # lo que PyInstaller ejecuta en el build y el propio pip van pineados con hash (sin «unsafe» suelto)
+    for dep in ("pyinstaller-hooks-contrib", "setuptools", "macholib", "altgraph", "packaging", "pip"):
+        assert dep in locked, dep
+    text = _BUILD_LOCK.read_text(encoding="utf-8")
+    assert "pip-compile" in text and "--generate-hashes" in text
+
+
+def test_t107_release_script_installs_build_toolchain_only_with_require_hashes() -> None:
+    code = "\n".join(_code_lines(_RELEASE))
+    installs = [l for l in code.splitlines() if "pip install" in l and "echo" not in l]
+    assert installs and all("--require-hashes" in l for l in installs), installs
+    assert any("-r requirements-build.txt" in l for l in installs)
+    assert any("-r requirements.txt" in l for l in installs)
+    assert "PYINSTALLER_PIN" not in code and "pyinstaller==" not in code.lower()
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t107_build_only_and_skip_build_are_exclusive_and_planned(tmp_path) -> None:
+    r = subprocess.run(["bash", str(_RELEASE), "--build-only", "--skip-build"], cwd=PROJECT_ROOT,
+                       env=_env(tmp_path, "3.14.8"), capture_output=True, text=True, timeout=60)
+    assert r.returncode == 2 and "--build-only" in r.stderr
+    r = subprocess.run(["bash", str(_RELEASE), "--dry-run", "--build-only"], cwd=PROJECT_ROOT,
+                       env=_env(tmp_path, "3.14.8"), capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert "requirements-build.txt" in r.stdout and "--build-only" in r.stdout
+    assert "codesign" not in r.stdout and "notarytool" not in r.stdout and "hdiutil" not in r.stdout
+
+
+def test_t107_build_only_exits_before_any_signing() -> None:
+    code = "\n".join(_code_lines(_RELEASE))
+    body = code.split("# plutil", 1)[0] + code  # el exit va entre el minos-check y la firma
+    text = _RELEASE.read_text(encoding="utf-8")
+    assert text.index("# <<< minos-check") < text.rindex('if [ "$BUILD_ONLY" = 1 ]') < text.index("# ── Firma inside-out")
+    assert "BUILD_ONLY" in body
+
+
+def test_t107_workflow_builds_before_certificate_in_two_phases() -> None:
+    """D-a / SEC-17: pip y PyInstaller nunca corren con la clave de firma disponible."""
+    build = _job_text("build")
+    order = [m.group(1) for m in re.finditer(r"^      - name: (.+)$", build, re.M)]
+    def at(part: str) -> int:
+        idx = [i for i, n in enumerate(order) if part in n]
+        assert len(idx) == 1, (part, order)
+        return idx[0]
+    phase1, cert, creds, strict, phase2 = (at("Build sin credenciales"), at("Importar certificado"),
+                                           at("Guardar credenciales"), at("Exigir firma y notarización"),
+                                           at("Firma, DMG y notarización"))
+    assert phase1 < cert < creds < strict < phase2
+    assert at("Exigir secrets de firma en tags") < phase1       # el fail-closed barato sigue antes del build
+    run1, run2 = _steps("Build sin credenciales"), _steps("Firma, DMG y notarización")
+    assert re.search(r"release_mac\.sh --build-only --arch-suffix", run1)
+    assert re.search(r"release_mac\.sh --skip-build --arch-suffix", run2)
+    # Nada de secrets, identidad ni keychain en el entorno de la fase 1
+    phase1_step = _steps("Build sin credenciales")
+    for forbidden in ("secrets.", "DEVELOPER_ID", "NOTARY_", "KEYCHAIN"):
+        assert forbidden not in phase1_step, forbidden
+    # y los secrets solo se referencian en pasos posteriores al build
+    first_secret = build.index("secrets.MACOS_CERT_P12_BASE64 }}\n          MACOS")
+    assert first_secret > build.index("- name: Build sin credenciales")
+    assert "requirements-build.txt" in _WORKFLOW.read_text(encoding="utf-8").split("pull_request:", 1)[1].split("permissions:", 1)[0]
+

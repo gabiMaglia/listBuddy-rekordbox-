@@ -7,6 +7,9 @@
 #                        Nunca importa el certificado ni las credenciales, aunque el PR sea
 #                        del mismo repo y GitHub le pase secrets.
 #
+# Dos fases (SEC-17): 1) `release_mac.sh --build-only` (pip + PyInstaller con hashes, sin credenciales);
+# 2) importar certificado y credenciales; 3) `release_mac.sh --skip-build` (firma, DMG, notarización).
+#
 # Sin secrets (fork, repo sin configurar) o en pull_request el script firma ad-hoc y no falla.
 # Environment secrets de `release` (ver docs/RELEASE.md): MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD,
 # NOTARY_KEY_ID, NOTARY_ISSUER_ID, NOTARY_KEY_P8_BASE64.
@@ -27,6 +30,8 @@ on:
       - 'rb_exporter.spec'
       - 'entitlements.plist'
       - 'requirements.txt'
+      - 'requirements-build.in'
+      - 'requirements-build.txt'
 
 permissions:
   contents: read
@@ -82,6 +87,27 @@ jobs:
               echo "::error::el tag v$TAG no coincide con _APP_VERSION=$APP_VERSION en ui.py"; exit 1
             fi
           fi
+
+      # Fail-closed barato (ADR-005 §2): un tag sin secrets configurados aborta ANTES de gastar el build.
+      # Usa solo SIGNING/NOTARIZING (booleanos del job); los secrets en sí no existen todavía en el entorno.
+      - name: Exigir secrets de firma en tags (antes del build)
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request'
+        run: |
+          missing=""
+          [ "$SIGNING" = "true" ] || missing="$missing SIGNING"
+          [ "$NOTARIZING" = "true" ] || missing="$missing NOTARIZING"
+          if [ -n "$missing" ]; then
+            echo "::error::un tag v* exige firma Developer ID y notarización; falta:$missing (revisá el environment release, docs/RELEASE.md)"
+            exit 1
+          fi
+
+      # Fase 1 (SEC-17/D-a): pip y PyInstaller son código de terceros. Corren ANTES de importar el certificado,
+      # sin DEVELOPER_ID, keychain ni credenciales en el entorno. El toolchain viene de requirements-build.txt
+      # con --require-hashes.
+      - name: Build sin credenciales (fase 1)
+        env:
+          PYTHON: python3
+        run: scripts/release_mac.sh --build-only --arch-suffix
 
       # ── Firma: .p12 en un keychain temporal (GitHub Docs «Installing an Apple certificate on macOS runners») ──
       - name: Importar certificado Developer ID
@@ -151,12 +177,11 @@ jobs:
         run: |
           echo "::warning::firma ad-hoc, DMG no distribuible (evento=${{ github.event_name }} SIGNING=$SIGNING NOTARIZING=$NOTARIZING)"
 
+      # Fase 2: recién acá existe la clave. No instala ni ejecuta nada de PyPI: reusa dist/List Buddy.app.
       # DEVELOPER_ID y NOTARY_PROFILE llegan por GITHUB_ENV solo si los pasos anteriores corrieron;
-      # sin ellos el script firma ad-hoc. PYTHON apunta al de setup-python.
-      - name: Build, firma, DMG y notarización
-        env:
-          PYTHON: python3
-        run: scripts/release_mac.sh --arch-suffix
+      # sin ellos el script firma ad-hoc.
+      - name: Firma, DMG y notarización (fase 2)
+        run: scripts/release_mac.sh --skip-build --arch-suffix
 
       - name: Resumen
         run: |
