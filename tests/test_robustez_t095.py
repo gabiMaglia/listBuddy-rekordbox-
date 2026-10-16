@@ -127,6 +127,34 @@ def test_preview_titles_show_the_folder_name_the_export_will_create() -> None:
     assert out == "True True True"
 
 
+def test_preview_names_match_export_folders_when_a_homonym_is_unreadable() -> None:
+    # V1 (D-17): una «Mix» ilegible no consume el nombre: previa y export dicen «Mix».
+    out = _win(
+        "import tempfile, pathlib\n"
+        "from PySide6.QtCore import QEventLoop, QTimer\n"
+        "import rekordbox_xml as rx, worker\n"
+        "from ui_components import PlaylistCard\n"
+        "def pump(ms=600):\n"
+        "    loop = QEventLoop(); QTimer.singleShot(ms, loop.quit); loop.exec()\n"
+        "d = pathlib.Path(tempfile.mkdtemp()); f = d / 'a.mp3'; f.write_bytes(b'x')\n"
+        "class Rota:\n"
+        "    Name = 'Mix'; ID = 'r1'\n"
+        "    @property\n"
+        "    def Songs(self): raise RuntimeError('boom')\n"
+        "good = rx.RbxPlaylist(name='Mix', ID='g1', tracks=[rx.RbxTrack(title='T', artist='A', file_path=f, TrackNo=1)])\n"
+        "w, _ = make()\n"
+        "cards = [PlaylistCard(Rota(), 3, 0), PlaylistCard(good, 1, 1)]\n"
+        "w._all_cards.extend(cards)\n"
+        "for c in cards: c.setChecked(True)\n"
+        "w._start_preview_worker(); pump()\n"
+        "shown = sorted(c._title.text() for c in w._preview_cards.values())\n"
+        "out = d / 'out'; out.mkdir()\n"
+        "ew = worker.ExportWorker([c.playlist for c in cards], out); ew.run()\n"
+        "print(not any('(2)' in t for t in shown) and any(t.endswith(' Mix') for t in shown), sorted(p.name for p in out.iterdir()) == ['Mix'])\n"
+    )
+    assert out == "True True"
+
+
 # ── D-18 ──────────────────────────────────────────────────────────────────
 
 def test_foreign_part_files_survive_but_our_own_orphan_is_removed() -> None:
@@ -200,6 +228,60 @@ def test_playing_changed_only_emits_real_changes_when_starting_and_switching_tra
         "print(seen)\n",
     )
     assert out == "[True, False]"
+
+
+def test_playing_changed_fires_again_after_a_file_that_does_not_open() -> None:
+    # V2 (D-21): tras un error, _last_playing no puede quedar en True.
+    out = _run(
+        "import wave, numpy as np\n"
+        "from PySide6.QtCore import QEventLoop, QTimer\n"
+        "def mkwav(n):\n"
+        "    p = tmp / f'a{n}.wav'\n"
+        "    with wave.open(str(p), 'wb') as f:\n"
+        "        f.setnchannels(1); f.setsampwidth(2); f.setframerate(11025)\n"
+        "        f.writeframes((np.sin(np.arange(11025 * 3) / 5) * 8000).astype('<i2').tobytes())\n"
+        "    return str(p)\n"
+        "def pump(ms):\n"
+        "    loop = QEventLoop(); QTimer.singleShot(ms, loop.quit); loop.exec()\n"
+        "from audio_player import AudioPlayer\n"
+        "pl_ = AudioPlayer(); seen = []\n"
+        "pl_.playing_changed.connect(seen.append)\n"
+        "pl_.play(mkwav(1)); pump(700)\n"
+        "bad = tmp / 'roto.mp3'; bad.write_bytes(os.urandom(5000))\n"
+        "pl_.play(str(bad)); pump(1500)\n"
+        "n = len(seen)\n"
+        "pl_.play(mkwav(3)); pump(700)\n"
+        "print(seen[n:] == [True], pl_.is_playing())\n",
+    )
+    assert out == "True True"
+
+
+def test_ui_shows_pause_glyph_when_playing_after_an_audio_error() -> None:
+    out = _win(
+        "import os, wave, numpy as np, tempfile, pathlib\n"
+        "from PySide6.QtCore import QEventLoop, QTimer\n"
+        "import ui\n"
+        "ui.dialogs.warning = lambda *a, **k: None\n"
+        "tmp = pathlib.Path(tempfile.mkdtemp())\n"
+        "def mkwav(n):\n"
+        "    p = tmp / f'a{n}.wav'\n"
+        "    with wave.open(str(p), 'wb') as f:\n"
+        "        f.setnchannels(1); f.setsampwidth(2); f.setframerate(11025)\n"
+        "        f.writeframes((np.sin(np.arange(11025 * 3) / 5) * 8000).astype('<i2').tobytes())\n"
+        "    return str(p)\n"
+        "def pump(ms):\n"
+        "    loop = QEventLoop(); QTimer.singleShot(ms, loop.quit); loop.exec()\n"
+        "w, _ = make()\n"
+        "glyphs = []\n"
+        "orig = w._footer.set_play_glyph\n"
+        "w._footer.set_play_glyph = lambda n: (glyphs.append(n), orig(n))[1]\n"
+        "w._audio.play(mkwav(1)); pump(700)\n"
+        "bad = tmp / 'roto.mp3'; bad.write_bytes(os.urandom(5000))\n"
+        "w._audio.play(str(bad)); pump(1500)\n"
+        "w._audio.play(mkwav(3)); pump(700)\n"
+        "print(w._is_playing, glyphs[-1])\n"
+    )
+    assert out == "True pause"
 
 
 # ── D-22 ──────────────────────────────────────────────────────────────────

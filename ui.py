@@ -73,7 +73,7 @@ from preview_card import (
 from row_blocks import ALL_BROKEN, NONE, block_positions, broken_notice_text, ext_chip_text, format_key_bpm
 from playlist_filter import matches
 from styles import apply_title_tracking, status_style, token
-from worker import ExportWorker, _unique_folder_names
+from worker import ExportWorker, folder_names_by_playlist
 from ui_components import (
     ClickableLabel,
     WrapLabel,
@@ -1622,7 +1622,7 @@ class MainWindow(QMainWindow):
         for order, card in enumerate(selected, start=1):
             shown = self._preview_cards.get(card)
             if shown is not None:
-                shown.data.name = folders[card]   # un « (2)» puede aparecer o desaparecer
+                shown.data.name = folders.get(card, shown.data.name)   # un « (2)» puede aparecer o desaparecer
                 shown.set_order(order)
         self._set_broken_total(sum(g.missing_count for g in self._rendered_groups))
         new = [c for c in selected if c not in self._preview_cards]
@@ -1670,8 +1670,8 @@ class MainWindow(QMainWindow):
     def _folder_names_of(cards: list[PlaylistCard]) -> dict[PlaylistCard, str]:
         """Nombre de carpeta que el export creará por playlist (D-17), con la misma función de
         nombres únicos del worker. `cards` debe venir en el orden del árbol, como en el export."""
-        names = _unique_folder_names([c.playlist.Name for c in cards])
-        return dict(zip(cards, names))
+        names = folder_names_by_playlist([c.playlist for c in cards])
+        return {c: names[id(c.playlist)] for c in cards if id(c.playlist) in names}
 
     def _extract_preview_data(self, selected: list[PlaylistCard]) -> list[GroupData]:
         """
