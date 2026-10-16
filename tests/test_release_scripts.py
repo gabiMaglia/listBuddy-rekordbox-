@@ -710,3 +710,17 @@ def test_t107_syspolicy_check_distribution(tmp_path, case, macos, policy, rc, ex
 def test_t107_syspolicy_runs_after_app_staple_and_before_dmg() -> None:
     text = _RELEASE.read_text(encoding="utf-8").split("# <<< syspolicy", 1)[1]
     assert text.index('staple_with_retry "$APP"') < text.index('syspolicy_check_app "$APP"') < text.index("hdiutil create")
+
+
+def test_t107_release_docs_cover_min_macos_bindings_warning_and_first_release_order() -> None:
+    """APP-28: RELEASE.md explica el mínimo 14.4, el AVISO de los 12 bindings y el orden del primer release."""
+    doc = (PROJECT_ROOT / "docs" / "RELEASE.md").read_text(encoding="utf-8")
+    section = doc.split("## Requisitos y avisos del log", 1)[1].split("\n## ", 1)[0]
+    for needle in ("macOS 14.4", "12 bindings", "minos 26.0", "14.8", "AVISO"):
+        assert needle in section, needle
+    order = doc.split("## Orden del primer release", 1)[1].split("\n## ", 1)[0]
+    positions = [order.index(k) for k in ("D-14", "Developer ID Application", "API key", "environment `release`",
+                                          "ruleset", "smoke", "git tag", "Gatekeeper", "Publish release")]
+    assert positions == sorted(positions)
+    for needle in ("stapler staple", "reintenta", "syspolicy_check", "notary-app-", "--build-only"):
+        assert needle in doc, needle
