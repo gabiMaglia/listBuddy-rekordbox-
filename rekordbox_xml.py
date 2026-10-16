@@ -248,6 +248,20 @@ def _transcode_from(head: bytes) -> str | None:
     return None if enc in ("utf-8", "utf8") else enc
 
 
+def _window_keep(base: int, fed: int, cap_start: int | None, window: bytearray) -> int:
+    """Offset absoluto desde el que hay que conservar la ventana tras alimentar a expat.
+
+    Nunca pasa del último `<` alimentado: un `<` sin escapar no puede estar dentro de una
+    etiqueta de apertura, así que la etiqueta que expat dejó pendiente empieza ahí o después
+    (aunque mida más que _MARGIN).
+    """
+    keep = max(base, min(fed - _MARGIN, fed if cap_start is None else cap_start))
+    lt = window.rfind(b"<")
+    if lt >= 0:
+        keep = max(base, min(keep, base + lt))
+    return keep
+
+
 def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
     """Un solo pasaje con expat y sin DOM: COLLECTION/TRACK → `_TrackSrc`,
     PLAYLISTS → `_Node`. Nunca existe un Element; la memoria es lo que se retiene.
@@ -295,6 +309,9 @@ def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
                 return
             a = cap_start - base
             e = parser.CurrentByteIndex - base
+            if a < 0 or e < a:
+                # El texto crudo ya no está en la ventana: mejor fallar que exportar basura.
+                raise ET.ParseError("no se pudo recortar un TRACK del XML (ventana de lectura inválida)")
             # expat informa el inicio de `</TRACK>`, o el FIN de la etiqueta si es `<TRACK …/>`.
             # El `>` de cierre puede no haber llegado todavía: se reescribe en vez de buscarlo.
             raw = window[a:e]
@@ -326,6 +343,10 @@ def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
     parser = expat.ParserCreate("utf-8")
     parser.StartElementHandler = start
     parser.EndElementHandler = end
+    # Expat >= 2.6 difiere el reparseo de una etiqueta cortada hasta tener el doble de bytes:
+    # los eventos llegarían tarde y la ventana ya habría descartado el inicio del TRACK.
+    if hasattr(parser, "SetReparseDeferralEnabled"):
+        parser.SetReparseDeferralEnabled(False)
     try:
         with open(path, "rb") as fh:
             chunk = fh.read(_CHUNK)
@@ -340,7 +361,7 @@ def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
                 fed += len(data)
                 parser.Parse(data, False)
                 # expat guarda internamente una etiqueta cortada al final del bloque: se deja margen.
-                keep = max(base, min(fed - _MARGIN, fed if cap_start is None else cap_start))
+                keep = _window_keep(base, fed, cap_start, window)
                 del window[:keep - base]
                 base = keep
                 chunk = fh.read(_CHUNK)
