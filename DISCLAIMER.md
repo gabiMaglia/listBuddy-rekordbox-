@@ -1,6 +1,6 @@
 # Aviso legal y descargo de responsabilidad — List Buddy
 
-Versión del aviso: 2026-10-16.2
+Versión del aviso: 2026-10-16.3
 
 Este aviso explica qué hace List Buddy con tus archivos, qué garantías tenés y
 cuáles no, y cómo reclamar. Complementa las secciones 15 («Disclaimer of
@@ -83,7 +83,8 @@ República Argentina, la Ley 24.240) cuando correspondan.
 
 ## 5 bis. Garantía legal, conformidad y devolución
 
-Si compraste List Buddy, tenés derecho a que haga lo que dice esta
+Si compraste List Buddy (licencia de uso y soporte, USD 9, vendida por Polar
+como merchant of record), tenés derecho a que haga lo que dice esta
 documentación (sección 2 y README) en los sistemas indicados (macOS 14.4 o
 posterior; Windows 10 u 11 de 64 bits; Rekordbox 6 o 7 por su XML exportado;
 Traktor Pro 3 o 4). Si no funciona como se describe, avisanos y lo corregimos, te damos una versión
@@ -95,11 +96,17 @@ mostrar el aviso de SmartScreen al abrirlo por primera vez. Para verificar que
 lo que descargaste es el archivo publicado, comparalo con el `.sha256` que se
 publica junto a cada descarga, igual que en macOS.
 
-Además, podés **revocar la compra sin dar motivos dentro de los 14 días
-corridos** desde que la hiciste (en Argentina, el plazo legal mínimo es de 10
-días: art. 34 de la Ley 24.240), escribiendo al contacto de la sección 10 o
-usando el enlace de devolución de la plataforma donde compraste; te
-reintegramos el importe por el mismo medio de pago. Las copias obtenidas sin
+Además, podés **revocar la compra sin dar motivos dentro de los 10 días
+corridos** desde que la hiciste (art. 34 de la Ley 24.240). La devolución la
+gestiona Polar, que es quien te vendió, según la política de devolución de
+Polar, y te reintegra el importe por el mismo medio de pago; si preferís,
+escribinos al contacto de la sección 10 y te ayudamos con el trámite. Aparte
+de ese plazo, **te devolvemos el dinero si List Buddy no funciona** en alguno
+de los sistemas indicados arriba y no logramos corregirlo.
+
+**Garantía legal.** Se te reconoce la garantía legal mínima que corresponda
+según la ley de tu país (en Argentina, los arts. 10 bis y 11 de la Ley 24.240,
+en la medida en que apliquen a software descargado). Las copias obtenidas sin
 cargo (por ejemplo, compiladas desde el código fuente bajo la GPL) no incluyen
 soporte ni garantía comercial, sin perjuicio de los derechos que la ley te
 reconozca.
@@ -167,10 +174,12 @@ Si hacés una donación desde la pantalla Apoyar, Ko-fi procesa la donación
 según sus propios términos y su política de privacidad; List Buddy no recibe ni
 guarda tus datos de pago.
 
-Si comprás List Buddy, la
-plataforma de pago [A DEFINIR POR EL PO: nombre del merchant of record]
-procesa tus datos de compra como vendedor de la licencia, según su política de
-privacidad; nosotros solo recibimos lo necesario para atender tu reclamo.
+Si comprás List Buddy, Polar Software Inc. (operador de polar.sh) procesa tus
+datos de compra como vendedor de la licencia, según su política de privacidad;
+nosotros solo recibimos lo necesario para atender tu reclamo. Polar trata
+tu nombre, correo, país, datos de facturación e impuestos y medio de pago;
+detalles en <https://polar.sh/legal/privacy>. List Buddy no recibe ni guarda
+tus datos de pago.
 
 ## 9. Cambios a este aviso
 
@@ -180,24 +189,23 @@ Buddy te lo vuelve a mostrar al abrirlo.
 
 ## 9 bis. Ley aplicable y jurisdicción
 
-Este aviso se rige por las leyes de la República Argentina. Si sos consumidor,
-también te amparan las normas imperativas del país donde vivís, y cualquier
-reclamo puede presentarse ante los tribunales o autoridades de defensa del
-consumidor de tu domicilio. Para cualquier otro caso, son competentes los
-tribunales ordinarios de la Ciudad Autónoma de Buenos Aires. [A DEFINIR POR EL
-PO: jurisdicción según el domicilio real del autor; la confirma el abogado.]
+Este aviso se rige por las leyes de la República Argentina. Para cualquier
+conflicto son competentes los tribunales ordinarios de Rosario, Argentina, **sin
+perjuicio de los derechos irrenunciables que te da la ley como consumidor**:
+si lo sos, también te amparan las normas imperativas del país donde vivís y
+podés reclamar ante los tribunales o las autoridades de defensa del consumidor
+de tu domicilio.
 
 ## 9 ter. Edad
 
-Para comprar List Buddy tenés que ser mayor de edad según la ley de tu país o
-contar con autorización de tu madre, padre o tutor. Usar el programa no
-requiere edad mínima; no recolecta datos de nadie.
+Para comprar List Buddy tenés que tener 18 años o más (ser mayor de edad según
+la ley de tu país) o contar con autorización de tu madre, padre o tutor. Usar
+el programa no requiere edad mínima; no recolecta datos de nadie.
 
 ## 10. Contacto
 
-Vendedor/autor: Gabriel Maglia, [A DEFINIR POR EL PO: CUIT o «Monotributista,
-CUIT …»], [A DEFINIR POR EL PO: domicilio o ciudad], Argentina. Consultas,
-reclamos y devoluciones: [A DEFINIR POR EL PO: email] ·
+Vendedor/autor: Gabriel Maglia, Monotributista, CUIT 20-32758971-8, Rosario,
+Argentina. Consultas, reclamos y devoluciones: gab.maglia@gmail.com ·
 <https://github.com/gabiMaglia/listBuddy-rekordbox-/issues>
 
 ---
