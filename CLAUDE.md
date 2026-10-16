@@ -236,6 +236,20 @@ pyinstaller rb_exporter.spec
 - UPX está deshabilitado (`upx=False` en todo el spec): LGPL (ADR-003) y menos falsos positivos de antivirus sin firma. No habilitarlo.
 - Si el .exe abre pero falla al leer el XML/NML: revisar el log (`%LOCALAPPDATA%\listBuddy\logs\listBuddy.log`).
 
+### Build de Windows y su lock (T-108)
+
+- Se buildea con `scripts\build_windows.ps1` (PowerShell, solo en Windows): Python >= 3.14.8, `.venv-build` nuevo en cada corrida (nunca el `.venv` de desarrollo: arrastraría Pillow/PyQt6, LEG-26), `pip install --require-hashes` de `requirements.txt` y de `requirements-build-windows.txt`, gate D-14, `PyInstaller`, `scripts\check_bundle.ps1` y `dist\listBuddy-<v>-win64.zip` + `.sha256`. Windows se publica sin firma Authenticode (T-101): el `.sha256` solo detecta corrupción.
+- El toolchain de Windows tiene su propio lock porque PyInstaller pide `pefile` y `pywin32-ctypes` solo en `win32` y `pip-compile` evalúa los marcadores en el sistema donde corre (macOS): van explícitos en `requirements-build-windows.in`. Para regenerarlo (en un venv aparte con `pip-tools`; funciona desde macOS):
+
+  ```bash
+  pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-build-windows.txt requirements-build-windows.in
+  # verificación sin Windows: los hashes cubren los wheels de win_amd64
+  pip download --platform win_amd64 --python-version 3.14 --only-binary=:all: --require-hashes -r requirements-build-windows.txt -d /tmp/win-dl
+  ```
+
+  Mantener `pyinstaller` igual en `requirements-build.in` y `requirements-build-windows.in`. El lock trae `macholib` (marcador darwin, puro Python, inocuo en Windows).
+- Los patrones prohibidos del bundle viven en `scripts/bundle_forbidden.txt` y los leen `check_bundle.sh` y `check_bundle.ps1`.
+
 ---
 
 ## Convenciones del proyecto
