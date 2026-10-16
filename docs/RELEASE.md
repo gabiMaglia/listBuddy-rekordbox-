@@ -85,7 +85,7 @@ en el runner y le pasa `NOTARY_PROFILE=listbuddy` al script, igual que en una re
    ```
    Si el tag no coincide con `_APP_VERSION`, el workflow falla antes de buildear.
 3. Esperá los dos jobs (10-25 min cada uno: PyInstaller + ~150 firmas con timestamp + dos notarizaciones).
-   Cada notarización consume 2 de las 75 diarias por cuenta (app + DMG) por arquitectura.
+   Se notarizan el `.app` y el DMG, en cada arquitectura.
 4. Entrá a **Releases** → el borrador **List Buddy v1.0.0** tiene:
    - `ListBuddy-1.0.0-arm64.dmg` + `.sha256`
    - `ListBuddy-1.0.0-x86_64.dmg` + `.sha256`
