@@ -17,6 +17,8 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, QUrl, Signal
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 
+from audio_formats import NOT_PLAYABLE_MESSAGE, is_playable_audio
+
 
 class AudioPlayer(QObject):
     """Player de un solo track reutilizable. Estado mínimo, todo por señales."""
@@ -48,6 +50,9 @@ class AudioPlayer(QObject):
     def play(self, path: str) -> None:
         """Carga y reproduce `path`. No bloquea."""
         if not path:
+            return
+        if not is_playable_audio(path):
+            self.error.emit(NOT_PLAYABLE_MESSAGE)   # sin abrir el archivo (SEC-18)
             return
         self._current = path
         # setSource() pasa por Stopped un instante: no es un corte real del usuario.

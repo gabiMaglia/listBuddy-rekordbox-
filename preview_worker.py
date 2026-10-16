@@ -142,3 +142,24 @@ class PreviewWorker(QThread):
                     track.exists = self._check(track.raw_path) if track.raw_path else False
             self.group_ready.emit(group)
         self.done.emit()
+
+
+class PlayResolveWorker(QThread):
+    """TEC-15: resuelve la ruta de la pista a reproducir sin tocar el disco en el hilo de UI."""
+
+    resolved: Signal = Signal(int, object)   # (generación del click, ruta o None)
+
+    def __init__(self, raw: str, is_traktor: bool, gen: int) -> None:
+        super().__init__()
+        self._raw = raw
+        self._is_traktor = is_traktor
+        self._gen = gen
+
+    def run(self) -> None:
+        raw = self._raw
+        if self._is_traktor:
+            path = raw if raw and Path(raw).exists() else None
+        else:
+            from rekordbox_export import resolve_path
+            path = resolve_path(raw)
+        self.resolved.emit(self._gen, str(path) if path else None)

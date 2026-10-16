@@ -257,3 +257,32 @@ def test_long_destination_path_logs_a_warning_only_on_win32() -> None:
         "print(w[0], w[1], l[0], l[1])\n"
     )
     assert out == "1 1 0 1"
+
+
+def test_part_file_is_fsynced_before_it_replaces_the_final_name() -> None:
+    # T-105 (TEC-28): sin fsync, un corte de energía deja el tamaño correcto con datos a medias.
+    out = _run(
+        "calls = []\n"
+        "rf, rr = os.fsync, os.replace\n"
+        "def fs(fd): calls.append('fsync'); return rf(fd)\n"
+        "def rp(a, b): calls.append('replace'); return rr(a, b)\n"
+        "os.fsync, os.replace = fs, rp\n"
+        "export([pl('Mix', [track(1, 1)])])\n"
+        "print(calls)\n"
+    )
+    assert out == "['fsync', 'replace']"
+
+
+def test_report_file_hardlink_is_not_overwritten_and_goes_to_an_alternate_name() -> None:
+    # T-105 (SEC-21): write_text abre con O_TRUNC y pisaría el inodo ajeno enlazado.
+    out = _run(
+        "(out / 'Mix').mkdir()\n"
+        "victim = tmp / 'ajeno.txt'; victim.write_text('DEL OTRO')\n"
+        "os.link(victim, out / 'Mix' / '_no_exportados.txt')\n"
+        "missing = rx.RbxTrack(title='x', artist='', file_path=tmp / 'falta.mp3', TrackNo=1)\n"
+        "logs, done = export([pl('Mix', [missing])])\n"
+        "alt = out / 'Mix' / '_no_exportados (2).txt'\n"
+        "print(victim.read_text(), alt.exists() and 'falta' in alt.read_text() or alt.read_text(),\n"
+        "      any('_no_exportados (2).txt' in l for l in logs), done[3])\n"
+    )
+    assert out == "DEL OTRO True True ok"
