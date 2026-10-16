@@ -248,3 +248,22 @@ def test_readme_download_section_explains_checksum_verification() -> None:
     section = readme.split("## Descargar", 1)[1].split("\n## ", 1)[0]
     for needle in ("shasum -a 256 -c", ".dmg.sha256", "-src.tar.gz"):
         assert needle in section, needle
+
+
+# ── T-097 (QA intento 1): workflow de release ───────────────────────────────
+
+_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "release.yml"
+
+
+def _steps(name_part: str) -> str:
+    """Texto del paso del workflow cuyo `name:` contiene name_part (hasta el próximo `- `)."""
+    text = _WORKFLOW.read_text(encoding="utf-8")
+    m = re.search(rf"- name: [^\n]*{re.escape(name_part)}[^\n]*\n(.*?)(?=\n      - |\n  \w)", text, re.S)
+    assert m, name_part
+    return m.group(0)
+
+
+def test_workflow_never_signs_on_pull_request() -> None:
+    """D1: PR del mismo repo también recibe secrets; certificado y notarización solo fuera de PR."""
+    for name in ("Importar certificado", "Guardar credenciales de notarytool"):
+        assert "github.event_name != 'pull_request'" in _steps(name), name
