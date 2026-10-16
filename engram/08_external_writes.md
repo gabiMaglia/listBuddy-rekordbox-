@@ -17,5 +17,6 @@
 | 2026-10-16 | GitHub (origin) | `git push origin main` (T-100 Done, T-101 doc, engram) — ejecutado por el Orquestador | gabiMaglia/listBuddy-rekordbox- @ 82ebd21 | T-100, T-101 | PO (autorización de push de la sesión, 2026-10-16) |
 | 2026-10-16 | GitHub (origin) | `git push origin main` (T-103 Done, D-15 resuelta, T-102, engram) — ejecutado por el Orquestador | gabiMaglia/listBuddy-rekordbox- @ 1cc011f | T-102, T-103 | PO (autorización de push de la sesión, 2026-10-16) |
 | 2026-10-16 | GitHub (origin) | `git push origin main` (T-104 re-auditoría, T-107 release/CI, T-109 legal/privacidad, T-110 venta Polar y marcadores completos, T-102/T-111 altas) — ejecutado por el Orquestador | gabiMaglia/listBuddy-rekordbox- @ 4b20e3b | T-104, T-107, T-109, T-110 | PO (autorización de push de la sesión, 2026-10-16) |
+| 2026-10-16 | GitHub (origin) | `git push origin main` (T-105 export/cierre, T-108 Windows build + job windows-latest: primer run en CI) — ejecutado por el Orquestador | gabiMaglia/listBuddy-rekordbox- @ 4b93ebe | T-105, T-108 | PO (autorización de push de la sesión, 2026-10-16) |
 
 - 2026-10-15 · (ninguna escritura externa en la sesión de la tarde: merges locales a main, sin push, sin PR, sin tracker) · T-086..T-097 · —
