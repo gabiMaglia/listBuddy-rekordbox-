@@ -84,14 +84,19 @@ fi
 # y sin dependencias; el mismo chequeo vive en tests/test_release_gate.py.
 PENDING=$(grep -l '\[A DEFINIR POR EL PO' DISCLAIMER.md about_dialog.py README.md branding.py 2>/dev/null || true)
 if [ -n "$PENDING" ]; then
-  echo "ERROR: quedan marcadores [A DEFINIR POR EL PO] sin completar en:" >&2
-  printf '  %s\n' $PENDING >&2
-  echo "       Completalos antes de generar el release (ver T-090/T-092)." >&2
-  exit 1
+  if [ "${DRY_RUN:-0}" = 1 ]; then
+    # El dry-run informa y sigue: su trabajo es mostrar el plan completo, no cortarlo.
+    echo "[dry-run] gate D-14: el release real ABORTARÍA; quedan marcadores [A DEFINIR POR EL PO] en: $PENDING" >&2
+  else
+    echo "ERROR: quedan marcadores [A DEFINIR POR EL PO] sin completar en:" >&2
+    printf '  %s\n' $PENDING >&2
+    echo "       Completalos antes de generar el release (ver T-090/T-092)." >&2
+    exit 1
+  fi
 fi
 # ── fin gate ────────────────────────────────────────────────────────────────
 export LISTBUDDY_RELEASE_GATE=1
-if [ -x .venv/bin/python ]; then
+if [ "$DRY_RUN" = 0 ] && [ -x .venv/bin/python ]; then
   .venv/bin/python -m pytest -q -n 0 tests/test_release_gate.py
 fi
 

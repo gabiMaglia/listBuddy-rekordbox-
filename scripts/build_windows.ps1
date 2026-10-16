@@ -49,13 +49,14 @@ Set-Location $ROOT
 & $pyi rb_exporter.spec --noconfirm
 
 # ── 4. Resultado ───────────────────────────────────────────────────────────
-$exe = Join-Path $ROOT "dist\listBuddy.exe"
+# El spec de Windows es one-dir: el .exe vive dentro de dist\listBuddy\.
+$exe = Join-Path $ROOT "dist\listBuddy\listBuddy.exe"
 if (Test-Path $exe) {
     $size = [math]::Round((Get-Item $exe).Length / 1MB, 1)
     Write-Host ""
-    Write-Host "Build OK: dist\listBuddy.exe ($size MB)" -ForegroundColor Green
+    Write-Host "Build OK: dist\listBuddy\listBuddy.exe ($size MB)" -ForegroundColor Green
     Write-Host ""
-    Write-Host "Para distribuir: comprimir dist\listBuddy.exe en un .zip o usar Inno Setup."
+    Write-Host "Para distribuir: comprimir la carpeta dist\listBuddy en un .zip o usar Inno Setup (las DLL de Qt deben quedar sueltas: LGPL)."
 } else {
     Write-Error "Build fallido. Revisar la salida de PyInstaller arriba."
 }
