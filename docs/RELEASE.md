@@ -8,7 +8,8 @@ con los DMG y sus `.sha256`. Todo el trabajo de build/firma/notarización lo hac
 | Disparador | Qué hace |
 |---|---|
 | Tag `v*` (p. ej. `v1.0.0`) | Build + firma + notarización en ambas arquitecturas → Release en borrador |
-| `workflow_dispatch` (botón «Run workflow») | Igual, sin crear Release (los DMG quedan como artefactos del run) |
+| `workflow_dispatch` (botón «Run workflow») sobre una rama | Build ad-hoc en el environment `smoke` (sin secrets, no distribuible); los DMG quedan como artefactos del run |
+| `workflow_dispatch` sobre un tag `v*` | Igual que el push del tag: firma, notariza y crea el borrador de Release |
 | Pull request que toca `release_mac.sh`, `check_bundle.sh`, el spec, `entitlements.plist` o `requirements.txt` | Build de humo con firma ad-hoc; **nunca** importa el certificado ni guarda credenciales, aunque el PR sea del mismo repo |
 
 En un pull request, un dispatch sobre una rama o un fork (sin secrets) el workflow **no falla**: firma ad-hoc y

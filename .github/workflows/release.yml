@@ -1,7 +1,8 @@
 # Release macOS: dos builds thin (arm64 + x86_64) con scripts/release_mac.sh (T-097, APP-06).
 #
 # - Tag `v*`           → build + firma Developer ID + notarización + GitHub Release en borrador.
-# - workflow_dispatch  → build (firmado si hay secrets) y artefactos, sin release.
+# - workflow_dispatch  → sobre una rama: build ad-hoc (environment `smoke`, sin secrets) y artefactos,
+#                        sin release; sobre un tag `v*`: igual que el push del tag (firma + borrador).
 # - pull_request       → solo si cambian archivos de empaquetado: build ad-hoc de humo.
 #                        Nunca importa el certificado ni las credenciales, aunque el PR sea
 #                        del mismo repo y GitHub le pase secrets.

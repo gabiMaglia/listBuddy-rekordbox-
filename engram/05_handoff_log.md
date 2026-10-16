@@ -3,6 +3,10 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 03:10] QA T-094 APROBADO (3º) · QA T-097 RECHAZADO (3º: D7 test vacuo, D8 doc) → fix del Orquestador → 4ª QA (X)
+- T-097 D7: `_step_run` extrae el `run:` real; `test_c3_release_job_lists_all_six_assets…` exige los 6 nombres como token entero en la verificación y en `gh release create` (un primer intento por subcadena dejó pasar «-arm64.dmg» por «-arm64.dmg.sha256»); `test_c3_asset_check_step_really_fails_when_one_is_missing` ejecuta el paso en bash con cada asset ausente. `_steps` ahora encuentra el último paso del archivo (`\Z`). Rojo con: DMG fuera del create, sha256 fuera del create, asset fuera del bucle, bucle → `exit 1`. D8: cabecera y tabla de RELEASE.md dicen la verdad sobre dispatch en rama (`smoke`) y en tag.
+- Quien retoma: nerv-orquestador → nerv-qa T-097 (4º intento, X).
+
 ### [2026-10-16 02:20] Correcciones de arquitectura mergeadas · ADR-005/006 aceptados · 3ª QA (X) de T-094 y T-097
 - nerv-desktop T-094 (`fix/t094-arq`): C1 ventana no recorta más allá del último `<` + guarda + `SetReparseDeferralEnabled(False)` (hallazgo propio: expat 2.6+ difería el evento un bloque); C2 export captura `ET.ParseError` con diálogo claro; C3 lista blanca de codificaciones de texto. 17 tests rojos antes.
 - nerv-desktop T-097 (`fix/t097-arq`): C1 environment `release` solo en tags (`smoke` sin secrets), C2 abort fail-closed en tags, C3 `gh release create --draft --verify-tag` sin terceros, C4 perfil de notarytool en keychain temporal + `NOTARY_KEYCHAIN`. Todos los tests con mutaciones rojas. El PO debe configurar en GitHub: environment `release` con regla de tag `v*` y los 5 secrets de environment; ruleset de tags; required reviewers opcional (detalle en docs/RELEASE.md).
