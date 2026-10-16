@@ -7,7 +7,7 @@
 #                        del mismo repo y GitHub le pase secrets.
 #
 # Sin secrets (fork, repo sin configurar) o en pull_request el script firma ad-hoc y no falla.
-# Secrets (ver docs/RELEASE.md): MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD,
+# Environment secrets de `release` (ver docs/RELEASE.md): MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD,
 # NOTARY_KEY_ID, NOTARY_ISSUER_ID, NOTARY_KEY_P8_BASE64.
 #
 # Runners (verificados 2026-10-15, actions/runner-images README): `macos-15` es arm64 y
@@ -42,6 +42,11 @@ jobs:
     name: Build ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+    # Frontera de los secrets (docs/RELEASE.md): solo un tag v* entra al environment `release`
+    # (GitHub aplica la regla «Deployment branches and tags» en el servidor); cualquier otro ref
+    # cae a `smoke`, que no tiene secrets. Un `if:` del propio archivo no es una frontera.
+    environment:
+      name: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'smoke' }}
     strategy:
       fail-fast: false
       matrix:

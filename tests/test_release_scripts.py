@@ -305,3 +305,44 @@ def test_workflow_summary_line_renders_cleanly(dev, notary, expected) -> None:
     r = subprocess.run(["bash", "-c", f'echo "{line}"'], capture_output=True, text=True,
                        env={"DEVELOPER_ID": dev, "NOTARY_PROFILE": notary, "PATH": "/usr/bin:/bin"})
     assert r.stdout.strip() == expected, r.stdout
+
+
+# ── T-097 (intento 3, revisión P-2): frontera de secrets en un environment ──
+
+def _job_text(job: str) -> str:
+    """Texto del job `job` del workflow real (hasta el próximo job de nivel 2)."""
+    text = _WORKFLOW.read_text(encoding="utf-8")
+    m = re.search(rf"^  {job}:\n(.*?)(?=^  \w[\w-]*:\n|\Z)", text, re.S | re.M)
+    assert m, job
+    return m.group(0)
+
+
+def test_c1_build_environment_release_only_on_tags() -> None:
+    """C1: los secrets viven en el environment `release` (regla de tag v*); el job build lo
+    referencia solo en tags y en cualquier otro ref cae a `smoke`, sin secrets."""
+    build = _job_text("build")
+    m = re.search(r"^    environment:\n      name: (\$\{\{.*?\}\})\s*$", build, re.M)
+    assert m, "build sin environment con name: por expresión"
+    expr = m.group(1)
+    assert "startsWith(github.ref, 'refs/tags/v')" in expr
+    assert "||" in expr and "'smoke'" in expr and "'release'" in expr
+    assert expr.index("'release'") < expr.index("'smoke'")
+    # 'release' solo puede salir si la condición de tag es verdadera: nunca fuera de la rama &&.
+    assert re.fullmatch(r"\$\{\{ startsWith\(github\.ref, 'refs/tags/v'\) && 'release' \|\| 'smoke' \}\}", expr)
+
+
+def test_c1_no_secrets_outside_build_job() -> None:
+    """C1: ningún `secrets.` fuera del job build (el único que referencia el environment)."""
+    def code(t: str) -> str:
+        return "\n".join(l for l in t.splitlines() if not l.lstrip().startswith("#"))
+    assert "secrets." in code(_job_text("build"))
+    assert "environment:" in code(_job_text("build"))   # y ese job es el que lo referencia
+    assert "secrets." not in code(_job_text("release"))
+
+
+def test_c1_docs_use_environment_not_repository_secrets() -> None:
+    doc = (PROJECT_ROOT / "docs" / "RELEASE.md").read_text(encoding="utf-8")
+    assert "New repository secret" not in doc
+    assert "New environment secret" in doc or "Environment secrets" in doc
+    for needle in ("Deployment branches and tags", "`v*`", "Required reviewers", "`release`"):
+        assert needle in doc, needle
