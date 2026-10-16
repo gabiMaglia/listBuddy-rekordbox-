@@ -210,13 +210,25 @@ jobs:
       - name: Listar assets
         run: ls -la assets
 
-      - uses: softprops/action-gh-release@v3
-        with:
-          draft: true
-          name: List Buddy ${{ github.ref_name }}
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          files: |
-            assets/*.dmg
-            assets/*-src.tar.gz
-            assets/*.sha256
+      # Los 6 assets esperados; sin ellos no se crea el borrador (reemplaza fail_on_unmatched_files).
+      - name: Verificar assets esperados
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          for f in "ListBuddy-${VERSION}-arm64.dmg" "ListBuddy-${VERSION}-arm64.dmg.sha256" \
+                   "ListBuddy-${VERSION}-x86_64.dmg" "ListBuddy-${VERSION}-x86_64.dmg.sha256" \
+                   "listbuddy-${VERSION}-src.tar.gz" "listbuddy-${VERSION}-src.tar.gz.sha256"; do
+            [ -f "assets/$f" ] || { echo "::error::falta el asset assets/$f"; exit 1; }
+          done
+
+      # `gh` es first-party (viene en el runner): ninguna action de terceros toca el token de escritura.
+      - name: Crear release en borrador
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes \
+            --title "List Buddy ${GITHUB_REF_NAME}" \
+            "assets/ListBuddy-${VERSION}-arm64.dmg" "assets/ListBuddy-${VERSION}-arm64.dmg.sha256" \
+            "assets/ListBuddy-${VERSION}-x86_64.dmg" "assets/ListBuddy-${VERSION}-x86_64.dmg.sha256" \
+            "assets/listbuddy-${VERSION}-src.tar.gz" "assets/listbuddy-${VERSION}-src.tar.gz.sha256"

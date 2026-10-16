@@ -391,3 +391,28 @@ def test_c2_abort_script_logic() -> None:
         r = go(**{k: ""})
         assert r.returncode != 0 and "::error::" in r.stdout, k
     assert go(SIGNING="false").returncode != 0
+
+
+# ── C3: nada de terceros en el job con contents: write ──────────────────────
+
+def test_c3_release_job_uses_only_first_party_actions_and_gh() -> None:
+    job = _job_text("release")
+    uses = re.findall(r"^\s*(?:-\s+)?uses:\s*(\S+)", job, re.M)
+    assert uses, "el job release debería usar al menos download-artifact"
+    assert all(u.startswith("actions/") for u in uses), uses
+    assert "softprops" not in job
+    cmd = re.search(r"gh release create(?:[^\n]*\\\n)*[^\n]*", job)
+    assert cmd, "falta gh release create"
+    for flag in ("--draft", "--verify-tag", "--generate-notes", "--title"):
+        assert flag in cmd.group(0), flag
+    assert "GH_TOKEN: ${{ github.token }}" in job and "GH_REPO: ${{ github.repository }}" in job
+
+
+def test_c3_release_job_fails_if_an_expected_asset_is_missing() -> None:
+    """Sin fail_on_unmatched_files de softprops, el job comprueba los 6 assets a mano."""
+    job = _job_text("release")
+    for needle in ("-arm64.dmg", "-x86_64.dmg", "-arm64.dmg.sha256", "-x86_64.dmg.sha256",
+                   "-src.tar.gz", "-src.tar.gz.sha256"):
+        assert needle in job, needle
+    step = _steps("Verificar assets")
+    assert "exit 1" in step or "::error::" in step
