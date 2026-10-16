@@ -59,3 +59,54 @@ Abstenciones: ejecución real del workflow y de tests.yml en GitHub; aplicación
 2. **D2 (criterio 3, coherencia doc).** `docs/RELEASE.md:4-5,106-109` no lista `listbuddy-<v>-src.tar.gz` ni su `.sha256` entre los assets del borrador, aunque `release.yml:221-223,236-238` los exige y sube. `docs/RELEASE.md:13` omite `release.yml` de los paths que disparan el PR (`release.yml:24`).
 
 Grounded: sí (todas las afirmaciones con file:line, salida de comando o doc citada). Supuestos marcados: los de §Abstenciones.
+
+## Verificación 2 (2026-10-16)
+
+Base: worktree detached en `release/1.0.0-rc2` HEAD `de739d32596a2bca2df1ecd14eeff7dae8e1121b`. Juzgado: `git show de739d3` y `git diff main...HEAD -- .github docs/RELEASE.md scripts/release_mac.sh tests/test_release_scripts.py`. No leí `engram/qa/T-097.md` ni `engram/qa/handoffs/`. Sin build real y sin correr el workflow en GitHub.
+
+Evidencia ejecutada:
+- `actionlint 1.7.12 .github/workflows/*.yml` → rc=0.
+- `ALLOW_OLD_PYTHON=1 pytest -q -n 0 tests/test_release_scripts.py` → 59 passed.
+- Mutaciones (worktree, revertidas con `git checkout`, `git status` limpio): 6 rojas, 6 verdes (ver §Pase hostil).
+- Prueba local de caché de pip (scratchpad, borrada): pip 26.2.1, `PIP_CACHE_DIR` aislado, wheel `altgraph-0.17.4` alterado dentro de `http-v2/*.body` → «THESE PACKAGES DO NOT MATCH THE HASHES», no se instala.
+- Docs (Context7 `/websites/github_en`, `/websites/github_en_actions`): «Available rules for rulesets», «Deployments and environments», «Re-running workflows and jobs», «Events that trigger workflows» (`pull_request_target`), «Dependency caching».
+
+### §Criterios
+
+| # | Criterio | Resultado | Cita |
+|---|---|---|---|
+| 1 | YAML válido | Cumple | actionlint rc=0 |
+| 2 | Pasos reutilizan release_mac.sh | Cumple | `release.yml:157-160`; sin lógica de build/firma en el YAML fuera de credenciales (`:88-134`) |
+| 3 | Doc de secrets | Cumple | `docs/RELEASE.md:24-56`: 5 secrets = `release.yml:61-62,91-92,120-122`; D2 previo cerrado: tarball en `docs/RELEASE.md:5,112`, `release.yml` en `:13` (= `release.yml:24`) |
+| A1 | ADR-005 §1 frontera (environment `release` + regla `v*` + ruleset) | Cumple en doc y YAML; **guarda de test vacua** (D1) | `release.yml:49-50`; `docs/RELEASE.md:30-41` (ruleset «Obligatorio», creations/updates/deletions, bypass solo mantenedor). GitHub: «Restrict updates: only users with bypass permissions can push to branches or tags whose name matches» |
+| A2 | §2 fail-closed | Cumple | `release.yml:137-148` |
+| A3 | §3 sin terceros con secrets/`contents: write` | Cumple | `release.yml:31-32,64,66,174,186,206-209,228-238` |
+| A4 | §4 lógica en el script; perfil notarytool en keychain temporal | Cumple | `release.yml:126-133`; `release_mac.sh:154-155` (install) |
+| A5 | §5 dos thin + borrador | Cumple | `release.yml:55-58,234` |
+
+### §Pase hostil
+
+**Caminos a la firma con el ruleset descrito (creations/updates/deletions, bypass solo mantenedor):**
+- Mover/borrar/recrear un tag `v*`: bloqueado por las tres reglas (doc «Available rules for rulesets»: creations/updates/deletions «only users with bypass permissions»). Sin hallazgo, condicionado a la config del PO.
+- Tag `v1/x` u otro con `/`: la regla del environment usa fnmatch y «Wildcard characters will not match `/`» (Deployments and environments) → no entra a `release`. Sin hallazgo.
+- `workflow_dispatch` sobre un tag existente / re-run de un run de tag por alguien con write: corre el YAML y el commit **del tag** («The workflow will also use the same `GITHUB_SHA` … and `GITHUB_REF`», Re-running workflows; «People with write permissions … can re-run workflows»). Firma el código del mantenedor, no código arbitrario: sin hallazgo de frontera. **Observación:** `docs/RELEASE.md` no dice que cualquier usuario con write puede re-ejecutar (hasta 30 días) o despachar sobre un tag y volver a firmar/notarizar y crear otro borrador; *Required reviewers* (`:35-36`) lo frenaría. Me abstengo sobre qué hace `gh release create --draft` si ya existe un borrador para ese tag.
+- `pull_request_target`: no está en `release.yml:18-29`; si alguien lo agrega en una rama no corre hasta llegar a la default y su `GITHUB_REF` es «Default branch» (Events that trigger workflows) → `smoke`/regla rechaza. `workflow_run`: no usado; me abstengo de citar su `GITHUB_REF` (la consulta no lo devolvió).
+- Fork: sin secrets (cita de la verificación 1). Sin hallazgo.
+- **Caché (nuevo, me abstengo de explotabilidad):** el job con secrets restaura `cache: pip` (`release.yml:66-70`). GitHub: «Workflow runs can restore caches created in either the current branch or the default branch» y «Poisoned caches can lead to code execution in trusted workflows» (Dependency caching). Un usuario con write que pushee a `main` (la doc no exige proteger `main`) puede sembrar esa caché. PyInstaller y sus dependencias se instalan sin `--require-hashes` (`release_mac.sh:45,155`), pero la prueba local muestra que pip 26.2.1 igual rechaza un wheel cacheado alterado contra el hash del índice. No verifiqué el envenenamiento de la respuesta del índice ni la versión de pip del runner: no lo cuento como defecto. Recomendación al Orquestador/arquitecto: `cache-mode: none` o sin `cache: pip` en el job `build` de tags.
+
+**Tests nuevos (mutaciones):**
+- Rojas: lista del ruleset sin updates **y** sin deletions; quitar ambas menciones de *Restrict updates*; `always()`→`success()`; `set -euo`→`set -euxo`; `echo $MACOS_CERT_PASSWORD` en el resumen; `echo "${{ secrets.NOTARY_KEY_P8_BASE64 }}"` en el resumen.
+- **Verdes:** (a) `*Restrict updates*`→`*Restrict creations*` en la lista (`docs/RELEASE.md:38`), exactamente la mutación pedida; (b) quitar *Restrict updates* de la lista dejando deletions; (c) «**Obligatorio (ADR-005 §1…)**»→«Opcional:»; (d) «sin bypass salvo el mantenedor»→«con bypass para el rol Write»; (e) `set -o xtrace` en el import del certificado. (a)-(b) sobreviven porque la ventana de 600 caracteres (`tests/test_release_scripts.py:524-525`) también encuentra «Restrict updates» en la frase explicativa «Sin *Restrict updates*, …» (`docs/RELEASE.md:39`). (c) sobrevive porque `:526` solo busca la palabra «Recomendado» 120 caracteres antes.
+
+**Coherencia:** RELEASE.md ↔ release.yml ↔ release_mac.sh: eventos (`docs:8-13` = `yml:18-29`), environments (`docs:26-43` = `yml:49-50`), 5 secrets, 6 assets (`docs:110-112` = `yml:221-223,236-238`). **Observación:** ADR-005 §1 (`engram/02_architecture.md:189`) sigue diciendo solo «restringe la creación de `v*`», y la doc ahora pide más (creations/updates/deletions). No se contradicen, pero el ADR subestima la frontera; lo actualiza el arquitecto.
+
+Abstenciones: ejecución real en GitHub; config real de Settings; explotabilidad del envenenamiento de caché vía respuesta del índice y pip del runner; `gh release create` con borrador existente; `GITHUB_REF` de `workflow_run`.
+
+### §Veredicto: **REFUTADO**
+
+D1 y D2 de la verificación 1 quedan **cerrados en la doc** (`docs/RELEASE.md:5,13,37-41,112`). Lo que se refuta es la guarda que dice cubrirlos:
+
+1. **D1 (guarda de regresión de D1 vacua, ADR-005 §1).** `tests/test_release_docs_require_tag_ruleset_with_restrict_updates` (`tests/test_release_scripts.py:520-526`) sigue verde con la regresión exacta de D1: lista `*Restrict creations*, *Restrict creations* y *Restrict deletions*` o sin *Restrict updates* (`docs/RELEASE.md:38`). La ventana `:524` encuentra la frase explicativa `:39`. También queda verde degradar el paso a «Opcional» o dar bypass al rol Write. Fix: assertar sobre la línea de la lista (p. ej. regex `con \*Restrict creations\*, \*Restrict updates\* y \*Restrict deletions\*`), sobre «Obligatorio» y sobre «sin bypass salvo».
+2. **D2 (guarda de higiene incompleta).** `tests/test_release_scripts.py:512` dice «sin `set -x` en ningún `run:`», pero no detecta `set -o xtrace` (mutación verde) ni, por su regex, `set -ex` o `set -xeuo pipefail`. Los secrets del import (`release.yml:91-92`) irían al log con trazas. Fix: detectar cualquier `set` con `x` entre las flags cortas, o `-o xtrace`.
+
+Grounded: sí (file:line, salida de comando o doc citada). Supuestos marcados: los de Abstenciones.

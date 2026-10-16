@@ -39,6 +39,9 @@ rama, editable por cualquiera con write) nunca los reciben: GitHub aplica la reg
    el mantenedor. Sin *Restrict updates*, cualquiera con permiso de escritura puede **mover** un tag `v*`
    existente a otro commit: ese push pasa la regla del environment `release`, recibe los secrets y firma y
    notariza código arbitrario con tu Developer ID.
+   Aun con el ruleset, cualquiera con permiso de escritura puede **re-ejecutar** un run de un tag (hasta 30 días)
+   o despacharlo sobre ese tag: firma el mismo commit del mantenedor, pero gasta notarizaciones y publica otro
+   borrador. Si el repo tiene más colaboradores con write, activá **Required reviewers** (paso 4).
 
 Fuera de un tag el job usa el environment `smoke` (GitHub lo crea solo; no le cargues secrets ni reglas).
 
