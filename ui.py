@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import os
 import sys
 import time
 from io import BytesIO
@@ -65,6 +66,7 @@ from about_dialog import (
     mark_disclaimer_accepted,
 )
 import dialogs
+from audio_formats import NOT_PLAYABLE_MESSAGE, is_playable_audio
 import icons
 from branding import APP_NAME
 from preview_card import (
@@ -73,7 +75,7 @@ from preview_card import (
 from row_blocks import ALL_BROKEN, NONE, block_positions, broken_notice_text, ext_chip_text, format_key_bpm
 from playlist_filter import matches
 from styles import apply_title_tracking, status_style, token
-from worker import ExportWorker, folder_names_by_playlist
+from worker import DestinationCheck, ExportWorker, folder_names_by_playlist
 from ui_components import (
     ClickableLabel,
     WrapLabel,
@@ -85,7 +87,7 @@ from ui_components import (
     RestoreBackupDialog,
     TitleBar,
 )
-from preview_worker import ExistenceRecheckWorker, PreviewWorker, GroupData, TrackRow
+from preview_worker import ExistenceRecheckWorker, PlayResolveWorker, PreviewWorker, GroupData, TrackRow
 from library_load_worker import LibraryLoadResult, LibraryLoadWorker
 from audio_player import AudioPlayer
 from footer import FooterBar
@@ -279,6 +281,10 @@ class MainWindow(QMainWindow):
 
         self._export_state: Literal["idle", "running", "cancelling"] = "idle"
         self._last_export_dest: str = ""
+        self._dest_check: DestinationCheck | None = None
+        self._status_before_check = ""
+        self._closing = False   # cerrar invalida lo que llegue en cola (chequeo de destino, resolución de ruta)
+        self._play_gen = 0
 
         # Cache de metadata de tracks: evita re-queries SQLAlchemy (N+1 problem)
         # key: "<source>:<playlist_name>"  value: list[TrackRow] sin exists flags
@@ -1280,6 +1286,8 @@ class MainWindow(QMainWindow):
         worker.requestInterruption()
 
     def _on_library_loaded(self, result: LibraryLoadResult) -> None:
+        if self._closing:
+            return
         if result.token != self._load_generation:
             return
         self._load_worker = None
@@ -1306,6 +1314,8 @@ class MainWindow(QMainWindow):
         self._sync_maintenance_for_source()
 
     def _on_library_failed(self, token: int, message: str) -> None:
+        if self._closing:
+            return
         if token != self._load_generation:
             return
         self._load_worker = None
@@ -1836,6 +1846,8 @@ class MainWindow(QMainWindow):
 
     def _on_preview_done(self) -> None:
         """Worker terminó. Limpia loading label si no llegó ningún grupo."""
+        if self._closing:
+            return
         self._last_exists_check = time.monotonic()
         lo = self.preview_layout
         for i in range(lo.count()):
@@ -1960,18 +1972,32 @@ class MainWindow(QMainWindow):
         # Click en la fila que ya suena → pausa/reanuda en vez de reiniciar
         if allow_toggle and raw_path and raw_path == self._playing_path \
                 and self._audio.current_path():
+            self._play_gen += 1   # el último gesto fue este: una resolución tardía ya no vale
             self._audio.toggle()
             return
 
-        if self._source == "traktor":
-            resolved = raw_path if raw_path and Path(raw_path).exists() else None
-        else:
-            from rekordbox_export import resolve_path
-            resolved = resolve_path(raw_path)
-        if not resolved:
-            return
-        resolved = str(resolved)
+        # exists()/resolve_path() pueden tardar en USB o red: se resuelven en un hilo corto y el
+        # último click gana (TEC-15).
+        self._play_gen += 1
+        resolver = PlayResolveWorker(raw_path, self._source == "traktor", self._play_gen)
+        self._retain_thread(resolver)
+        resolver.resolved.connect(
+            lambda gen, path, r=row, raw=raw_path, t=track: self._on_play_resolved(gen, path, r, raw, t)
+        )
+        resolver.start()
 
+    def _on_play_resolved(
+        self, gen: int, resolved: str | None, row: FileRow | None, raw_path: str,
+        track: TrackRow | None,
+    ) -> None:
+        if self._closing or gen != self._play_gen or not resolved:
+            return
+        if not is_playable_audio(resolved):
+            self._on_audio_error(NOT_PLAYABLE_MESSAGE)   # SEC-18: ni se abre
+            return
+        from shiboken6 import isValid
+        if row is None or not isValid(row):
+            row = self._row_for(raw_path)   # pudo dibujarse mientras se resolvía la ruta
         self._audio.play(resolved)
         self._playing_path = raw_path
 
@@ -2049,6 +2075,8 @@ class MainWindow(QMainWindow):
 
     def _on_track_finished(self) -> None:
         """Reproduce el siguiente track existente de la cola, si lo hay."""
+        if self._closing:
+            return
         if not self._auto_advance:
             return
         queue = self._playable_tracks()
@@ -2100,6 +2128,8 @@ class MainWindow(QMainWindow):
             worker.cancel()
 
     def _on_wave_ready(self, path: str, data: WaveData, generation: int) -> None:
+        if self._closing:
+            return
         if generation != self._wave_gen:
             return                            # resultado stale → descartar
         self._wave_cache[path] = data
@@ -2118,6 +2148,8 @@ class MainWindow(QMainWindow):
                 event.ignore()
                 return
 
+        self._closing = True
+        self._play_gen += 1
         self._audio.stop()
         self._cancel_waveform()
         for w in list(self._live_wave_workers):
@@ -2143,6 +2175,41 @@ class MainWindow(QMainWindow):
                 thread.requestInterruption()
                 thread.wait(2000)
         super().closeEvent(event)
+        self._exit_if_threads_hung()
+
+    # Hilos que solo leen o solo crean la carpeta vacía de destino (stat, decoder, carga de la
+    # librería, resolución de ruta): si uno queda colgado en el kernel
+    # se puede abandonar. Cualquier otro (relocate, restore, carga, destino) escribe o crea
+    # archivos y se espera entero.
+    _READ_ONLY_THREADS = (
+        DestinationCheck, ExistenceRecheckWorker, LibraryLoadWorker, PlayResolveWorker,
+        PreviewWorker, WaveformWorker,
+    )
+
+    def _exit_if_threads_hung(self) -> None:
+        """TEC-24: un `stat`/decoder colgado en el kernel (USB dormido, SMB caído) no se puede
+        esperar sin tope ni destruir en vuelo (Qt aborta con SIGABRT). Si SOLO quedan hilos de
+        lectura, se guarda lo propio y el proceso sale limpio (el SO libera el hilo). Si queda
+        vivo un hilo que escribe, se espera sin tope con cursor de espera, como el export (D-16):
+        cortarlo a mitad dejaría un NML/JSON a medias."""
+        alive = [t for t in (*self._live_threads, *self._live_wave_workers) if t.isRunning()]
+        writers = [t for t in alive if not isinstance(t, self._READ_ONLY_THREADS)]
+        if writers:
+            self.output_status.setText("Esperando que termine la operación en curso…")
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            try:
+                for t in writers:
+                    while not t.wait(50):
+                        QApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
+            finally:
+                QApplication.restoreOverrideCursor()
+            alive = [t for t in alive if t.isRunning()]
+        if not alive:
+            return
+        _logger.warning("Cierre con %d hilo(s) de lectura colgado(s): salida directa", len(alive))
+        self.settings.sync()
+        logging.shutdown()
+        os._exit(0)
 
     _RECHECK_EVERY_S = 5.0
 
@@ -2172,6 +2239,8 @@ class MainWindow(QMainWindow):
         worker.start()
 
     def _on_recheck_done(self, changed: bool) -> None:
+        if self._closing:
+            return
         if not changed or self._export_state != "idle":
             return
         self._exists_cache.clear()
@@ -2236,9 +2305,32 @@ class MainWindow(QMainWindow):
         if not selected:
             dialogs.warning(self, "Sin selección", "Marcá al menos una playlist.")
             return
-        try:
-            Path(output).mkdir(parents=True, exist_ok=True)
-        except OSError:
+        if self._dest_check is not None:
+            return   # ya se está comprobando el destino de un click anterior
+        self._status_before_check = self.output_status.text()
+        self.output_status.setText("Verificando destino…")
+        check = DestinationCheck(Path(output))
+        self._dest_check = check
+        self._retain_thread(check)
+        check.checked.connect(lambda ok, o=output, s=selected: self._on_dest_checked(o, s, ok))
+        check.start()
+
+    def _restore_status_after_check(self) -> None:
+        self.output_status.setText(self._status_before_check)
+
+    def _on_dest_checked(self, output: str, selected: list, ok: bool) -> None:
+        self._dest_check = None
+        if self._closing:
+            return   # la ventana ya se cerró: nunca arrancar un export después de closeEvent
+        if self._relocate_worker and self._relocate_worker.isRunning():
+            self._restore_status_after_check()
+            dialogs.warning(
+                self, "Relocate en curso",
+                "Esperá a que termine la reparación de enlaces antes de exportar.",
+            )
+            return
+        if not ok:
+            self._restore_status_after_check()
             # Típico: el destino guardado está en un disco que hoy no está montado.
             dialogs.warning(
                 self, "No se puede usar la carpeta de destino",
@@ -2322,8 +2414,8 @@ class MainWindow(QMainWindow):
         self._log(f"\n{'⏹' if status == 'cancelled' else '✓'}  {summary}")
 
         # ── Botón "Abrir en Finder" ───────────────────────────────────────
-        output_path = Path(self._last_export_dest)
-        if copied > 0 and output_path.exists():
+        # El worker ya miró el disco (TEC-31): acá no hay E/S.
+        if copied > 0 and getattr(self._worker, "dest_exists", False):
             self._footer.set_finder_visible(True)
 
         self.log_view.setVisible(False)
@@ -2588,6 +2680,12 @@ class MainWindow(QMainWindow):
             return
         if self._relocate_worker and self._relocate_worker.isRunning():
             return
+        if self._dest_check is not None:
+            dialogs.warning(
+                self, "Verificando destino",
+                "Esperá un momento: se está verificando la carpeta de destino de la exportación.",
+            )
+            return
 
         # R-03 (Traktor) / R-01 (Rekordbox) — "cerrá la app antes de reparar
         # enlaces" — se chequea DENTRO del worker (run()), no acá: ambos
@@ -2665,6 +2763,11 @@ class MainWindow(QMainWindow):
         worker queda bloqueado en threading.Event.wait() hasta que
         provide_answer() le llegue — nunca toca widgets desde su hilo.
         """
+        if self._closing:
+            # closeEvent ya liberó al worker; un modal nuevo bloquearía el cierre
+            if self._relocate_worker:
+                self._relocate_worker.provide_answer(None)
+            return
         dlg = RelocateDialog(request, self)
         dlg.exec()
         if self._relocate_worker:
@@ -2686,6 +2789,8 @@ class MainWindow(QMainWindow):
     def _on_relocate_finished(
         self, repaired: int, skipped: int, unresolved: int, status: str
     ) -> None:
+        if self._closing:
+            return
         # I-1: ya terminó (ok/cancelled/error/blocked) — no queda nada que
         # perder, resetear el tracker de progreso para la próxima corrida.
         self._relocate_progress_done = 0
@@ -2870,6 +2975,8 @@ class MainWindow(QMainWindow):
         self._restore_worker.start()
 
     def _on_restore_backup_finished(self, ok: bool, error_msg: str, target_name: str) -> None:
+        if self._closing:
+            return
         app_name = "Traktor"
         self._set_maintenance_enabled(True)
 
@@ -2954,6 +3061,8 @@ class MainWindow(QMainWindow):
         self._update_worker.start()
 
     def _on_update_available(self, info: UpdateInfo) -> None:
+        if self._closing:
+            return
         self._update_url = info.url
         self._update_banner.setText(f"🔔  Nueva versión {info.version} disponible")
         self._update_strip.setVisible(True)
