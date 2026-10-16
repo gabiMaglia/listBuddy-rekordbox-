@@ -6,7 +6,7 @@ import pytest
 from _qt_isolated import run_isolated
 
 
-@pytest.mark.parametrize("ext", ["xyz", "m3u8", "ffconcat", "mp4", "txt", ""])
+@pytest.mark.parametrize("ext", ["xyz", "m3u8", "ffconcat", "mov", "txt", ""])
 def test_player_does_not_open_non_audio_extensions(ext: str) -> None:
     r = run_isolated(
         "from PySide6.QtCore import QCoreApplication\n"
@@ -31,12 +31,12 @@ def test_player_still_opens_allowed_extensions() -> None:
         "p = AudioPlayer(); calls = []\n"
         "orig = p._player.setSource\n"
         "p._player.setSource = lambda u: (calls.append(u), orig(u))\n"
-        "for e in ('MP3', 'm4a', 'aac', 'flac', 'wav', 'aif', 'aiff', 'ogg', 'opus', 'wma'):\n"
+        "for e in ('MP3', 'mp4', 'm4a', 'aac', 'flac', 'wav', 'aif', 'aiff', 'ogg', 'opus', 'wma'):\n"
         "    p.play('/tmp/x.' + e)\n"
         "print(len(calls))\n"
     )
     assert r.returncode == 0, r.stderr[-2000:]
-    assert r.stdout.strip().splitlines()[-1] == "10"
+    assert r.stdout.strip().splitlines()[-1] == "11"
 
 
 def test_waveform_worker_does_not_start_the_decoder_for_non_audio() -> None:

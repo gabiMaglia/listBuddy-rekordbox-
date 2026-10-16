@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 AUDIO_EXTENSIONS = frozenset({
-    ".mp3", ".m4a", ".aac", ".flac", ".wav", ".aif", ".aiff", ".ogg", ".opus", ".wma",
+    ".mp3", ".m4a", ".mp4", ".aac", ".flac", ".wav", ".aif", ".aiff", ".ogg", ".opus", ".wma",
 })
 
 NOT_PLAYABLE_MESSAGE = "Este archivo no es un formato de audio reproducible"
