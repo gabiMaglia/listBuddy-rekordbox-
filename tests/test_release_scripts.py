@@ -263,10 +263,22 @@ def _steps(name_part: str) -> str:
     return m.group(0)
 
 
+def _step_if_operands(name_part: str) -> list[str]:
+    """Operandos del `if:` REAL del paso (no comentarios), partidos por `&&` de nivel superior.
+    Falla si la condición usa `||` o paréntesis: ahí un operando ya no garantiza nada por sí solo."""
+    step = _steps(name_part)
+    ifs = [l for l in step.splitlines() if re.match(r"\s*if:\s*\S", l)]
+    assert len(ifs) == 1, f"{name_part}: {len(ifs)} líneas if:"
+    cond = ifs[0].split("if:", 1)[1].strip()
+    assert "||" not in cond and "(" not in cond, f"{name_part}: condición no conjuntiva: {cond}"
+    return [op.strip() for op in cond.split("&&")]
+
+
 def test_workflow_never_signs_on_pull_request() -> None:
-    """D1: PR del mismo repo también recibe secrets; certificado y notarización solo fuera de PR."""
+    """D1 (QA D6): PR del mismo repo también recibe secrets; certificado y notarización solo fuera de PR.
+    Se exige la guarda como operando de un `&&` real, no como subcadena (un `||` la anularía)."""
     for name in ("Importar certificado", "Guardar credenciales de notarytool"):
-        assert "github.event_name != 'pull_request'" in _steps(name), name
+        assert "github.event_name != 'pull_request'" in _step_if_operands(name), name
 
 
 def test_workflow_uploads_source_tarball_from_one_leg_only() -> None:
@@ -277,6 +289,8 @@ def test_workflow_uploads_source_tarball_from_one_leg_only() -> None:
     first = uploads[0]
     assert "src.tar.gz" not in first
     assert any("src.tar.gz" in u and "matrix.arch == 'arm64'" in u for u in uploads)
+    # El `if:` real del paso del tarball es exactamente esa guarda (un `|| true` lo anularía).
+    assert _step_if_operands("tarball de fuentes") == ["matrix.arch == 'arm64'"]
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")

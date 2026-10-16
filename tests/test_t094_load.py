@@ -190,6 +190,25 @@ def test_traktor_open_can_be_cancelled(tmp_path: Path) -> None:
         tk.open_collection(nml, should_cancel=lambda: True)
 
 
+def test_traktor_cancellation_is_checked_while_scanning(tmp_path: Path) -> None:
+    """QA T-094 D3: la cancelación se consulta a lo largo del parseo (cada CHECK_EVERY eventos),
+    no solo en el primer evento: un NML grande tiene que poder cortarse a mitad de camino."""
+    import traktor_db as tk
+    from load_cancel import CHECK_EVERY
+
+    nml = tmp_path / "collection.nml"
+    _nml(nml, 3000)                       # > 2×CHECK_EVERY eventos: hay más de una consulta
+    calls = {"n": 0}
+
+    def cancel_on_second_check() -> bool:
+        calls["n"] += 1
+        return calls["n"] >= 2
+
+    with pytest.raises(tk.LoadCancelled):
+        tk.open_collection(nml, should_cancel=cancel_on_second_check)
+    assert calls["n"] == 2, f"se consultó {calls['n']} veces (CHECK_EVERY={CHECK_EVERY})"
+
+
 def test_track_source_roundtrips_escapes_nesting_and_tails(tmp_path: Path) -> None:
     raw = (
         '<TRACK TrackID="1" Name="a &amp; &lt;b&gt; &quot;c&quot;&#10;d" Location="file://localhost/x/a.mp3">tx'
