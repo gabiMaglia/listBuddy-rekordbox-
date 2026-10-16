@@ -165,6 +165,9 @@ def _copy_atomic(src: Path, dest: Path, should_stop) -> None:
     try:
         with open(src, "rb") as fsrc, open(part, "xb") as fdst:
             _copy_stream(fsrc, fdst, should_stop)
+            # Que los datos estén en disco antes de que el nombre final exista (TEC-28).
+            fdst.flush()
+            os.fsync(fdst.fileno())
         shutil.copystat(src, part)
         os.replace(part, dest)
     except BaseException:
