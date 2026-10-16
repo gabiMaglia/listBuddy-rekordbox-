@@ -3,6 +3,10 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 14:20] Límite de API (reset 14:00) → 4 agentes reanudados · T-109 listo → QA (A)
+- Los 4 agentes (T-105, T-107, T-109, comparativa MoR) se cortaron por el límite de sesión; reanudados con `SendMessage` (contexto intacto) a las 14:01. T-109 volvió completo (8 commits, 9/10 ítems con rojo estricto; LEG-28 por mutación). `nerv-gate.sh` REJECTED FILES_MISMATCH por bug de la herramienta: `--files` se parte por espacios y los PNG borrados tienen espacios en el nombre → chequeos equivalentes a mano (295 líneas reviewables → A; rutas personales vacías; tests verdes). Bug reportado al playbook.
+- Quien retoma: nerv-qa T-109 → nerv-orquestador.
+
 ### [2026-10-16 19:30] T-104 consolidada → corte aprobado por el PO → T-105..T-111
 - PO: Nivel 0 + Nivel 1 ahora; 1.0.0 PAGA (LEG-22 → T-110, bloqueado hasta MoR/precio); purgar historia por LEG-25 (T-111, al final). Ola 1 en paralelo con archivos disjuntos: T-105 (worker/audio/ui-export), T-107 (release/CI/RELEASE.md), T-109 (docs legales/privacidad/fixes/app_paths). Ola 2: T-106 (ui preview, tras T-105), T-108 (Windows, tras T-107). T-105/T-107 nivel S → plan QUÉ/CÓMO en engram/plans (QUÉ = corte aprobado por el PO; CÓMO estampado por nerv-desktop antes de codear).
 - Quien retoma: nerv-desktop ×3 → nerv-orquestador → gate → nerv-qa.
