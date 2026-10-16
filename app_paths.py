@@ -26,3 +26,19 @@ def default_settings_path(frozen: bool | None = None) -> Path:
     if frozen:
         return data_dir() / "settings.ini"
     return Path(__file__).parent / ".rbe_settings.ini"
+
+
+def make_private(path: Path, *, create: bool = False) -> None:
+    """Deja `path` legible solo por el usuario (0600) en POSIX; en Windows no hace nada
+    (ahí el perfil del usuario ya es privado). `create` lo crea vacío si falta, para
+    que Qt (QSaveFile) conserve el modo al reescribirlo. Es del propio usuario, así
+    que un archivo viejo con 0644 se ajusta sin avisar."""
+    if sys.platform.startswith("win"):
+        return
+    try:
+        if create and not path.exists():
+            os.close(os.open(path, os.O_CREAT | os.O_WRONLY, 0o600))
+        if path.exists():
+            path.chmod(0o600)
+    except OSError:
+        pass  # filesystem sin permisos POSIX (FAT/red): no es motivo para no arrancar
