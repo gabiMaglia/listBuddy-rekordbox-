@@ -9,9 +9,9 @@ con los DMG y sus `.sha256`. Todo el trabajo de build/firma/notarización lo hac
 |---|---|
 | Tag `v*` (p. ej. `v1.0.0`) | Build + firma + notarización en ambas arquitecturas → Release en borrador |
 | `workflow_dispatch` (botón «Run workflow») | Igual, sin crear Release (los DMG quedan como artefactos del run) |
-| Pull request que toca `release_mac.sh`, `check_bundle.sh`, el spec, `entitlements.plist` o `requirements.txt` | Build de humo con firma ad-hoc |
+| Pull request que toca `release_mac.sh`, `check_bundle.sh`, el spec, `entitlements.plist` o `requirements.txt` | Build de humo con firma ad-hoc; **nunca** importa el certificado ni guarda credenciales, aunque el PR sea del mismo repo |
 
-Sin secrets (fork, PR, repo recién clonado) el workflow **no falla**: firma ad-hoc y avisa con un
+Sin secrets (fork, repo recién clonado) o en un pull request el workflow **no falla**: firma ad-hoc y avisa con un
 `::warning::`. Ese DMG no sirve para distribuir.
 
 Runners (verificados el 2026-10-15 en [actions/runner-images](https://github.com/actions/runner-images/blob/main/README.md)):
@@ -85,7 +85,7 @@ en el runner y le pasa `NOTARY_PROFILE=listbuddy` al script, igual que en una re
    ```
    Si el tag no coincide con `_APP_VERSION`, el workflow falla antes de buildear.
 3. Esperá los dos jobs (10-25 min cada uno: PyInstaller + ~150 firmas con timestamp + dos notarizaciones).
-   Cada notarización consume 2 de las 75 diarias por cuenta (app + DMG) por arquitectura.
+   Se notarizan el `.app` y el DMG, en cada arquitectura.
 4. Entrá a **Releases** → el borrador **List Buddy v1.0.0** tiene:
    - `ListBuddy-1.0.0-arm64.dmg` + `.sha256`
    - `ListBuddy-1.0.0-x86_64.dmg` + `.sha256`

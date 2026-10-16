@@ -3,8 +3,10 @@
 # - Tag `v*`           → build + firma Developer ID + notarización + GitHub Release en borrador.
 # - workflow_dispatch  → build (firmado si hay secrets) y artefactos, sin release.
 # - pull_request       → solo si cambian archivos de empaquetado: build ad-hoc de humo.
+#                        Nunca importa el certificado ni las credenciales, aunque el PR sea
+#                        del mismo repo y GitHub le pase secrets.
 #
-# Sin secrets (fork, PR, repo sin configurar) el script firma ad-hoc y no falla.
+# Sin secrets (fork, repo sin configurar) o en pull_request el script firma ad-hoc y no falla.
 # Secrets (ver docs/RELEASE.md): MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD,
 # NOTARY_KEY_ID, NOTARY_ISSUER_ID, NOTARY_KEY_P8_BASE64.
 #
@@ -78,7 +80,7 @@ jobs:
 
       # ── Firma: .p12 en un keychain temporal (GitHub Docs «Installing an Apple certificate on macOS runners») ──
       - name: Importar certificado Developer ID
-        if: env.SIGNING == 'true'
+        if: github.event_name != 'pull_request' && env.SIGNING == 'true'
         env:
           MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
           MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
@@ -107,7 +109,7 @@ jobs:
 
       # ── Notarización: API key de App Store Connect → perfil de notarytool (TN3147) ──
       - name: Guardar credenciales de notarytool
-        if: env.SIGNING == 'true' && env.NOTARIZING == 'true'
+        if: github.event_name != 'pull_request' && env.SIGNING == 'true' && env.NOTARIZING == 'true'
         env:
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
@@ -122,9 +124,9 @@ jobs:
           echo "NOTARY_PROFILE=listbuddy" >> "$GITHUB_ENV"
 
       - name: Aviso si no hay secrets
-        if: env.SIGNING != 'true' || env.NOTARIZING != 'true'
+        if: github.event_name == 'pull_request' || env.SIGNING != 'true' || env.NOTARIZING != 'true'
         run: |
-          echo "::warning::sin secrets completos: firma ad-hoc, DMG no distribuible (SIGNING=$SIGNING NOTARIZING=$NOTARIZING)"
+          echo "::warning::firma ad-hoc, DMG no distribuible (evento=${{ github.event_name }} SIGNING=$SIGNING NOTARIZING=$NOTARIZING)"
 
       # DEVELOPER_ID y NOTARY_PROFILE llegan por GITHUB_ENV solo si los pasos anteriores corrieron;
       # sin ellos el script firma ad-hoc. PYTHON apunta al de setup-python.
@@ -142,7 +144,7 @@ jobs:
             cat dist/*.sha256
             echo '```'
             echo
-            echo "Firma: ${DEVELOPER_ID:+Developer ID}${DEVELOPER_ID:-ad-hoc} · Notarización: ${NOTARY_PROFILE:+sí}${NOTARY_PROFILE:-no}"
+            echo "Firma: $([ -n "${DEVELOPER_ID:-}" ] && echo 'Developer ID' || echo ad-hoc) · Notarización: $([ -n "${NOTARY_PROFILE:-}" ] && echo sí || echo no)"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v7
@@ -150,9 +152,19 @@ jobs:
           name: listbuddy-${{ env.APP_VERSION }}-${{ matrix.arch }}
           path: |
             dist/*.dmg
-            dist/*-src.tar.gz
-            dist/*.sha256
+            dist/ListBuddy-*.dmg.sha256
             dist/notary-*.json
+          if-no-files-found: error
+          compression-level: 0
+
+      # El tarball fuente es idéntico en las dos patas: con merge-multiple se pisarían; sube una.
+      - uses: actions/upload-artifact@v7
+        if: matrix.arch == 'arm64'
+        with:
+          name: listbuddy-${{ env.APP_VERSION }}-src
+          path: |
+            dist/*-src.tar.gz
+            dist/*-src.tar.gz.sha256
           if-no-files-found: error
           compression-level: 0
 
