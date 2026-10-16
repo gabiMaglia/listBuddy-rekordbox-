@@ -37,8 +37,10 @@ $pyi     = Join-Path $venv "Scripts\pyinstaller.exe"
 
 Write-Host "Instalando dependencias…"
 & $pip install --upgrade pip --quiet
-& $pip install -r (Join-Path $ROOT "requirements.txt") --quiet
-& $pip install pyinstaller --quiet
+# SEC-07: --require-hashes rechaza todo paquete fuera del lock; PyInstaller va pineado y aparte
+# (con hashes activos pip exige hash en cada requisito de la misma corrida).
+& $pip install --require-hashes -r (Join-Path $ROOT "requirements.txt") --quiet
+& $pip install pyinstaller==6.20.0 --quiet
 
 # ── 3. Build ───────────────────────────────────────────────────────────────
 Write-Host ""

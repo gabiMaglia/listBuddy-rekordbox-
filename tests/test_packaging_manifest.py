@@ -4,15 +4,18 @@ from __future__ import annotations
 import re
 
 from _qt_isolated import PROJECT_ROOT
+from _reqs import pinned, unhashed
 
 _SPEC = (PROJECT_ROOT / "rb_exporter.spec").read_text(encoding="utf-8")
-_REQS = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+_REQS = pinned(PROJECT_ROOT / "requirements.txt")
 
 
 def test_requirements_pin_pyside6_and_drop_pyqt6() -> None:
-    assert "PySide6==6.12.0" in _REQS
-    assert "shiboken6==6.12.0" in _REQS
-    assert [r for r in _REQS if r.lower().startswith("pyqt")] == []
+    for name in ("pyside6-essentials", "pyside6-addons", "shiboken6"):
+        assert _REQS[name] == "6.12.0", name
+    # El metapaquete arrastra PySide6_Pdf/WebEngine, que la app no usa (T-096).
+    assert not {"pyside6", "pyside6-pdf", "pyside6-webengine"} & set(_REQS)
+    assert [r for r in _REQS if r.startswith("pyqt")] == []
 
 
 def test_spec_uses_pyside6_multimedia_and_excludes_pyqt6() -> None:
@@ -51,7 +54,7 @@ def test_mac_bundle_uses_visible_brand_name() -> None:
 
 
 def test_rekordbox_db_stack_is_not_shipped() -> None:
-    assert not any(r.lower().startswith(("pyrekordbox", "sqlcipher3")) for r in _REQS)
+    assert not any(r.startswith(("pyrekordbox", "sqlcipher3")) for r in _REQS)
     excludes = _SPEC.split("excludes=", 1)[1].split("]", 1)[0]
     for mod in ("'pyrekordbox'", "'sqlcipher3'", "'sqlalchemy'"):
         assert mod in excludes, mod
@@ -105,3 +108,21 @@ def test_spec_filter_matches_framework_plugin_and_windows_names() -> None:
         "PySide6/QtWidgets.abi3.so", "PySide6/Qt6Multimedia.dll",
     ):
         assert not drop(kept), kept
+
+
+def test_requirements_are_hash_locked_t096() -> None:
+    # SEC-07: pip solo verifica hashes si están en el archivo; --require-hashes los exige todos.
+    for name in ("requirements.txt", "requirements-dev.txt"):
+        assert unhashed(PROJECT_ROOT / name) == [], name
+        assert (PROJECT_ROOT / name.replace(".txt", ".in")).is_file(), name
+    dev = pinned(PROJECT_ROOT / "requirements-dev.txt")
+    assert {"pytest", "pytest-xdist"} <= set(dev)
+    # el lock de dev incluye el de producción con las mismas versiones
+    assert all(dev[k] == v for k, v in _REQS.items())
+
+
+def test_pyinstaller_pinned_in_both_build_scripts_t096() -> None:
+    for script in ("release_mac.sh", "build_windows.ps1"):
+        text = (PROJECT_ROOT / "scripts" / script).read_text(encoding="utf-8")
+        assert "pyinstaller==6.20.0" in text.lower(), script
+        assert "--require-hashes" in text, script

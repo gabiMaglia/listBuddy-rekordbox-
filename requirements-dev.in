@@ -1,0 +1,5 @@
+# Dependencias de desarrollo (no necesarias para correr la app). Lock con hashes:
+#   pip-compile --generate-hashes --strip-extras --output-file=requirements-dev.txt requirements-dev.in
+-r requirements.in
+pytest==9.1.1
+pytest-xdist==3.8.0
