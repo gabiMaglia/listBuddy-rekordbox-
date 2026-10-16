@@ -15,6 +15,7 @@ import time
 from io import BytesIO
 from functools import partial
 from pathlib import Path
+from collections.abc import Iterator
 from typing import Any, Callable, Literal
 from xml.etree import ElementTree as ET
 
@@ -246,6 +247,8 @@ class MainWindow(QMainWindow):
         self._preview_workers: list[PreviewWorker] = []      # T-106: uno por lote de extracción
         # T-106 (TEC-23): trabajo por lotes con presupuesto de tiempo por tick del event loop.
         self._mark_queue: list[PlaylistCard] = []            # «Marcar todas» pendiente
+        self._populate_job: Iterator[None] | None = None     # poblado del árbol en curso
+        self._populate_on_done: Callable[[], None] | None = None
         self._mark_value = True
         self._feed_queue: list[PlaylistCard] = []            # tarjetas por extraer para la previa
         self._feed_order: dict[PlaylistCard, int] = {}
@@ -1304,7 +1307,14 @@ class MainWindow(QMainWindow):
         else:
             playlist_song_count = rekordbox_xml.playlist_song_count
             src_label = "Rekordbox"
-        self._populate_playlists(result.tree, playlist_song_count)
+        self._populate_playlists(
+            result.tree, playlist_song_count,
+            on_done=partial(self._finish_library_load, result, src_label),
+        )
+
+    def _finish_library_load(self, result: LibraryLoadResult, src_label: str) -> None:
+        if result.token != self._load_generation:
+            return
         self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
         if result.source == "rekordbox":
             stamp = f"{self._db.exported_at:%d/%m/%Y %H:%M}"
@@ -1312,10 +1322,11 @@ class MainWindow(QMainWindow):
             self._src_rb_btn.setToolTip(f"XML exportado el {stamp}")
         keep, self._keep_after_load = self._keep_after_load, set()
         if keep:
-            for card in self._all_cards:
-                if self._playlist_cache_key(card.playlist) in keep:
-                    card.setChecked(True)
-            self._update_order_numbers()
+            # Re-marcar en lotes: cientos de setChecked juntos congelan la ventana (T-106).
+            self._mark_queue = [c for c in self._all_cards
+                                if self._playlist_cache_key(c.playlist) in keep]
+            self._mark_value = True
+            self._pump_mark()
         self._sync_maintenance_for_source()
 
     def _on_library_failed(self, token: int, message: str) -> None:
@@ -1333,20 +1344,35 @@ class MainWindow(QMainWindow):
     # y llaman a esta referencia para ejercitar la carga real.
     _load_playlists_real = _load_playlists
 
-    def _populate_playlists(self, tree: list[dict], song_count: Callable[[Any], int]) -> None:
-        """Arma carpetas y filas desde el árbol; separado de la carga para testearlo sin DB."""
+    def _populate_playlists(
+        self, tree: list[dict], song_count: Callable[[Any], int],
+        on_done: Callable[[], None] | None = None,
+    ) -> None:
+        """Arma carpetas y filas desde el árbol; separado de la carga para testearlo sin DB.
+
+        T-106: en lotes de ≈25 ms con el árbol parcial a la vista (800 playlists de una vez
+        congelaban la ventana). El primer lote corre acá mismo, así que un árbol chico queda
+        completo al volver; `on_done` corre cuando termina el último lote."""
+        self._populate_job = self._populate_steps(tree, song_count)
+        self._populate_on_done = on_done
+        self._pump_populate()
+
+    def _populate_steps(
+        self, tree: list[dict], song_count: Callable[[Any], int],
+    ) -> Iterator[None]:
         card_index = 0
         layout = self.playlist_container_layout
 
-        def add_node(node: dict, group: PlaylistGroup | None = None) -> None:
+        def add_node(node: dict, group: PlaylistGroup | None = None) -> Iterator[None]:
             nonlocal card_index
             pl = node["playlist"]
             if pl.is_folder:
                 grp = PlaylistGroup(pl.Name)
                 self._groups.append(grp)
                 layout.insertWidget(layout.count() - 1, grp)
+                yield
                 for child in node["children"]:
-                    add_node(child, grp)
+                    yield from add_node(child, grp)
             else:
                 card = PlaylistCard(pl, song_count(pl), index=card_index)
                 card.toggled.connect(self._on_card_toggled)
@@ -1356,36 +1382,75 @@ class MainWindow(QMainWindow):
                     group.add_card(card)
                 else:
                     layout.insertWidget(layout.count() - 1, card)
+                card.ensurePolished()   # el pulido de estilos se paga por lote, no de golpe al mostrar
+                yield
 
         for node in tree:
-            add_node(node)
+            yield from add_node(node)
+        yield from self._filter_steps(100)   # con el contenedor oculto: barato, pero por tandas
 
+    def _pump_populate(self) -> None:
+        job = self._populate_job
+        if job is None:
+            return
+        if not isValid(self.playlist_container_layout):
+            self._populate_job = None
+            return
+        deadline = time.perf_counter() + self._BATCH_BUDGET_S
+        for _ in job:
+            if time.perf_counter() >= deadline:
+                # Cada lote hace que Qt re-acomode TODAS las tarjetas ya puestas (O(n) por tick:
+                # con 800 ≈ 200 ms). Mientras falte poblar, el contenedor queda oculto.
+                self.playlist_container.hide()
+                QTimer.singleShot(0, self._pump_populate)
+                return
+        self._populate_job = None
+        if self.playlist_container.isHidden():
+            self.playlist_container.show()   # el costo grande del final, solo en su tick
+            QTimer.singleShot(0, self._finish_populate)
+        else:
+            self._finish_populate()
+
+    def _finish_populate(self) -> None:
+        if self._populate_job is not None or not isValid(self.playlist_container_layout):
+            return   # arrancó otro poblado (o la ventana murió) mientras tanto
+        on_done, self._populate_on_done = self._populate_on_done, None
         self._update_order_numbers()
-        self._apply_filter()  # el texto del campo sobrevive a recargas (cambio de fuente)
         self._preview_debounce.start()
+        if on_done is not None:
+            on_done()
 
     def _apply_filter(self) -> None:
         """Muestra/oculta filas por nombre; solo de vista: no toca marcas, orden ni contador."""
-        query = self.playlist_search.text()
-        active = bool(query.strip())
         # Layout y repintado una sola vez al final: mostrar cientos de filas de
         # golpe (al borrar la consulta) costaba ~0,8 s con 300 playlists.
         layout = self.playlist_container_layout
         layout.setEnabled(False)
         self.playlist_container.setUpdatesEnabled(False)
         try:
-            for card in self._all_cards:
-                card.setVisible(matches(card.name, query))
-            for grp in self._groups:
-                grp.setVisible(not active or any(not c.isHidden() for c in grp.cards()))
+            for _ in self._filter_steps(0):
+                pass
         finally:
             self.playlist_container.setUpdatesEnabled(True)
             layout.setEnabled(True)
+
+    def _filter_steps(self, every: int) -> Iterator[None]:
+        """El filtro como generador: cede cada `every` tarjetas (0 = nunca) para repartirlo en ticks."""
+        query = self.playlist_search.text()
+        active = bool(query.strip())
+        for i, card in enumerate(self._all_cards, start=1):
+            card.setVisible(matches(card.name, query))
+            if every and i % every == 0:
+                yield
+        for grp in self._groups:
+            grp.setVisible(not active or any(not c.isHidden() for c in grp.cards()))
         none_visible = bool(self._all_cards) and all(c.isHidden() for c in self._all_cards)
         self._no_results.setText(f"Sin resultados para «{query.strip()}»")
         self._no_results.setVisible(active and none_visible)
 
     def _clear_playlist_area(self) -> None:
+        self._populate_job = None
+        self.playlist_container.show()
         self._mark_queue.clear()
         self._all_cards.clear()
         self._groups.clear()

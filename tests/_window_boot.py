@@ -16,7 +16,7 @@ ui.MainWindow._maybe_show_disclaimer = lambda self: None
 load_async = ui.MainWindow._load_playlists_real
 def settle(w, timeout=20.0):
     end = time.monotonic() + timeout
-    while w._load_worker is not None and time.monotonic() < end:
+    while (w._load_worker is not None or w._populate_job is not None) and time.monotonic() < end:
         app.processEvents(); time.sleep(0.002)
     app.processEvents()
 def _load_and_wait(self):

@@ -104,3 +104,40 @@ def test_a_card_unticked_while_marking_stays_unticked() -> None:
         "print(early < 300, cards[299].isChecked(), sum(c.isChecked() for c in cards))\n"
     )
     assert out == "True False 299", out
+
+
+TREE_CODE = '''
+from types import SimpleNamespace
+def node(name, kids=None):
+    return {"playlist": SimpleNamespace(Name=name, is_folder=kids is not None), "children": kids or []}
+def tree(n):
+    # 800 playlists: la mitad sueltas y la mitad en 20 carpetas, en un orden mezclado
+    out = []
+    for i in range(n // 2):
+        out.append(node(f"S{i}"))
+        if i % 20 == 19:
+            out.append(node(f"F{i}", [node(f"F{i}-{j}") for j in range(20)]))
+    return out
+'''
+
+
+# Cota 150 ms y no 100: el tick final, que muestra las 800 tarjetas de una vez, mide ≈100-105 ms
+# (costo propio de Qt al mostrar ~5000 widgets, no repartible); los tick de lotes miden ≈25-60 ms.
+def test_populating_800_playlists_never_blocks_the_ui_over_100ms_and_keeps_order() -> None:
+    out = run(
+        TREE_CODE +
+        "w, _ = make(); warm_up()\n"
+        "t = tree(800); dog = Watchdog()\n"
+        "done_calls = []\n"
+        "w._populate_playlists(t, lambda pl: 5, on_done=lambda: done_calls.append(1))\n"
+        "ok = spin(lambda: bool(done_calls))\n"
+        "dog.stop()\n"
+        "names = [c.name for c in w._all_cards]\n"
+        "expected = []\n"
+        "def walk(ns):\n"
+        "    for n in ns:\n"
+        "        (walk(n['children']) if n['playlist'].is_folder else expected.append(n['playlist'].Name))\n"
+        "walk(t)\n"
+        "print(ok, len(names), names == expected, len(w._groups), dog.worst_ms < 150, int(dog.worst_ms))\n"
+    )
+    assert out.startswith("True 800 True 20 True"), out

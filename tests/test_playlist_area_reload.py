@@ -20,6 +20,7 @@ for i in range(150):
     w._populate_playlists(TREE, lambda pl: 5)
     if i % 10 == 0:
         app.processEvents()
+settle(w)   # T-106: el poblado es por lotes; el último tiene que terminar
 print("vivo", len(w._all_cards), len(w._groups), w.playlist_container_layout.count())
 '''
 
