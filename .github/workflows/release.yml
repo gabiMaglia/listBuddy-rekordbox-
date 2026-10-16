@@ -144,7 +144,7 @@ jobs:
             cat dist/*.sha256
             echo '```'
             echo
-            echo "Firma: ${DEVELOPER_ID:+Developer ID}${DEVELOPER_ID:-ad-hoc} · Notarización: ${NOTARY_PROFILE:+sí}${NOTARY_PROFILE:-no}"
+            echo "Firma: $([ -n "${DEVELOPER_ID:-}" ] && echo 'Developer ID' || echo ad-hoc) · Notarización: $([ -n "${NOTARY_PROFILE:-}" ] && echo sí || echo no)"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v7

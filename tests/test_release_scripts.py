@@ -277,3 +277,17 @@ def test_workflow_uploads_source_tarball_from_one_leg_only() -> None:
     first = uploads[0]
     assert "src.tar.gz" not in first
     assert any("src.tar.gz" in u and "matrix.arch == 'arm64'" in u for u in uploads)
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+@pytest.mark.parametrize("dev,notary,expected", [
+    ("", "", "Firma: ad-hoc · Notarización: no"),
+    ("Developer ID Application: X (T)", "listbuddy", "Firma: Developer ID · Notarización: sí"),
+])
+def test_workflow_summary_line_renders_cleanly(dev, notary, expected) -> None:
+    """D3: la línea de resumen ejecutada en bash (el run: del paso) no mezcla las dos ramas."""
+    line = next(l.strip() for l in _steps("Resumen").splitlines() if "Firma:" in l)
+    line = line.removeprefix('echo "').removesuffix('"')
+    r = subprocess.run(["bash", "-c", f'echo "{line}"'], capture_output=True, text=True,
+                       env={"DEVELOPER_ID": dev, "NOTARY_PROFILE": notary, "PATH": "/usr/bin:/bin"})
+    assert r.stdout.strip() == expected, r.stdout
