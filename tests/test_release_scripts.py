@@ -537,3 +537,65 @@ def test_release_docs_require_tag_ruleset_with_restrict_updates() -> None:
         assert asset in doc, asset
     assert "`release.yml`, `release_mac.sh`" in doc
 
+
+
+# ── T-103: verificación de minos contra el mínimo 14.4 ──────────────────────
+
+_KNOWN_BINDINGS = (
+    "QtCore", "QtGui", "QtWidgets", "QtSvg", "QtNetwork", "QtDBus", "QtMultimedia",
+    "QtMultimediaWidgets", "QtConcurrent",
+)
+
+
+def _minos_snippet() -> str:
+    text = _RELEASE.read_text(encoding="utf-8")
+    return text.split("# >>> minos-check", 1)[1].split("# <<< minos-check", 1)[0]
+
+
+def test_minos_warning_tells_the_truth_static() -> None:
+    text = _RELEASE.read_text(encoding="utf-8")
+    assert "26.0" in text and "14.8" in text
+    assert "15.0" not in text and "53 módulos" not in text
+    for name in _KNOWN_BINDINGS + ("Shiboken.abi3.so", "libshiboken6.abi3.6.12.dylib", "libpyside6.abi3.6.12.dylib"):
+        assert name in _minos_snippet(), name
+
+
+def _run_minos(tmp_path, files: dict[str, str]):
+    """Corre solo el tramo de minos con otool/file falsos: el minos es el contenido del archivo."""
+    app = tmp_path / "List Buddy.app"
+    fw = app / "Contents" / "Frameworks"
+    fw.mkdir(parents=True)
+    (app / "Contents" / "Info.plist").write_bytes(plistlib.dumps({"LSMinimumSystemVersion": "14.4"}))
+    for rel, minos in files.items():
+        (fw / rel).parent.mkdir(parents=True, exist_ok=True)
+        (fw / rel).write_text(minos)
+        (fw / rel).chmod(0o755)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "file").write_text("#!/bin/sh\necho 'Mach-O 64-bit bundle x86_64'\n")
+    (bin_dir / "otool").write_text(
+        '#!/bin/sh\nprintf "Load command 1\\n      cmd LC_BUILD_VERSION\\n    minos %s\\n" "$(cat "$2")"\n')
+    for f in bin_dir.iterdir():
+        f.chmod(0o755)
+    env = {"PATH": f"{bin_dir}:/usr/bin:/bin:/usr/libexec", "APP": str(app)}
+    return subprocess.run(["bash", "-c", _minos_snippet()], capture_output=True, text=True, env=env)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PlistBuddy es de macOS")
+def test_minos_known_bindings_warn_and_list_files(tmp_path) -> None:
+    files = {f"PySide6/{n}.abi3.so": "26.0" for n in _KNOWN_BINDINGS}
+    files["shiboken6/Shiboken.abi3.so"] = "26.0"
+    files["shiboken6/libshiboken6.abi3.6.12.dylib"] = "26.0"
+    files["PySide6/libpyside6.abi3.6.12.dylib"] = "26.0"
+    files["libok.dylib"] = "14.0"
+    r = _run_minos(tmp_path, files)
+    assert r.returncode == 0, r.stderr
+    assert "AVISO" in r.stderr and "26.0" in r.stderr and "14.8" in r.stderr and "12" in r.stderr
+    assert "Shiboken.abi3.so" in r.stderr and "libok.dylib" not in r.stderr
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PlistBuddy es de macOS")
+def test_minos_unknown_macho_above_minimum_aborts(tmp_path) -> None:
+    r = _run_minos(tmp_path, {"PySide6/QtCore.abi3.so": "26.0", "libnuevo.dylib": "15.0"})
+    assert r.returncode == 1
+    assert "libnuevo.dylib" in r.stderr

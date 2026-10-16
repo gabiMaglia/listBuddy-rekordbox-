@@ -115,7 +115,7 @@ List Buddy lee Rekordbox **solo** del XML que el usuario exporta (Archivo → Ex
 ```bash
 pip install pyinstaller
 pyinstaller rb_exporter.spec
-# El bundle queda en dist/List Buddy.app (Intel o arm64 según la Mac que buildea; mínimo macOS 14: lo fijan Python 3.14 y numpy, `minos 14.0`)
+# El bundle queda en dist/List Buddy.app (Intel o arm64 según la Mac que buildea; mínimo macOS 14.4: lo fijan los frameworks de Qt 6.12, `minos 14.4`; Python y numpy piden 14.0; 12 bindings de PySide6/shiboken declaran 26.0 pero cargan en 14.8 y no se probó en 14.4-14.7, T-103)
 ```
 
 El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **No se puede cross-compilar:** el `.app` solo se puede generar desde una Mac, y el `.exe` de Windows solo desde Windows.
