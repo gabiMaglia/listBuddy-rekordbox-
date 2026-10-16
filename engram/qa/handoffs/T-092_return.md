@@ -27,7 +27,7 @@ T-092 listo para QA (En revisión QA, no Done). Los 8 ítems están hechos. La s
 - Un test de subproceso verifica que el QR se renderiza (píxeles negros y blancos).
 - Un PyInstaller mínimo con 6.20.0 recogió `qrcode` y el ejecutable generado corrió. No armé el `.app` completo.
 - El test de avisos legales falló por la dependencia nueva. Agregué `qrcode` (BSD-3-Clause) a `THIRD_PARTY_NOTICES.md`, a `scripts/collect_licenses.py` y generé `licenses/qrcode.txt`.
-- Tuve que instalar `qrcode==8.2` en `/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/.venv`, que es el venv compartido.
+- Tuve que instalar `qrcode==8.2` en `<HOME>/Desktop/REKORDBOX_EXTRACTOR/.venv`, que es el venv compartido.
 
 **Gate (D-14):**
 - `tests/test_release_gate.py` queda marcado `release_gate` y se salta salvo con `LISTBUDDY_RELEASE_GATE=1`. Declaré el marker en `pytest.ini`.
