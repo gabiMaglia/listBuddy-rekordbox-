@@ -219,7 +219,7 @@ class ExportWorker(QThread):
         self.progress.emit(0, max(total_songs, 1))
 
         # ── Chequeo de espacio en disco ───────────────────────────────────
-        folder_names = _unique_folder_names([pl.Name for pl, _ in playlist_songs])
+        folder_names = _folder_names_for_readable(playlist_songs)
         try:
             total_bytes = _estimate_size(playlist_songs, self._output_root, folder_names)
             if total_bytes > 0:
@@ -390,6 +390,22 @@ def _unique_folder_names(names: list[str]) -> list[str]:
         taken.add(candidate.casefold())
         result.append(candidate)
     return result
+
+
+def _folder_names_for_readable(playlist_songs: list[tuple]) -> list[str]:
+    """Carpetas del export: solo las playlists con pistas leídas consumen nombre.
+
+    La vista previa usa esta misma regla (`folder_names_by_playlist`), así «Mix» ilegible
+    no empuja a la «Mix» legible a «Mix (2)» en una y no en la otra (D-17).
+    """
+    return _unique_folder_names([pl.Name for pl, songs in playlist_songs if songs])
+
+
+def folder_names_by_playlist(playlists: list) -> dict[int, str]:
+    """`id(playlist)` -> carpeta que el export creará; las vacías o ilegibles no figuran."""
+    readable = [(pl, _get_songs_list(pl)) for pl in playlists]
+    readable = [(pl, songs) for pl, songs in readable if songs]
+    return {id(pl): name for (pl, _), name in zip(readable, _folder_names_for_readable(readable))}
 
 
 def _is_complete_copy(dest: Path, src: Path) -> bool:
