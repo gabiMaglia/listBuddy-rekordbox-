@@ -8,13 +8,21 @@ set -euo pipefail
 APP="${1:-dist/List Buddy.app}"
 [ -d "$APP" ] || { echo "ERROR: no existe $APP" >&2; exit 2; }
 
-# T-096: QtPdf/QtQuick/QtQml/QtVirtualKeyboard (+ plugins) no se usan; QtVirtualKeyboard es GPL-3.0.
-BAD=$(find "$APP" \( -iname '*pyrekordbox*' -o -iname '*sqlcipher*' -o -iname '*sqlalchemy*' -o -name '.rbe_settings.ini' \
-  -o -iname '*QtPdf*' -o -iname '*Qt6Pdf*' -o -iname '*QtQuick*' -o -iname '*Qt6Quick*' -o -iname '*QtQml*' -o -iname '*Qt6Qml*' \
-  -o -iname '*VirtualKeyboard*' -o -iname '*qpdf*' \) 2>/dev/null)
+# Los nombres prohibidos viven en scripts/bundle_forbidden.txt (lo comparte check_bundle.ps1, T-108).
+LIST="$(cd "$(dirname "$0")" && pwd)/bundle_forbidden.txt"
+[ -f "$LIST" ] || { echo "ERROR: falta $LIST" >&2; exit 2; }
+ARGS=()
+while IFS= read -r pat || [ -n "$pat" ]; do
+  pat=${pat%$'\r'}                                  # checkout con CRLF
+  case "$pat" in ''|'#'*) continue ;; esac
+  [ ${#ARGS[@]} -gt 0 ] && ARGS+=(-o)
+  ARGS+=(-iname "$pat")
+done < "$LIST"
+[ ${#ARGS[@]} -gt 0 ] || { echo "ERROR: $LIST no tiene patrones" >&2; exit 2; }
+BAD=$(find "$APP" \( "${ARGS[@]}" \) 2>/dev/null)
 if [ -n "$BAD" ]; then
   echo "ERROR: contenido prohibido en el bundle:" >&2
   printf '%s\n' "$BAD" >&2
   exit 1
 fi
-echo "OK: $APP sin pyrekordbox/sqlcipher/sqlalchemy, .rbe_settings.ini ni QtPdf/QtQuick/QtQml/QtVirtualKeyboard"
+echo "OK: $APP sin ningún nombre de scripts/bundle_forbidden.txt"

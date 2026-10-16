@@ -889,3 +889,64 @@ def test_t108_claude_md_documents_windows_lock_regeneration() -> None:
                    "requirements-build-windows.in", "requirements-build-windows.txt",
                    "pefile", "pywin32-ctypes", "--platform win_amd64"):
         assert needle in section, needle
+
+
+# ── T-108: check_bundle compartido entre macOS y Windows (LEG-26) ───────────
+
+_FORBIDDEN = PROJECT_ROOT / "scripts" / "bundle_forbidden.txt"
+_CHECK_PS1 = PROJECT_ROOT / "scripts" / "check_bundle.ps1"
+
+
+def _forbidden_patterns() -> list[str]:
+    lines = [l.strip() for l in _FORBIDDEN.read_text(encoding="utf-8").splitlines()]
+    return [l for l in lines if l and not l.startswith("#")]
+
+
+def test_t108_forbidden_list_covers_the_audit_names() -> None:
+    low = " ".join(_forbidden_patterns()).lower()
+    for needle in ("pyrekordbox", "sqlcipher", "sqlalchemy", ".rbe_settings.ini", "pil", "pillow", "pyqt6", "qtpdf",
+                   "qtwebengine", "qtquick", "qtqml", "virtualkeyboard"):
+        assert needle in low, needle
+
+
+def _plant(tmp_path, name: str):
+    root = tmp_path / "listBuddy" / "_internal"
+    root.mkdir(parents=True)
+    (root / "QtCore.dll").write_bytes(b"")
+    (root / "PySide6").mkdir()
+    (root / "pillar.txt").write_text("x")           # no debe confundirse con Pillow/PIL
+    if name:
+        (root / name).mkdir()
+    return tmp_path / "listBuddy"
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t108_check_bundle_sh_rejects_every_pattern_of_the_shared_list(tmp_path) -> None:
+    """Enumera la lista compartida (no ejemplos a mano): cada patrón, plantado como nombre, debe cortar el chequeo."""
+    missed = []
+    for i, pat in enumerate(_forbidden_patterns()):
+        bundle = _plant(tmp_path / str(i), pat.replace("*", "x"))
+        r = subprocess.run(["bash", str(_CHECK), str(bundle)], capture_output=True, text=True)
+        if r.returncode != 1:
+            missed.append(pat)
+    assert missed == []
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t108_check_bundle_sh_accepts_a_clean_bundle_and_reads_the_shared_file(tmp_path) -> None:
+    r = subprocess.run(["bash", str(_CHECK), str(_plant(tmp_path, ""))], capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    code = "\n".join(_code_lines(_CHECK))
+    assert "bundle_forbidden.txt" in code
+    assert "QtPdf" not in code and "sqlalchemy" not in code      # la lista ya no está duplicada a mano
+
+
+def test_t108_check_bundle_ps1_uses_the_shared_list_and_fails_closed() -> None:
+    code = "\n".join(l for l in _CHECK_PS1.read_text(encoding="utf-8").splitlines() if not l.lstrip().startswith("#"))
+    assert "bundle_forbidden.txt" in code
+    assert "Get-ChildItem" in code and "-Recurse" in code and "-Force" in code   # -Force: ocultos como .rbe_settings.ini
+    assert "-like" in code                                                        # case-insensitive, como -iname
+    assert re.search(r"exit 2", code) and re.search(r"exit 1", code)
+    assert r"dist\listBuddy" in code
+    assert ".Trim()" in code                                # CRLF de checkout con autocrlf
+    assert "Set-StrictMode" in code and "$ErrorActionPreference" in code
