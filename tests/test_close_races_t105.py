@@ -140,3 +140,60 @@ def test_log_lines_do_not_wait_for_the_next_long_copy() -> None:  # V6
     )
     assert r.returncode == 0, r.stderr[-1500:]
     assert r.stdout.strip().splitlines()[-1] == "ok"
+
+
+_CALLBACKS = [
+    "w._on_relocate_finished(3, 0, 0, 'ok')",
+    "w._on_restore_backup_finished(True, '', 'collection.nml')",
+    "w._on_recheck_done(True)",
+    "w._on_library_loaded(SimpleNamespace(token=w._load_generation))",
+    "w._on_library_failed(w._load_generation, 'boom')",
+    "w._on_relocate_ask(SimpleNamespace())",
+    "w._on_track_finished()",
+    "w._on_preview_done()",
+]
+
+
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize("call", _CALLBACKS)
+def test_late_thread_callbacks_do_nothing_once_the_window_is_closing(call: str) -> None:  # V7
+    r = _go(
+        "starts, modals = [], []\n"
+        "orig_start = QThread.start\n"
+        "QThread.start = lambda self, *a: (starts.append(type(self).__name__), orig_start(self, *a))[1]\n"
+        "for n in ('information', 'warning', 'critical', 'question'):\n"
+        "    setattr(ui.dialogs, n, staticmethod(lambda *a, **k: modals.append(1)))\n"
+        "ui.RelocateDialog = lambda *a, **k: modals.append(1)\n"
+        "w, _ = make(); w._source = 'traktor'; w._closing = True\n"
+        "w._relocate_worker = SimpleNamespace(isRunning=lambda: False, provide_answer=lambda a: None)\n"
+        "w._reload_after_path_change = lambda: starts.append('reload')\n"
+        f"try:\n    {call}\nexcept Exception as e:\n    print('exc', type(e).__name__)\n"
+        "print('r', starts, len(modals), flush=True)\n"
+    )
+    assert r.returncode == 0, r.stderr[-1500:]
+    assert r.stdout.strip().splitlines()[-1] == "r [] 0"
+
+
+def test_relocate_finishing_during_close_does_not_start_a_library_load() -> None:  # V7, sonda del verifier
+    r = _go(
+        "import library_load_worker\n"
+        "ui.MainWindow._load_playlists = load_async\n"
+        "library_load_worker.LibraryLoadWorker._load = lambda self: time.sleep(3)\n"
+        "class FakeRelocate(QThread):\n"
+        "    finished_ok = Signal(int, int, int, str)\n"
+        "    def run(self):\n"
+        "        time.sleep(1.0); self.finished_ok.emit(3, 0, 0, 'ok')\n"
+        "    def provide_answer(self, a): pass\n"
+        "w, _ = make(); w._relocate_source = 'traktor'\n"
+        "fr = FakeRelocate(); fr.finished_ok.connect(w._on_relocate_finished)\n"
+        "w._relocate_worker = fr; w._retain_thread(fr); fr.start()\n"
+        "from PySide6.QtCore import QTimer\n"
+        "QTimer.singleShot(100, w.close)\n"
+        "app.exec()\n"
+        "print('fin', flush=True)\n",
+        timeout=40,
+    )
+    assert r.returncode == 0, r.stderr[-1500:]
+    assert "Destroyed while thread" not in r.stderr
