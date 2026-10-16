@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 04:00] QA T-097 APROBADO (4º) · verifier T-095 REFUTADO → fix nerv-desktop → re-verificación
+- Verifier T-095 (ciego) encontró 2 defectos reales que QA había dejado como «deducidos»: V1 previa numera carpetas con playlists ilegibles que el export no crea; V2 `_last_playing` atascado tras error de audio. nerv-desktop (`fix/t095-ver`): helper `folder_names_by_playlist` compartido (ui → worker); `AudioPlayer._on_error` resetea estado. 3 tests rojos antes. Mergeado en rc2.
+- Lección (retro): el verifier ciego aporta sobre QA — lo «deducido» no es inocuo por default. Verifier T-094 en curso; siguen T-095 (re), T-092, T-096, T-097.
+- Quien retoma: nerv-orquestador → nerv-verifier.
+
 ### [2026-10-16 03:20] nerv-orquestador → nerv-qa T-097 (4º, X) + nerv-verifier T-095 (S)
 - QA T-097 sobre el fix de D7/D8 (HEAD 5c3d4fe). Verifier ciego de T-095 sin acceso a engram/qa/T-095.md ni handoffs (P-12); entregable `engram/qa/T-095_verifier.md`. Siguen, de a dos: verifiers de T-092, T-094, T-096 (y T-097 cuando apruebe).
 - Quien retoma: nerv-orquestador.
