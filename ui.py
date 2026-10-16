@@ -10,6 +10,7 @@ from __future__ import annotations
 import itertools
 import logging
 import sys
+import time
 from io import BytesIO
 from functools import partial
 from pathlib import Path
@@ -17,7 +18,7 @@ from typing import Any, Callable, Literal
 
 from shiboken6 import isValid
 from PySide6.QtCore import (
-    QEventLoop, QPoint, QSize, QThread, Qt, QTimer, QUrl, QSettings,
+    QEvent, QEventLoop, QPoint, QSize, QThread, Qt, QTimer, QUrl, QSettings,
     QPropertyAnimation, QEasingCurve,
 )
 from PySide6.QtGui import (
@@ -82,7 +83,7 @@ from ui_components import (
     RestoreBackupDialog,
     TitleBar,
 )
-from preview_worker import PreviewWorker, GroupData, TrackRow
+from preview_worker import ExistenceRecheckWorker, PreviewWorker, GroupData, TrackRow
 from audio_player import AudioPlayer
 from footer import FooterBar
 from waveform_worker import WaveData, WaveformWorker
@@ -277,6 +278,8 @@ class MainWindow(QMainWindow):
         # Cache de existencia de archivos: evita stat() repetido (lento en USB/red)
         # key: raw_path  value: bool
         self._exists_cache: dict[str, bool] = {}
+        self._last_exists_check = time.monotonic()   # TEC-18
+        self._recheck_worker: ExistenceRecheckWorker | None = None
 
         # Debounce: 80ms sin cambios antes de disparar el preview
         self._preview_debounce = QTimer()
@@ -1754,6 +1757,7 @@ class MainWindow(QMainWindow):
 
     def _on_preview_done(self) -> None:
         """Worker terminó. Limpia loading label si no llegó ningún grupo."""
+        self._last_exists_check = time.monotonic()
         lo = self.preview_layout
         for i in range(lo.count()):
             item = lo.itemAt(i)
@@ -2059,6 +2063,40 @@ class MainWindow(QMainWindow):
                 thread.requestInterruption()
                 thread.wait(2000)
         super().closeEvent(event)
+
+    _RECHECK_EVERY_S = 5.0
+
+    def event(self, e) -> bool:
+        if e.type() == QEvent.Type.WindowActivate:
+            self._recheck_existence_on_focus()
+        return super().event(e)
+
+    def _recheck_existence_on_focus(self) -> None:
+        """TEC-18: al volver a la ventana (típico: se conectó el disco) se re-mira en disco lo
+        que la vista previa muestra, con throttling de 5 s y sin tocar la UI hasta saber si
+        algo cambió."""
+        if time.monotonic() - self._last_exists_check < self._RECHECK_EVERY_S:
+            return
+        busy = self._recheck_worker is not None and self._recheck_worker.isRunning()
+        if busy or self._export_state != "idle" or self._is_maintenance_busy():
+            return
+        known = {t.raw_path: t.exists for g in self._rendered_groups for t in g.tracks
+                 if t.raw_path and not t.streaming}
+        if not known:
+            return
+        self._last_exists_check = time.monotonic()
+        worker = ExistenceRecheckWorker(known, self._source == "traktor")
+        worker.changed.connect(self._on_recheck_done)
+        self._retain_thread(worker)
+        self._recheck_worker = worker
+        worker.start()
+
+    def _on_recheck_done(self, changed: bool) -> None:
+        if not changed or self._export_state != "idle":
+            return
+        self._exists_cache.clear()
+        self._clear_preview_layout()
+        self._start_preview_worker()
 
     def _wait_export_block(self, worker: QThread) -> None:
         """Cierra sin abortar: la copia corta entre bloques de 1 MiB, pero un disco lento puede
