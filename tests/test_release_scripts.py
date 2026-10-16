@@ -1053,3 +1053,30 @@ def test_t108_sha256_line_format_is_accepted_by_shasum_check(tmp_path) -> None:
     z.write_bytes(b"adulterado")
     bad = subprocess.run(["shasum", "-a", "256", "-c", z.name + ".sha256"], cwd=tmp_path, capture_output=True, text=True)
     assert bad.returncode != 0
+
+
+# ── T-108: documentación de Windows (SEC-20) ────────────────────────────────
+
+def _readme_windows_bullet() -> str:
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    section = readme.split("## Descargar", 1)[1].split("\n## ", 1)[0]
+    return "- **Windows:**" + section.split("- **Windows:**", 1)[1].split("\n\n>", 1)[0]
+
+
+def test_t108_readme_windows_explains_how_to_verify_and_what_the_hash_proves() -> None:
+    bullet = _readme_windows_bullet()
+    for needle in ("Get-FileHash", "certutil -hashfile", "SHA256", "-win64.zip", ".sha256", "SmartScreen", "Más información"):
+        assert needle in bullet, needle
+    low = bullet.lower()
+    assert "corrupt" in low and "autor" in low                 # qué prueba (descarga íntegra) y qué no (quién publicó)
+    assert "reemplaza a la firma" not in low                   # SEC-20: el hash no reemplaza a una firma
+
+
+def test_t108_release_md_has_a_manual_windows_section() -> None:
+    doc = (PROJECT_ROOT / "docs" / "RELEASE.md").read_text(encoding="utf-8")
+    assert "## Windows (manual)" in doc
+    section = doc.split("## Windows (manual)", 1)[1].split("\n## ", 1)[0]
+    for needle in ("build_windows.ps1", ".venv-build", "3.14.8", "--require-hashes", "check_bundle.ps1", "bundle_forbidden.txt",
+                   "-win64.zip", ".sha256", "Authenticode", "Get-FileHash", "windows-latest", "pip-compile"):
+        assert needle in section, needle
+    assert "no hay runner ni firma" not in doc
