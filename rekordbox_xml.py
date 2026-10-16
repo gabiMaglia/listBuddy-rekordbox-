@@ -231,6 +231,21 @@ _XML_DECL_ENCODING = re.compile(rb"""\s*<\?xml[^>]*?\sencoding\s*=\s*["']([\w.:-
 _OPEN_TAG = re.compile(rb"""<[^\s/>]+(?:[^>"']|"[^"]*"|'[^']*')*>""")
 
 
+# Codificaciones de texto que un exportador real declara. Lista blanca y no `_is_text_encoding`
+# (privado de CPython, deja pasar idna/punycode/unicode_escape/utf-7). Se comparan por nombre
+# canónico de `codecs.lookup`, así cubre los alias. zlib/bz2/base64/hex/rot13 quedan fuera:
+# `zlib_codec` descomprimiría sin tope.
+_XML_ENCODINGS = frozenset(
+    codecs.lookup(n).name for n in (
+        "utf-8", "utf-16", "utf-16-le", "utf-16-be", "utf-32", "utf-32-le", "utf-32-be", "ascii",
+        *(f"iso8859-{i}" for i in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15, 16)),
+        *(f"cp125{i}" for i in range(9)), "cp437", "cp850", "cp852", "cp866", "cp874",
+        "koi8-r", "koi8-u", "mac-roman", "mac-cyrillic", "shift_jis", "cp932", "euc-jp",
+        "euc-kr", "cp949", "gb2312", "gbk", "gb18030", "big5", "cp950",
+    )
+)
+
+
 def _transcode_from(head: bytes) -> str | None:
     """Codificación a decodificar si el archivo no es UTF-8; None si se lee tal cual."""
     if head.startswith(codecs.BOM_UTF8):
@@ -245,7 +260,29 @@ def _transcode_from(head: bytes) -> str | None:
         return "utf-16-be"
     m = _XML_DECL_ENCODING.match(head)
     enc = m.group(1).decode("ascii").lower() if m else "utf-8"
-    return None if enc in ("utf-8", "utf8") else enc
+    if enc in ("utf-8", "utf8"):
+        return None
+    try:
+        known = codecs.lookup(enc).name in _XML_ENCODINGS
+    except LookupError:
+        known = False
+    if not known:
+        raise LookupError(f"codificación no admitida: {enc}")
+    return enc
+
+
+def _window_keep(base: int, fed: int, cap_start: int | None, window: bytearray) -> int:
+    """Offset absoluto desde el que hay que conservar la ventana tras alimentar a expat.
+
+    Nunca pasa del último `<` alimentado: un `<` sin escapar no puede estar dentro de una
+    etiqueta de apertura, así que la etiqueta que expat dejó pendiente empieza ahí o después
+    (aunque mida más que _MARGIN).
+    """
+    keep = max(base, min(fed - _MARGIN, fed if cap_start is None else cap_start))
+    lt = window.rfind(b"<")
+    if lt >= 0:
+        keep = max(base, min(keep, base + lt))
+    return keep
 
 
 def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
@@ -295,6 +332,9 @@ def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
                 return
             a = cap_start - base
             e = parser.CurrentByteIndex - base
+            if a < 0 or e < a:
+                # El texto crudo ya no está en la ventana: mejor fallar que exportar basura.
+                raise ET.ParseError("no se pudo recortar un TRACK del XML (ventana de lectura inválida)")
             # expat informa el inicio de `</TRACK>`, o el FIN de la etiqueta si es `<TRACK …/>`.
             # El `>` de cierre puede no haber llegado todavía: se reescribe en vez de buscarlo.
             raw = window[a:e]
@@ -326,6 +366,10 @@ def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
     parser = expat.ParserCreate("utf-8")
     parser.StartElementHandler = start
     parser.EndElementHandler = end
+    # Expat >= 2.6 difiere el reparseo de una etiqueta cortada hasta tener el doble de bytes:
+    # los eventos llegarían tarde y la ventana ya habría descartado el inicio del TRACK.
+    if hasattr(parser, "SetReparseDeferralEnabled"):
+        parser.SetReparseDeferralEnabled(False)
     try:
         with open(path, "rb") as fh:
             chunk = fh.read(_CHUNK)
@@ -335,12 +379,15 @@ def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
             while chunk:
                 if should_cancel is not None and should_cancel():
                     raise LoadCancelled()
-                data = decoder.decode(chunk).encode("utf-8") if decoder else chunk
+                try:
+                    data = decoder.decode(chunk).encode("utf-8") if decoder else chunk
+                except Exception as e:     # un decoder ajeno (TypeError, zlib.error…) no escapa del friendly error
+                    raise ET.ParseError(f"no se pudo decodificar: {e}") from e
                 window += data
                 fed += len(data)
                 parser.Parse(data, False)
                 # expat guarda internamente una etiqueta cortada al final del bloque: se deja margen.
-                keep = max(base, min(fed - _MARGIN, fed if cap_start is None else cap_start))
+                keep = _window_keep(base, fed, cap_start, window)
                 del window[:keep - base]
                 base = keep
                 chunk = fh.read(_CHUNK)
