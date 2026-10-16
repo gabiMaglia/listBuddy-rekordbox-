@@ -231,6 +231,21 @@ _XML_DECL_ENCODING = re.compile(rb"""\s*<\?xml[^>]*?\sencoding\s*=\s*["']([\w.:-
 _OPEN_TAG = re.compile(rb"""<[^\s/>]+(?:[^>"']|"[^"]*"|'[^']*')*>""")
 
 
+# Codificaciones de texto que un exportador real declara. Lista blanca y no `_is_text_encoding`
+# (privado de CPython, deja pasar idna/punycode/unicode_escape/utf-7). Se comparan por nombre
+# canónico de `codecs.lookup`, así cubre los alias. zlib/bz2/base64/hex/rot13 quedan fuera:
+# `zlib_codec` descomprimiría sin tope.
+_XML_ENCODINGS = frozenset(
+    codecs.lookup(n).name for n in (
+        "utf-8", "utf-16", "utf-16-le", "utf-16-be", "utf-32", "utf-32-le", "utf-32-be", "ascii",
+        *(f"iso8859-{i}" for i in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15, 16)),
+        *(f"cp125{i}" for i in range(9)), "cp437", "cp850", "cp852", "cp866", "cp874",
+        "koi8-r", "koi8-u", "mac-roman", "mac-cyrillic", "shift_jis", "cp932", "euc-jp",
+        "euc-kr", "cp949", "gb2312", "gbk", "gb18030", "big5", "cp950",
+    )
+)
+
+
 def _transcode_from(head: bytes) -> str | None:
     """Codificación a decodificar si el archivo no es UTF-8; None si se lee tal cual."""
     if head.startswith(codecs.BOM_UTF8):
@@ -245,7 +260,15 @@ def _transcode_from(head: bytes) -> str | None:
         return "utf-16-be"
     m = _XML_DECL_ENCODING.match(head)
     enc = m.group(1).decode("ascii").lower() if m else "utf-8"
-    return None if enc in ("utf-8", "utf8") else enc
+    if enc in ("utf-8", "utf8"):
+        return None
+    try:
+        known = codecs.lookup(enc).name in _XML_ENCODINGS
+    except LookupError:
+        known = False
+    if not known:
+        raise LookupError(f"codificación no admitida: {enc}")
+    return enc
 
 
 def _window_keep(base: int, fed: int, cap_start: int | None, window: bytearray) -> int:
@@ -356,7 +379,10 @@ def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
             while chunk:
                 if should_cancel is not None and should_cancel():
                     raise LoadCancelled()
-                data = decoder.decode(chunk).encode("utf-8") if decoder else chunk
+                try:
+                    data = decoder.decode(chunk).encode("utf-8") if decoder else chunk
+                except Exception as e:     # un decoder ajeno (TypeError, zlib.error…) no escapa del friendly error
+                    raise ET.ParseError(f"no se pudo decodificar: {e}") from e
                 window += data
                 fed += len(data)
                 parser.Parse(data, False)
