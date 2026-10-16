@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-15 22:05] nerv-orquestador → nerv-qa T-093 (A)
+- Gate PASS (A, 339 líneas, proof of red OK, suite verde). QA en worktree propio sobre `release/1.0.0-rc2`; diff `main...feat/t093-nombres` (7 archivos). Entregable `engram/qa/T-093.md` (§Plan · §GAP · §Casos · §Defectos).
+- Pendiente: gate run 3 de T-092/094/095/096/097 (plan OK; handoffs con índice P-1) → QA Strong de a dos, luego nerv-verifier.
+- Quien retoma: nerv-orquestador.
+
 ### [2026-10-15 21:45] Integración T-092..T-097 + gate P-12 + decisión del PO sobre planes
 - Integración en `release/1.0.0-rc2` (merge en orden T-092→T-093→T-095→T-094→T-096→T-097; conflictos resueltos en worker.py, ui.py, release_mac.sh, build_windows.ps1, requirements, tests). Dos fixes de integración: gate D-14 avisa en `--dry-run` y aborta en el release real; ruta one-dir de T-092 conservada. Locks regenerados con qrcode. Suite 684 passed / 2 skipped.
 - `nerv-gate.sh` por ticket (return handoffs en `engram/qa/handoffs/`): T-093 PASS (A, proof of red OK). T-092/094/095/096/097 nivel S computado → REJECTED PLAN_GATE_MISSING (estampa por sección). El Orquestador NO estampó por su cuenta; el PO revisó los 5 planes con sus desvíos y los aprobó uno por uno en sesión → estampa «ratificada por el PO» en QUÉ/CÓMO, gate re-corrido.
