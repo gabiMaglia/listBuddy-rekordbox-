@@ -9,6 +9,7 @@ import logging
 import os
 import shutil
 import sys
+import time
 import unicodedata
 from pathlib import Path
 
@@ -134,6 +135,8 @@ def _safe_filename(prefix: str, artist: str, title: str, suffix: str) -> str:
 
 
 _CHUNK = 1024 * 1024
+_LOG_BATCH_LINES = 50
+_LOG_BATCH_SECONDS = 0.1
 
 
 class _CopyInterrupted(Exception):
@@ -195,9 +198,35 @@ class ExportWorker(QThread):
         super().__init__()
         self._playlists = playlists
         self._output_root = output_root
+        self._log_buf: list[str] = []
+        self._log_flushed_at = time.monotonic()
+        # Lo calcula el hilo del worker: la UI no toca el disco al terminar (TEC-31).
+        self.dest_exists = False
+
+    # Una señal (y un repintado del QPlainTextEdit) por archivo frenaba todo el export 5-10×
+    # (TEC-22): las líneas se juntan y salen en un solo log() por lote.
+    def _emit(self, text: str) -> None:
+        self._log_buf.append(text)
+        if (len(self._log_buf) >= _LOG_BATCH_LINES
+                or time.monotonic() - self._log_flushed_at >= _LOG_BATCH_SECONDS):
+            self._flush_log()
+
+    def _flush_log(self) -> None:
+        if self._log_buf:
+            self.log.emit("\n".join(self._log_buf))
+            self._log_buf = []
+        self._log_flushed_at = time.monotonic()
+
+    def _finish(self, copied: int, missing: int, skipped: int, status: str) -> None:
+        self._flush_log()   # el último lote sale antes de finished_ok
+        try:
+            self.dest_exists = self._output_root.exists()
+        except OSError:
+            self.dest_exists = False
+        self.finished_ok.emit(copied, missing, skipped, status)
 
     def _report_unreadable(self, pl, exc: Exception) -> None:
-        self.log.emit(f"⚠ No se pudo leer la playlist {getattr(pl, 'Name', '?')}: {exc}")
+        self._emit(f"⚠ No se pudo leer la playlist {getattr(pl, 'Name', '?')}: {exc}")
 
     def run(self) -> None:
         copied_total = missing_total = skipped_total = 0
@@ -232,12 +261,12 @@ class ExportWorker(QThread):
                 if total_bytes > free:
                     needed = total_bytes / 1_073_741_824
                     avail  = free / 1_073_741_824
-                    self.log.emit(
+                    self._emit(
                         f"✗  Espacio insuficiente: necesitás ~{needed:.1f} GB, "
                         f"disponible: {avail:.1f} GB.\n"
                         "   Liberá espacio e intentá de nuevo."
                     )
-                    self.finished_ok.emit(0, 0, 0, "error")
+                    self._finish(0, 0, 0, "error")
                     return
         except Exception:
             pass  # si el chequeo falla, seguimos igual
@@ -245,12 +274,12 @@ class ExportWorker(QThread):
         # ── Loop principal ────────────────────────────────────────────────
         done = 0
         for (pl, songs), folder in zip(playlist_songs, folder_names):
-            self.log.emit(f"▶  {pl.Name}")
+            self._emit(f"▶  {pl.Name}")
             dest_dir = self._output_root / folder
             if not _is_inside(dest_dir, self._output_root):
-                self.log.emit(f"✗  Nombre de playlist no válido, no se exporta: {pl.Name}")
+                self._emit(f"✗  Nombre de playlist no válido, no se exporta: {pl.Name}")
                 _log.error("Export: %s resuelve fuera de %s", dest_dir, self._output_root)
-                self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
+                self._finish(copied_total, missing_total, skipped_total, "error")
                 return
 
             sorted_songs = songs   # ya ordenadas al armar playlist_songs
@@ -260,20 +289,20 @@ class ExportWorker(QThread):
             except OSError as e:
                 # Disco de destino desconectado (/Volumes/<disco> desmontado),
                 # sin permisos o solo lectura: se corta acá con un mensaje claro.
-                self.log.emit(
+                self._emit(
                     f"✗  No se pudo crear la carpeta de destino:\n   {dest_dir}\n"
                     "   ¿Está conectado el disco y tenés permiso para escribir ahí?"
                 )
                 _log.error("Export: no se pudo crear %s: %s", dest_dir, e)
-                self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
+                self._finish(copied_total, missing_total, skipped_total, "error")
                 return
             pad = len(str(len(sorted_songs)))
             _remove_orphan_parts(dest_dir, _part_names(sorted_songs, dest_dir, pad))
 
             for idx, song in enumerate(sorted_songs, start=1):
                 if self.isInterruptionRequested():
-                    self.log.emit("\n⏹  Exportación cancelada.")
-                    self.finished_ok.emit(copied_total, missing_total, skipped_total, "cancelled")
+                    self._emit("\n⏹  Exportación cancelada.")
+                    self._finish(copied_total, missing_total, skipped_total, "cancelled")
                     return
 
                 content  = get_content(song)
@@ -285,7 +314,7 @@ class ExportWorker(QThread):
 
                 if getattr(content, "streaming", False):
                     label = getattr(content, "Title", None) or "desconocido"
-                    self.log.emit(f"   ♫  Es de streaming, no es un archivo: {label}")
+                    self._emit(f"   ♫  Es de streaming, no es un archivo: {label}")
                     missing_tracks.append(f"{pl.Name} → {label} (streaming)")
                     missing_by_dest.setdefault(dest_dir, []).append(
                         f"{label} — pista de streaming (no es un archivo que se pueda copiar)"
@@ -295,7 +324,7 @@ class ExportWorker(QThread):
 
                 if src is None:
                     label = getattr(content, "Title", None) or raw_path or "desconocido"
-                    self.log.emit(f"   ⚠  No se encontró: {label}")
+                    self._emit(f"   ⚠  No se encontró: {label}")
                     missing_tracks.append(f"{pl.Name} → {label}")
                     missing_by_dest.setdefault(dest_dir, []).append(
                         f"{label} — no encontrado en disco (ruta original: {raw_path or 'desconocida'})"
@@ -306,34 +335,34 @@ class ExportWorker(QThread):
                 dest = _planned_dest(dest_dir, idx, pad, content, src)
                 long_warning = _long_path_warning(dest)
                 if long_warning:
-                    self.log.emit(long_warning)
+                    self._emit(long_warning)
 
                 if _is_complete_copy(dest, src):
-                    self.log.emit(f"   ⏭  Ya existe: {dest.name}")
+                    self._emit(f"   ⏭  Ya existe: {dest.name}")
                     skipped_total += 1
                 else:
                     try:
                         _copy_atomic(src, dest, self.isInterruptionRequested)
-                        self.log.emit(f"   ✓  {dest.name}")
+                        self._emit(f"   ✓  {dest.name}")
                         copied_total += 1
                     except _CopyInterrupted:
-                        self.log.emit("\n⏹  Exportación cancelada.")
-                        self.finished_ok.emit(copied_total, missing_total, skipped_total, "cancelled")
+                        self._emit("\n⏹  Exportación cancelada.")
+                        self._finish(copied_total, missing_total, skipped_total, "cancelled")
                         return
                     except OSError as e:
                         if e.errno == 28:  # ENOSPC — disco lleno
-                            self.log.emit(f"   ✗  Disco lleno al copiar {dest.name}")
-                            self.log.emit("      Liberá espacio e intentá de nuevo.")
-                            self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
+                            self._emit(f"   ✗  Disco lleno al copiar {dest.name}")
+                            self._emit("      Liberá espacio e intentá de nuevo.")
+                            self._finish(copied_total, missing_total, skipped_total, "error")
                             return
-                        self.log.emit(f"   ✗  Error copiando {dest.name}: {e}")
+                        self._emit(f"   ✗  Error copiando {dest.name}: {e}")
                         missing_tracks.append(f"{pl.Name} → {dest.name} (error de copia)")
                         missing_by_dest.setdefault(dest_dir, []).append(
                             f"{dest.name} — error de copia: {e}"
                         )
                         missing_total += 1
                     except Exception as e:
-                        self.log.emit(f"   ✗  Error copiando {dest.name}: {e}")
+                        self._emit(f"   ✗  Error copiando {dest.name}: {e}")
                         missing_tracks.append(f"{pl.Name} → {dest.name} (error de copia)")
                         missing_by_dest.setdefault(dest_dir, []).append(
                             f"{dest.name} — error de copia: {e}"
@@ -341,9 +370,9 @@ class ExportWorker(QThread):
                         missing_total += 1
 
         if missing_tracks:
-            self.log.emit("\n─── Tracks no encontradas ───")
+            self._emit("\n─── Tracks no encontradas ───")
             for t in missing_tracks:
-                self.log.emit(f"  ✗  {t}")
+                self._emit(f"  ✗  {t}")
 
         # T-008: un "_no_exportados.txt" por playlist con fallas, dentro de
         # su propia dest_dir. Guion bajo a propósito para no mezclarse con
@@ -354,13 +383,13 @@ class ExportWorker(QThread):
             try:
                 report_path = dest_dir / "_no_exportados.txt"
                 if report_path.is_symlink():
-                    self.log.emit(f"   ⚠  No se escribió _no_exportados.txt en {dest_dir}: es un acceso directo")
+                    self._emit(f"   ⚠  No se escribió _no_exportados.txt en {dest_dir}: es un acceso directo")
                     continue
                 report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
             except OSError as e:
-                self.log.emit(f"   ⚠  No se pudo escribir _no_exportados.txt en {dest_dir}: {e}")
+                self._emit(f"   ⚠  No se pudo escribir _no_exportados.txt en {dest_dir}: {e}")
 
-        self.finished_ok.emit(copied_total, missing_total, skipped_total, "ok")
+        self._finish(copied_total, missing_total, skipped_total, "ok")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
