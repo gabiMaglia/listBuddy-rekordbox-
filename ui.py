@@ -247,6 +247,8 @@ class MainWindow(QMainWindow):
         self._preview_workers: list[PreviewWorker] = []      # T-106: uno por lote de extracción
         # T-106 (TEC-23): trabajo por lotes con presupuesto de tiempo por tick del event loop.
         self._mark_queue: list[PlaylistCard] = []            # «Marcar todas» pendiente
+        self._status_sub: QLabel | None = None               # detalle de la tarjeta de estado (progreso)
+        self._loading_detail = ""
         self._scroll_to_restore: int | None = None           # scroll a devolver tras un recheck
         self._populate_job: Iterator[None] | None = None     # poblado del árbol en curso
         self._populate_on_done: Callable[[], None] | None = None
@@ -1280,6 +1282,7 @@ class MainWindow(QMainWindow):
         worker = LibraryLoadWorker(self._load_generation, self._source, path, self._fixes_store)
         worker.loaded.connect(self._on_library_loaded)
         worker.failed.connect(self._on_library_failed)
+        worker.progress.connect(self._on_library_progress)
         self._load_worker = worker
         self._retain_thread(worker)
         self._show_loading()
@@ -1294,7 +1297,24 @@ class MainWindow(QMainWindow):
             return
         worker.loaded.disconnect()
         worker.failed.disconnect()
+        worker.progress.disconnect()
         worker.requestInterruption()
+
+    def _on_library_progress(self, token: int, pct: int) -> None:
+        sub = self._status_sub
+        if token != self._load_generation or sub is None or not isValid(sub):
+            return
+        sub.setText(f"{self._loading_detail} {pct} %")
+
+    def _on_cancel_load_clicked(self) -> None:
+        """Botón «Cancelar» de la tarjeta «Cargando librería…»: suelta la carga y deja la lista vacía."""
+        self._cancel_library_load()
+        self._keep_after_load = set()
+        self._show_status_card(
+            "Carga cancelada",
+            "Volvé a cargar la librería con Ver → Recargar librería.",
+        )
+        self._sync_maintenance_for_source()
 
     def _on_library_loaded(self, result: LibraryLoadResult) -> None:
         if result.token != self._load_generation:
@@ -1480,7 +1500,8 @@ class MainWindow(QMainWindow):
             detail = "Leyendo la colección de Traktor…"
         else:
             detail = "Leyendo el XML de Rekordbox. Con colecciones grandes puede tardar unos segundos."
-        self._show_status_card("Cargando librería…", detail)
+        self._loading_detail = detail
+        self._show_status_card("Cargando librería…", detail, ("Cancelar", self._on_cancel_load_clicked))
 
     def _show_status_card(
         self, title_text: str, detail: str,
@@ -1507,6 +1528,7 @@ class MainWindow(QMainWindow):
         cl.addWidget(title)
 
         sub = WrapLabel(detail)
+        self._status_sub = sub
         sub.setObjectName("not_installed_sub")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(sub)

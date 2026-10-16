@@ -25,7 +25,7 @@ from urllib.parse import quote, unquote
 from xml.etree import ElementTree as ET
 from xml.parsers import expat
 
-from load_cancel import CancelCheck, LoadCancelled
+from load_cancel import CancelCheck, LoadCancelled, ProgressCallback
 
 __all__ = ["LoadCancelled"]  # re-export: lo importan los tests y la UI desde acá
 
@@ -285,7 +285,9 @@ def _window_keep(base: int, fed: int, cap_start: int | None, window: bytearray) 
     return keep
 
 
-def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
+def _scan(
+    path: Path, should_cancel: CancelCheck | None, on_progress: ProgressCallback | None = None,
+) -> _Parsed:
     """Un solo pasaje con expat y sin DOM: COLLECTION/TRACK → `_TrackSrc`,
     PLAYLISTS → `_Node`. Nunca existe un Element; la memoria es lo que se retiene.
 
@@ -371,6 +373,7 @@ def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
     if hasattr(parser, "SetReparseDeferralEnabled"):
         parser.SetReparseDeferralEnabled(False)
     try:
+        total = path.stat().st_size
         with open(path, "rb") as fh:
             chunk = fh.read(_CHUNK)
             source_enc = _transcode_from(chunk[:512])
@@ -391,6 +394,8 @@ def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
                 del window[:keep - base]
                 base = keep
                 chunk = fh.read(_CHUNK)
+                if on_progress is not None:
+                    on_progress(fh.tell(), total)
             parser.Parse(b"", True)
     except (expat.ExpatError, UnicodeError, LookupError) as e:
         raise ET.ParseError(str(e)) from e
@@ -430,7 +435,7 @@ def _build_tree(parsed: _Parsed, fixes: dict[str, str], should_cancel: CancelChe
 
 def open_library(
     path: Path | None, fixes: dict[str, str] | None = None, *,
-    should_cancel: CancelCheck | None = None,
+    should_cancel: CancelCheck | None = None, on_progress: ProgressCallback | None = None,
 ) -> RekordboxXmlLibrary:
     """Abre el rekordbox.xml exportado. RuntimeError con texto para el usuario si falla.
 
@@ -440,7 +445,7 @@ def open_library(
     if not path.is_file():
         raise RuntimeError(f"No se encontró el archivo:\n{path}\n\n{_HOW_TO_EXPORT}")
     try:
-        parsed = _scan(path, should_cancel)
+        parsed = _scan(path, should_cancel, on_progress)
     except (ET.ParseError, OSError) as e:
         raise RuntimeError(
             f"El XML de Rekordbox no se pudo leer (¿quedó a medio exportar?).\n\n"

@@ -39,6 +39,7 @@ class LibraryLoadWorker(QThread):
 
     loaded = Signal(object)
     failed = Signal(int, str)
+    progress = Signal(int, int)   # (token, porcentaje 0-100); solo cuando el entero cambia
 
     def __init__(self, token: int, source: str, path: Path | None, fixes: FixStore, parent=None) -> None:
         super().__init__(parent)
@@ -46,6 +47,7 @@ class LibraryLoadWorker(QThread):
         self._source = source
         self._path = path
         self._fixes = fixes
+        self._last_pct = -1
 
     def run(self) -> None:
         try:
@@ -64,13 +66,19 @@ class LibraryLoadWorker(QThread):
         if not self.isInterruptionRequested():
             self.loaded.emit(result)
 
+    def _report(self, done: int, total: int) -> None:
+        pct = min(100, done * 100 // total) if total > 0 else 0
+        if pct != self._last_pct:
+            self._last_pct = pct
+            self.progress.emit(self._token, pct)
+
     def _load(self) -> LibraryLoadResult:
         cancelled = self.isInterruptionRequested
         if self._source == "traktor":
             from traktor_db import get_playlist_tree, open_collection
-            col = open_collection(self._path, should_cancel=cancelled)
+            col = open_collection(self._path, should_cancel=cancelled, on_progress=self._report)
             return LibraryLoadResult(self._token, "traktor", col, get_playlist_tree(col))
         lib = rekordbox_xml.open_library(
-            self._path, fixes=self._fixes.load(), should_cancel=cancelled,
+            self._path, fixes=self._fixes.load(), should_cancel=cancelled, on_progress=self._report,
         )
         return LibraryLoadResult(self._token, "rekordbox", lib, rekordbox_xml.get_playlist_tree(lib))
