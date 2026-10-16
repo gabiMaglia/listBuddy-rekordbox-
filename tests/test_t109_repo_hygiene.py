@@ -23,19 +23,20 @@ def test_source_archive_excludes_design_folder() -> None:
     assert not [n for n in names if n.startswith("listBuddy_design")]
 
 
-def test_openssl_version_in_notices_matches_build_interpreter() -> None:
-    """LEG-24. Limitación: solo compara contra el OpenSSL del Python que corre los tests,
-    que debe ser el del build; el Python de un Windows de release puede traer otro y ahí
-    hay que actualizar la fila a mano (y este test lo señala)."""
+def test_openssl_version_is_generated_at_build_not_hardcoded() -> None:
+    """LEG-24. El OpenSSL real es el del Python que buildea (python.org en CI/release,
+    distinto del local): el aviso no fija número y el spec escribe el valor en el bundle."""
     import re
-    import ssl
 
-    m_ssl = re.match(r"OpenSSL (\d+\.\d+\.\d+)", ssl.OPENSSL_VERSION)
-    assert m_ssl, ssl.OPENSSL_VERSION
     notices = (PROJECT_ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
-    m_doc = re.search(r"^\| OpenSSL \(dentro de Python\) \| (\d+\.\d+\.\d+) \|", notices, re.M)
-    assert m_doc, "la fila de OpenSSL debe llevar la versión x.y.z"
-    assert m_doc.group(1) == m_ssl.group(1)
+    row = next(l for l in notices.splitlines() if l.startswith("| OpenSSL"))
+    assert "licenses/openssl-version.txt" in " ".join(notices.split())
+    assert not re.search(r"\d+\.\d+\.\d+", row), row
+    spec = (PROJECT_ROOT / "rb_exporter.spec").read_text(encoding="utf-8")
+    assert "ssl.OPENSSL_VERSION" in spec
+    assert "openssl-version.txt" in spec and "(str(openssl_version_file), 'licenses')" in spec
+    assert not (PROJECT_ROOT / "licenses" / "openssl-version.txt").exists()
+    assert "openssl-version" not in (PROJECT_ROOT / "scripts" / "collect_licenses.py").read_text(encoding="utf-8")
 
 
 def test_qt_embedded_third_party_notices_are_reproduced_and_linked() -> None:

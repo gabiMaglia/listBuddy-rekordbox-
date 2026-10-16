@@ -20,7 +20,7 @@ exporta (formato publicado por AlphaTheta para terceros) y el NML de Traktor.
 | Qt for Python (PySide6, Shiboken6) y Qt | 6.12.0 | LGPL-3.0 | `licenses/LGPL-3.0.txt`, `licenses/GPL-3.0.txt` |
 | Componentes de terceros dentro de Qt (libpng, FreeType, HarfBuzz, libjpeg-turbo, PCRE2, zlib, Pixman, MD4C y otros) | los de Qt 6.12.0 | BSD, MIT, zlib, libpng, FreeType y otras permisivas | `licenses/qt-third-party.md` |
 | FFmpeg (libavcodec, libavformat, libavutil, libswresample, libswscale) | 9.0.1 | LGPL-2.1 o posterior | `licenses/LGPL-2.1.txt` |
-| OpenSSL (dentro de Python) | 4.0.3 | Apache-2.0 | `licenses/OpenSSL.txt`, `licenses/Apache-2.0.txt` |
+| OpenSSL (dentro de Python) | la del Python oficial (python.org) usado para construir; valor exacto en licenses/openssl-version.txt, dentro del bundle | Apache-2.0 | `licenses/OpenSSL.txt`, `licenses/Apache-2.0.txt` |
 | numpy (incluye OpenBLAS y otras bibliotecas empaquetadas) | 2.4.6 | BSD-3-Clause y otras (ver archivo) | `licenses/numpy.txt` |
 | certifi | 2026.7.22 | MPL-2.0 | `licenses/certifi.txt`, `licenses/MPL-2.0.txt` |
 | qrcode (QR de la pantalla Apoyar) | 8.2 | BSD-3-Clause | `licenses/qrcode.txt` |
