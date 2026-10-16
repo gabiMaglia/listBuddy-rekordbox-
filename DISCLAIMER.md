@@ -84,7 +84,7 @@ República Argentina, la Ley 24.240) cuando correspondan.
 ## 5 bis. Garantía legal, conformidad y devolución
 
 Si compraste List Buddy, tenés derecho a que haga lo que dice esta
-documentación (sección 2 y README) en los sistemas indicados (macOS 13 o
+documentación (sección 2 y README) en los sistemas indicados (macOS 14.4 o
 posterior; Rekordbox 6 o 7 por su XML exportado; Traktor Pro 3 o 4). Si no
 funciona como se describe, avisanos y lo corregimos, te damos una versión
 equivalente o te devolvemos el dinero, a tu elección, según la ley de tu país.
