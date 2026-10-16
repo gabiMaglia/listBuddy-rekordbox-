@@ -121,9 +121,9 @@ def test_build_windows_matches_spec_output_and_pins_pyinstaller() -> None:
     assert "name='listBuddy'" in spec and "COLLECT(" in spec          # one-dir
     assert r"dist\listBuddy\listBuddy.exe" in ps1
     assert r'"dist\listBuddy.exe"' not in ps1
-    # T-107: macOS toma PyInstaller de requirements-build.txt; el .ps1 sigue con su pin hasta T-108.
-    assert re.search(r"pyinstaller==[\d.]+", ps1)
-    assert not re.search(r"install pyinstaller\s*--quiet", ps1)
+    # T-108: PyInstaller viene del lock de build de Windows (con hashes), no de un pin suelto en el .ps1.
+    assert not re.search(r"pyinstaller==[\d.]+", ps1)
+    assert "requirements-build-windows.txt" in ps1 and "-m PyInstaller" in ps1
 
 
 def test_claude_md_upx_matches_spec() -> None:
@@ -499,9 +499,9 @@ def test_windows_lock_has_colorama_and_build_script_stops_on_pip_failure() -> No
         text = (PROJECT_ROOT / lock).read_text(encoding="utf-8")
         assert re.search(r"^colorama==[\d.]+ \\\n    --hash=sha256:[0-9a-f]{64}", text, re.M), f"{lock}: sin colorama pineado con hash"
     ps1 = (PROJECT_ROOT / "scripts" / "build_windows.ps1").read_text(encoding="utf-8")
-    installs = [l for l in ps1.splitlines() if re.match(r"\s*& \$pip install", l)]
-    assert len(installs) >= 2
-    assert ps1.count("$LASTEXITCODE -ne 0") >= len(installs), "cada pip install debe cortar el script si falla"
+    installs = [l for l in ps1.splitlines() if re.match(r"\s*& \$py -m pip install", l)]
+    assert len(installs) == 2
+    assert ps1.count("Assert-Success") >= len(installs), "cada pip install debe cortar el script si falla"
 
 
 def test_workflow_hygiene_no_set_x_cleanup_always_summary_without_secrets() -> None:
@@ -950,3 +950,106 @@ def test_t108_check_bundle_ps1_uses_the_shared_list_and_fails_closed() -> None:
     assert r"dist\listBuddy" in code
     assert ".Trim()" in code                                # CRLF de checkout con autocrlf
     assert "Set-StrictMode" in code and "$ErrorActionPreference" in code
+
+
+# ── T-108: build_windows.ps1 con integridad (SEC-20, LEG-26) ────────────────
+
+_BUILD_PS1 = PROJECT_ROOT / "scripts" / "build_windows.ps1"
+
+
+def _ps1_code() -> list[str]:
+    return [l for l in _BUILD_PS1.read_text(encoding="utf-8").splitlines()
+            if l.strip() and not l.lstrip().startswith("#")]
+
+
+def _first(lines: list[str], pattern: str) -> int:
+    for i, l in enumerate(lines):
+        if re.search(pattern, l):
+            return i
+    raise AssertionError(f"no hay línea con /{pattern}/")
+
+
+def test_t108_ps1_uses_a_clean_build_venv_never_the_dev_venv() -> None:
+    code = _ps1_code()
+    text = "\n".join(code)
+    assert ".venv-build" in text
+    assert not re.search(r'\.venv(?!-build)', text), "el .ps1 no puede tocar .venv (arrastra Pillow/PyQt6, LEG-26)"
+    # se borra antes de crear: un venv viejo no se reutiliza
+    assert _first(code, r"Remove-Item.*\$venv") < _first(code, r"-m venv")
+
+
+def test_t108_ps1_requires_python_3_14_8_and_explains_install() -> None:
+    text = "\n".join(_ps1_code())
+    assert '[version]"3.14.8"' in text
+    assert re.search(r"\$found -lt \$MinPython", text)
+    assert "python.org" in text and "winget install" in text and "-Python" in text
+    assert "ALLOW_OLD" not in text.upper()        # sin override: SEC-20 pide que el release no arranque con un expat viejo
+
+
+def test_t108_ps1_installs_only_from_hashed_locks() -> None:
+    code = _ps1_code()
+    installs = [l for l in code if l.startswith("&") and "pip install" in l]
+    assert len(installs) == 2, installs
+    for l in installs:
+        assert "--require-hashes" in l and re.search(r"-r \(Join-Path \$ROOT \"requirements", l), l
+    assert any("requirements.txt" in l for l in installs)
+    assert any("requirements-build-windows.txt" in l for l in installs)
+    assert not any(re.search(r"pip install\s+pyinstaller", l, re.I) for l in code)
+    assert all("-m pip" in l for l in installs)          # `pip.exe install --upgrade pip` no puede reemplazarse a sí mismo
+
+
+def test_t108_ps1_checks_exit_code_after_every_native_call() -> None:
+    code = _ps1_code()
+    body = "\n".join(code)
+    m = re.search(r"function Assert-Success.*?\n\}", body, re.S)
+    assert m and "$LASTEXITCODE -ne 0" in m.group(0) and "exit 1" in m.group(0)
+    native = [i for i, l in enumerate(code) if re.search(r"(^|=\s*)&\s+[\$\(]", l)]
+    assert len(native) >= 6, "venv, 2 pip, PyInstaller, check_bundle, versión de Python"
+    unchecked = [code[i] for i in native if "Assert-Success" not in code[i + 1]]
+    assert unchecked == []
+
+
+def test_t108_ps1_step_order_gate_build_check_zip_hash() -> None:
+    code = _ps1_code()
+    order = [r"-lt \$MinPython", r"A DEFINIR POR EL PO", r"-m venv", r"pip install.*requirements\.txt",
+             r"pip install.*requirements-build-windows", r"-m PyInstaller", r"check_bundle\.ps1",
+             r"CreateFromDirectory", r"Get-FileHash"]
+    idx = [_first(code, p) for p in order]
+    assert idx == sorted(idx) and len(set(idx)) == len(idx), idx
+
+
+def test_t108_ps1_gate_d14_covers_the_same_files_as_the_release_gate_test() -> None:
+    from test_release_gate import _FILES, _MARKER
+    text = "\n".join(_ps1_code())
+    for name in _FILES:
+        assert f'"{name}"' in text, name
+    assert _MARKER in text and "-SimpleMatch" in text and "exit 1" in text
+
+
+def test_t108_ps1_builds_with_pyinstaller_module_and_names_the_artifacts() -> None:
+    text = "\n".join(_ps1_code())
+    assert "-m PyInstaller rb_exporter.spec --noconfirm --clean" in text
+    assert r"dist\listBuddy" in text or '"dist"' in text
+    assert "listBuddy-$version-win64.zip" in text
+    assert "_APP_VERSION" in text                      # la versión sale de ui.py, como en release_mac.sh
+    assert "Compress-Archive" not in text              # entradas con \ en PS 5.1: se usa ZipFile y se reabre para verificar
+
+
+def test_t108_ps1_writes_sha256_in_shasum_format_without_bom() -> None:
+    text = "\n".join(_ps1_code())
+    assert "Get-FileHash" in text and "-Algorithm SHA256" in text and ".ToLower()" in text
+    assert '"$hash *$(Split-Path -Leaf $zip)' in text
+    assert "UTF8Encoding($false)" in text and '.sha256"' in text
+
+
+@pytest.mark.skipif(shutil.which("shasum") is None, reason="requiere shasum")
+def test_t108_sha256_line_format_is_accepted_by_shasum_check(tmp_path) -> None:
+    import hashlib
+    z = tmp_path / "listBuddy-1.0.0-win64.zip"
+    z.write_bytes(b"contenido")
+    (tmp_path / (z.name + ".sha256")).write_bytes(f"{hashlib.sha256(b'contenido').hexdigest()} *{z.name}\n".encode())
+    ok = subprocess.run(["shasum", "-a", "256", "-c", z.name + ".sha256"], cwd=tmp_path, capture_output=True, text=True)
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    z.write_bytes(b"adulterado")
+    bad = subprocess.run(["shasum", "-a", "256", "-c", z.name + ".sha256"], cwd=tmp_path, capture_output=True, text=True)
+    assert bad.returncode != 0
