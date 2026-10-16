@@ -119,6 +119,40 @@ credenciales. En tu Mac, sin `NOTARY_KEYCHAIN`, el script usa el perfil del keyc
 
 Para verificar una descarga: `shasum -a 256 -c ListBuddy-1.0.0-arm64.dmg.sha256` en la carpeta del DMG.
 
+## Requisitos y avisos del log
+
+- **Mínimo: macOS 14.4** (`LSMinimumSystemVersion`). Los frameworks de Qt 6.12 piden 14.4; Python y numpy piden menos.
+- **«AVISO: 12 bindings de PySide6/shiboken declaran minos 26.0 …» es esperado**, no un error. Son 12 extensiones
+  (`QtCore.abi3.so`, `Shiboken.abi3.so`, …) que Qt compiló con un `minos` de 26.0 pero que cargan igual en macOS 14.8
+  (T-087). No están probadas en 14.4-14.7, por eso el aviso. El script solo **aborta** si un Mach-O que NO sea de esos 12
+  pide más que 14.4 (p. ej. un wheel nuevo): ahí sí hay que mirar qué dependencia cambió.
+- `stapler staple` se **reintenta** hasta 6 veces (espera 30, 60, 90… s) porque justo después de «Accepted» el ticket puede
+  no haberse propagado (error 65). Si agota los intentos, la notarización igual está aceptada: re-ejecutá el job.
+- Tras estampar el `.app` corre `syspolicy_check distribution` (macOS 14+; si falta, avisa y sigue).
+- Los logs del notary quedan como artefacto aparte `listbuddy-<v>-<arch>-notary` (`notary-app-<v>-<arch>.json`,
+  `notary-dmg-<v>-<arch>.json`); no son assets del release. Archivalos como evidencia.
+- **Dos fases en CI (ADR-005, SEC-17):** `release_mac.sh --build-only` instala el toolchain de `requirements-build.txt`
+  (`--require-hashes`) y buildea SIN credenciales; recién después el workflow importa el certificado y corre
+  `release_mac.sh --skip-build` (firma, DMG, notarización). Regenerar el lock de build: ver CLAUDE.md.
+- `release_mac.sh` limpia `dist/` de artefactos viejos propios y **aborta** si hay archivos ajenos.
+
+## Orden del primer release
+
+Cada paso se verifica antes de pasar al siguiente.
+
+0. **D-14**: completar los marcadores `[A DEFINIR POR EL PO …]` de `DISCLAIMER.md`. Verifica: `scripts/release_mac.sh --dry-run` ya no imprime «gate D-14».
+1. **Certificado Developer ID Application** (Account Holder; CSR desde Acceso a Llaveros) y export `.p12`. Verifica: `security find-identity -v -p codesigning`.
+2. **API key de App Store Connect** (Team Keys). Verifica: `xcrun notarytool history --key … --key-id … --issuer …`.
+3. **Ensayo local completo** en tu Mac (recomendado): `xcrun notarytool store-credentials listbuddy …` y `DEVELOPER_ID=… NOTARY_PROFILE=listbuddy scripts/release_mac.sh --arch-suffix`.
+4. **GitHub → environment `release`** con regla de tag `v*` y los 5 secrets. Verifica con `gh api repos/<owner>/<repo>/environments`.
+5. **Ruleset de tags** `refs/tags/v*` (creations, updates, deletions). Verifica: `gh api …/rulesets` no vacío.
+6. **Smoke sin secrets**: Actions → Release macOS → Run workflow sobre `main` (environment `smoke`).
+7. **Tag**: `git tag -a v1.0.0 -m "List Buddy 1.0.0" && git push origin v1.0.0`.
+8. **Gatekeeper en una Mac limpia** (o VM con snapshot): DMG bajado con Safari, sin red; `spctl -a -t exec -vvv` y `xcrun stapler validate`.
+9. Opcional: probar la pata arm64 en Apple Silicon.
+10. **Publish release** (editar notas).
+11. Archivar la evidencia (`notary-*.json` de cada pata) en `engram/qa/`.
+
 ## Qué no cubre
 
 - Windows: no hay runner ni firma (ver `scripts/build_windows.ps1` y T-086 APP-19/20).

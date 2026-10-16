@@ -6,6 +6,8 @@
 #   NOTARY_PROFILE=listbuddy scripts/release_mac.sh   # firma Developer ID + notariza
 #   scripts/release_mac.sh --dry-run       # valida prerrequisitos e imprime el plan; no buildea ni firma
 #   scripts/release_mac.sh --skip-build    # reusa dist/List Buddy.app existente (solo firma, .dmg, checksums)
+#   scripts/release_mac.sh --build-only    # solo venv + deps con hashes + PyInstaller + check_bundle + minos; NO firma
+#                                          # (CI fase 1, T-107: pip/PyInstaller corren antes de importar el certificado)
 #   PYTHON=/ruta/a/python3.14 scripts/release_mac.sh   # fija el intérprete (si no, el primer python3 del PATH)
 #   scripts/release_mac.sh --arch-suffix   # DMG «ListBuddy-<v>-<arm64|x86_64>.dmg» (CI, T-097)
 #
@@ -29,20 +31,26 @@ cd "$(dirname "$0")/.."
 
 DRY_RUN=0
 SKIP_BUILD=0
+BUILD_ONLY=0
 ARCH_SUFFIX=""
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --skip-build) SKIP_BUILD=1 ;;
+    --build-only) BUILD_ONLY=1 ;;
     --arch-suffix) ARCH_SUFFIX="-$(uname -m)" ;;   # arm64 | x86_64 (CI, T-097)
-    *) echo "Uso: $0 [--dry-run] [--skip-build] [--arch-suffix]" >&2; exit 2 ;;
+    *) echo "Uso: $0 [--dry-run] [--skip-build|--build-only] [--arch-suffix]" >&2; exit 2 ;;
   esac
 done
+
+if [ "$BUILD_ONLY" = 1 ] && [ "$SKIP_BUILD" = 1 ]; then
+  echo "ERROR: --build-only y --skip-build son excluyentes (uno solo buildea, el otro solo firma)." >&2
+  exit 2
+fi
 
 MIN_PYTHON="3.14.8"
 PYTHON="${PYTHON:-python3}"   # intérprete con el que se crea .venv-build (CI lo fija al de setup-python)
 PY="$PYTHON"
-PYINSTALLER_PIN="pyinstaller==6.20.0"
 
 # py_version INTERPRETE -> «3.14.8». Con --skip-build no hace falta un intérprete.
 py_version() { "$1" -c 'import sys; print(".".join(map(str, sys.version_info[:3])))'; }
@@ -105,6 +113,42 @@ if [ "$DRY_RUN" = 0 ] && [ -x .venv/bin/python ]; then
   .venv/bin/python -m pytest -q -n 0 tests/test_release_gate.py
 fi
 
+# >>> clean-dist
+# clean_dist: deja en dist/ solo lo que produce esta corrida (TEC-27/LEG-32). Lo «nuestro» (builds y DMG
+# viejos, logs del notary) se borra; con --skip-build se conserva el .app recién buildeado. Si hay algo
+# ajeno aborta SIN borrar nada: dist/ no es un cajón de uso general. En --dry-run solo informa.
+clean_dist() {
+  [ -d dist ] || return 0
+  local f name foreign=() ours=()
+  for f in dist/* dist/.[!.]*; do
+    [ -e "$f" ] || continue
+    name=$(basename "$f")
+    case "$name" in
+      # También los builds viejos del spec anterior (junio): «listBuddy.app» y el one-file «listBuddy».
+      "List Buddy"|"List Buddy.app"|listBuddy|listBuddy.app|listBuddy-*|ListBuddy-*|listbuddy-*|notary-*|.DS_Store) ;;
+      *) foreign+=("$f"); continue ;;
+    esac
+    if [ "${SKIP_BUILD:-0}" = 1 ] && [ "$f" = "$APP" ]; then continue; fi
+    ours+=("$f")
+  done
+  if [ "${#foreign[@]}" -gt 0 ]; then
+    if [ "${DRY_RUN:-0}" = 1 ]; then
+      echo "[dry-run] dist/: el release real ABORTARÍA; hay archivos ajenos: ${foreign[*]}" >&2
+    else
+      echo "ERROR: dist/ tiene archivos que no son de List Buddy; no borro nada. Movelos o borralos vos:" >&2
+      printf '  %s\n' "${foreign[@]}" >&2
+      return 1
+    fi
+  fi
+  [ "${#ours[@]}" -gt 0 ] || return 0
+  if [ "${DRY_RUN:-0}" = 1 ]; then
+    echo "[dry-run] limpiaría de dist/: ${ours[*]}"
+  else
+    rm -rf "${ours[@]}"
+  fi
+}
+# <<< clean-dist
+
 # plutil -lint no detecta «--» en un comentario XML y codesign aborta: xmllint sí.
 xmllint --noout entitlements.plist
 
@@ -120,15 +164,20 @@ SUMS_SRC="dist/listbuddy-${VERSION}-src.tar.gz.sha256"
 
 if [ "$DRY_RUN" = 1 ]; then
   # Solo prerrequisitos (arriba) y plan: no se buildea, no se firma, no se toca dist/.
+  clean_dist
   echo "[dry-run] versión $VERSION · identidad: $IDENTITY · intérprete: $PY"
   if [ "$SKIP_BUILD" = 1 ]; then
     echo "[dry-run] reusa $APP existente (--skip-build)"
   else
     echo "[dry-run] .venv-build/bin/pip install --require-hashes -r requirements.txt"
-    echo "[dry-run] .venv-build/bin/pip install $PYINSTALLER_PIN"
+    echo "[dry-run] .venv-build/bin/pip install --require-hashes -r requirements-build.txt (PyInstaller + deps con hash)"
     echo "[dry-run] .venv-build/bin/pyinstaller --noconfirm rb_exporter.spec"
   fi
   echo "[dry-run] scripts/check_bundle.sh \"$APP\" + verificación de minos con otool"
+  if [ "$BUILD_ONLY" = 1 ]; then
+    echo "[dry-run] --build-only: termina acá (sin firma, DMG ni notarización; sigue con --skip-build)"
+    exit 0
+  fi
   echo "[dry-run] codesign inside-out (--sign $IDENTITY): Mach-O sueltos, frameworks y el .app"
   if [ "$IDENTITY" != "-" ] && [ -n "${NOTARY_PROFILE:-}" ]; then
     echo "[dry-run] xcrun notarytool submit (app y dmg) --keychain-profile $NOTARY_PROFILE${NOTARY_KC[*]+ ${NOTARY_KC[*]}} + stapler staple"
@@ -141,6 +190,7 @@ if [ "$DRY_RUN" = 1 ]; then
   exit 0
 fi
 
+clean_dist
 rm -f "$DMG" "$ZIP" "$SUMS_DMG" "$SRC" "$SUMS_SRC"
 if [ "$SKIP_BUILD" = 0 ]; then
   if [ ! -x .venv-build/bin/python ]; then
@@ -149,10 +199,11 @@ if [ "$SKIP_BUILD" = 0 ]; then
   check_python .venv-build/bin/python
   echo "Python de build: $(.venv-build/bin/python -c 'import sys,platform;print(sys.version.split()[0], platform.machine())')"
   # Siempre: un venv viejo con dependencias desactualizadas no puede buildear en silencio.
-  # --require-hashes rechaza cualquier paquete que no esté en el lock (SEC-07). PyInstaller va
-  # aparte: con hashes activos pip exige hash en TODO lo que se instale en esa corrida.
+  # --require-hashes rechaza cualquier paquete que no esté en el lock (SEC-07). El toolchain (PyInstaller,
+  # hooks-contrib, setuptools, pip) tiene su propio lock: con hashes activos pip exige hash en TODO lo que
+  # se instale en esa corrida, y el toolchain no debe viajar en requirements.txt (SEC-17).
   .venv-build/bin/pip install -q --require-hashes -r requirements.txt
-  .venv-build/bin/pip install -q "$PYINSTALLER_PIN"
+  .venv-build/bin/pip install -q --require-hashes -r requirements-build.txt
 
   rm -rf build "$APP"
   .venv-build/bin/pyinstaller --noconfirm rb_exporter.spec
@@ -189,6 +240,11 @@ if [ "$MINOS_WARN" -gt 0 ]; then
   echo "AVISO: $MINOS_WARN bindings de PySide6/shiboken declaran minos 26.0 (> $MIN_OS); cargan en macOS 14.8 pero no están probados en 14.4-14.7:$MINOS_FILES" >&2
 fi
 # <<< minos-check
+
+if [ "$BUILD_ONLY" = 1 ]; then
+  echo "Build listo (--build-only): $APP sin firma final. Siguiente fase: $0 --skip-build"
+  exit 0
+fi
 
 # ── Firma inside-out ────────────────────────────────────────────────────────
 if [ "$IDENTITY" = "-" ]; then
@@ -230,6 +286,44 @@ if [ "$IDENTITY" != "-" ]; then
   done < <(find "$APP/Contents" -type f \( -name '*.dylib' -o -name '*.so' -o -perm -u=x \))
 fi
 
+# >>> staple-retry
+# staple_with_retry RUTA: estampa el ticket y lo valida (APP-23). Justo después de «Accepted» el ticket
+# puede no haberse propagado (error 65, CloudKit): se reintenta con espera creciente en vez de tirar
+# una notarización ya aprobada. STAPLE_ATTEMPTS / STAPLE_DELAY existen para los tests.
+staple_with_retry() {
+  local target="$1" attempts="${STAPLE_ATTEMPTS:-6}" delay="${STAPLE_DELAY:-30}" i=1
+  until xcrun stapler staple "$target"; do
+    if [ "$i" -ge "$attempts" ]; then
+      echo "ERROR: stapler staple falló $attempts veces sobre $target." >&2
+      echo "       La notarización YA fue aceptada: es la propagación del ticket. Re-ejecutá el job/script;" >&2
+      echo "       la segunda submission es rápida y el ticket suele estar disponible." >&2
+      return 1
+    fi
+    echo "AVISO: stapler staple falló ($i/$attempts) sobre $target; el ticket puede tardar en propagarse. Reintento en $((delay * i)) s." >&2
+    sleep $((delay * i))
+    i=$((i + 1))
+  done
+  xcrun stapler validate "$target"
+}
+# <<< staple-retry
+
+# >>> syspolicy
+# syspolicy_check_app APP: «syspolicy_check distribution» corre las mismas comprobaciones que macOS al
+# ejecutar la app (Gatekeeper, XProtect, ticket); es lo que Apple/DTS recomiendan sobre spctl para el .app
+# (APP-27). Existe desde macOS 14: sin el binario o en una versión anterior avisa y sigue.
+syspolicy_check_app() {
+  local app="$1" major
+  major=$(sw_vers -productVersion 2>/dev/null || echo 0)
+  major=${major%%.*}
+  if ! command -v syspolicy_check >/dev/null 2>&1 || [ "$major" -lt 14 ]; then
+    echo "AVISO: sin syspolicy_check (hace falta macOS 14+); salteo la verificación de distribución de $app." >&2
+    return 0
+  fi
+  syspolicy_check distribution "$app" \
+    || { echo "ERROR: syspolicy_check distribution rechazó $app (ver arriba)." >&2; return 1; }
+}
+# <<< syspolicy
+
 # notarize ARCHIVO ETIQUETA: sube, espera y exige «Accepted» (el log queda en dist/).
 notarize() {
   local file="$1" label="$2" out sub_id
@@ -238,10 +332,10 @@ notarize() {
   sub_id=$(printf '%s\n' "$out" | sed -n 's/^ *id: //p' | head -1)
   if [ -n "$sub_id" ]; then
     xcrun notarytool log "$sub_id" --keychain-profile "$NOTARY_PROFILE" ${NOTARY_KC[@]+"${NOTARY_KC[@]}"} \
-      "dist/notary-${label}-${VERSION}.json" || true
+      "dist/notary-${label}-${VERSION}${ARCH_SUFFIX}.json" || true
   fi
   printf '%s\n' "$out" | grep -q 'status: Accepted' \
-    || { echo "Notarización de $label rechazada; ver dist/notary-${label}-${VERSION}.json" >&2; exit 1; }
+    || { echo "Notarización de $label rechazada; ver dist/notary-${label}-${VERSION}${ARCH_SUFFIX}.json" >&2; exit 1; }
 }
 
 CAN_NOTARIZE=0
@@ -251,8 +345,8 @@ if [ "$CAN_NOTARIZE" = 1 ]; then
   # El .app se notariza primero (vía zip) para estamparle el ticket: así abre offline.
   ditto -c -k --keepParent "$APP" "$ZIP"
   notarize "$ZIP" app
-  xcrun stapler staple "$APP"
-  xcrun stapler validate "$APP"
+  staple_with_retry "$APP"
+  syspolicy_check_app "$APP"
   rm -f "$ZIP"
 fi
 
@@ -269,8 +363,7 @@ fi
 
 if [ "$CAN_NOTARIZE" = 1 ]; then
   notarize "$DMG" dmg
-  xcrun stapler staple "$DMG"
-  xcrun stapler validate "$DMG"
+  staple_with_retry "$DMG"
   spctl --assess --type open --context context:primary-signature --verbose "$DMG"
   hdiutil verify "$DMG"
 fi
