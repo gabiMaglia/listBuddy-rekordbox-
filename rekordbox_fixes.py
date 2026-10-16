@@ -36,7 +36,19 @@ class FixStore:
         fixes = data.get("fixes") if isinstance(data, dict) else None
         if not isinstance(fixes, dict):
             return {}
-        return {str(k): str(v) for k, v in fixes.items()}
+        # El JSON es editable por el usuario o por otro programa: un valor que no sea
+        # una ruta absoluta en texto no se castea con str() (un `1` o una lista se
+        # volverían "rutas" inventadas), se descarta y queda dicho en el log.
+        clean: dict[str, str] = {}
+        for k, v in fixes.items():
+            if not isinstance(k, str) or not k:
+                _log.warning("Reparación descartada: clave inválida (%r)", k)
+            elif not isinstance(v, str) or not v or not Path(v).is_absolute():
+                _log.warning("Reparación descartada para %s: se esperaba una ruta absoluta (%s)",
+                             k, type(v).__name__)
+            else:
+                clean[k] = v
+        return clean
 
     def save(self, mapping: dict[str, str]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
