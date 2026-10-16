@@ -852,3 +852,10 @@ def test_t107_workflow_builds_before_certificate_in_two_phases() -> None:
     assert first_secret > build.index("- name: Build sin credenciales")
     assert "requirements-build.txt" in _WORKFLOW.read_text(encoding="utf-8").split("pull_request:", 1)[1].split("permissions:", 1)[0]
 
+
+
+def test_t107_claude_md_documents_build_lock_regeneration() -> None:
+    doc = (PROJECT_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-build.txt requirements-build.in" in doc
+    assert "PyInstaller (`==6.20.0`) se instala aparte" not in doc
+    assert "--build-only" in doc
