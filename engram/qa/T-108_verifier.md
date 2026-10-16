@@ -119,3 +119,15 @@ Windows ni pwsh: todo lo que depende de ejecutar PowerShell queda en «Qué no s
 3. Criterio 3 (suite completa exit 0 en macOS): me abstengo, no lo doy por cumplido.
 
 Observaciones que no bloquean: O1 (escape del clasificador `qt` con `import json, styles`; el comentario `tests.yml:44` promete más de lo que hace), O2 (sobreexclusión por texto de `posix`), O3 (CLAUDE.md:230), O4/O5 (mutaciones verdes fuera del criterio).
+
+## Verificación 2
+
+Rama @ `dc97c25` (commits `c7b3968` y `dc97c25` sobre `c256c1e`; `build_windows.ps1` sin cambios). Worktree detached aparte, removido al terminar.
+
+- **V1 (D1) corregido.** `tests/test_release_scripts.py:981-990`: `$py` solo puede salir de `.venv-build`, y después de `-m venv` no aparece `$Python` y todo comando nativo es `& $py ` o `check_bundle.ps1`. Mutaciones de `pytest -k t108`, todas en rojo: `$py = $Python`; `& $Python -m PyInstaller`; extra: `$pip = Join-Path $env:LOCALAPPDATA …` usado en el pip install del toolchain; extra: `& $env:PYTHON -m PyInstaller`.
+- **V2 (D2) corregido.** `tests/test_release_scripts.py:1039-1045` parsea `if ($pending.Count -gt 0) {`, exige `exit 1` dentro y que sea la única línea con `$pending.Count`. Mutaciones en rojo: `-gt 99`; extra: `-lt 0`; extra: `exit 1` → `exit 0` dentro del bloque.
+- **O1 corregido.** `tests/_qt_isolated.py:28-33` ve el módulo GUI en cualquier posición del `import`. `tests/test_windows_subset.py` (18 passed) cubre 6 casos positivos, 4 negativos y la partición. `test_header.py::test_t069_badge_text_meets_contrast_in_both_themes`, `test_footer.py::test_footer_export_button_text_meets_contrast_in_both_states` y `test_contrast.py::{test_new_tokens_match_spec_exactly,test_all_text_pairs_meet_wcag}` ahora quedan en `-m qt`.
+- Subconjunto de Windows: `LISTBUDDY_NO_QT=1 pytest -m "not qt and not posix" -n 0` da 480 passed y 2 skipped. Registré los 47 `Popen` y ninguno tiene `QApplication`, `QGuiApplication`, `QtWidgets`, `styles` ni `BOOT`: **0 ventanas**.
+- Sigue igual que en la verificación 1: me abstengo de C3 (suite completa; el implementador informa 859 en verde, yo no la corrí) y de todo lo que exige Windows o pwsh. O2/O3 siguen como observaciones.
+
+**Veredicto de la verificación 2: CONFIRMADO** (D1 y D2 cerrados, con las mutaciones en rojo; O1 cerrado).
