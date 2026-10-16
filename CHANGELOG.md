@@ -57,6 +57,6 @@ Primera versión pública. Reúne todo el trabajo previo: las versiones internas
 - Interfaz sobre **PySide6** (Qt for Python, LGPL).
 
 ### Requisitos
-- macOS 13 o posterior. Windows: pendiente de prueba en esta versión.
+- macOS 14.4 o posterior. Windows: pendiente de prueba en esta versión.
 - Rekordbox: exportar la colección a XML. Traktor cerrado solo al reparar enlaces.
 - Sin claves ni componentes de AlphaTheta ni de Native Instruments en el ejecutable.
