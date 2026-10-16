@@ -251,6 +251,23 @@ staple_with_retry() {
 }
 # <<< staple-retry
 
+# >>> syspolicy
+# syspolicy_check_app APP: «syspolicy_check distribution» corre las mismas comprobaciones que macOS al
+# ejecutar la app (Gatekeeper, XProtect, ticket); es lo que Apple/DTS recomiendan sobre spctl para el .app
+# (APP-27). Existe desde macOS 14: sin el binario o en una versión anterior avisa y sigue.
+syspolicy_check_app() {
+  local app="$1" major
+  major=$(sw_vers -productVersion 2>/dev/null || echo 0)
+  major=${major%%.*}
+  if ! command -v syspolicy_check >/dev/null 2>&1 || [ "$major" -lt 14 ]; then
+    echo "AVISO: sin syspolicy_check (hace falta macOS 14+); salteo la verificación de distribución de $app." >&2
+    return 0
+  fi
+  syspolicy_check distribution "$app" \
+    || { echo "ERROR: syspolicy_check distribution rechazó $app (ver arriba)." >&2; return 1; }
+}
+# <<< syspolicy
+
 # notarize ARCHIVO ETIQUETA: sube, espera y exige «Accepted» (el log queda en dist/).
 notarize() {
   local file="$1" label="$2" out sub_id
@@ -273,6 +290,7 @@ if [ "$CAN_NOTARIZE" = 1 ]; then
   ditto -c -k --keepParent "$APP" "$ZIP"
   notarize "$ZIP" app
   staple_with_retry "$APP"
+  syspolicy_check_app "$APP"
   rm -f "$ZIP"
 fi
 

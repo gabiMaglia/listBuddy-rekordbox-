@@ -621,10 +621,10 @@ def _fake_bin(tmp_path, **scripts: str):
     return bin_dir
 
 
-def _run_snippet(tmp_path, name: str, call: str, bin_dir, **env):
+def _run_snippet(tmp_path, name: str, call: str, bin_dir, *, system_path: bool = True, **env):
     script = f"set -euo pipefail\n{_snippet(name)}\n{call}\n"
-    e = {"PATH": f"{bin_dir}:/usr/bin:/bin", **env}
-    return subprocess.run(["bash", "-c", script], capture_output=True, text=True, env=e, cwd=tmp_path, timeout=60)
+    e = {"PATH": f"{bin_dir}:/usr/bin:/bin" if system_path else str(bin_dir), **env}
+    return subprocess.run(["/bin/bash", "-c", script], capture_output=True, text=True, env=e, cwd=tmp_path, timeout=60)
 
 
 # xcrun falso: cuenta las llamadas a `stapler staple` y falla las primeras $FAILS veces.
@@ -680,3 +680,33 @@ def test_t107_notary_logs_carry_arch_suffix_and_travel_as_evidence() -> None:
     assert re.search(r"^\s*if:\s*always\(\)", step, re.M)   # también si el notary rechaza
     # nunca entra al GitHub Release: los assets se listan uno por uno
     assert "notary" not in _step_run("Crear release") and "notary" not in _step_run("Verificar assets")
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+@pytest.mark.parametrize("case,macos,policy,rc,expect_rc,expect_text", [
+    ("ok", "14.8.8", "exit 0", None, 0, ""),
+    ("falla", "15.1", 'echo "ticket" >&2; exit 1', None, 1, "syspolicy_check"),
+    ("sin_binario", "15.1", None, None, 0, "AVISO"),
+    ("macos13", "13.7", "exit 1", None, 0, "AVISO"),
+])
+def test_t107_syspolicy_check_distribution(tmp_path, case, macos, policy, rc, expect_rc, expect_text) -> None:
+    """APP-27: `syspolicy_check distribution "$APP"` tras el staple; sin binario o macOS < 14 avisa y sigue."""
+    fakes = {"sw_vers": f'echo "{macos}"'}
+    if policy is not None:
+        fakes["syspolicy_check"] = f'echo "$*" >> "$CALLS"\n{policy}'
+    bin_dir = _fake_bin(tmp_path, **fakes)
+    calls = tmp_path / "calls.txt"
+    # Sin /usr/bin en el PATH: ahí vive el syspolicy_check real y «sin_binario» no probaría nada.
+    r = _run_snippet(tmp_path, "syspolicy", 'syspolicy_check_app "/x/List Buddy.app"', bin_dir,
+                     system_path=False, CALLS=str(calls))
+    assert r.returncode == expect_rc, r.stdout + r.stderr
+    assert expect_text in r.stdout + r.stderr
+    if case in ("ok", "falla"):
+        assert calls.read_text().strip() == "distribution /x/List Buddy.app"
+    else:
+        assert not calls.exists()
+
+
+def test_t107_syspolicy_runs_after_app_staple_and_before_dmg() -> None:
+    text = _RELEASE.read_text(encoding="utf-8").split("# <<< syspolicy", 1)[1]
+    assert text.index('staple_with_retry "$APP"') < text.index('syspolicy_check_app "$APP"') < text.index("hdiutil create")
