@@ -76,6 +76,44 @@ def test_checked_playlists_survive_a_reload_that_runs_in_the_worker() -> None:
     assert out[-1] == "[False, True] 1/2"
 
 
+def test_checked_playlists_survive_chained_reloads_before_the_first_one_shows_cards() -> None:
+    """V1: la 2.ª recarga llega con `_all_cards` vacío y no debe pisar las marcas pendientes."""
+    out = run(BOOT + SLOW.replace("DELAY", "0.3") +
+        "w, s = make(); w._source = 'rekordbox'; w._rb_xml_path = str(xml)\n"
+        "ui.MainWindow._load_playlists = load_async; load_async(w); settle(w)\n"
+        "for c in w._all_cards: c.setChecked(True)\n"
+        "w._reload_library(); w._reload_library()\n"
+        "assert not w._all_cards\n"
+        "settle(w)\n"
+        "print(sorted(c.name for c in w._all_cards if c.isChecked()), w.count_pill.text())\n")
+    assert out[-1] == "['Sabado', 'Viernes'] 2/2"
+
+
+def test_checked_playlists_survive_a_path_change_in_the_middle_of_a_reload() -> None:
+    out = run(BOOT + SLOW.replace("DELAY", "0.3") +
+        "w, s = make(); w._source = 'rekordbox'; w._rb_xml_path = str(xml)\n"
+        "ui.MainWindow._load_playlists = load_async; load_async(w); settle(w)\n"
+        "w._all_cards[0].setChecked(True)\n"
+        "w._reload_library()\n"
+        "w._rb_xml_path = str(xml); w._reload_after_path_change()\n"
+        "settle(w)\n"
+        "print([c.isChecked() for c in w._all_cards])\n")
+    assert out[-1] == "[True, False]"
+
+
+def test_switching_source_in_the_middle_of_a_reload_drops_the_marks() -> None:
+    """Como en `main`: marcas de Rekordbox no se restauran al cambiar de fuente."""
+    out = run(BOOT + SLOW.replace("DELAY", "0.3") +
+        "w, s = make(); w._source = 'rekordbox'; w._rb_xml_path = str(xml)\n"
+        "ui.MainWindow._load_playlists = load_async; load_async(w); settle(w)\n"
+        "w._all_cards[0].setChecked(True)\n"
+        "w._reload_library()\n"
+        "w._switch_source('traktor'); settle(w)\n"
+        "w._switch_source('rekordbox'); w._reload_library(); settle(w)\n"
+        "print([c.isChecked() for c in w._all_cards])\n")
+    assert out[-1] == "[False, False]"
+
+
 def test_failed_load_shows_the_message_and_clears_the_loading_card() -> None:
     out = run(BOOT + SLOW.replace("DELAY", "0.3") +
         "w, s = make(); w._source = 'rekordbox'; w._rb_xml_path = str(xml.with_name('nada.xml'))\n"
