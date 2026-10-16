@@ -55,7 +55,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtMultimedia import QMediaDevices
 
 import rekordbox_xml
-from app_paths import default_settings_path
+from app_paths import default_settings_path, make_private
 from db import key_bpm_of
 from about_dialog import (
     AboutDialog,
@@ -306,6 +306,7 @@ class MainWindow(QMainWindow):
         self._preview_cards: dict[object, PreviewGroupCard] = {}
 
         settings_path = settings_path or default_settings_path()
+        make_private(Path(settings_path), create=True)  # SEC-11: lleva rutas de la librería
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
         self._fixes_store = FixStore(fixes_path_for(Path(self.settings.fileName())))
         self._theme = str(self.settings.value("theme", "dark"))
