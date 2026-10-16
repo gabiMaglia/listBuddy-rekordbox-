@@ -64,7 +64,7 @@ def test_rekordbox_db_stack_is_not_shipped() -> None:
 def test_info_plist_store_and_privacy_keys() -> None:
     # T-087 APP-05/09/10: categoría, motivos TCC (rioplatense) y mínimo real de macOS.
     assert "'LSApplicationCategoryType': 'public.app-category.music'" in _SPEC
-    assert "'LSMinimumSystemVersion': '14.0'" in _SPEC
+    assert "'LSMinimumSystemVersion': '14.4'" in _SPEC
     for key in (
         "NSDesktopFolderUsageDescription", "NSDocumentsFolderUsageDescription",
         "NSDownloadsFolderUsageDescription", "NSRemovableVolumesUsageDescription",
