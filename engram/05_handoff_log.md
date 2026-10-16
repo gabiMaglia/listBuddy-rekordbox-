@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 16:30] T-103 Done (D-15 resuelta) · push
+- T-103: gate PASS (A), QA APROBADO 4/4 (minos-check exacto sobre el bundle, guarda de arranque con osascript/MessageBox inyectables), mergeado a main. D-15 cerrada: mínimo 14.4; 14.4-14.7 sin probar, documentado. D-34 menor. Suite 776 passed. Push a origin/main.
+- 3er bloque del PO cerrado salvo lo externo (APP-02 cert, hardened runtime real) y T-102 (decisión futura).
+- Quien retoma: nerv-orquestador (espera Apple/GitHub del PO).
+
 ### [2026-10-16 15:40] 3er bloque del PO (Apple) → D-15 decidida · T-102 (App Store, futuro) · nerv-desktop T-103 (A)
 - APP-06/13/19 ya Done (T-097/T-092); APP-20 descartado (T-101); APP-02 y hardened runtime real: del PO. D-15 con datos: Qt 6.12 frameworks minos 14.4; 12 bindings PySide/shiboken minos 26.0 que cargan en 14.8; sin VM 14.x. PO decide: mínimo 14.4 + guarda de arranque → T-103 (A, Gherkin = plan), rama `feat/t103-minos-144`.
 - Quien retoma: nerv-desktop → nerv-orquestador → nerv-qa.
