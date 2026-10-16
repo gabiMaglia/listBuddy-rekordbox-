@@ -13,6 +13,6 @@
 | 2026-10-14 | GitHub (origin) | `git push origin main` 36e8955..4af4ef3 (Acerca de + licencias, release 1.0.0, Rekordbox por XML oficial, aviso legal) — ejecutado por el Orquestador | gabiMaglia/listBuddy-rekordbox- @ 4af4ef3 | T-080, T-082 | PO («si dale» a mergear y pushear) |
 | 2026-10-15 | claude.ai Claude Docs | Crear doc privado «Mercado de herramientas para librerías DJ» (resumen de la investigación de mercado, con fuentes) | https://claude.ai/code/artifact/27a8402c-93bb-4205-b639-6c489293865b | — (investigación) | PO («si dale porfavor» a publicarlo para amigos DJs) |
 | 2026-10-15 | GitHub (origin) | `git push origin main` hasta 8a7de9f (merges T-081, onda, streaming + cierre de sprint) — ejecutado POR EL PO | gabiMaglia/listBuddy-rekordbox- @ 8a7de9f | T-081, T-083..T-085 | PO («ya pushee») |
-| 2026-10-16 | GitHub (origin) | `git push origin main` 4af4ef3..f45d809 (T-086 auditoría, T-087..T-097 Done con QA + verifier, ADR-005/006, workflows CI) — ejecutado por el Orquestador | gabiMaglia/listBuddy-rekordbox- @ f45d809 | T-086..T-097 | PO («Sí, pushear main», AskUserQuestion 2026-10-16) |
+| 2026-10-16 | GitHub (origin) | `git push origin main` 4922586..f45d809 (T-086 auditoría, T-087..T-097 Done con QA + verifier, ADR-005/006, workflows CI) — ejecutado por el Orquestador | gabiMaglia/listBuddy-rekordbox- @ f45d809 | T-086..T-097 | PO («Sí, pushear main», AskUserQuestion 2026-10-16) |
 
 - 2026-10-15 · (ninguna escritura externa en la sesión de la tarde: merges locales a main, sin push, sin PR, sin tracker) · T-086..T-097 · —
