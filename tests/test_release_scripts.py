@@ -346,3 +346,48 @@ def test_c1_docs_use_environment_not_repository_secrets() -> None:
     assert "New environment secret" in doc or "Environment secrets" in doc
     for needle in ("Deployment branches and tags", "`v*`", "Required reviewers", "`release`"):
         assert needle in doc, needle
+
+
+# ── C2: fail-closed en tags ─────────────────────────────────────────────────
+
+def _step_if_conjuncts(name_part: str) -> list[str]:
+    """Como _step_if_operands pero admite llamadas `f(...)`: rechaza `||` y parte por `&&`."""
+    step = _steps(name_part)
+    ifs = [l for l in step.splitlines() if re.match(r"\s*if:\s*\S", l)]
+    assert len(ifs) == 1, f"{name_part}: {len(ifs)} líneas if:"
+    cond = ifs[0].split("if:", 1)[1].strip()
+    assert "||" not in cond and "!(" not in cond, f"{name_part}: condición no conjuntiva: {cond}"
+    return [op.strip() for op in cond.split("&&")]
+
+
+def test_c2_tag_aborts_before_build_without_signing_or_notarization() -> None:
+    """C2: en un tag v* sin firma Developer ID o sin notarización el job aborta ANTES de buildear."""
+    build = _job_text("build")
+    name = "Exigir firma y notarización en tags"
+    assert "'refs/tags/v'" in " ".join(_step_if_conjuncts(name))
+    assert "startsWith(github.ref, 'refs/tags/v')" in _step_if_conjuncts(name)
+    step = _steps(name)
+    assert "::error::" in step and "exit 1" in step
+    for var in ("SIGNING", "NOTARIZING", "DEVELOPER_ID", "NOTARY_PROFILE"):
+        assert var in step, var
+    # Orden: después de importar cert y credenciales, antes del build.
+    at = build.index(f"- name: {name}")
+    assert build.index("- name: Importar certificado") < at
+    assert at < build.index("- name: Build, firma, DMG y notarización")
+    assert build.index("- name: Guardar credenciales") < at
+
+
+def test_c2_abort_script_logic() -> None:
+    """El run: del paso, ejecutado en bash: aborta si falta cualquiera de las cuatro variables."""
+    run = _steps("Exigir firma y notarización en tags").split("run: |\n", 1)[1]
+    run = "\n".join(l[10:] if l.startswith(" " * 10) else l for l in run.splitlines())
+    ok = {"SIGNING": "true", "NOTARIZING": "true", "DEVELOPER_ID": "Developer ID Application: X",
+          "NOTARY_PROFILE": "listbuddy"}
+    def go(**over: str):
+        env = {"PATH": "/usr/bin:/bin", **ok, **over}
+        return subprocess.run(["bash", "-c", run], env=env, capture_output=True, text=True)
+    assert go().returncode == 0
+    for k in ok:
+        r = go(**{k: ""})
+        assert r.returncode != 0 and "::error::" in r.stdout, k
+    assert go(SIGNING="false").returncode != 0
