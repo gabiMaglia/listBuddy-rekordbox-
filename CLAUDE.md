@@ -34,6 +34,17 @@ rekordbox_xml_relocate.py → Reparar enlaces de la fuente Rekordbox (busca por 
 traktor_db.py        → Parser de colección NML de Traktor Pro 3/4. open_collection(), get_playlist_tree().
 library_load_worker.py → LibraryLoadWorker (QThread). Lee el XML/NML fuera del hilo de UI; señales loaded(result)/failed(token, msg) (T-094).
 load_cancel.py       → LoadCancelled + CHECK: cancelación cooperativa del parseo.
+preview_card.py      → Tarjeta de carpeta de la vista previa: cabecera con estado + filas en scroll interno.
+playlist_filter.py   → Filtro de playlists por nombre (sin Qt).
+row_blocks.py        → Bloques de filas rotas contiguas y estados/textos de la tarjeta de carpeta (sin Qt).
+startup_guard.py     → Guarda de arranque: si Qt no carga, diálogo nativo y salida 1 (solo stdlib).
+dialogs.py           → QMessageBox con botones en español rioplatense.
+icons.py             → Íconos SVG de trazo teñidos por token (derivan en parte de Feather, MIT).
+branding.py          → Nombre visible de la marca.
+app_logging.py       → Log rotativo (0600) + excepthook global; carpeta de logs por OS.
+update_checker.py    → Chequeo de versión nueva en GitHub al arrancar (apagable en Configuración → Privacidad).
+relocate_core.py     → Orquestador y matching compartido del relocate de Traktor (backups en listBuddy_backups/).
+traktor_relocate.py  → Motor de reparación de enlaces del NML de Traktor (con backup previo).
 preview_worker.py    → PreviewWorker (QThread). Existence checks en background; emite GroupData.
 audio_player.py      → AudioPlayer (QMediaPlayer+FFmpeg). play/pause/seek; señales playing_changed, position_changed, track_finished.
 waveform_worker.py   → WaveformWorker (QThread). Picos de la onda del footer.
@@ -65,7 +76,7 @@ plans/               → Planes de implementación autocontenidos para ejecutar 
 ## Entorno de desarrollo
 
 ```
-Python       3.14.3  (CPython)
+Python       3.14.8  (CPython)
 PySide6             6.12.0
 PySide6_Essentials  6.12.0
 PySide6_Addons      6.12.0
