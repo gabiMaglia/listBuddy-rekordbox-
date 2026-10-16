@@ -978,6 +978,16 @@ def test_t108_ps1_uses_a_clean_build_venv_never_the_dev_venv() -> None:
     assert not re.search(r'\.venv(?!-build)', text), "el .ps1 no puede tocar .venv (arrastra Pillow/PyQt6, LEG-26)"
     # se borra antes de crear: un venv viejo no se reutiliza
     assert _first(code, r"Remove-Item.*\$venv") < _first(code, r"-m venv")
+    assert _first(code, r'^\$venv = Join-Path \$ROOT "\.venv-build"$') < _first(code, r"-m venv")
+    # $py sale SOLO del venv y, después de crearlo, el intérprete del sistema ($Python) no vuelve a aparecer (V1 verifier)
+    assert [l for l in code if re.match(r"\$py = ", l)] == [r'$py = Join-Path $venv "Scripts\python.exe"']
+    created = _first(code, r"^& \$Python -m venv \$venv$")
+    assert [l for l in code if re.match(r"&\s+\$Python -m venv", l)] == [code[created]]
+    after = code[created + 1:]
+    assert [l for l in after if re.search(r"\$Python\b", l)] == []
+    natives = [l for l in after if re.search(r"(^|=\s*)&\s+[\$\(]", l)]
+    assert natives and all(l.startswith("& $py ") or l.startswith('& (Join-Path $PSScriptRoot "check_bundle.ps1")')
+                           for l in natives), natives
 
 
 def test_t108_ps1_requires_python_3_14_8_and_explains_install() -> None:
@@ -1026,6 +1036,13 @@ def test_t108_ps1_gate_d14_covers_the_same_files_as_the_release_gate_test() -> N
     for name in _FILES:
         assert f'"{name}"' in text, name
     assert _MARKER in text and "-SimpleMatch" in text and "exit 1" in text
+    # la condición REAL (V2 verifier): cualquier marcador pendiente corta; `-gt 99` dejaría pasar hasta 99 archivos
+    code = _ps1_code()
+    cond = _first(code, r"^if \(\$pending\.Count -gt 0\) \{$")
+    assert re.search(r"exit 1", "\n".join(code[cond:cond + 6]))
+    assert [l for l in code if re.search(r"\$pending\.Count", l)] == [code[cond]]
+    assert re.search(r'\$pending = @\(\$gateFiles \| Where-Object \{', "\n".join(code))
+    assert re.search(r"Select-String -LiteralPath \(Join-Path \$ROOT \$_\) -SimpleMatch \"\[A DEFINIR POR EL PO\" -Quiet", text)
 
 
 def test_t108_ps1_builds_with_pyinstaller_module_and_names_the_artifacts() -> None:
