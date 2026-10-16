@@ -17,6 +17,7 @@ from PySide6.QtCore import QEventLoop, QThread, QTimer, QUrl, Signal
 from PySide6.QtMultimedia import QAudioDecoder, QAudioFormat
 
 from audio_decode import buffer_to_mono
+from audio_formats import is_playable_audio
 
 TARGET_SR = 11025
 WIN = 551                      # ≈ 50 ms a 11025 Hz
@@ -105,6 +106,8 @@ class WaveformWorker(QThread):
             return  # sin onda, sin ruido: el player sigue funcionando
 
     def _decode(self) -> None:
+        if not is_playable_audio(self.path):
+            return   # SEC-18: sin onda, el decoder ni se crea
         decoder = QAudioDecoder()
         fmt = QAudioFormat()
         fmt.setSampleRate(TARGET_SR)
