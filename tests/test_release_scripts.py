@@ -738,7 +738,7 @@ def _mk_dist(tmp_path, names: list[str]):
     return dist
 
 
-_OURS = ["List Buddy.app", "List Buddy", "listBuddy-1.0.dmg", "ListBuddy-1.0.0-arm64.dmg",
+_OURS = ["List Buddy.app", "List Buddy", "listBuddy.app", "listBuddy", "listBuddy-1.0.dmg", "ListBuddy-1.0.0-arm64.dmg",
          "ListBuddy-1.0.0-arm64.dmg.sha256", "listbuddy-1.0.0-src.tar.gz", "notary-app-1.0.0.json", ".DS_Store"]
 
 

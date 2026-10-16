@@ -158,7 +158,8 @@ jobs:
           echo "NOTARY_PROFILE=listbuddy" >> "$GITHUB_ENV"
 
       # Fail-closed: un tag nunca produce un borrador con DMG ad-hoc o sin notarizar, ni siquiera
-      # si el environment `release` quedó mal configurado. Corre antes del build (~15 min de firma).
+      # si el environment `release` quedó mal configurado. Corre después de la fase 1 (build sin
+      # credenciales) y antes de importar el certificado: corta antes de gastar firma y notarización.
       - name: Exigir firma y notarización en tags
         if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request'
         run: |
