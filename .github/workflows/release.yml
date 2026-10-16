@@ -176,9 +176,18 @@ jobs:
           path: |
             dist/*.dmg
             dist/ListBuddy-*.dmg.sha256
-            dist/notary-*.json
           if-no-files-found: error
           compression-level: 0
+
+      # Evidencia de notarización (APP-25): artefacto aparte, nunca assets del release. `always()` la conserva
+      # aunque el notary rechace; en ad-hoc no hay logs.
+      - name: Subir evidencia de notarización
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: listbuddy-${{ env.APP_VERSION }}-${{ matrix.arch }}-notary
+          path: dist/notary-*.json
+          if-no-files-found: ignore
 
       # El tarball fuente es idéntico en las dos patas: con merge-multiple se pisarían; sube una.
       - name: Subir tarball de fuentes (una sola pata)

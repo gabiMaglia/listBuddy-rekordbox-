@@ -259,10 +259,10 @@ notarize() {
   sub_id=$(printf '%s\n' "$out" | sed -n 's/^ *id: //p' | head -1)
   if [ -n "$sub_id" ]; then
     xcrun notarytool log "$sub_id" --keychain-profile "$NOTARY_PROFILE" ${NOTARY_KC[@]+"${NOTARY_KC[@]}"} \
-      "dist/notary-${label}-${VERSION}.json" || true
+      "dist/notary-${label}-${VERSION}${ARCH_SUFFIX}.json" || true
   fi
   printf '%s\n' "$out" | grep -q 'status: Accepted' \
-    || { echo "Notarización de $label rechazada; ver dist/notary-${label}-${VERSION}.json" >&2; exit 1; }
+    || { echo "Notarización de $label rechazada; ver dist/notary-${label}-${VERSION}${ARCH_SUFFIX}.json" >&2; exit 1; }
 }
 
 CAN_NOTARIZE=0

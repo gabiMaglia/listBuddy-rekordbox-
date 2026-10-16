@@ -662,3 +662,21 @@ def test_t107_staple_used_for_app_and_dmg_without_bare_calls() -> None:
     outside = _RELEASE.read_text(encoding="utf-8").split("# <<< staple-retry", 1)[1]
     assert re.findall(r"^\s*xcrun stapler (?:staple|validate)", outside, re.M) == []
     assert 'staple_with_retry "$APP"' in outside and 'staple_with_retry "$DMG"' in outside
+
+
+def test_t107_notary_logs_carry_arch_suffix_and_travel_as_evidence() -> None:
+    """APP-25: notary-{app,dmg}-<v><arch>.json no se pisan entre patas y salen como artefacto de evidencia."""
+    code = "\n".join(_code_lines(_RELEASE))
+    names = re.findall(r"dist/notary-[^\s\"']+\.json", code)
+    assert len(names) == 2 and all("${ARCH_SUFFIX}" in n for n in names), names
+    text = _WORKFLOW.read_text(encoding="utf-8")
+    uploads = re.findall(r"uses: actions/upload-artifact@[^\n]*\n(.*?)(?=\n      - |\n  \w)", text, re.S)
+    notary = [u for u in uploads if "notary-" in u]
+    assert len(notary) == 1
+    assert "${{ matrix.arch }}" in notary[0] and "notary" in notary[0].split("path:")[0]
+    assert "if-no-files-found: ignore" in notary[0]   # ad-hoc no genera logs
+    assert all("notary-" not in u for u in uploads if u is not notary[0])
+    step = _steps("evidencia de notarización")
+    assert re.search(r"^\s*if:\s*always\(\)", step, re.M)   # también si el notary rechaza
+    # nunca entra al GitHub Release: los assets se listan uno por uno
+    assert "notary" not in _step_run("Crear release") and "notary" not in _step_run("Verificar assets")
