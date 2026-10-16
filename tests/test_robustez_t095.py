@@ -127,6 +127,34 @@ def test_preview_titles_show_the_folder_name_the_export_will_create() -> None:
     assert out == "True True True"
 
 
+def test_preview_names_match_export_folders_when_a_homonym_is_unreadable() -> None:
+    # V1 (D-17): una «Mix» ilegible no consume el nombre: previa y export dicen «Mix».
+    out = _win(
+        "import tempfile, pathlib\n"
+        "from PySide6.QtCore import QEventLoop, QTimer\n"
+        "import rekordbox_xml as rx, worker\n"
+        "from ui_components import PlaylistCard\n"
+        "def pump(ms=600):\n"
+        "    loop = QEventLoop(); QTimer.singleShot(ms, loop.quit); loop.exec()\n"
+        "d = pathlib.Path(tempfile.mkdtemp()); f = d / 'a.mp3'; f.write_bytes(b'x')\n"
+        "class Rota:\n"
+        "    Name = 'Mix'; ID = 'r1'\n"
+        "    @property\n"
+        "    def Songs(self): raise RuntimeError('boom')\n"
+        "good = rx.RbxPlaylist(name='Mix', ID='g1', tracks=[rx.RbxTrack(title='T', artist='A', file_path=f, TrackNo=1)])\n"
+        "w, _ = make()\n"
+        "cards = [PlaylistCard(Rota(), 3, 0), PlaylistCard(good, 1, 1)]\n"
+        "w._all_cards.extend(cards)\n"
+        "for c in cards: c.setChecked(True)\n"
+        "w._start_preview_worker(); pump()\n"
+        "shown = sorted(c._title.text() for c in w._preview_cards.values())\n"
+        "out = d / 'out'; out.mkdir()\n"
+        "ew = worker.ExportWorker([c.playlist for c in cards], out); ew.run()\n"
+        "print(not any('(2)' in t for t in shown) and any(t.endswith(' Mix') for t in shown), sorted(p.name for p in out.iterdir()) == ['Mix'])\n"
+    )
+    assert out == "True True"
+
+
 # ── D-18 ──────────────────────────────────────────────────────────────────
 
 def test_foreign_part_files_survive_but_our_own_orphan_is_removed() -> None:
