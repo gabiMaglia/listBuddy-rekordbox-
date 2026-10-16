@@ -509,7 +509,10 @@ def test_workflow_hygiene_no_set_x_cleanup_always_summary_without_secrets() -> N
     """Verifier T-097 (observaciones): sin `set -x` en ningún `run:` (los secrets irían al log), la limpieza del
     keychain corre siempre (`always()`), y el resumen no imprime variables de secrets."""
     text = _WORKFLOW.read_text(encoding="utf-8")
-    assert not re.search(r"^\s*set -x\b|^\s*set -euxo|^\s*set -eux", text, re.M)
+    # Cualquier forma de xtrace: `set -x`, `set -ex`, `set -euxo`, `set -o xtrace`, `bash -x`.
+    assert not re.search(r"\bset\s+-[a-zA-Z]*x|\bset\s+-o\s+xtrace|\bbash\s+-x\b", text)
+    # El job con secrets no restaura cachés de pip (un run de tag restaura la caché de la rama default).
+    assert "cache:" not in text and "cache-dependency-path" not in text
     cleanup_if = [l for l in _steps("Limpiar keychain").splitlines() if re.match(r"\s*if:\s*\S", l)]
     assert len(cleanup_if) == 1 and cleanup_if[0].split("if:", 1)[1].strip().startswith("always()")
     summary = _step_run("Resumen")
@@ -521,9 +524,15 @@ def test_release_docs_require_tag_ruleset_with_restrict_updates() -> None:
     """Verifier T-097 D1: el ruleset de tags es parte de la frontera (ADR-005 §1), no una recomendación,
     y debe bloquear actualizaciones (mover un tag v* existente a otro commit) además de creaciones."""
     doc = (PROJECT_ROOT / "docs" / "RELEASE.md").read_text(encoding="utf-8")
-    step = doc[doc.index("New tag ruleset"):][:600]
-    assert "Restrict creations" in step and "Restrict updates" in step and "Restrict deletions" in step
-    assert "Recomendado" not in doc[max(0, doc.index("New tag ruleset") - 120):doc.index("New tag ruleset")]
+    # El paso numerado del ruleset, entero (hasta el próximo paso o párrafo).
+    m = re.search(r"^\d+\. \*\*Obligatorio[^\n]*New tag ruleset\*\*(?:\n(?!\d+\. |\n)[^\n]*)*", doc, re.M)
+    assert m, "el paso del ruleset tiene que ser «Obligatorio» y nombrar New tag ruleset"
+    step = m.group(0)
+    # La lista de reglas exigidas es la frase ANTES de la explicación («Sin *Restrict updates*…»):
+    rules = step.split("Sin *Restrict", 1)[0]
+    assert re.search(r"con \*Restrict creations\*, \*Restrict updates\* y \*Restrict deletions\*", rules), rules
+    assert "sin bypass salvo" in rules and "mantenedor" in rules
+    assert "Opcional" not in step and "Recomendado" not in step and "Write" not in rules
     for asset in ("listbuddy-<v>-src.tar.gz", "listbuddy-1.0.0-src.tar.gz"):
         assert asset in doc, asset
     assert "`release.yml`, `release_mac.sh`" in doc

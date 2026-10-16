@@ -196,6 +196,9 @@ fixes (I-1/I-2/I-4 se aplican dos veces por la duplicación).
 
 **Consecuencias:** + el certificado solo se usa desde un tag que creó el mantenedor, un release nunca sale ad-hoc y no queda código de terceros con permiso de escritura. − parte de la configuración vive en GitHub Settings, fuera del repo, y QA no la puede verificar (se cubre con un checklist en `docs/RELEASE.md`). Un dispatch sobre una rama ya no firma. La pata Intel sale del workflow cuando GitHub retire `macos-15` (otoño 2027). Pendiente (deuda): importar la clave después del build, para que pip y PyInstaller no corran con la clave desbloqueada.
 
+
+> Nota del Orquestador (2026-10-16, verifier T-097): la frontera exige el ruleset de tags `v*` con *Restrict creations*, *Restrict updates* y *Restrict deletions* (mover un tag existente también dispara la firma); el job con secrets no restaura caché de pip. Pendiente que nerv-arquitecto lo incorpore al texto de §1.
+
 ## ADR-006: Carga de librería asíncrona y sin DOM (T-094)
 
 **Estado:** Aceptado (ratificado por el PO en sesión, 2026-10-16) (nerv-arquitecto, 2026-10-16; revisión P-2 de T-094). Lo acepta el PO.

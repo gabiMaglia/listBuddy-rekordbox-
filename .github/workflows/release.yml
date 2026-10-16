@@ -66,8 +66,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: requirements.txt
+          # Sin caché de pip: un run de tag restaura cachés de la rama default y este job tiene los secrets de firma.
 
       - name: Verificar runner y versión
         run: |
