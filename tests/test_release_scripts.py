@@ -190,6 +190,18 @@ def test_dry_run_prints_plan_without_building(tmp_path) -> None:
         assert needle in r.stdout, needle
 
 
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_arch_suffix_names_dmg_with_machine_arch(tmp_path) -> None:
+    """T-097 (QA D4): --arch-suffix debe dar «ListBuddy-<v>-<uname -m>.dmg»; sin el flag, sin sufijo."""
+    arch = subprocess.run(["uname", "-m"], capture_output=True, text=True).stdout.strip()
+    with_flag = subprocess.run(["bash", str(_RELEASE), "--dry-run", "--arch-suffix"], cwd=PROJECT_ROOT,
+                               env=_env(tmp_path, "3.14.8"), capture_output=True, text=True, timeout=60)
+    assert with_flag.returncode == 0, with_flag.stderr
+    assert re.search(rf"dist/ListBuddy-[\d.]+-{re.escape(arch)}\.dmg\.sha256", with_flag.stdout), with_flag.stdout
+    without = _dry_run(tmp_path, "3.14.8")
+    assert re.search(r"dist/ListBuddy-[\d.]+\.dmg\.sha256", without.stdout), without.stdout
+
+
 def test_release_skip_build_flag_static() -> None:
     code = "\n".join(_code_lines(_RELEASE))
     assert "--skip-build" in code and "SKIP_BUILD" in code
