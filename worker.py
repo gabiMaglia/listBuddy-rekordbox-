@@ -172,16 +172,17 @@ def _copy_atomic(src: Path, dest: Path, should_stop) -> None:
         raise
 
 
-def _remove_orphan_parts(folder: Path) -> None:
-    """Borra los `.part` que dejó una copia anterior cortada de golpe (kill, USB)."""
-    try:
-        for leftover in folder.glob("*.part"):
-            try:
-                leftover.unlink()
-            except OSError:
-                pass
-    except OSError:
-        pass
+def _remove_orphan_parts(folder: Path, names: set[str]) -> None:
+    """Borra los `.part` que dejó una copia anterior cortada de golpe (kill, USB).
+
+    Solo los que este export va a volver a escribir: un `.part` ajeno (descarga a medias,
+    otra app) en la misma carpeta no se toca.
+    """
+    for name in names:
+        try:
+            (folder / name).unlink()
+        except OSError:
+            pass
 
 
 class ExportWorker(QThread):
@@ -195,6 +196,9 @@ class ExportWorker(QThread):
         self._playlists = playlists
         self._output_root = output_root
 
+    def _report_unreadable(self, pl, exc: Exception) -> None:
+        self.log.emit(f"⚠ No se pudo leer la playlist {getattr(pl, 'Name', '?')}: {exc}")
+
     def run(self) -> None:
         copied_total = missing_total = skipped_total = 0
         missing_tracks: list[str] = []
@@ -207,16 +211,17 @@ class ExportWorker(QThread):
         # ── Pre-build: una sola query lazy por playlist ───────────────────
         playlist_songs: list[tuple] = []
         for pl in self._playlists:
-            songs = _get_songs_list(pl)
+            songs = _get_songs_list(pl, self._report_unreadable)
             if songs:
-                playlist_songs.append((pl, songs))
+                playlist_songs.append((pl, order_playlist_songs(songs)))
 
         total_songs = sum(len(s) for _, s in playlist_songs)
         self.progress.emit(0, max(total_songs, 1))
 
         # ── Chequeo de espacio en disco ───────────────────────────────────
+        folder_names = _unique_folder_names([pl.Name for pl, _ in playlist_songs])
         try:
-            total_bytes = _estimate_size(playlist_songs)
+            total_bytes = _estimate_size(playlist_songs, self._output_root, folder_names)
             if total_bytes > 0:
                 dest_check = (
                     self._output_root
@@ -239,7 +244,6 @@ class ExportWorker(QThread):
 
         # ── Loop principal ────────────────────────────────────────────────
         done = 0
-        folder_names = _unique_folder_names([pl.Name for pl, _ in playlist_songs])
         for (pl, songs), folder in zip(playlist_songs, folder_names):
             self.log.emit(f"▶  {pl.Name}")
             dest_dir = self._output_root / folder
@@ -249,7 +253,7 @@ class ExportWorker(QThread):
                 self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
                 return
 
-            sorted_songs = order_playlist_songs(songs)
+            sorted_songs = songs   # ya ordenadas al armar playlist_songs
 
             try:
                 dest_dir.mkdir(parents=True, exist_ok=True)
@@ -263,8 +267,8 @@ class ExportWorker(QThread):
                 _log.error("Export: no se pudo crear %s: %s", dest_dir, e)
                 self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
                 return
-            _remove_orphan_parts(dest_dir)
             pad = len(str(len(sorted_songs)))
+            _remove_orphan_parts(dest_dir, _part_names(sorted_songs, dest_dir, pad))
 
             for idx, song in enumerate(sorted_songs, start=1):
                 if self.isInterruptionRequested():
@@ -299,11 +303,7 @@ class ExportWorker(QThread):
                     missing_total += 1
                     continue
 
-                prefix   = str(idx).zfill(pad)
-                artist   = sanitize(get_artist(content))
-                title    = sanitize(getattr(content, "Title", None) or "") or "Sin título"
-                filename = _safe_filename(prefix, artist, title, src.suffix)
-                dest     = dest_dir / filename
+                dest = _planned_dest(dest_dir, idx, pad, content, src)
                 long_warning = _long_path_warning(dest)
                 if long_warning:
                     self.log.emit(long_warning)
@@ -406,26 +406,53 @@ def _is_complete_copy(dest: Path, src: Path) -> bool:
         return False
 
 
-def _get_songs_list(pl) -> list:
+def _get_songs_list(pl, on_error=None) -> list:
+    """Pistas de la playlist; si no se pueden leer, se loguea y se avisa (no desaparece en silencio)."""
     try:
         return list(get_songs(pl))
-    except Exception:
+    except Exception as e:
+        _log.exception("Export: no se pudo leer la playlist %s", getattr(pl, "Name", "?"))
+        if on_error is not None:
+            on_error(pl, e)
         return []
 
 
-def _estimate_size(playlist_songs: list[tuple]) -> int:
-    """Suma los tamaños de los archivos fuente que existen en disco."""
+def _planned_dest(dest_dir: Path, idx: int, pad: int, content, src: Path) -> Path:
+    """Ruta final de una pista en el destino (la usan el export y la estimación)."""
+    artist = sanitize(get_artist(content))
+    title = sanitize(getattr(content, "Title", None) or "") or "Sin título"
+    return dest_dir / _safe_filename(str(idx).zfill(pad), artist, title, src.suffix)
+
+
+def _part_names(sorted_songs: list, dest_dir: Path, pad: int) -> set[str]:
+    """Nombres `<archivo>.part` que esta playlist va a crear al copiar."""
+    names: set[str] = set()
+    for idx, song in enumerate(sorted_songs, start=1):
+        content = get_content(song)
+        src = resolve_path(getattr(content, "FolderPath", None) if content else None)
+        if src:
+            names.add(_planned_dest(dest_dir, idx, pad, content, src).name + ".part")
+    return names
+
+
+def _estimate_size(playlist_songs: list[tuple], output_root: Path, folder_names: list[str]) -> int:
+    """Bytes que faltan copiar: fuentes que existen, menos las que ya están completas en destino
+    (misma regla de «Ya existe»), para que un re-export incremental no pida espacio de más."""
     total = 0
-    for _, songs in playlist_songs:
-        for song in songs:
+    for (_, songs), folder in zip(playlist_songs, folder_names):
+        pad = len(str(len(songs)))
+        for idx, song in enumerate(songs, start=1):
             content = get_content(song)
             raw = getattr(content, "FolderPath", None) if content else None
             src = resolve_path(raw)
-            if src:
-                try:
-                    total += src.stat().st_size
-                except OSError:
-                    pass
+            if not src:
+                continue
+            if _is_complete_copy(_planned_dest(output_root / folder, idx, pad, content, src), src):
+                continue
+            try:
+                total += src.stat().st_size
+            except OSError:
+                pass
     return total
 
 

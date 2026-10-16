@@ -8,13 +8,17 @@ Layout: header-bar (title + controls) → two-column body
 from __future__ import annotations
 
 import itertools
+import logging
 import sys
+import time
+from io import BytesIO
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Literal
 
+from shiboken6 import isValid
 from PySide6.QtCore import (
-    QPoint, QSize, QThread, Qt, QTimer, QUrl, QSettings,
+    QEvent, QEventLoop, QPoint, QSize, QThread, Qt, QTimer, QUrl, QSettings,
     QPropertyAnimation, QEasingCurve,
 )
 from PySide6.QtGui import (
@@ -68,7 +72,7 @@ from preview_card import (
 from row_blocks import ALL_BROKEN, NONE, block_positions, broken_notice_text, ext_chip_text, format_key_bpm
 from playlist_filter import matches
 from styles import apply_title_tracking, status_style, token
-from worker import ExportWorker
+from worker import ExportWorker, _unique_folder_names
 from ui_components import (
     ClickableLabel,
     WrapLabel,
@@ -80,7 +84,7 @@ from ui_components import (
     RestoreBackupDialog,
     TitleBar,
 )
-from preview_worker import PreviewWorker, GroupData, TrackRow
+from preview_worker import ExistenceRecheckWorker, PreviewWorker, GroupData, TrackRow
 from audio_player import AudioPlayer
 from footer import FooterBar
 from waveform_worker import WaveData, WaveformWorker
@@ -90,6 +94,7 @@ from relocate_core import BackupInfo, RelocateScope, RestoreBackupWorker, list_b
 from traktor_relocate import RelocateWorker, is_traktor_running
 from update_checker import UpdateCheckWorker, UpdateInfo, safe_release_url
 
+_logger = logging.getLogger("listBuddy")
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
 # Va en cada confirmación antes de escribir sobre una librería (DISCLAIMER.md §3-4).
 _RESPONSIBILITY_LINE = (
@@ -277,6 +282,8 @@ class MainWindow(QMainWindow):
         # Cache de existencia de archivos: evita stat() repetido (lento en USB/red)
         # key: raw_path  value: bool
         self._exists_cache: dict[str, bool] = {}
+        self._last_exists_check = time.monotonic()   # TEC-18
+        self._recheck_worker: ExistenceRecheckWorker | None = None
 
         # Debounce: 80ms sin cambios antes de disparar el preview
         self._preview_debounce = QTimer()
@@ -970,6 +977,7 @@ class MainWindow(QMainWindow):
         self.log_view = QPlainTextEdit()
         self.log_view.setObjectName("log_view")
         self.log_view.setReadOnly(True)
+        self.log_view.setMaximumBlockCount(5000)   # TEC-09: 40k pistas no dejan un log sin tope
         self.log_view.setVisible(False)
         panel_lo.addWidget(self.log_view, 1)
 
@@ -1539,6 +1547,7 @@ class MainWindow(QMainWindow):
 
         # ── Extracción de metadata en el main thread (rápido: sólo queries a DB) ──
         groups = self._extract_preview_data(selected)
+        self._name_groups_like_folders(groups)
         self._launch_preview_worker(groups)
 
     def _launch_preview_worker(self, groups: list[GroupData]) -> None:
@@ -1560,15 +1569,18 @@ class MainWindow(QMainWindow):
         keep = set(selected)
         for key in [k for k in self._preview_cards if k not in keep]:
             self._remove_preview_card(key)
+        folders = self._folder_names_of(selected)
         for order, card in enumerate(selected, start=1):
             shown = self._preview_cards.get(card)
             if shown is not None:
+                shown.data.name = folders[card]   # un « (2)» puede aparecer o desaparecer
                 shown.set_order(order)
         self._set_broken_total(sum(g.missing_count for g in self._rendered_groups))
         new = [c for c in selected if c not in self._preview_cards]
         if not new:
             return
         groups = self._extract_preview_data(new)
+        self._name_groups_like_folders(groups)
         for group in groups:
             group.order = selected.index(group.card) + 1
         self._launch_preview_worker(groups)
@@ -1598,6 +1610,19 @@ class MainWindow(QMainWindow):
             or playlist.Name
         )
         return f"{self._source}:{uid}"
+
+    def _name_groups_like_folders(self, groups: list[GroupData]) -> None:
+        """D-17: las colisiones se resuelven contra TODAS las marcadas, no solo las del lote."""
+        folders = self._folder_names_of([c for c in self._all_cards if c.isChecked()])
+        for g in groups:
+            g.name = folders.get(g.card, g.name)
+
+    @staticmethod
+    def _folder_names_of(cards: list[PlaylistCard]) -> dict[PlaylistCard, str]:
+        """Nombre de carpeta que el export creará por playlist (D-17), con la misma función de
+        nombres únicos del worker. `cards` debe venir en el orden del árbol, como en el export."""
+        names = _unique_folder_names([c.playlist.Name for c in cards])
+        return dict(zip(cards, names))
 
     def _extract_preview_data(self, selected: list[PlaylistCard]) -> list[GroupData]:
         """
@@ -1638,6 +1663,7 @@ class MainWindow(QMainWindow):
             else:
                 # Cache miss: query a la DB (solo ocurre la primera vez)
                 tracks: list[TrackRow] = []
+                read_ok = True
                 try:
                     for i, song in enumerate(_get_songs(card.playlist)):
                         content = get_content(song)
@@ -1663,9 +1689,13 @@ class MainWindow(QMainWindow):
                             relocated = bool(getattr(content, "relocated", False)),
                             streaming = streaming,
                         ))
-                except Exception:
-                    pass
-                self._track_meta_cache[cache_key] = tracks
+                except Exception as e:
+                    # TEC-10: no cachear el vacío; el próximo toggle reintenta.
+                    read_ok = False
+                    _logger.exception("Preview: no se pudo leer la playlist %s", card.playlist.Name)
+                    self._report_unreadable_playlist(card.playlist.Name, e)
+                if read_ok:
+                    self._track_meta_cache[cache_key] = tracks
 
             groups.append(GroupData(
                 name        = card.playlist.Name,
@@ -1689,6 +1719,10 @@ class MainWindow(QMainWindow):
     def _pump_render_queue(self) -> None:
         """Procesa un grupo por tick del event loop — nunca bloquea la UI."""
         if not self._render_queue:
+            return
+        if not isValid(self.preview_layout):
+            # El timer sobrevivió a la ventana (cierre, tests): nada que dibujar.
+            self._render_queue.clear()
             return
         data = self._render_queue.pop(0)
         if data.card in self._preview_cards:
@@ -1749,6 +1783,7 @@ class MainWindow(QMainWindow):
 
     def _on_preview_done(self) -> None:
         """Worker terminó. Limpia loading label si no llegó ningún grupo."""
+        self._last_exists_check = time.monotonic()
         lo = self.preview_layout
         for i in range(lo.count()):
             item = lo.itemAt(i)
@@ -2036,8 +2071,7 @@ class MainWindow(QMainWindow):
             w.wait(1500)
         self._cancel_preview_worker()
         if self._worker and self._worker.isRunning():
-            self._worker.requestInterruption()
-            self._worker.wait(4000)
+            self._wait_export_block(self._worker)
         if self._relocate_worker and self._relocate_worker.isRunning():
             self._relocate_worker.requestInterruption()
             # Si está bloqueado esperando el modal de desambiguación, nadie
@@ -2055,6 +2089,53 @@ class MainWindow(QMainWindow):
                 thread.requestInterruption()
                 thread.wait(2000)
         super().closeEvent(event)
+
+    _RECHECK_EVERY_S = 5.0
+
+    def event(self, e) -> bool:
+        if e.type() == QEvent.Type.WindowActivate:
+            self._recheck_existence_on_focus()
+        return super().event(e)
+
+    def _recheck_existence_on_focus(self) -> None:
+        """TEC-18: al volver a la ventana (típico: se conectó el disco) se re-mira en disco lo
+        que la vista previa muestra, con throttling de 5 s y sin tocar la UI hasta saber si
+        algo cambió."""
+        if time.monotonic() - self._last_exists_check < self._RECHECK_EVERY_S:
+            return
+        busy = self._recheck_worker is not None and self._recheck_worker.isRunning()
+        if busy or self._export_state != "idle" or self._is_maintenance_busy():
+            return
+        known = {t.raw_path: t.exists for g in self._rendered_groups for t in g.tracks
+                 if t.raw_path and not t.streaming}
+        if not known:
+            return
+        self._last_exists_check = time.monotonic()
+        worker = ExistenceRecheckWorker(known, self._source == "traktor")
+        worker.changed.connect(self._on_recheck_done)
+        self._retain_thread(worker)
+        self._recheck_worker = worker
+        worker.start()
+
+    def _on_recheck_done(self, changed: bool) -> None:
+        if not changed or self._export_state != "idle":
+            return
+        self._exists_cache.clear()
+        self._clear_preview_layout()
+        self._start_preview_worker()
+
+    def _wait_export_block(self, worker: QThread) -> None:
+        """Cierra sin abortar: la copia corta entre bloques de 1 MiB, pero un disco lento puede
+        tardar en devolver el bloque actual. Se espera sin tope (con cursor de espera); si el
+        disco está colgado de verdad, el usuario lo resuelve desconectándolo, no con un SIGABRT."""
+        worker.requestInterruption()
+        self.output_status.setText("Esperando que termine la copia…")
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            while not worker.wait(50):
+                QApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
+        finally:
+            QApplication.restoreOverrideCursor()
 
     # ──────────────────────────────────────── Actions ────────────────────
 
@@ -2209,6 +2290,12 @@ class MainWindow(QMainWindow):
 
     def _log(self, text: str) -> None:
         self.log_view.appendPlainText(text)
+
+    def _report_unreadable_playlist(self, name: str, exc: Exception) -> None:
+        line = f"⚠ No se pudo leer la playlist {name}: {exc}"
+        self._log(line)
+        self.output_status.setText(line)
+        self._set_status_style("warn")
 
     # ──────────────────────────────── Relocate (F-07 ADR-001 / F-08 ADR-002) ───
 

@@ -60,6 +60,36 @@ class GroupData:
 
 # ────────────────────────────────────────────────── Worker ───────────────
 
+def path_exists(raw: str, is_traktor: bool) -> bool:
+    """Existencia real en disco de una ruta de la librería (sin cache)."""
+    if is_traktor:
+        return Path(raw).exists()
+    from rekordbox_export import resolve_path as _rp
+    return _rp(raw) is not None
+
+
+class ExistenceRecheckWorker(QThread):
+    """TEC-18: vuelve a mirar en disco las rutas ya dibujadas (se conectó el disco, se
+    borró un archivo) sin congelar la UI. Emite `changed(True)` si alguna cambió de estado."""
+
+    changed: Signal = Signal(bool)
+
+    def __init__(self, known: dict[str, bool], is_traktor: bool) -> None:
+        super().__init__()
+        self._known = known
+        self._is_traktor = is_traktor
+
+    def run(self) -> None:
+        diff = False
+        for raw, was in self._known.items():
+            if self.isInterruptionRequested():
+                return
+            if path_exists(raw, self._is_traktor) != was:
+                diff = True
+                break
+        self.changed.emit(diff)
+
+
 class PreviewWorker(QThread):
     """
     Recibe GroupData con raw_path ya extraído.
@@ -95,12 +125,7 @@ class PreviewWorker(QThread):
         if raw in self._exists_cache:
             return self._exists_cache[raw]
 
-        if self._is_traktor:
-            result = Path(raw).exists()
-        else:
-            from rekordbox_export import resolve_path as _rp
-            result = _rp(raw) is not None
-
+        result = path_exists(raw, self._is_traktor)
         self._exists_cache[raw] = result
         return result
 
