@@ -17,6 +17,9 @@
 # o con una API key de App Store Connect (CI):
 #   xcrun notarytool store-credentials listbuddy --key AuthKey.p8 --key-id <ID> --issuer <UUID>
 #
+# CI guarda el perfil en un keychain temporal y exporta NOTARY_KEYCHAIN=<ruta>: el script lo pasa
+# como --keychain a notarytool submit/log. Sin la variable se usa el keychain por defecto (uso local).
+#
 # Usa un venv limpio (.venv-build) para que PyQt6 u otros restos del venv de
 # desarrollo no entren al bundle. La arquitectura es la de la Mac que buildea.
 # Firma inside-out (sin --deep): Mach-O sueltos -> frameworks -> .app. Hardened
@@ -71,6 +74,8 @@ DMG="dist/ListBuddy-${VERSION}${ARCH_SUFFIX}.dmg"
 ZIP="dist/ListBuddy-${VERSION}${ARCH_SUFFIX}.zip"      # solo para subir a notarización (un zip no se estampa)
 DMG_ID="com.gabrielmaglia.listbuddy.dmg"
 IDENTITY="${DEVELOPER_ID:--}"             # «-» = ad-hoc
+NOTARY_KC=()
+if [ -n "${NOTARY_KEYCHAIN:-}" ]; then NOTARY_KC=(--keychain "$NOTARY_KEYCHAIN"); fi
 STAGE=""
 trap '[ -z "$STAGE" ] || rm -rf "$STAGE"; rm -f "$ZIP"' EXIT
 
@@ -126,7 +131,7 @@ if [ "$DRY_RUN" = 1 ]; then
   echo "[dry-run] scripts/check_bundle.sh \"$APP\" + verificación de minos con otool"
   echo "[dry-run] codesign inside-out (--sign $IDENTITY): Mach-O sueltos, frameworks y el .app"
   if [ "$IDENTITY" != "-" ] && [ -n "${NOTARY_PROFILE:-}" ]; then
-    echo "[dry-run] xcrun notarytool submit (app y dmg) --keychain-profile $NOTARY_PROFILE + stapler staple"
+    echo "[dry-run] xcrun notarytool submit (app y dmg) --keychain-profile $NOTARY_PROFILE${NOTARY_KC[*]+ ${NOTARY_KC[*]}} + stapler staple"
   else
     echo "[dry-run] sin notarización (hace falta DEVELOPER_ID y NOTARY_PROFILE)"
   fi
@@ -219,10 +224,11 @@ fi
 # notarize ARCHIVO ETIQUETA: sube, espera y exige «Accepted» (el log queda en dist/).
 notarize() {
   local file="$1" label="$2" out sub_id
-  out=$(xcrun notarytool submit "$file" --keychain-profile "$NOTARY_PROFILE" --wait 2>&1 | tee /dev/stderr)
+  out=$(xcrun notarytool submit "$file" --keychain-profile "$NOTARY_PROFILE" \
+    ${NOTARY_KC[@]+"${NOTARY_KC[@]}"} --wait 2>&1 | tee /dev/stderr)
   sub_id=$(printf '%s\n' "$out" | sed -n 's/^ *id: //p' | head -1)
   if [ -n "$sub_id" ]; then
-    xcrun notarytool log "$sub_id" --keychain-profile "$NOTARY_PROFILE" \
+    xcrun notarytool log "$sub_id" --keychain-profile "$NOTARY_PROFILE" ${NOTARY_KC[@]+"${NOTARY_KC[@]}"} \
       "dist/notary-${label}-${VERSION}.json" || true
   fi
   printf '%s\n' "$out" | grep -q 'status: Accepted' \
