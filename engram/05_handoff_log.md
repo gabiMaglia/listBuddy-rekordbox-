@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 05:00] Verifier T-095 CONFIRMADO (Done) · verifier T-094 REFUTADO → fix → re-verificación · verifier T-092 lanzado
+- T-094 V1: recargas encadenadas pisaban `_keep_after_load` (regresión vs main). nerv-desktop (`fix/t094-ver`): `keep |= _keep_after_load` si hay carga en vuelo; cambio de fuente sigue descartando, como main; 3 tests, 2 rojos antes. Mergeado. PO ratificó RSS ≤ 3× medido con cues (sin cues 4,6× = nota).
+- En vuelo: verifier T-092 y re-verifier T-094. Faltan verifiers T-096 y T-097. Después: suite completa, merge a main, push.
+- Quien retoma: nerv-orquestador.
+
 ### [2026-10-16 04:00] QA T-097 APROBADO (4º) · verifier T-095 REFUTADO → fix nerv-desktop → re-verificación
 - Verifier T-095 (ciego) encontró 2 defectos reales que QA había dejado como «deducidos»: V1 previa numera carpetas con playlists ilegibles que el export no crea; V2 `_last_playing` atascado tras error de audio. nerv-desktop (`fix/t095-ver`): helper `folder_names_by_playlist` compartido (ui → worker); `AudioPlayer._on_error` resetea estado. 3 tests rojos antes. Mergeado en rc2.
 - Lección (retro): el verifier ciego aporta sobre QA — lo «deducido» no es inocuo por default. Verifier T-094 en curso; siguen T-095 (re), T-092, T-096, T-097.
