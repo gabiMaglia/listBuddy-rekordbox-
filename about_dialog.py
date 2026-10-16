@@ -157,8 +157,8 @@ _NOTICE_TEXT = (
     "cue points ni archivos de música más allá de lo que la ley establezca. "
     "<b>Hacé tu propia copia de seguridad</b> antes de reparar o restaurar."
     "<br><br>"
-    f"{APP_NAME} no es un producto de AlphaTheta (rekordbox) ni de Native "
-    "Instruments (Traktor)."
+    f"{APP_NAME} no es un producto oficial de AlphaTheta (rekordbox) ni de "
+    "Native Instruments (Traktor)."
 )
 
 
