@@ -158,7 +158,8 @@ jobs:
           compression-level: 0
 
       # El tarball fuente es idéntico en las dos patas: con merge-multiple se pisarían; sube una.
-      - uses: actions/upload-artifact@v7
+      - name: Subir tarball de fuentes (una sola pata)
+        uses: actions/upload-artifact@v7
         if: matrix.arch == 'arm64'
         with:
           name: listbuddy-${{ env.APP_VERSION }}-src

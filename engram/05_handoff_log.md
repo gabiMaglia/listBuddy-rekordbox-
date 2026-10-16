@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 00:40] T-094 y T-097 RECHAZADAS por 2ª vez (solo tests débiles) → fixes del Orquestador → tope P-2
+- T-094 D3: `test_traktor_cancellation_is_checked_while_scanning` (3000 entradas, cancela en la 2ª consulta; rojo con `ticks == 1`). T-097 D6: `_step_if_operands` parsea el `if:` real y exige la guarda como operando de `&&` sin `||`; paso del tarball con `name:` como ancla; rojo con `&&`→`||` y con `|| true`.
+- Ambos tickets llegan al tope de 2 rechazos (P-2 → nerv-arquitecto + informar al PO). En los dos casos QA declaró el código correcto y objetó solo la fuerza de los tests. Se consulta al PO antes de gastar en arquitecto.
+- Quien retoma: nerv-orquestador (espera decisión del PO).
+
 ### [2026-10-16 00:05] T-094 RECHAZADO → PO ratifica ≤ 1,5 s + fix D2 · T-097 fix mergeado → re-QA (X) de ambos
 - T-094 D1: ventana 1,3 s vs < 1 s. PO decide en sesión: aceptar ~1,3 s (criterio ≤ 1,5 s, anotado en la fila). D2: `test_cancellation_is_checked_while_scanning` (`_CHUNK`=4096, cancela al 3º bloque, `_build_tree` parcheado para que solo `_scan` pueda cortar); rojo sin el chequeo de `_scan`, verde con él.
 - T-097: nerv-desktop corrigió D1-D5 en `fix/t097-qa1` (5 commits, prueba de rojo de D4 con dry-run real) → mergeado en rc2, actionlint OK.
