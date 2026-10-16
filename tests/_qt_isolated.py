@@ -7,6 +7,7 @@ y además mantiene limpio el proceso de pytest.
 from __future__ import annotations
 
 import os
+import re
 import atexit
 import json
 import select
@@ -18,6 +19,22 @@ from pathlib import Path
 from _window_boot import BOOT
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# Módulos del proyecto que importan QtWidgets/QtGui/QtMultimedia/QtSvg: arrancan GUI real. Los que solo usan
+# QtCore (worker, preview_worker, library_load_worker...) corren en cualquier plataforma con PySide6 instalado.
+# tests/test_windows_subset.py exige que esta lista cubra todos los módulos GUI del repo.
+GUI_MODULES = ("about_dialog", "app_logging", "audio_decode", "audio_player", "dialogs", "footer", "icons", "main",
+               "preview_card", "styles", "ui", "ui_components", "waveform_worker")
+GUI_SNIPPET = re.compile(
+    r"\bBOOT\b|\bQApplication\b|\bQt(Widgets|Gui|Multimedia|Svg)\b"
+    r"|\bfrom\s+(" + "|".join(GUI_MODULES) + r")\b"
+    # `import json, styles`: el módulo GUI puede ir en cualquier posición de la lista del import
+    r"|\bimport\s+(?:[\w.]+(?:\s+as\s+\w+)?\s*,\s*)*(" + "|".join(GUI_MODULES) + r")\b"
+)
+
+
+def looks_like_gui(code: str) -> bool:
+    return GUI_SNIPPET.search(code) is not None
 
 
 _warm: subprocess.Popen[str] | None = None
@@ -65,6 +82,8 @@ def _run_warm(code: str, timeout: float) -> subprocess.CompletedProcess[str]:
 
 def run_isolated(code: str, timeout: float = 60.0, cold: bool = False) -> subprocess.CompletedProcess[str]:
     """`cold=True` fuerza un proceso nuevo (tests que miran stderr/crash del arranque)."""
+    if os.environ.get("LISTBUDDY_NO_QT") == "1" and looks_like_gui(code):   # job de Windows (T-108)
+        raise RuntimeError("LISTBUDDY_NO_QT=1: este test abre GUI de Qt y debería estar marcado `qt` (tests/conftest.py)")
     if not cold and code.startswith(BOOT):
         return _run_warm(code, timeout)
     env = {

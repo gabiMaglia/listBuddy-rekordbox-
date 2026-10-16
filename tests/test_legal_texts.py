@@ -64,14 +64,17 @@ def test_disclaimer_warranty_return_law_age_and_contact() -> None:
     flat = _flat("DISCLAIMER.md")
     for needle in (
         "Garantía legal, conformidad y devolución",
-        "14 días corridos", "art. 34 de la Ley 24.240",
+        "10 días corridos", "art. 34 de la Ley 24.240",
         "Ley aplicable y jurisdicción", "leyes de la República Argentina",
         "mayor de edad",
         "Gabriel Maglia",
     ):
         assert needle in flat, needle
     # Datos que el informe deja al PO / abogado no se inventan.
-    assert flat.count("[A DEFINIR POR EL PO") >= 5
+    # LEG-28: en desarrollo siguen los 5 marcadores; en el release no queda ninguno.
+    # Cualquier otro conteo es un reemplazo a medias.
+    markers = flat.count("[A DEFINIR POR EL PO")
+    assert markers == 0 or markers >= 5, markers
 
 
 def test_disclaimer_trademarks_and_no_official_product() -> None:
@@ -124,7 +127,7 @@ def test_source_code_notice_next_to_the_download() -> None:
 def test_first_run_notice_mentions_purchase_rights_and_non_official() -> None:
     src = _flat("about_dialog.py")
     assert "con los derechos que te da la ley de tu país" in src
-    assert "no es un producto de AlphaTheta" in src
+    assert "no es un producto oficial de AlphaTheta" in src
     assert "Si compraste tu copia" in src
 
 

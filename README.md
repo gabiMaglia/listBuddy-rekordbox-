@@ -39,14 +39,16 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 - 🎹 **Key · BPM** — tonalidad y tempo de cada pista en la vista previa.
 - ⏯ **Controles** — play/pausa desde la nota ♪ o con la **barra espaciadora**, barra de progreso con seek, y auto-avance al siguiente track.
 - ⚠️ **Detección de archivos faltantes** — las pistas cuyo archivo no está en disco se marcan en rojo y no se pueden reproducir.
-- 🔧 **Reparar enlaces rotos (relocate)** — si moviste tu música de carpeta o disco, List Buddy busca cada archivo faltante por nombre en la ubicación que le indiques y **repara el enlace** (en Traktor, en tu `collection.nml`; en Rekordbox, en un archivo propio de List Buddy, ver abajo). En Traktor siempre hace un **backup automático** antes de escribir (en Rekordbox no se escribe nada de Rekordbox: las reparaciones quedan en List Buddy), y ante varios candidatos te pregunta cuál es (con un checkbox opcional para resolver todo automáticamente por mejor coincidencia).
+- 🔧 **Reparar enlaces rotos (relocate)** — si moviste tu música de carpeta o disco, List Buddy busca cada archivo faltante por nombre en la ubicación que le indiques y **repara el enlace** (en Traktor, en tu `collection.nml`; en Rekordbox, en un archivo propio de List Buddy, ver abajo). En Traktor siempre hace un **backup automático** antes de escribir (en Rekordbox no se modifica nada de Rekordbox: las reparaciones quedan en List Buddy), y ante varios candidatos te pregunta cuál es (con un checkbox opcional para resolver todo automáticamente por mejor coincidencia).
 - ⚙️ **Configuración** — selector de dispositivo de salida de audio, auto-avance y override de la ruta de la librería.
 - 🌗 **Tema claro / oscuro** estilo macOS.
-- ⚡ **Sin congelamientos** — las operaciones pesadas (existencia de archivos, decodificación, copia) corren en hilos separados.
+- 📦 **Exportación a medio camino** — cada canción se copia primero a un archivo `.part` y recién al terminar toma su nombre final; si la copia se corta (por ejemplo, desconectás un disco) puede quedar algún `.part`, que List Buddy limpia cuando vuelve a exportar esas mismas canciones a esa carpeta.
+- ⚡ **Interfaz que responde** — la interfaz sigue respondiendo mientras carga la librería, revisa archivos, decodifica o copia: esas tareas corren en hilos separados.
 
 ## Descargar
 
 Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
+La descarga es pública; para usarla con licencia y soporte, mirá [Comprar](#comprar).
 
 - **Código fuente:** el de cada versión está en la sección [Código fuente](#código-fuente).
 - **Verificá la descarga:** cada release trae un `.sha256` junto al archivo. Con el `.dmg` y su `.dmg.sha256` en la misma carpeta:
@@ -58,11 +60,24 @@ Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBud
   Lo mismo vale para el fuente de esa versión, `listbuddy-<versión>-src.tar.gz` (con su `listbuddy-<versión>-src.tar.gz.sha256`). Si dice `FAILED`, no lo abras y bajalo de nuevo desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
 - **macOS 14.4 o posterior.** En 14.4-14.7 no está probado (se probó en 14.8). Hay un `.dmg` para Apple Silicon (`-arm64`) y otro para Intel (`-x86_64`);
   abrilo y arrastrá **List Buddy** a Aplicaciones.
-- **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente. Cuando se publique, el
-  `.exe` **no va a estar firmado** (decisión del proyecto: no pagamos un certificado Authenticode). Windows
-  SmartScreen va a mostrar «Windows protegió tu PC»: hacé click en **Más información** →
-  **Ejecutar de todas formas**. Antes de eso, verificá el `.sha256` del archivo como se explica arriba:
-  la verificación del hash reemplaza a la firma como prueba de que bajaste lo que publicamos.
+  **¿Cuál bajo?** Menú  → **Acerca de esta Mac**: si dice «Chip Apple M…», bajá el `-arm64`; si dice
+  «Procesador Intel», el `-x86_64`. Si elegís el equivocado, la app no abre (o abre muy lenta bajo
+  emulación): borrala y bajá el otro, no se pierde nada.
+- **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente. Cuando se publique, vendrá como
+  `listBuddy-<versión>-win64.zip` junto a su `.sha256`, y **no va a estar firmado** (decisión del proyecto: no pagamos un
+  certificado Authenticode). Con los dos archivos en la misma carpeta, en PowerShell:
+
+  ```powershell
+  Get-FileHash .\listBuddy-<versión>-win64.zip -Algorithm SHA256     # el Hash debe ser igual al del .sha256
+  Get-Content .\listBuddy-<versión>-win64.zip.sha256                 # «<hash> *<archivo>»
+  # alternativa: certutil -hashfile listBuddy-<versión>-win64.zip SHA256
+  ```
+
+  **Qué prueba el hash:** que el archivo que bajaste es idéntico al que figura en el `.sha256` (descarga corrupta o
+  cortada). **Qué no prueba:** la autoría (quién lo publicó); si alguien pudiera reemplazar el zip también podría reemplazar el
+  `.sha256`, y sin firma no hay forma de distinguirlo. Bajalo solo desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
+  Windows SmartScreen va a mostrar «Windows protegió tu PC»: hacé click en **Más información** →
+  **Ejecutar de todas formas**.
 
 > **Si macOS bloquea la app** («no se puede abrir porque no se puede verificar al desarrollador»):
 > andá a **Ajustes del Sistema → Privacidad y seguridad**, bajá hasta el aviso de List Buddy y
@@ -125,8 +140,8 @@ encontrado), podés reparar los enlaces sin salir de List Buddy:
      automáticamente* para que tome la mejor coincidencia sin preguntar).
    - **0** → la deja sin tocar y la lista en el log.
 4. Antes de escribir, se crea un **backup** de tu librería en una subcarpeta
-   `listBuddy_backups/` junto al archivo original. Si algo falla, no se escribe
-   nada: tu librería queda intacta.
+   `listBuddy_backups/` junto al archivo original. Si algo falla, tu librería
+   original no se toca: la escritura va a un `.tmp` que se descarta.
 
 > La escritura es atómica y con backup previo, pero **es tu librería real**:
 > revisá el resumen y tené el backup a mano por las dudas.
@@ -251,12 +266,25 @@ Python · PySide6 · numpy · PyInstaller
 
 List Buddy es software libre (GPL v3): el código de cada versión está en
 [github.com/gabiMaglia/listBuddy-rekordbox-](https://github.com/gabiMaglia/listBuddy-rekordbox-)
-y podés compilarlo vos: el código fuente está disponible sin cargo. Lo que se vende
-es el binario firmado para macOS, listo para usar.
+y podés compilarlo vos: el código fuente está disponible sin cargo.
 
-## Donaciones
+## Comprar
 
-Si te sirvió y lo compilaste vos, podés invitarme un café:
+La 1.0.0 es de pago: la **licencia de uso + soporte** cuesta **USD 9** y se compra en
+[Polar](https://polar.sh) (polar.sh), que actúa como merchant of record: cobra los impuestos,
+te factura y gestiona la devolución según su política. El `.dmg` es público en
+[Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases) y el programa es software
+libre (GPL v3): lo que comprás es la licencia de uso con soporte, no una donación. Tenés 10 días
+corridos para arrepentirte (ver el [Aviso legal](DISCLAIMER.md), sección 5 bis).
+
+El enlace de compra de Polar se publica con el release; hasta entonces esta sección es el punto de
+compra. Vendedor: Gabriel Maglia, Monotributista, CUIT 20-32758971-8, Rosario, Argentina ·
+gab.maglia@gmail.com.
+
+## Apoyar con un café
+
+Aparte de la licencia, si te sirvió y querés invitarme un café (propina voluntaria, no reemplaza
+la licencia), está Ko-fi:
 
 **[ko-fi.com/gabrielmaglia](https://ko-fi.com/gabrielmaglia)** — o escaneá el QR desde
 el menú **Ayuda → Donar en Ko-fi…** dentro de la app.

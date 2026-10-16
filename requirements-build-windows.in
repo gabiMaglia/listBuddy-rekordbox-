@@ -1,0 +1,10 @@
+# Toolchain de build de release para Windows (SEC-20, T-108). Lock con hashes: requirements-build-windows.txt:
+#   pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-build-windows.txt requirements-build-windows.in
+# Se instala APARTE de requirements.txt y siempre con --require-hashes (build_windows.ps1).
+# pip-compile evalúa los marcadores en el sistema donde corre (hoy macOS): PyInstaller pide pefile y pywin32-ctypes
+# solo con sys_platform == 'win32', así que van explícitos acá o el lock no los trae. Ambos son py3-none-any.
+# Mantener la versión de pyinstaller igual a la de requirements-build.in (lo vigila tests/test_release_scripts.py).
+pyinstaller==6.22.3
+pip==26.1.2
+pefile
+pywin32-ctypes

@@ -1,0 +1,26 @@
+# Nombres que NO pueden aparecer dentro del bundle (T-087, T-096, T-108). Un glob por línea, sobre el NOMBRE de
+# cada archivo o carpeta, sin distinguir mayúsculas. Lo leen scripts/check_bundle.sh (macOS) y
+# scripts/check_bundle.ps1 (Windows): editar acá, no en los scripts.
+
+# ADR-004: nada del stack de la DB de Rekordbox
+*pyrekordbox*
+*sqlcipher*
+*sqlalchemy*
+# la configuración vive en la carpeta de datos del usuario; un archivo dentro del bundle invalida la firma (macOS)
+.rbe_settings.ini
+# T-096: módulos de Qt que la app no usa (QtVirtualKeyboard es GPL-3.0)
+*QtPdf*
+*Qt6Pdf*
+*qpdf*
+*QtQuick*
+*Qt6Quick*
+*QtQml*
+*Qt6Qml*
+*VirtualKeyboard*
+*QtWebEngine*
+*Qt6WebEngine*
+# LEG-26: Pillow entra solo si el venv lo trae (qrcode lo importa si existe) y no tiene aviso legal en el producto
+PIL
+Pillow*
+# ADR-003: un solo binding de Qt
+PyQt6*

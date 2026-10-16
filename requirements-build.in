@@ -1,0 +1,7 @@
+# Toolchain de build de release (SEC-17/SEC-23, T-107). Lock con hashes: requirements-build.txt:
+#   pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-build.txt requirements-build.in
+# Se instala APARTE de requirements.txt (que es lo que viaja en el bundle) y siempre con --require-hashes.
+# --allow-unsafe: sin él pip-compile deja setuptools y pip sin pin ni hash y --require-hashes falla.
+# Lo resuelve la plataforma donde corre pip-compile (hoy macOS: trae macholib/altgraph, no pefile/pywin32-ctypes).
+pyinstaller==6.22.3
+pip==26.1.2

@@ -34,10 +34,22 @@ rekordbox_xml_relocate.py → Reparar enlaces de la fuente Rekordbox (busca por 
 traktor_db.py        → Parser de colección NML de Traktor Pro 3/4. open_collection(), get_playlist_tree().
 library_load_worker.py → LibraryLoadWorker (QThread). Lee el XML/NML fuera del hilo de UI; señales loaded(result)/failed(token, msg) (T-094).
 load_cancel.py       → LoadCancelled + CHECK: cancelación cooperativa del parseo.
+preview_card.py      → Tarjeta de carpeta de la vista previa: cabecera con estado + filas en scroll interno.
+playlist_filter.py   → Filtro de playlists por nombre (sin Qt).
+row_blocks.py        → Bloques de filas rotas contiguas y estados/textos de la tarjeta de carpeta (sin Qt).
+startup_guard.py     → Guarda de arranque: si Qt no carga, diálogo nativo y salida 1 (solo stdlib).
+dialogs.py           → QMessageBox con botones en español rioplatense.
+icons.py             → Íconos SVG de trazo teñidos por token (derivan en parte de Feather, MIT).
+branding.py          → Nombre visible de la marca.
+app_logging.py       → Log rotativo (0600) + excepthook global; carpeta de logs por OS.
+update_checker.py    → Chequeo de versión nueva en GitHub al arrancar (apagable en Configuración → Privacidad).
+relocate_core.py     → Orquestador y matching compartido del relocate de Traktor (backups en listBuddy_backups/).
+traktor_relocate.py  → Motor de reparación de enlaces del NML de Traktor (con backup previo).
 preview_worker.py    → PreviewWorker (QThread). Existence checks en background; emite GroupData.
 audio_player.py      → AudioPlayer (QMediaPlayer+FFmpeg). play/pause/seek; señales playing_changed, position_changed, track_finished.
 waveform_worker.py   → WaveformWorker (QThread). Picos de la onda del footer.
 audio_decode.py      → buffer_to_mono (helper de decode compartido).
+audio_formats.py     → Lista blanca de extensiones de audio reproducibles (SEC-18); la consultan AudioPlayer y WaveformWorker antes de abrir un archivo.
 footer.py            → FooterBar (reproductor, destino, exportar, progreso).
 ui_components.py     → PlaylistCard, PlaylistGroup, SeekBar, WaveformSeek, ElidedLabel, FileRow, ClickableLabel.
 styles.py            → Tokens de diseño dark/light + load_qss().
@@ -65,7 +77,7 @@ plans/               → Planes de implementación autocontenidos para ejecutar 
 ## Entorno de desarrollo
 
 ```
-Python       3.14.3  (CPython)
+Python       3.14.8  (CPython)
 PySide6             6.12.0
 PySide6_Essentials  6.12.0
 PySide6_Addons      6.12.0
@@ -200,7 +212,15 @@ Para este proyecto, **seguir con PyInstaller** salvo que surja un problema grave
   pip install --require-hashes -r requirements.txt   # así lo instalan release_mac.sh y build_windows.ps1
   ```
 
-  El lock lo resuelve la plataforma donde corre `pip-compile` (hoy macOS): un paquete que solo se instala en Windows (p. ej. `colorama` de pytest) no aparece en `requirements-dev.txt`. PyInstaller (`==6.20.0`) se instala aparte en ambos scripts, sin hash. Tras cambiar versiones, correr `scripts/collect_licenses.py`.
+  El lock lo resuelve la plataforma donde corre `pip-compile` (hoy macOS): un paquete que solo se instala en Windows (p. ej. `colorama` de pytest) no aparece en `requirements-dev.txt`. Tras cambiar versiones, correr `scripts/collect_licenses.py`.
+- **Toolchain de build con hashes (T-107, SEC-17/SEC-23):** PyInstaller (6.22.x) y sus dependencias (hooks-contrib, setuptools, macholib, altgraph, pip) viven en `requirements-build.in` → `requirements-build.txt`, y `release_mac.sh` los instala con `--require-hashes`. Para subir de versión, editar el `.in` y regenerar (en un venv aparte con `pip-tools`; `--allow-unsafe` es obligatorio, sin él setuptools/pip quedan sin hash):
+
+  ```bash
+  pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-build.txt requirements-build.in
+  ```
+
+  Resuelve la plataforma donde corre (macOS: sin pefile/pywin32-ctypes). Después correr el smoke de CI (`check_bundle.sh` + minos-check) con el PyInstaller nuevo.
+- **CI en dos fases (D-a):** `release_mac.sh --build-only` (venv, deps, PyInstaller, `check_bundle`, minos; sin firmar) corre ANTES de importar el certificado; luego `release_mac.sh --skip-build` firma, arma el DMG y notariza. `--build-only` y `--skip-build` son excluyentes. `dist/` se limpia de artefactos propios viejos y el script aborta si hay archivos ajenos.
 - El spec saca QtPdf/QtQuick/QtQml/QtVirtualKeyboard (`excludes` + filtro de `a.binaries`/`a.datas`) y `check_bundle.sh` falla si reaparecen.
 
 ---
@@ -215,6 +235,20 @@ pyinstaller rb_exporter.spec
 - `icon.ico` para el ícono (descomentar línea en spec).
 - UPX está deshabilitado (`upx=False` en todo el spec): LGPL (ADR-003) y menos falsos positivos de antivirus sin firma. No habilitarlo.
 - Si el .exe abre pero falla al leer el XML/NML: revisar el log (`%LOCALAPPDATA%\listBuddy\logs\listBuddy.log`).
+
+### Build de Windows y su lock (T-108)
+
+- Se buildea con `scripts\build_windows.ps1` (PowerShell, solo en Windows): Python >= 3.14.8, `.venv-build` nuevo en cada corrida (nunca el `.venv` de desarrollo: arrastraría Pillow/PyQt6, LEG-26), `pip install --require-hashes` de `requirements.txt` y de `requirements-build-windows.txt`, gate D-14, `PyInstaller`, `scripts\check_bundle.ps1` y `dist\listBuddy-<v>-win64.zip` + `.sha256`. Windows se publica sin firma Authenticode (T-101): el `.sha256` solo detecta corrupción.
+- El toolchain de Windows tiene su propio lock porque PyInstaller pide `pefile` y `pywin32-ctypes` solo en `win32` y `pip-compile` evalúa los marcadores en el sistema donde corre (macOS): van explícitos en `requirements-build-windows.in`. Para regenerarlo (en un venv aparte con `pip-tools`; funciona desde macOS):
+
+  ```bash
+  pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-build-windows.txt requirements-build-windows.in
+  # verificación sin Windows: los hashes cubren los wheels de win_amd64
+  pip download --platform win_amd64 --python-version 3.14 --only-binary=:all: --require-hashes -r requirements-build-windows.txt -d /tmp/win-dl
+  ```
+
+  Mantener `pyinstaller` igual en `requirements-build.in` y `requirements-build-windows.in`. El lock trae `macholib` (marcador darwin, puro Python, inocuo en Windows).
+- Los patrones prohibidos del bundle viven en `scripts/bundle_forbidden.txt` y los leen `check_bundle.sh` y `check_bundle.ps1`.
 
 ---
 

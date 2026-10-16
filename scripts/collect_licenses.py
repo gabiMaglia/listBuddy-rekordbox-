@@ -7,8 +7,10 @@ después de cambiar cualquier versión de `requirements.txt` y revisar que
 THIRD_PARTY_NOTICES.md siga diciendo las mismas versiones.
 
 Los textos estándar (GPL-3.0, LGPL-3.0, LGPL-2.1, MPL-2.0, Apache-2.0) y los
-de componentes nativos sin dist-info (Python, OpenSSL) están
-versionados a mano en `licenses/` y este script no los toca.
+de componentes nativos sin dist-info (Python, OpenSSL, y `qt-third-party.md` con
+los avisos de terceros embebidos en Qt) están versionados a mano en `licenses/`
+y este script no los toca; solo verifica que sigan ahí (el spec empaqueta toda
+la carpeta).
 
     python scripts/collect_licenses.py
 """
@@ -38,8 +40,15 @@ def _license_files(dist: md.Distribution) -> list[Path]:
     return sorted(p for p in files if p.is_file())
 
 
+# Archivos mantenidos a mano: si faltan, el bundle saldría sin avisos exigidos por licencia.
+MANUAL: tuple[str, ...] = ("qt-third-party.md", "OpenSSL.txt", "Python.txt")
+
+
 def main() -> None:
     OUT.mkdir(exist_ok=True)
+    missing = [m for m in MANUAL if not (OUT / m).is_file()]
+    if missing:
+        raise SystemExit(f"faltan avisos mantenidos a mano en licenses/: {', '.join(missing)}")
     for name, target in PACKAGES.items():
         dist = md.distribution(name)
         files = _license_files(dist)

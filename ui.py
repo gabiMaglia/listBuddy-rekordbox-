@@ -1317,6 +1317,8 @@ class MainWindow(QMainWindow):
         self._sync_maintenance_for_source()
 
     def _on_library_loaded(self, result: LibraryLoadResult) -> None:
+        if self._closing:
+            return
         if result.token != self._load_generation:
             return
         self._load_worker = None
@@ -1334,6 +1336,8 @@ class MainWindow(QMainWindow):
         )
 
     def _finish_library_load(self, result: LibraryLoadResult, src_label: str) -> None:
+        if self._closing:
+            return
         if result.token != self._load_generation:
             return
         self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
@@ -1351,6 +1355,8 @@ class MainWindow(QMainWindow):
         self._sync_maintenance_for_source()
 
     def _on_library_failed(self, token: int, message: str) -> None:
+        if self._closing:
+            return
         if token != self._load_generation:
             return
         self._load_worker = None
@@ -1979,6 +1985,8 @@ class MainWindow(QMainWindow):
 
     def _on_preview_done(self) -> None:
         """Worker terminó. Limpia loading label si no llegó ningún grupo."""
+        if self._closing:
+            return
         self._last_exists_check = time.monotonic()
         lo = self.preview_layout
         for i in range(lo.count()):
@@ -2206,6 +2214,8 @@ class MainWindow(QMainWindow):
 
     def _on_track_finished(self) -> None:
         """Reproduce el siguiente track existente de la cola, si lo hay."""
+        if self._closing:
+            return
         if not self._auto_advance:
             return
         queue = self._playable_tracks()
@@ -2257,6 +2267,8 @@ class MainWindow(QMainWindow):
             worker.cancel()
 
     def _on_wave_ready(self, path: str, data: WaveData, generation: int) -> None:
+        if self._closing:
+            return
         if generation != self._wave_gen:
             return                            # resultado stale → descartar
         self._wave_cache[path] = data
@@ -2368,6 +2380,8 @@ class MainWindow(QMainWindow):
     def _on_recheck_done(self, changed: frozenset[str]) -> None:
         """T-106: rehace solo las tarjetas con alguna pista cuyo estado cambió y conserva el
         resto y el scroll de la vista previa (antes se reconstruía todo y volvía arriba)."""
+        if self._closing:
+            return
         if not changed or self._export_state != "idle":
             return
         for raw in changed:
@@ -2926,6 +2940,11 @@ class MainWindow(QMainWindow):
         worker queda bloqueado en threading.Event.wait() hasta que
         provide_answer() le llegue — nunca toca widgets desde su hilo.
         """
+        if self._closing:
+            # closeEvent ya liberó al worker; un modal nuevo bloquearía el cierre
+            if self._relocate_worker:
+                self._relocate_worker.provide_answer(None)
+            return
         dlg = RelocateDialog(request, self)
         dlg.exec()
         if self._relocate_worker:
@@ -2947,6 +2966,8 @@ class MainWindow(QMainWindow):
     def _on_relocate_finished(
         self, repaired: int, skipped: int, unresolved: int, status: str
     ) -> None:
+        if self._closing:
+            return
         # I-1: ya terminó (ok/cancelled/error/blocked) — no queda nada que
         # perder, resetear el tracker de progreso para la próxima corrida.
         self._relocate_progress_done = 0
@@ -3131,6 +3152,8 @@ class MainWindow(QMainWindow):
         self._restore_worker.start()
 
     def _on_restore_backup_finished(self, ok: bool, error_msg: str, target_name: str) -> None:
+        if self._closing:
+            return
         app_name = "Traktor"
         self._set_maintenance_enabled(True)
 
@@ -3215,6 +3238,8 @@ class MainWindow(QMainWindow):
         self._update_worker.start()
 
     def _on_update_available(self, info: UpdateInfo) -> None:
+        if self._closing:
+            return
         self._update_url = info.url
         self._update_banner.setText(f"🔔  Nueva versión {info.version} disponible")
         self._update_strip.setVisible(True)

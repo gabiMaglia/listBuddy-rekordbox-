@@ -123,16 +123,20 @@ def test_requirements_are_hash_locked_t096() -> None:
 
 
 def test_pyinstaller_pinned_in_both_build_scripts_t096() -> None:
-    for script in ("release_mac.sh", "build_windows.ps1"):
-        text = (PROJECT_ROOT / "scripts" / script).read_text(encoding="utf-8")
-        assert "pyinstaller==6.20.0" in text.lower(), script
-        assert "--require-hashes" in text, script
+    # T-107: macOS lo instala del lock de build (requirements-build.txt, con hashes); Windows, del suyo (T-108).
+    mac = (PROJECT_ROOT / "scripts" / "release_mac.sh").read_text(encoding="utf-8")
+    assert "requirements-build.txt" in mac and "--require-hashes" in mac
+    assert pinned(PROJECT_ROOT / "requirements-build.txt")["pyinstaller"].startswith("6.22.")
+    ps1 = (PROJECT_ROOT / "scripts" / "build_windows.ps1").read_text(encoding="utf-8")
+    assert "requirements-build-windows.txt" in ps1 and "--require-hashes" in ps1
+    win = pinned(PROJECT_ROOT / "requirements-build-windows.txt")
+    assert win["pyinstaller"] == pinned(PROJECT_ROOT / "requirements-build.txt")["pyinstaller"]
 
 
 def test_docs_state_macos_14_4_as_minimum() -> None:
     # T-103/D-15: ningún doc de cara al usuario/release da 14 (o 14.0) como mínimo.
     root = Path(__file__).resolve().parent.parent
-    for name in ("README.md", "CLAUDE.md", "docs/RELEASE.md", "DISCLAIMER.md"):
+    for name in ("README.md", "CLAUDE.md", "docs/RELEASE.md", "DISCLAIMER.md", "CHANGELOG.md"):
         f = root / name
         if not f.exists():
             continue

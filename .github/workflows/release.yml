@@ -7,6 +7,9 @@
 #                        Nunca importa el certificado ni las credenciales, aunque el PR sea
 #                        del mismo repo y GitHub le pase secrets.
 #
+# Dos fases (SEC-17): 1) `release_mac.sh --build-only` (pip + PyInstaller con hashes, sin credenciales);
+# 2) importar certificado y credenciales; 3) `release_mac.sh --skip-build` (firma, DMG, notarización).
+#
 # Sin secrets (fork, repo sin configurar) o en pull_request el script firma ad-hoc y no falla.
 # Environment secrets de `release` (ver docs/RELEASE.md): MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD,
 # NOTARY_KEY_ID, NOTARY_ISSUER_ID, NOTARY_KEY_P8_BASE64.
@@ -27,6 +30,8 @@ on:
       - 'rb_exporter.spec'
       - 'entitlements.plist'
       - 'requirements.txt'
+      - 'requirements-build.in'
+      - 'requirements-build.txt'
 
 permissions:
   contents: read
@@ -83,6 +88,27 @@ jobs:
             fi
           fi
 
+      # Fail-closed barato (ADR-005 §2): un tag sin secrets configurados aborta ANTES de gastar el build.
+      # Usa solo SIGNING/NOTARIZING (booleanos del job); los secrets en sí no existen todavía en el entorno.
+      - name: Exigir secrets de firma en tags (antes del build)
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request'
+        run: |
+          missing=""
+          [ "$SIGNING" = "true" ] || missing="$missing SIGNING"
+          [ "$NOTARIZING" = "true" ] || missing="$missing NOTARIZING"
+          if [ -n "$missing" ]; then
+            echo "::error::un tag v* exige firma Developer ID y notarización; falta:$missing (revisá el environment release, docs/RELEASE.md)"
+            exit 1
+          fi
+
+      # Fase 1 (SEC-17/D-a): pip y PyInstaller son código de terceros. Corren ANTES de importar el certificado,
+      # sin DEVELOPER_ID, keychain ni credenciales en el entorno. El toolchain viene de requirements-build.txt
+      # con --require-hashes.
+      - name: Build sin credenciales (fase 1)
+        env:
+          PYTHON: python3
+        run: scripts/release_mac.sh --build-only --arch-suffix
+
       # ── Firma: .p12 en un keychain temporal (GitHub Docs «Installing an Apple certificate on macOS runners») ──
       - name: Importar certificado Developer ID
         if: github.event_name != 'pull_request' && env.SIGNING == 'true'
@@ -132,7 +158,9 @@ jobs:
           echo "NOTARY_PROFILE=listbuddy" >> "$GITHUB_ENV"
 
       # Fail-closed: un tag nunca produce un borrador con DMG ad-hoc o sin notarizar, ni siquiera
-      # si el environment `release` quedó mal configurado. Corre antes del build (~15 min de firma).
+      # si el environment `release` quedó mal configurado. Corre después de la fase 1 (build sin
+      # credenciales), de importar el certificado y de guardar las credenciales (necesita DEVELOPER_ID y
+      # NOTARY_PROFILE), y antes de la fase 2 de firma: corta antes de gastar firma y notarización.
       - name: Exigir firma y notarización en tags
         if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request'
         run: |
@@ -151,12 +179,11 @@ jobs:
         run: |
           echo "::warning::firma ad-hoc, DMG no distribuible (evento=${{ github.event_name }} SIGNING=$SIGNING NOTARIZING=$NOTARIZING)"
 
+      # Fase 2: recién acá existe la clave. No instala ni ejecuta nada de PyPI: reusa dist/List Buddy.app.
       # DEVELOPER_ID y NOTARY_PROFILE llegan por GITHUB_ENV solo si los pasos anteriores corrieron;
-      # sin ellos el script firma ad-hoc. PYTHON apunta al de setup-python.
-      - name: Build, firma, DMG y notarización
-        env:
-          PYTHON: python3
-        run: scripts/release_mac.sh --arch-suffix
+      # sin ellos el script firma ad-hoc.
+      - name: Firma, DMG y notarización (fase 2)
+        run: scripts/release_mac.sh --skip-build --arch-suffix
 
       - name: Resumen
         run: |
@@ -176,9 +203,18 @@ jobs:
           path: |
             dist/*.dmg
             dist/ListBuddy-*.dmg.sha256
-            dist/notary-*.json
           if-no-files-found: error
           compression-level: 0
+
+      # Evidencia de notarización (APP-25): artefacto aparte, nunca assets del release. `always()` la conserva
+      # aunque el notary rechace; en ad-hoc no hay logs.
+      - name: Subir evidencia de notarización
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: listbuddy-${{ env.APP_VERSION }}-${{ matrix.arch }}-notary
+          path: dist/notary-*.json
+          if-no-files-found: ignore
 
       # El tarball fuente es idéntico en las dos patas: con merge-multiple se pisarían; sube una.
       - name: Subir tarball de fuentes (una sola pata)

@@ -143,3 +143,16 @@ def test_users_who_accepted_the_previous_version_see_the_notice_again() -> None:
         "s.setValue('disclaimer_accepted', '2026-10-15.2')\n"
         "print(about_dialog.disclaimer_pending(s))\n")
     assert out == "True"
+
+
+def test_users_who_accepted_2026_10_16_2_see_the_sale_notice_again() -> None:
+    out = run(BOOT +
+        "import about_dialog\n"
+        "from PySide6.QtCore import QSettings\n"
+        "import tempfile, os\n"
+        "s = QSettings(os.path.join(tempfile.mkdtemp(), 's.ini'), QSettings.Format.IniFormat)\n"
+        "s.setValue('disclaimer_accepted', '2026-10-16.2')\n"
+        "pending = about_dialog.disclaimer_pending(s)\n"
+        "about_dialog.mark_disclaimer_accepted(s)\n"
+        "print(pending, about_dialog.disclaimer_pending(s), about_dialog.DISCLAIMER_VERSION)\n")
+    assert out == "True False 2026-10-16.3"

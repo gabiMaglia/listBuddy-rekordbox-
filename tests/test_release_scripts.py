@@ -121,10 +121,9 @@ def test_build_windows_matches_spec_output_and_pins_pyinstaller() -> None:
     assert "name='listBuddy'" in spec and "COLLECT(" in spec          # one-dir
     assert r"dist\listBuddy\listBuddy.exe" in ps1
     assert r'"dist\listBuddy.exe"' not in ps1
-    release = _RELEASE.read_text(encoding="utf-8")
-    pin = re.search(r"pyinstaller==([\d.]+)", ps1)
-    assert pin and pin.group(1) == re.search(r"pyinstaller==([\d.]+)", release).group(1)
-    assert not re.search(r"install pyinstaller\s*--quiet", ps1)
+    # T-108: PyInstaller viene del lock de build de Windows (con hashes), no de un pin suelto en el .ps1.
+    assert not re.search(r"pyinstaller==[\d.]+", ps1)
+    assert "requirements-build-windows.txt" in ps1 and "-m PyInstaller" in ps1
 
 
 def test_claude_md_upx_matches_spec() -> None:
@@ -224,7 +223,7 @@ def test_release_publishes_checksums_and_source_tarball_static() -> None:
     for needle in ("shasum -a 256", ".dmg.sha256", "-src.tar.gz", ".tar.gz.sha256",
                    "git archive --format=tar.gz --prefix=listbuddy-${VERSION}/"):
         assert needle in code, needle
-    assert "--require-hashes" in code and "pyinstaller==6.20.0" in code
+    assert "--require-hashes" in code and "requirements-build.txt" in code   # PyInstaller viene del lock (T-107)
 
 
 def test_source_tarball_has_licenses_and_no_dev_or_engram_files(tmp_path) -> None:
@@ -374,7 +373,7 @@ def test_c2_tag_aborts_before_build_without_signing_or_notarization() -> None:
     # Orden: después de importar cert y credenciales, antes del build.
     at = build.index(f"- name: {name}")
     assert build.index("- name: Importar certificado") < at
-    assert at < build.index("- name: Build, firma, DMG y notarización")
+    assert at < build.index("- name: Firma, DMG y notarización")
     assert build.index("- name: Guardar credenciales") < at
 
 
@@ -500,9 +499,9 @@ def test_windows_lock_has_colorama_and_build_script_stops_on_pip_failure() -> No
         text = (PROJECT_ROOT / lock).read_text(encoding="utf-8")
         assert re.search(r"^colorama==[\d.]+ \\\n    --hash=sha256:[0-9a-f]{64}", text, re.M), f"{lock}: sin colorama pineado con hash"
     ps1 = (PROJECT_ROOT / "scripts" / "build_windows.ps1").read_text(encoding="utf-8")
-    installs = [l for l in ps1.splitlines() if re.match(r"\s*& \$pip install", l)]
-    assert len(installs) >= 2
-    assert ps1.count("$LASTEXITCODE -ne 0") >= len(installs), "cada pip install debe cortar el script si falla"
+    installs = [l for l in ps1.splitlines() if re.match(r"\s*& \$py -m pip install", l)]
+    assert len(installs) == 2
+    assert ps1.count("Assert-Success") >= len(installs), "cada pip install debe cortar el script si falla"
 
 
 def test_workflow_hygiene_no_set_x_cleanup_always_summary_without_secrets() -> None:
@@ -599,3 +598,504 @@ def test_minos_unknown_macho_above_minimum_aborts(tmp_path) -> None:
     r = _run_minos(tmp_path, {"PySide6/QtCore.abi3.so": "26.0", "libnuevo.dylib": "15.0"})
     assert r.returncode == 1
     assert "libnuevo.dylib" in r.stderr
+
+
+# ── T-107: release/CI endurecido ────────────────────────────────────────────
+
+def _snippet(name: str) -> str:
+    """Tramo del script entre `# >>> name` y `# <<< name` (se ejecuta aparte, con binarios falsos)."""
+    text = _RELEASE.read_text(encoding="utf-8")
+    assert f"# >>> {name}" in text and f"# <<< {name}" in text, name
+    return text.split(f"# >>> {name}", 1)[1].split(f"# <<< {name}", 1)[0]
+
+
+def _fake_bin(tmp_path, **scripts: str):
+    """Directorio de binarios falsos para el PATH; cada valor es el cuerpo sh del comando."""
+    bin_dir = tmp_path / "fakebin"
+    bin_dir.mkdir(exist_ok=True)
+    for name, body in scripts.items():
+        f = bin_dir / name
+        f.write_text("#!/bin/sh\n" + body + "\n")
+        f.chmod(0o755)
+    return bin_dir
+
+
+def _run_snippet(tmp_path, name: str, call: str, bin_dir, *, system_path: bool = True, **env):
+    script = f"set -euo pipefail\n{_snippet(name)}\n{call}\n"
+    e = {"PATH": f"{bin_dir}:/usr/bin:/bin" if system_path else str(bin_dir), **env}
+    return subprocess.run(["/bin/bash", "-c", script], capture_output=True, text=True, env=e, cwd=tmp_path, timeout=60)
+
+
+# xcrun falso: cuenta las llamadas a `stapler staple` y falla las primeras $FAILS veces.
+_FAKE_XCRUN = (
+    'echo "$*" >> "$CALLS"\n'
+    'if [ "$2" = staple ]; then\n'
+    '  n=$(grep -c "stapler staple" "$CALLS")\n'
+    '  [ "$n" -gt "$FAILS" ] || { echo "Error 65 CloudKit" >&2; exit 65; }\n'
+    'fi\n'
+    'exit 0'
+)
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+@pytest.mark.parametrize("fails,ok", [(0, True), (2, True), (5, True), (6, False), (7, False)])
+def test_t107_staple_retries_then_validates_or_aborts(tmp_path, fails, ok) -> None:
+    """APP-23: `stapler staple` se reintenta (6 intentos); 2 fallos → OK + validate; 7 fallos → exit 1."""
+    calls = tmp_path / "calls.txt"
+    bin_dir = _fake_bin(tmp_path, xcrun=_FAKE_XCRUN)
+    r = _run_snippet(tmp_path, "staple-retry", 'staple_with_retry "/x/List Buddy.app"', bin_dir,
+                     CALLS=str(calls), FAILS=str(fails), STAPLE_DELAY="0")
+    lines = calls.read_text().splitlines()
+    staples = [l for l in lines if "stapler staple" in l]
+    assert (r.returncode == 0) is ok, r.stdout + r.stderr
+    if ok:
+        assert len(staples) == fails + 1
+        assert lines[-1] == "stapler validate /x/List Buddy.app"
+    else:
+        assert r.returncode == 1 and len(staples) == 6
+        assert not any("validate" in l for l in lines)
+        assert "notariz" in r.stderr and "List Buddy.app" in r.stderr
+
+
+def test_t107_staple_used_for_app_and_dmg_without_bare_calls() -> None:
+    outside = _RELEASE.read_text(encoding="utf-8").split("# <<< staple-retry", 1)[1]
+    assert re.findall(r"^\s*xcrun stapler (?:staple|validate)", outside, re.M) == []
+    assert 'staple_with_retry "$APP"' in outside and 'staple_with_retry "$DMG"' in outside
+
+
+def test_t107_notary_logs_carry_arch_suffix_and_travel_as_evidence() -> None:
+    """APP-25: notary-{app,dmg}-<v><arch>.json no se pisan entre patas y salen como artefacto de evidencia."""
+    code = "\n".join(_code_lines(_RELEASE))
+    names = re.findall(r"dist/notary-[^\s\"']+\.json", code)
+    assert len(names) == 2 and all("${ARCH_SUFFIX}" in n for n in names), names
+    text = _WORKFLOW.read_text(encoding="utf-8")
+    uploads = re.findall(r"uses: actions/upload-artifact@[^\n]*\n(.*?)(?=\n      - |\n  \w)", text, re.S)
+    notary = [u for u in uploads if "notary-" in u]
+    assert len(notary) == 1
+    assert "${{ matrix.arch }}" in notary[0] and "notary" in notary[0].split("path:")[0]
+    assert "if-no-files-found: ignore" in notary[0]   # ad-hoc no genera logs
+    assert all("notary-" not in u for u in uploads if u is not notary[0])
+    step = _steps("evidencia de notarización")
+    assert re.search(r"^\s*if:\s*always\(\)", step, re.M)   # también si el notary rechaza
+    # nunca entra al GitHub Release: los assets se listan uno por uno
+    assert "notary" not in _step_run("Crear release") and "notary" not in _step_run("Verificar assets")
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+@pytest.mark.parametrize("case,macos,policy,rc,expect_rc,expect_text", [
+    ("ok", "14.8.8", "exit 0", None, 0, ""),
+    ("falla", "15.1", 'echo "ticket" >&2; exit 1', None, 1, "syspolicy_check"),
+    ("sin_binario", "15.1", None, None, 0, "AVISO"),
+    ("macos13", "13.7", "exit 1", None, 0, "AVISO"),
+])
+def test_t107_syspolicy_check_distribution(tmp_path, case, macos, policy, rc, expect_rc, expect_text) -> None:
+    """APP-27: `syspolicy_check distribution "$APP"` tras el staple; sin binario o macOS < 14 avisa y sigue."""
+    fakes = {"sw_vers": f'echo "{macos}"'}
+    if policy is not None:
+        fakes["syspolicy_check"] = f'echo "$*" >> "$CALLS"\n{policy}'
+    bin_dir = _fake_bin(tmp_path, **fakes)
+    calls = tmp_path / "calls.txt"
+    # Sin /usr/bin en el PATH: ahí vive el syspolicy_check real y «sin_binario» no probaría nada.
+    r = _run_snippet(tmp_path, "syspolicy", 'syspolicy_check_app "/x/List Buddy.app"', bin_dir,
+                     system_path=False, CALLS=str(calls))
+    assert r.returncode == expect_rc, r.stdout + r.stderr
+    assert expect_text in r.stdout + r.stderr
+    if case in ("ok", "falla"):
+        assert calls.read_text().strip() == "distribution /x/List Buddy.app"
+    else:
+        assert not calls.exists()
+
+
+def test_t107_syspolicy_runs_after_app_staple_and_before_dmg() -> None:
+    text = _RELEASE.read_text(encoding="utf-8").split("# <<< syspolicy", 1)[1]
+    assert text.index('staple_with_retry "$APP"') < text.index('syspolicy_check_app "$APP"') < text.index("hdiutil create")
+
+
+def test_t107_release_docs_cover_min_macos_bindings_warning_and_first_release_order() -> None:
+    """APP-28: RELEASE.md explica el mínimo 14.4, el AVISO de los 12 bindings y el orden del primer release."""
+    doc = (PROJECT_ROOT / "docs" / "RELEASE.md").read_text(encoding="utf-8")
+    section = doc.split("## Requisitos y avisos del log", 1)[1].split("\n## ", 1)[0]
+    for needle in ("macOS 14.4", "12 bindings", "minos 26.0", "14.8", "AVISO"):
+        assert needle in section, needle
+    order = doc.split("## Orden del primer release", 1)[1].split("\n## ", 1)[0]
+    positions = [order.index(k) for k in ("D-14", "Developer ID Application", "API key", "environment `release`",
+                                          "ruleset", "smoke", "git tag", "Gatekeeper", "Publish release")]
+    assert positions == sorted(positions)
+    for needle in ("stapler staple", "reintenta", "syspolicy_check", "notary-app-", "--build-only"):
+        assert needle in doc, needle
+
+
+def _mk_dist(tmp_path, names: list[str]):
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    for n in names:
+        p = dist / n
+        if n.endswith(".app") or n == "List Buddy":
+            (p / "Contents").mkdir(parents=True)
+            (p / "Contents" / "x").write_text("x")
+        else:
+            p.write_text("x")
+    return dist
+
+
+_OURS = ["List Buddy.app", "List Buddy", "listBuddy.app", "listBuddy", "listBuddy-1.0.dmg", "ListBuddy-1.0.0-arm64.dmg",
+         "ListBuddy-1.0.0-arm64.dmg.sha256", "listbuddy-1.0.0-src.tar.gz", "notary-app-1.0.0.json", ".DS_Store"]
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+@pytest.mark.parametrize("skip_build,kept", [(0, []), (1, ["List Buddy.app"])])
+def test_t107_clean_dist_removes_our_old_artifacts(tmp_path, skip_build, kept) -> None:
+    """TEC-27: los artefactos viejos propios se borran; con --skip-build el .app recién buildeado se conserva."""
+    dist = _mk_dist(tmp_path, _OURS)
+    r = _run_snippet(tmp_path, "clean-dist", "clean_dist", _fake_bin(tmp_path), SKIP_BUILD=str(skip_build),
+                     DRY_RUN="0", APP="dist/List Buddy.app")
+    assert r.returncode == 0, r.stderr
+    assert sorted(p.name for p in dist.iterdir()) == kept
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t107_clean_dist_aborts_on_foreign_files_and_deletes_nothing(tmp_path) -> None:
+    dist = _mk_dist(tmp_path, _OURS + ["tesis-final.pdf"])
+    r = _run_snippet(tmp_path, "clean-dist", "clean_dist", _fake_bin(tmp_path), SKIP_BUILD="0", DRY_RUN="0",
+                     APP="dist/List Buddy.app")
+    assert r.returncode == 1 and "tesis-final.pdf" in r.stderr
+    assert len(list(dist.iterdir())) == len(_OURS) + 1
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t107_clean_dist_dry_run_lists_without_touching(tmp_path) -> None:
+    dist = _mk_dist(tmp_path, _OURS + ["tesis-final.pdf"])
+    r = _run_snippet(tmp_path, "clean-dist", "clean_dist", _fake_bin(tmp_path), SKIP_BUILD="0", DRY_RUN="1",
+                     APP="dist/List Buddy.app")
+    assert r.returncode == 0
+    out = r.stdout + r.stderr
+    assert "[dry-run]" in out and "ListBuddy-1.0.0-arm64.dmg" in out and "tesis-final.pdf" in out
+    assert len(list(dist.iterdir())) == len(_OURS) + 1
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t107_clean_dist_without_dist_dir_is_noop(tmp_path) -> None:
+    r = _run_snippet(tmp_path, "clean-dist", "clean_dist", _fake_bin(tmp_path), SKIP_BUILD="0", DRY_RUN="0",
+                     APP="dist/List Buddy.app")
+    assert r.returncode == 0 and not (tmp_path / "dist").exists()
+
+
+# ── T-107 SEC-17/SEC-23: toolchain de build con hashes y build antes de la clave ──
+
+_BUILD_LOCK = PROJECT_ROOT / "requirements-build.txt"
+
+
+def test_t107_build_lock_is_fully_hashed_and_pins_pyinstaller_6_22() -> None:
+    from _reqs import pinned, unhashed
+    assert (PROJECT_ROOT / "requirements-build.in").is_file()
+    assert unhashed(_BUILD_LOCK) == []
+    locked = pinned(_BUILD_LOCK)
+    assert re.fullmatch(r"6\.22\.\d+", locked["pyinstaller"])
+    # lo que PyInstaller ejecuta en el build y el propio pip van pineados con hash (sin «unsafe» suelto)
+    for dep in ("pyinstaller-hooks-contrib", "setuptools", "macholib", "altgraph", "packaging", "pip"):
+        assert dep in locked, dep
+    text = _BUILD_LOCK.read_text(encoding="utf-8")
+    assert "pip-compile" in text and "--generate-hashes" in text
+
+
+def test_t107_release_script_installs_build_toolchain_only_with_require_hashes() -> None:
+    code = "\n".join(_code_lines(_RELEASE))
+    installs = [l for l in code.splitlines() if "pip install" in l and "echo" not in l]
+    assert installs and all("--require-hashes" in l for l in installs), installs
+    assert any("-r requirements-build.txt" in l for l in installs)
+    assert any("-r requirements.txt" in l for l in installs)
+    assert "PYINSTALLER_PIN" not in code and "pyinstaller==" not in code.lower()
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t107_build_only_and_skip_build_are_exclusive_and_planned(tmp_path) -> None:
+    r = subprocess.run(["bash", str(_RELEASE), "--build-only", "--skip-build"], cwd=PROJECT_ROOT,
+                       env=_env(tmp_path, "3.14.8"), capture_output=True, text=True, timeout=60)
+    assert r.returncode == 2 and "--build-only" in r.stderr
+    r = subprocess.run(["bash", str(_RELEASE), "--dry-run", "--build-only"], cwd=PROJECT_ROOT,
+                       env=_env(tmp_path, "3.14.8"), capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert "requirements-build.txt" in r.stdout and "--build-only" in r.stdout
+    assert "codesign" not in r.stdout and "notarytool" not in r.stdout and "hdiutil" not in r.stdout
+
+
+def test_t107_build_only_exits_before_any_signing() -> None:
+    code = "\n".join(_code_lines(_RELEASE))
+    body = code.split("# plutil", 1)[0] + code  # el exit va entre el minos-check y la firma
+    text = _RELEASE.read_text(encoding="utf-8")
+    assert text.index("# <<< minos-check") < text.rindex('if [ "$BUILD_ONLY" = 1 ]') < text.index("# ── Firma inside-out")
+    assert "BUILD_ONLY" in body
+
+
+def test_t107_workflow_builds_before_certificate_in_two_phases() -> None:
+    """D-a / SEC-17: pip y PyInstaller nunca corren con la clave de firma disponible."""
+    build = _job_text("build")
+    order = [m.group(1) for m in re.finditer(r"^      - name: (.+)$", build, re.M)]
+    def at(part: str) -> int:
+        idx = [i for i, n in enumerate(order) if part in n]
+        assert len(idx) == 1, (part, order)
+        return idx[0]
+    phase1, cert, creds, strict, phase2 = (at("Build sin credenciales"), at("Importar certificado"),
+                                           at("Guardar credenciales"), at("Exigir firma y notarización"),
+                                           at("Firma, DMG y notarización"))
+    assert phase1 < cert < creds < strict < phase2
+    assert at("Exigir secrets de firma en tags") < phase1       # el fail-closed barato sigue antes del build
+    run1, run2 = _steps("Build sin credenciales"), _steps("Firma, DMG y notarización")
+    assert re.search(r"release_mac\.sh --build-only --arch-suffix", run1)
+    assert re.search(r"release_mac\.sh --skip-build --arch-suffix", run2)
+    # Nada de secrets, identidad ni keychain en el entorno de la fase 1
+    phase1_step = _steps("Build sin credenciales")
+    for forbidden in ("secrets.", "DEVELOPER_ID", "NOTARY_", "KEYCHAIN"):
+        assert forbidden not in phase1_step, forbidden
+    # y los secrets solo se referencian en pasos posteriores al build
+    first_secret = build.index("secrets.MACOS_CERT_P12_BASE64 }}\n          MACOS")
+    assert first_secret > build.index("- name: Build sin credenciales")
+    assert "requirements-build.txt" in _WORKFLOW.read_text(encoding="utf-8").split("pull_request:", 1)[1].split("permissions:", 1)[0]
+
+
+
+def test_t107_claude_md_documents_build_lock_regeneration() -> None:
+    doc = (PROJECT_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-build.txt requirements-build.in" in doc
+    assert "PyInstaller (`==6.20.0`) se instala aparte" not in doc
+    assert "--build-only" in doc
+
+
+# ── T-108: lock de build para Windows (SEC-20) ──────────────────────────────
+
+_WIN_LOCK = PROJECT_ROOT / "requirements-build-windows.txt"
+_WIN_IN = PROJECT_ROOT / "requirements-build-windows.in"
+
+
+def test_t108_windows_build_lock_has_windows_only_deps_and_hashes() -> None:
+    """PyInstaller exige pefile y pywin32-ctypes solo en win32; pip-compile corre en macOS y no los resuelve
+    solo, así que van explícitos en el .in. Sin ellos `--require-hashes` instala un PyInstaller que no arranca."""
+    from _reqs import pinned, unhashed
+    assert _WIN_IN.exists() and _WIN_LOCK.exists()
+    pins = pinned(_WIN_LOCK)
+    assert pins["pyinstaller"] == "6.22.3"
+    assert {"pefile", "pywin32-ctypes", "altgraph", "pyinstaller-hooks-contrib", "setuptools", "pip"} <= set(pins)
+    assert unhashed(_WIN_LOCK) == []
+    assert pinned(PROJECT_ROOT / "requirements-build.txt")["pyinstaller"] == pins["pyinstaller"]
+    in_names = {m.group(1).lower() for l in _WIN_IN.read_text(encoding="utf-8").splitlines()
+                if (m := re.match(r"^([A-Za-z0-9][A-Za-z0-9._-]*)", l))}
+    assert {"pyinstaller", "pefile", "pywin32-ctypes", "pip"} <= in_names
+
+
+def test_t108_claude_md_documents_windows_lock_regeneration() -> None:
+    doc = (PROJECT_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    section = doc.split("## Empaquetado — Windows", 1)[1].split("\n## ", 1)[0]
+    for needle in ("pip-compile --generate-hashes --allow-unsafe --strip-extras",
+                   "requirements-build-windows.in", "requirements-build-windows.txt",
+                   "pefile", "pywin32-ctypes", "--platform win_amd64"):
+        assert needle in section, needle
+
+
+# ── T-108: check_bundle compartido entre macOS y Windows (LEG-26) ───────────
+
+_FORBIDDEN = PROJECT_ROOT / "scripts" / "bundle_forbidden.txt"
+_CHECK_PS1 = PROJECT_ROOT / "scripts" / "check_bundle.ps1"
+
+
+def _forbidden_patterns() -> list[str]:
+    lines = [l.strip() for l in _FORBIDDEN.read_text(encoding="utf-8").splitlines()]
+    return [l for l in lines if l and not l.startswith("#")]
+
+
+def test_t108_forbidden_list_covers_the_audit_names() -> None:
+    pats = {p.lower() for p in _forbidden_patterns()}
+    for exact in ("pil", "pillow*", "pyqt6*", ".rbe_settings.ini"):        # nombres exactos: `pil` suelto no puede pasar por «pillow»
+        assert exact in pats, exact
+    low = " ".join(sorted(pats))
+    for needle in ("pyrekordbox", "sqlcipher", "sqlalchemy", "qtpdf", "qtwebengine", "qtquick", "qtqml", "virtualkeyboard"):
+        assert needle in low, needle
+
+
+def _plant(tmp_path, name: str):
+    root = tmp_path / "listBuddy" / "_internal"
+    root.mkdir(parents=True)
+    (root / "QtCore.dll").write_bytes(b"")
+    (root / "PySide6").mkdir()
+    (root / "pillar.txt").write_text("x")           # no debe confundirse con Pillow/PIL
+    if name:
+        (root / name).mkdir()
+    return tmp_path / "listBuddy"
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t108_check_bundle_sh_rejects_every_pattern_of_the_shared_list(tmp_path) -> None:
+    """Enumera la lista compartida (no ejemplos a mano): cada patrón, plantado como nombre, debe cortar el chequeo."""
+    missed = []
+    for i, pat in enumerate(_forbidden_patterns()):
+        bundle = _plant(tmp_path / str(i), pat.replace("*", "x"))
+        r = subprocess.run(["bash", str(_CHECK), str(bundle)], capture_output=True, text=True)
+        if r.returncode != 1:
+            missed.append(pat)
+    assert missed == []
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t108_check_bundle_sh_accepts_a_clean_bundle_and_reads_the_shared_file(tmp_path) -> None:
+    r = subprocess.run(["bash", str(_CHECK), str(_plant(tmp_path, ""))], capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    code = "\n".join(_code_lines(_CHECK))
+    assert "bundle_forbidden.txt" in code
+    assert "QtPdf" not in code and "sqlalchemy" not in code      # la lista ya no está duplicada a mano
+
+
+def test_t108_check_bundle_ps1_uses_the_shared_list_and_fails_closed() -> None:
+    code = "\n".join(l for l in _CHECK_PS1.read_text(encoding="utf-8").splitlines() if not l.lstrip().startswith("#"))
+    assert "bundle_forbidden.txt" in code
+    assert "Get-ChildItem" in code and "-Recurse" in code and "-Force" in code   # -Force: ocultos como .rbe_settings.ini
+    assert "-like" in code                                                        # case-insensitive, como -iname
+    assert re.search(r"exit 2", code) and re.search(r"exit 1", code)
+    assert r"dist\listBuddy" in code
+    assert ".Trim()" in code                                # CRLF de checkout con autocrlf
+    assert "Set-StrictMode" in code and "$ErrorActionPreference" in code
+
+
+# ── T-108: build_windows.ps1 con integridad (SEC-20, LEG-26) ────────────────
+
+_BUILD_PS1 = PROJECT_ROOT / "scripts" / "build_windows.ps1"
+
+
+def _ps1_code() -> list[str]:
+    return [l for l in _BUILD_PS1.read_text(encoding="utf-8").splitlines()
+            if l.strip() and not l.lstrip().startswith("#")]
+
+
+def _first(lines: list[str], pattern: str) -> int:
+    for i, l in enumerate(lines):
+        if re.search(pattern, l):
+            return i
+    raise AssertionError(f"no hay línea con /{pattern}/")
+
+
+def test_t108_ps1_uses_a_clean_build_venv_never_the_dev_venv() -> None:
+    code = _ps1_code()
+    text = "\n".join(code)
+    assert ".venv-build" in text
+    assert not re.search(r'\.venv(?!-build)', text), "el .ps1 no puede tocar .venv (arrastra Pillow/PyQt6, LEG-26)"
+    # se borra antes de crear: un venv viejo no se reutiliza
+    assert _first(code, r"Remove-Item.*\$venv") < _first(code, r"-m venv")
+    assert _first(code, r'^\$venv = Join-Path \$ROOT "\.venv-build"$') < _first(code, r"-m venv")
+    # $py sale SOLO del venv y, después de crearlo, el intérprete del sistema ($Python) no vuelve a aparecer (V1 verifier)
+    assert [l for l in code if re.match(r"\$py = ", l)] == [r'$py = Join-Path $venv "Scripts\python.exe"']
+    created = _first(code, r"^& \$Python -m venv \$venv$")
+    assert [l for l in code if re.match(r"&\s+\$Python -m venv", l)] == [code[created]]
+    after = code[created + 1:]
+    assert [l for l in after if re.search(r"\$Python\b", l)] == []
+    natives = [l for l in after if re.search(r"(^|=\s*)&\s+[\$\(]", l)]
+    assert natives and all(l.startswith("& $py ") or l.startswith('& (Join-Path $PSScriptRoot "check_bundle.ps1")')
+                           for l in natives), natives
+
+
+def test_t108_ps1_requires_python_3_14_8_and_explains_install() -> None:
+    text = "\n".join(_ps1_code())
+    assert '[version]"3.14.8"' in text
+    assert re.search(r"\$found -lt \$MinPython", text)
+    assert "python.org" in text and "winget install" in text and "-Python" in text
+    assert "ALLOW_OLD" not in text.upper()        # sin override: SEC-20 pide que el release no arranque con un expat viejo
+
+
+def test_t108_ps1_installs_only_from_hashed_locks() -> None:
+    code = _ps1_code()
+    installs = [l for l in code if l.startswith("&") and "pip install" in l]
+    assert len(installs) == 2, installs
+    for l in installs:
+        assert "--require-hashes" in l and re.search(r"-r \(Join-Path \$ROOT \"requirements", l), l
+    assert any("requirements.txt" in l for l in installs)
+    assert any("requirements-build-windows.txt" in l for l in installs)
+    assert not any(re.search(r"pip install\s+pyinstaller", l, re.I) for l in code)
+    assert all("-m pip" in l for l in installs)          # `pip.exe install --upgrade pip` no puede reemplazarse a sí mismo
+
+
+def test_t108_ps1_checks_exit_code_after_every_native_call() -> None:
+    code = _ps1_code()
+    body = "\n".join(code)
+    m = re.search(r"function Assert-Success.*?\n\}", body, re.S)
+    assert m and "$LASTEXITCODE -ne 0" in m.group(0) and "exit 1" in m.group(0)
+    native = [i for i, l in enumerate(code) if re.search(r"(^|=\s*)&\s+[\$\(]", l)]
+    assert len(native) >= 6, "venv, 2 pip, PyInstaller, check_bundle, versión de Python"
+    unchecked = [code[i] for i in native if "Assert-Success" not in code[i + 1]]
+    assert unchecked == []
+
+
+def test_t108_ps1_step_order_gate_build_check_zip_hash() -> None:
+    code = _ps1_code()
+    order = [r"-lt \$MinPython", r"A DEFINIR POR EL PO", r"-m venv", r"pip install.*requirements\.txt",
+             r"pip install.*requirements-build-windows", r"-m PyInstaller", r"check_bundle\.ps1",
+             r"CreateFromDirectory", r"Get-FileHash"]
+    idx = [_first(code, p) for p in order]
+    assert idx == sorted(idx) and len(set(idx)) == len(idx), idx
+
+
+def test_t108_ps1_gate_d14_covers_the_same_files_as_the_release_gate_test() -> None:
+    from test_release_gate import _FILES, _MARKER
+    text = "\n".join(_ps1_code())
+    for name in _FILES:
+        assert f'"{name}"' in text, name
+    assert _MARKER in text and "-SimpleMatch" in text and "exit 1" in text
+    # la condición REAL (V2 verifier): cualquier marcador pendiente corta; `-gt 99` dejaría pasar hasta 99 archivos
+    code = _ps1_code()
+    cond = _first(code, r"^if \(\$pending\.Count -gt 0\) \{$")
+    assert re.search(r"exit 1", "\n".join(code[cond:cond + 6]))
+    assert [l for l in code if re.search(r"\$pending\.Count", l)] == [code[cond]]
+    assert re.search(r'\$pending = @\(\$gateFiles \| Where-Object \{', "\n".join(code))
+    assert re.search(r"Select-String -LiteralPath \(Join-Path \$ROOT \$_\) -SimpleMatch \"\[A DEFINIR POR EL PO\" -Quiet", text)
+
+
+def test_t108_ps1_builds_with_pyinstaller_module_and_names_the_artifacts() -> None:
+    text = "\n".join(_ps1_code())
+    assert "-m PyInstaller rb_exporter.spec --noconfirm --clean" in text
+    assert r"dist\listBuddy" in text or '"dist"' in text
+    assert "listBuddy-$version-win64.zip" in text
+    assert "_APP_VERSION" in text                      # la versión sale de ui.py, como en release_mac.sh
+    assert "Compress-Archive" not in text              # entradas con \ en PS 5.1: se usa ZipFile y se reabre para verificar
+
+
+def test_t108_ps1_writes_sha256_in_shasum_format_without_bom() -> None:
+    text = "\n".join(_ps1_code())
+    assert "Get-FileHash" in text and "-Algorithm SHA256" in text and ".ToLower()" in text
+    assert '"$hash *$(Split-Path -Leaf $zip)' in text
+    assert "UTF8Encoding($false)" in text and '.sha256"' in text
+
+
+@pytest.mark.skipif(shutil.which("shasum") is None, reason="requiere shasum")
+def test_t108_sha256_line_format_is_accepted_by_shasum_check(tmp_path) -> None:
+    import hashlib
+    z = tmp_path / "listBuddy-1.0.0-win64.zip"
+    z.write_bytes(b"contenido")
+    (tmp_path / (z.name + ".sha256")).write_bytes(f"{hashlib.sha256(b'contenido').hexdigest()} *{z.name}\n".encode())
+    ok = subprocess.run(["shasum", "-a", "256", "-c", z.name + ".sha256"], cwd=tmp_path, capture_output=True, text=True)
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    z.write_bytes(b"adulterado")
+    bad = subprocess.run(["shasum", "-a", "256", "-c", z.name + ".sha256"], cwd=tmp_path, capture_output=True, text=True)
+    assert bad.returncode != 0
+
+
+# ── T-108: documentación de Windows (SEC-20) ────────────────────────────────
+
+def _readme_windows_bullet() -> str:
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    section = readme.split("## Descargar", 1)[1].split("\n## ", 1)[0]
+    return "- **Windows:**" + section.split("- **Windows:**", 1)[1].split("\n\n>", 1)[0]
+
+
+def test_t108_readme_windows_explains_how_to_verify_and_what_the_hash_proves() -> None:
+    bullet = _readme_windows_bullet()
+    for needle in ("Get-FileHash", "certutil -hashfile", "SHA256", "-win64.zip", ".sha256", "SmartScreen", "Más información"):
+        assert needle in bullet, needle
+    low = bullet.lower()
+    assert "corrupt" in low and "autor" in low                 # qué prueba (descarga íntegra) y qué no (quién publicó)
+    assert "reemplaza a la firma" not in low                   # SEC-20: el hash no reemplaza a una firma
+
+
+def test_t108_release_md_has_a_manual_windows_section() -> None:
+    doc = (PROJECT_ROOT / "docs" / "RELEASE.md").read_text(encoding="utf-8")
+    assert "## Windows (manual)" in doc
+    section = doc.split("## Windows (manual)", 1)[1].split("\n## ", 1)[0]
+    for needle in ("build_windows.ps1", ".venv-build", "3.14.8", "--require-hashes", "check_bundle.ps1", "bundle_forbidden.txt",
+                   "-win64.zip", ".sha256", "Authenticode", "Get-FileHash", "windows-latest", "pip-compile"):
+        assert needle in section, needle
+    assert "no hay runner ni firma" not in doc
