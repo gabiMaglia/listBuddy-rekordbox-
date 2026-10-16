@@ -3,6 +3,10 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 03:20] nerv-orquestador → nerv-qa T-097 (4º, X) + nerv-verifier T-095 (S)
+- QA T-097 sobre el fix de D7/D8 (HEAD 5c3d4fe). Verifier ciego de T-095 sin acceso a engram/qa/T-095.md ni handoffs (P-12); entregable `engram/qa/T-095_verifier.md`. Siguen, de a dos: verifiers de T-092, T-094, T-096 (y T-097 cuando apruebe).
+- Quien retoma: nerv-orquestador.
+
 ### [2026-10-16 03:10] QA T-094 APROBADO (3º) · QA T-097 RECHAZADO (3º: D7 test vacuo, D8 doc) → fix del Orquestador → 4ª QA (X)
 - T-097 D7: `_step_run` extrae el `run:` real; `test_c3_release_job_lists_all_six_assets…` exige los 6 nombres como token entero en la verificación y en `gh release create` (un primer intento por subcadena dejó pasar «-arm64.dmg» por «-arm64.dmg.sha256»); `test_c3_asset_check_step_really_fails_when_one_is_missing` ejecuta el paso en bash con cada asset ausente. `_steps` ahora encuentra el último paso del archivo (`\Z`). Rojo con: DMG fuera del create, sha256 fuera del create, asset fuera del bucle, bucle → `exit 1`. D8: cabecera y tabla de RELEASE.md dicen la verdad sobre dispatch en rama (`smoke`) y en tag.
 - Quien retoma: nerv-orquestador → nerv-qa T-097 (4º intento, X).
