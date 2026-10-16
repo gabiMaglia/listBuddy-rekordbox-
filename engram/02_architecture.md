@@ -19,7 +19,7 @@
 | ADR-001 | Relocate de links rotos en playlists de Traktor: backup, escritura atómica del NML, matching y sync COLLECTION↔PLAYLISTS | Aceptado | 2026-07-23 |
 | ADR-002 | Relocate de links rotos para Rekordbox 6 (F-08): backup del master.db SQLCipher, USN, transacción única y reuso del matching de ADR-001 sobre `update_content_path` | Aceptado | 2026-07-24 |
 | ADR-004 | Rekordbox solo por el XML oficial exportado: sin master.db, pyrekordbox ni SQLCipher (reemplaza a ADR-002) | Aceptado | 2026-10-14 |
-| ADR-005 | Carga de librería asíncrona y sin DOM: TRACK de Rekordbox como texto crudo (expat) y estado de carga por generación en la UI (T-094) | Propuesto | 2026-10-16 |
+| ADR-006 | Carga de librería asíncrona y sin DOM: TRACK de Rekordbox como texto crudo (expat) y estado de carga por generación en la UI (T-094) | Propuesto | 2026-10-16 |
 | ADR-005 | Modelo de release y firma en CI: secrets en environment `release` atado a tags `v*`, tags fail-closed, sin acciones de terceros con escritura, `release_mac.sh` como única lógica | Propuesto | 2026-10-16 |
 
 ## ADR-001: Relocate de links rotos en playlists de Traktor (F-07)
@@ -196,7 +196,7 @@ fixes (I-1/I-2/I-4 se aplican dos veces por la duplicación).
 
 **Consecuencias:** + el certificado solo se usa desde un tag que creó el mantenedor, un release nunca sale ad-hoc y no queda código de terceros con permiso de escritura. − parte de la configuración vive en GitHub Settings, fuera del repo, y QA no la puede verificar (se cubre con un checklist en `docs/RELEASE.md`). Un dispatch sobre una rama ya no firma. La pata Intel sale del workflow cuando GitHub retire `macos-15` (otoño 2027). Pendiente (deuda): importar la clave después del build, para que pip y PyInstaller no corran con la clave desbloqueada.
 
-## ADR-005: Carga de librería asíncrona y sin DOM (T-094)
+## ADR-006: Carga de librería asíncrona y sin DOM (T-094)
 
 **Estado:** Propuesto (nerv-arquitecto, 2026-10-16; revisión P-2 de T-094). Lo acepta el PO.
 
