@@ -5,7 +5,7 @@
 #   DEVELOPER_ID="Developer ID Application: Gabriel Maglia (TEAMID)" \
 #   NOTARY_PROFILE=listbuddy scripts/release_mac.sh   # firma Developer ID + notariza
 #   scripts/release_mac.sh --dry-run       # muestra firma/notarización sin ejecutarlas
-#   scripts/release_mac.sh --arch-suffix   # DMG «List Buddy-<v>-<arm64|x86_64>.dmg» (CI, T-097)
+#   scripts/release_mac.sh --arch-suffix   # DMG «ListBuddy-<v>-<arm64|x86_64>.dmg» (CI, T-097)
 #
 # NOTARY_PROFILE se crea una sola vez con:
 #   xcrun notarytool store-credentials listbuddy --apple-id <mail> --team-id <TEAMID>

@@ -49,7 +49,8 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
 
 - **Código fuente:** el de cada versión está en la sección [Código fuente](#código-fuente).
-- **macOS 14 o posterior.** Abrí el `.dmg` y arrastrá **List Buddy** a Aplicaciones.
+- **macOS 14 o posterior.** Hay un `.dmg` para Apple Silicon (`-arm64`) y otro para Intel (`-x86_64`);
+  abrilo y arrastrá **List Buddy** a Aplicaciones. Al lado de cada DMG hay un `.sha256` para verificarlo.
 - **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente.
 
 ## Requisitos
@@ -179,6 +180,14 @@ Para regenerar el ícono:
 ```bash
 python scripts/make_icon.py
 ```
+
+### Release automática
+
+Al pushear un tag `vX.Y.Z`, GitHub Actions (`.github/workflows/release.yml`) buildea, firma y
+notariza los DMG de arm64 e Intel y deja un Release en borrador. Los secrets necesarios, cómo
+exportar el certificado y crear la API key de App Store Connect están en
+[docs/RELEASE.md](docs/RELEASE.md). La suite de tests corre en cada push y PR
+(`.github/workflows/tests.yml`).
 
 ## Logs
 
