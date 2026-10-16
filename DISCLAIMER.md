@@ -1,6 +1,6 @@
 # Aviso legal y descargo de responsabilidad — List Buddy
 
-Versión del aviso: 2026-10-16.1
+Versión del aviso: 2026-10-16.2
 
 Este aviso explica qué hace List Buddy con tus archivos, qué garantías tenés y
 cuáles no, y cómo reclamar. Complementa las secciones 15 («Disclaimer of
@@ -137,11 +137,23 @@ Todo lo que List Buddy guarda queda solo en tu equipo:
   de tus librerías y de tu destino. Vive en la carpeta de datos de List Buddy:
   `~/Library/Application Support/listBuddy` en macOS y `%APPDATA%\listBuddy`
   en Windows.
+- **`rekordbox_fixes.json`** (reparaciones de Rekordbox): guarda, por cada
+  enlace que reparaste, la **ruta real de tu música** en tu disco. Vive en la
+  misma carpeta de datos que `settings.ini`.
+- **`listBuddy_backups/`** (copias del NML de Traktor): se crea **junto a tu
+  `collection.nml`**, no en la carpeta de datos, y guarda copias completas de
+  tu colección (retención de 10 copias; las más viejas se borran). Esas copias
+  tienen las rutas de toda tu música: tenelo en cuenta si compartís o
+  sincronizás esa carpeta.
 
-Para borrarlos, cerrá List Buddy y borrá `listBuddy.log` (o la carpeta de logs)
-y la carpeta de datos (o solo `settings.ini`). Se vuelven a crear vacíos la
-próxima vez que abras la app. En macOS y Linux estos archivos se crean legibles
-solo por tu usuario.
+Para borrarlos, cerrá List Buddy y borrá `listBuddy.log` (o la carpeta de logs),
+la carpeta de datos (o solo `settings.ini` y `rekordbox_fixes.json`) y, si
+querés, la carpeta `listBuddy_backups/`. Los archivos de logs y de datos se
+vuelven a crear vacíos la próxima vez que abras la app. En macOS y Linux el
+log, `settings.ini`, `rekordbox_fixes.json` y las carpetas de datos y de logs
+quedan accesibles solo por tu usuario; `listBuddy_backups/` hereda los
+permisos de la carpeta de tu colección. En Windows se apoyan en los permisos
+de tu perfil de usuario.
 
 Si comprás List Buddy, la
 plataforma de pago [A DEFINIR POR EL PO: nombre del merchant of record]

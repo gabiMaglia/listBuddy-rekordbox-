@@ -13,6 +13,8 @@ import logging
 import os
 from pathlib import Path
 
+from app_paths import make_private
+
 _log = logging.getLogger("listBuddy")
 _VERSION = 1
 
@@ -54,11 +56,15 @@ class FixStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_name(self.path.name + ".tmp")
         try:
-            with open(tmp, "w", encoding="utf-8") as f:
+            # Se crea ya en 0600: no hay ventana en la que otro usuario lo lea.
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump({"version": _VERSION, "fixes": mapping}, f, ensure_ascii=False, indent=1)
                 f.flush()
                 os.fsync(f.fileno())
             os.replace(tmp, self.path)
+            # Lleva las rutas reales de la música del usuario (LEG-23/SEC-22).
+            make_private(self.path)
         except BaseException:
             with contextlib.suppress(OSError):
                 tmp.unlink(missing_ok=True)

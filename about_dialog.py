@@ -37,7 +37,7 @@ DISCLAIMER_PATH = ROOT / "DISCLAIMER.md"
 
 # Igual a «Versión del aviso» de DISCLAIMER.md (un test lo verifica). Cambiarla
 # vuelve a mostrar el aviso a quien ya lo había aceptado.
-DISCLAIMER_VERSION = "2026-10-16.1"
+DISCLAIMER_VERSION = "2026-10-16.2"
 _DISCLAIMER_KEY = "disclaimer_accepted"
 
 _LEGAL_TEXT = (
