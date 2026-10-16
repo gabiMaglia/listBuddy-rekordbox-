@@ -105,6 +105,10 @@ class AudioPlayer(QObject):
 
     def _on_error(self, _err: QMediaPlayer.Error, msg: str) -> None:
         if _err != QMediaPlayer.Error.NoError:
+            # Un error es una parada real: sin esto la próxima pista que suene no emite True.
+            if self._last_playing:
+                self._last_playing = False
+                self.playing_changed.emit(False)
             self.error.emit(msg or "No se pudo reproducir el archivo")
 
     def _on_position(self, pos: int) -> None:

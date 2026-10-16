@@ -230,6 +230,60 @@ def test_playing_changed_only_emits_real_changes_when_starting_and_switching_tra
     assert out == "[True, False]"
 
 
+def test_playing_changed_fires_again_after_a_file_that_does_not_open() -> None:
+    # V2 (D-21): tras un error, _last_playing no puede quedar en True.
+    out = _run(
+        "import wave, numpy as np\n"
+        "from PySide6.QtCore import QEventLoop, QTimer\n"
+        "def mkwav(n):\n"
+        "    p = tmp / f'a{n}.wav'\n"
+        "    with wave.open(str(p), 'wb') as f:\n"
+        "        f.setnchannels(1); f.setsampwidth(2); f.setframerate(11025)\n"
+        "        f.writeframes((np.sin(np.arange(11025 * 3) / 5) * 8000).astype('<i2').tobytes())\n"
+        "    return str(p)\n"
+        "def pump(ms):\n"
+        "    loop = QEventLoop(); QTimer.singleShot(ms, loop.quit); loop.exec()\n"
+        "from audio_player import AudioPlayer\n"
+        "pl_ = AudioPlayer(); seen = []\n"
+        "pl_.playing_changed.connect(seen.append)\n"
+        "pl_.play(mkwav(1)); pump(700)\n"
+        "bad = tmp / 'roto.mp3'; bad.write_bytes(os.urandom(5000))\n"
+        "pl_.play(str(bad)); pump(1500)\n"
+        "n = len(seen)\n"
+        "pl_.play(mkwav(3)); pump(700)\n"
+        "print(seen[n:] == [True], pl_.is_playing())\n",
+    )
+    assert out == "True True"
+
+
+def test_ui_shows_pause_glyph_when_playing_after_an_audio_error() -> None:
+    out = _win(
+        "import os, wave, numpy as np, tempfile, pathlib\n"
+        "from PySide6.QtCore import QEventLoop, QTimer\n"
+        "import ui\n"
+        "ui.dialogs.warning = lambda *a, **k: None\n"
+        "tmp = pathlib.Path(tempfile.mkdtemp())\n"
+        "def mkwav(n):\n"
+        "    p = tmp / f'a{n}.wav'\n"
+        "    with wave.open(str(p), 'wb') as f:\n"
+        "        f.setnchannels(1); f.setsampwidth(2); f.setframerate(11025)\n"
+        "        f.writeframes((np.sin(np.arange(11025 * 3) / 5) * 8000).astype('<i2').tobytes())\n"
+        "    return str(p)\n"
+        "def pump(ms):\n"
+        "    loop = QEventLoop(); QTimer.singleShot(ms, loop.quit); loop.exec()\n"
+        "w, _ = make()\n"
+        "glyphs = []\n"
+        "orig = w._footer.set_play_glyph\n"
+        "w._footer.set_play_glyph = lambda n: (glyphs.append(n), orig(n))[1]\n"
+        "w._audio.play(mkwav(1)); pump(700)\n"
+        "bad = tmp / 'roto.mp3'; bad.write_bytes(os.urandom(5000))\n"
+        "w._audio.play(str(bad)); pump(1500)\n"
+        "w._audio.play(mkwav(3)); pump(700)\n"
+        "print(w._is_playing, glyphs[-1])\n"
+    )
+    assert out == "True pause"
+
+
 # ── D-22 ──────────────────────────────────────────────────────────────────
 
 def test_pump_render_queue_after_the_window_is_destroyed_is_silent() -> None:
