@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import os
 import sys
 import time
 from io import BytesIO
@@ -2143,6 +2144,20 @@ class MainWindow(QMainWindow):
                 thread.requestInterruption()
                 thread.wait(2000)
         super().closeEvent(event)
+        self._exit_if_threads_hung()
+
+    def _exit_if_threads_hung(self) -> None:
+        """TEC-24: un `stat`/decoder colgado en el kernel (USB dormido, SMB caído) no se puede
+        esperar sin tope ni destruir en vuelo (Qt aborta con SIGABRT). Esos hilos solo leen, así
+        que no hay nada que proteger: se guarda lo propio y el proceso sale limpio, el SO libera el
+        hilo. El export no entra acá: escribe, y se espera entero (D-16)."""
+        hung = [t for t in (*self._live_threads, *self._live_wave_workers) if t.isRunning()]
+        if not hung:
+            return
+        _logger.warning("Cierre con %d hilo(s) de lectura colgado(s): salida directa", len(hung))
+        self.settings.sync()
+        logging.shutdown()
+        os._exit(0)
 
     _RECHECK_EVERY_S = 5.0
 
