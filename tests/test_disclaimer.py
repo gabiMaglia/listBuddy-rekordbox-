@@ -116,3 +116,30 @@ def test_write_confirmations_state_the_users_responsibility() -> None:
         "w._confirm_relocate_start('/tmp', False, None)\n"
         "print('bajo tu responsabilidad' in asked[0], 'Aviso legal' in asked[0])\n")
     assert out == "True True"
+
+
+def _section_8() -> str:
+    m = re.search(r"^## 8\. Privacidad\n(.*?)^## 9\. ", _DOC, re.M | re.S)
+    assert m
+    return " ".join(m.group(1).split())
+
+
+def test_privacy_section_names_files_location_deletion_and_update_option() -> None:
+    s = _section_8()
+    for needle in (
+        "listBuddy.log", "settings.ini", "rb_xml_path", "tk_collection_path",
+        "last_dest_folder", "audio_device_id", "Application Support", "%APPDATA%",
+        "Logs", "borrá", "Configuración → Privacidad", "Buscar actualizaciones al iniciar",
+    ):
+        assert needle in s, needle
+
+
+def test_users_who_accepted_the_previous_version_see_the_notice_again() -> None:
+    out = run(BOOT +
+        "import about_dialog\n"
+        "from PySide6.QtCore import QSettings\n"
+        "import tempfile, os\n"
+        "s = QSettings(os.path.join(tempfile.mkdtemp(), 's.ini'), QSettings.Format.IniFormat)\n"
+        "s.setValue('disclaimer_accepted', '2026-10-15.2')\n"
+        "print(about_dialog.disclaimer_pending(s))\n")
+    assert out == "True"
