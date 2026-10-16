@@ -15,6 +15,7 @@ def data_dir() -> Path:
     else:
         d = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "listBuddy"
     d.mkdir(parents=True, exist_ok=True)
+    make_private(d)
     return d
 
 
@@ -29,7 +30,7 @@ def default_settings_path(frozen: bool | None = None) -> Path:
 
 
 def make_private(path: Path, *, create: bool = False) -> None:
-    """Deja `path` legible solo por el usuario (0600) en POSIX; en Windows no hace nada
+    """Deja `path` legible solo por el usuario (0600; 0700 si es una carpeta) en POSIX; en Windows no hace nada
     (ahí el perfil del usuario ya es privado). `create` lo crea vacío si falta, para
     que Qt (QSaveFile) conserve el modo al reescribirlo. Es del propio usuario, así
     que un archivo viejo con 0644 se ajusta sin avisar."""
@@ -39,6 +40,6 @@ def make_private(path: Path, *, create: bool = False) -> None:
         if create and not path.exists():
             os.close(os.open(path, os.O_CREAT | os.O_WRONLY, 0o600))
         if path.exists():
-            path.chmod(0o600)
+            path.chmod(0o700 if path.is_dir() else 0o600)
     except OSError:
         pass  # filesystem sin permisos POSIX (FAT/red): no es motivo para no arrancar

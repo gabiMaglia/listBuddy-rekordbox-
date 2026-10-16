@@ -35,6 +35,7 @@ def log_dir() -> Path:
     else:
         d = Path.home() / ".local" / "state" / "listBuddy"
     d.mkdir(parents=True, exist_ok=True)
+    make_private(d)
     return d
 
 
