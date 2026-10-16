@@ -23,6 +23,7 @@ exporta (formato publicado por AlphaTheta para terceros) y el NML de Traktor.
 | numpy (incluye OpenBLAS y otras bibliotecas empaquetadas) | 2.4.6 | BSD-3-Clause y otras (ver archivo) | `licenses/numpy.txt` |
 | certifi | 2026.7.22 | MPL-2.0 | `licenses/certifi.txt`, `licenses/MPL-2.0.txt` |
 | qrcode (QR de la pantalla Apoyar) | 8.2 | BSD-3-Clause | `licenses/qrcode.txt` |
+| colorama (dependencia de qrcode y pytest en Windows; pineada para el lock con hashes) | 0.4.6 | BSD-3-Clause | `licenses/colorama.txt` |
 | Python (intérprete y biblioteca estándar; incluye libexpat, libmpdec, liblzma, libzstd, zlib, bzip2 y libffi) | 3.14 | PSF-2.0 y las licencias de esas bibliotecas (MIT, BSD, dominio público; ver archivo) | `licenses/Python.txt` |
 | Íconos Feather (varios trazos de `icons.py` derivan de ellos) | — | MIT | `licenses/Feather.txt` |
 | Fuente Sora | — | SIL Open Font License 1.1 | `fonts/OFL-Sora.txt` |

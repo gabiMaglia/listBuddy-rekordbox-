@@ -159,3 +159,19 @@ class TestSafeReleaseUrl:
     ])
     def test_rejects_everything_else(self, bad):
         assert update_checker.safe_release_url(bad) is None
+
+
+class TestSafeReleaseUrlEncodedDots:
+    """Verifier T-092 D2: `%2e%2e` y `.%2e` son `..` para el navegador; no pueden pasar la validación."""
+
+    @pytest.mark.parametrize("path", ["%2e%2e/evil", "%2E%2E/evil", ".%2e/evil", "a/%2e%2e/%2e%2e/x", "%2e/x"])
+    def test_percent_encoded_dot_segments_are_rejected(self, path):
+        assert update_checker.safe_release_url(f"https://github.com/gabiMaglia/listBuddy-rekordbox-/releases/{path}") is None
+
+    @pytest.mark.parametrize("tail", ["\n", "\t", " ", "\r"])
+    def test_trailing_whitespace_is_rejected(self, tail):
+        assert update_checker.safe_release_url(_OK + tail) is None
+
+    def test_plain_tag_still_accepted(self):
+        assert update_checker.safe_release_url(_OK + "/download/x.dmg") == _OK + "/download/x.dmg"
+

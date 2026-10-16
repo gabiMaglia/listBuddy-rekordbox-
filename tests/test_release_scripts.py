@@ -490,3 +490,17 @@ def test_c4_workflow_stores_profile_in_temp_keychain() -> None:
     assert re.search(r'store-credentials listbuddy[\s\S]{0,200}?--keychain "\$KEYCHAIN_PATH"', step)
     assert 'echo "NOTARY_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"' in step
     assert 'security delete-keychain "$KEYCHAIN_PATH"' in _steps("Limpiar keychain temporal")
+
+
+def test_windows_lock_has_colorama_and_build_script_stops_on_pip_failure() -> None:
+    """Verifier T-092 D1: el lock se compila en macOS; qrcode y pytest exigen colorama solo en win32.
+    Sin el pin explícito, `pip install --require-hashes` falla en Windows («must have their versions pinned»),
+    y el .ps1 seguía igual porque $ErrorActionPreference no corta comandos nativos."""
+    for lock in ("requirements.txt", "requirements-dev.txt"):
+        text = (PROJECT_ROOT / lock).read_text(encoding="utf-8")
+        assert re.search(r"^colorama==[\d.]+ \\\n    --hash=sha256:[0-9a-f]{64}", text, re.M), f"{lock}: sin colorama pineado con hash"
+    ps1 = (PROJECT_ROOT / "scripts" / "build_windows.ps1").read_text(encoding="utf-8")
+    installs = [l for l in ps1.splitlines() if re.match(r"\s*& \$pip install", l)]
+    assert len(installs) >= 2
+    assert ps1.count("$LASTEXITCODE -ne 0") >= len(installs), "cada pip install debe cortar el script si falla"
+
