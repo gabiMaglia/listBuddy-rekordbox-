@@ -258,7 +258,8 @@ _WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "release.yml"
 def _steps(name_part: str) -> str:
     """Texto del paso del workflow cuyo `name:` contiene name_part (hasta el próximo `- `)."""
     text = _WORKFLOW.read_text(encoding="utf-8")
-    m = re.search(rf"- name: [^\n]*{re.escape(name_part)}[^\n]*\n(.*?)(?=\n      - |\n  \w)", text, re.S)
+    # `\Z`: el último paso del archivo no tiene otro `- ` detrás (QA T-097 D7 lo encontró).
+    m = re.search(rf"- name: [^\n]*{re.escape(name_part)}[^\n]*\n(.*?)(?=\n      - |\n  \w|\Z)", text, re.S)
     assert m, name_part
     return m.group(0)
 
@@ -408,14 +409,51 @@ def test_c3_release_job_uses_only_first_party_actions_and_gh() -> None:
     assert "GH_TOKEN: ${{ github.token }}" in job and "GH_REPO: ${{ github.repository }}" in job
 
 
-def test_c3_release_job_fails_if_an_expected_asset_is_missing() -> None:
-    """Sin fail_on_unmatched_files de softprops, el job comprueba los 6 assets a mano."""
-    job = _job_text("release")
-    for needle in ("-arm64.dmg", "-x86_64.dmg", "-arm64.dmg.sha256", "-x86_64.dmg.sha256",
-                   "-src.tar.gz", "-src.tar.gz.sha256"):
-        assert needle in job, needle
-    step = _steps("Verificar assets")
-    assert "exit 1" in step or "::error::" in step
+_EXPECTED_ASSETS = ("ListBuddy-${VERSION}-arm64.dmg", "ListBuddy-${VERSION}-arm64.dmg.sha256",
+                    "ListBuddy-${VERSION}-x86_64.dmg", "ListBuddy-${VERSION}-x86_64.dmg.sha256",
+                    "listbuddy-${VERSION}-src.tar.gz", "listbuddy-${VERSION}-src.tar.gz.sha256")
+
+
+def _step_run(name_part: str) -> str:
+    """Bloque `run: |` real del paso (sin el `run:`), des-indentado."""
+    step = _steps(name_part)
+    m = re.search(r"^( *)run: \|\n((?:\1 +[^\n]*\n|\n)+)", step + "\n", re.M)
+    assert m, f"{name_part}: sin bloque run: |"
+    indent = len(m.group(1)) + 2
+    return "".join(l[indent:] + "\n" if len(l) > indent else "\n" for l in m.group(2).splitlines())
+
+
+def test_c3_release_job_lists_all_six_assets_in_check_and_in_gh_release() -> None:
+    """QA T-097 D7: cada asset, con su nombre completo, está en el paso de verificación Y en `gh release create`
+    (una subcadena suelta en el job no alcanza: sacar un DMG del create pasaba inadvertido)."""
+    check, create = _step_run("Verificar assets"), _step_run("Crear release")
+
+    def has_token(text: str, tok: str) -> bool:
+        # Palabra entera: «…-arm64.dmg» NO debe darse por presente porque exista «…-arm64.dmg.sha256».
+        return re.search(rf'(?<![\w./]){re.escape(tok)}(?![\w.])', text) is not None
+
+    for asset in _EXPECTED_ASSETS:
+        assert has_token(check, asset), f"falta en la verificación: {asset}"
+        assert has_token(create, f"assets/{asset}"), f"falta en gh release create: {asset}"
+    assert "gh release create" in create and "--verify-tag" in create and "--draft" in create
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+@pytest.mark.parametrize("missing", list(range(6)))
+def test_c3_asset_check_step_really_fails_when_one_is_missing(tmp_path, missing) -> None:
+    """QA T-097 D7: el `run:` del paso se ejecuta en bash: con los 6 assets pasa; sin cualquiera, exit 1 y lo nombra."""
+    script = _step_run("Verificar assets")
+    version = "9.9.9"
+    names = [a.replace("${VERSION}", version) for a in _EXPECTED_ASSETS]
+    (tmp_path / "assets").mkdir()
+    for n in names:
+        (tmp_path / "assets" / n).write_bytes(b"x")
+    env = {"PATH": "/usr/bin:/bin", "GITHUB_REF_NAME": f"v{version}"}
+    ok = subprocess.run(["bash", "-e", "-c", script], cwd=tmp_path, env=env, capture_output=True, text=True)
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    (tmp_path / "assets" / names[missing]).unlink()
+    r = subprocess.run(["bash", "-e", "-c", script], cwd=tmp_path, env=env, capture_output=True, text=True)
+    assert r.returncode == 1 and names[missing] in r.stdout + r.stderr, r.stdout + r.stderr
 
 
 # ── C4: credenciales de notarytool en el keychain temporal ──────────────────
