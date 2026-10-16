@@ -167,3 +167,53 @@ def test_traktor_open_can_be_cancelled(tmp_path: Path) -> None:
     _nml(nml, 50)
     with pytest.raises(tk.LoadCancelled):
         tk.open_collection(nml, should_cancel=lambda: True)
+
+
+def test_track_source_roundtrips_escapes_nesting_and_tails(tmp_path: Path) -> None:
+    raw = (
+        '<TRACK TrackID="1" Name="a &amp; &lt;b&gt; &quot;c&quot;&#10;d" Location="file://localhost/x/a.mp3">tx'
+        '<POSITION_MARK Name="Ñ &amp; &quot;q&quot; &#9;t&#10;n" Start="1"/>cola &amp; &lt;1&gt;'
+        '<NESTED a="1"><INNER b="2">hola &lt;x&gt;</INNER>fin</NESTED><VACIO></VACIO></TRACK>'
+    )
+    xml = tmp_path / "rekordbox.xml"
+    xml.write_text(
+        '<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0">'
+        f'<COLLECTION Entries="1">{raw}</COLLECTION><PLAYLISTS><NODE Type="0" Name="ROOT" Count="1">'
+        '<NODE Type="1" Name="P" KeyType="0" Entries="1"><TRACK Key="1"/></NODE></NODE></PLAYLISTS></DJ_PLAYLISTS>',
+        encoding="utf-8")
+    track = _playlists(rx.open_library(xml))[0].tracks[0]
+    assert ET.tostring(track.element) == ET.tostring(ET.fromstring(raw))
+
+
+@pytest.mark.parametrize("encoding,decl", [
+    ("utf-8", ""), ("utf-8-sig", ""), ("latin-1", ' encoding="ISO-8859-1"'), ("utf-16", ' encoding="UTF-16"'),
+])
+def test_non_utf8_encodings_and_edge_tags_load_and_export_the_same(
+    tmp_path: Path, encoding: str, decl: str,
+) -> None:
+    body = (
+        f'<?xml version="1.0"{decl or " encoding=" + chr(34) + "UTF-8" + chr(34)}?><DJ_PLAYLISTS Version="1.0.0">'
+        '<COLLECTION Entries="3">'
+        '<TRACK TrackID="1" Name="Ñandú > raw" Artist="Á" Location="file://localhost/x/uno.mp3"/>'
+        '<TRACK TrackID="2" Name="Dos" Location="file://localhost/x/dos.mp3"></TRACK>'
+        '<TRACK TrackID="3" Name="Tres" Location="file://localhost/x/tres.mp3"><TEMPO Inizio="0" Bpm="1"/></TRACK>'
+        '</COLLECTION><PLAYLISTS><NODE Type="0" Name="ROOT" Count="1">'
+        '<NODE Type="1" Name="P" KeyType="0" Entries="3"><TRACK Key="1"/><TRACK Key="2"/><TRACK Key="3"/></NODE>'
+        '</NODE></PLAYLISTS></DJ_PLAYLISTS>')
+    xml = tmp_path / "rekordbox.xml"
+    xml.write_bytes(body.encode(encoding))
+    tracks = _playlists(rx.open_library(xml))[0].tracks
+    assert [t.title for t in tracks] == ["Ñandú > raw", "Dos", "Tres"]
+    assert [t.element.get("TrackID") for t in tracks] == ["1", "2", "3"]
+    assert tracks[0].element.get("Artist") == "Á" and len(tracks[0].element) == 0
+    assert [c.tag for c in tracks[2].element] == ["TEMPO"]
+
+
+def test_tracks_spanning_read_chunks_are_cut_correctly(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    xml = tmp_path / "rekordbox.xml"
+    _big_xml(xml, 40)
+    monkeypatch.setattr(rx, "_CHUNK", 37)       # cortes en medio de etiquetas, atributos y cierres
+    monkeypatch.setattr(rx, "_MARGIN", 400)     # y la ventana sí se recorta
+    tracks = _playlists(rx.open_library(xml))[0].tracks
+    assert len(tracks) == 40
+    assert all(len(t.element) == 7 and t.element.get("TrackID") == str(i) for i, t in enumerate(tracks))
