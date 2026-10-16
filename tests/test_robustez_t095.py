@@ -200,3 +200,22 @@ def test_playing_changed_only_emits_real_changes_when_starting_and_switching_tra
         "print(seen)\n",
     )
     assert out == "[True, False]"
+
+
+# ── D-22 ──────────────────────────────────────────────────────────────────
+
+def test_pump_render_queue_after_the_window_is_destroyed_is_silent() -> None:
+    r = run_isolated(
+        BOOT +
+        "from PySide6.QtCore import QCoreApplication, QEvent, QTimer\n"
+        "from preview_worker import GroupData\n"
+        "w, _ = make()\n"
+        "w._render_queue.append(GroupData('X', 1, 0, [], card=None))\n"
+        "QTimer.singleShot(0, w._pump_render_queue)\n"
+        "w.deleteLater()\n"
+        "QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)\n"
+        "app.processEvents(); app.processEvents()\n"
+        "print('fin')\n",
+        cold=True,
+    )
+    assert r.returncode == 0 and "already deleted" not in r.stderr, r.stderr[-1500:]

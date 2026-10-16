@@ -15,6 +15,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Literal
 
+from shiboken6 import isValid
 from PySide6.QtCore import (
     QEventLoop, QPoint, QSize, QThread, Qt, QTimer, QUrl, QSettings,
     QPropertyAnimation, QEasingCurve,
@@ -1689,6 +1690,10 @@ class MainWindow(QMainWindow):
     def _pump_render_queue(self) -> None:
         """Procesa un grupo por tick del event loop — nunca bloquea la UI."""
         if not self._render_queue:
+            return
+        if not isValid(self.preview_layout):
+            # El timer sobrevivió a la ventana (cierre, tests): nada que dibujar.
+            self._render_queue.clear()
             return
         data = self._render_queue.pop(0)
         if data.card in self._preview_cards:
