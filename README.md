@@ -49,6 +49,13 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
 
 - **Código fuente:** el de cada versión está en la sección [Código fuente](#código-fuente).
+- **Verificá la descarga:** cada release trae un `.sha256` junto al archivo. Con el `.dmg` y su `.dmg.sha256` en la misma carpeta:
+
+  ```bash
+  shasum -a 256 -c ListBuddy-<versión>.dmg.sha256     # debe decir: ListBuddy-<versión>.dmg: OK
+  ```
+
+  Lo mismo vale para el fuente de esa versión, `listbuddy-<versión>-src.tar.gz` (con su `listbuddy-<versión>-src.tar.gz.sha256`). Si dice `FAILED`, no lo abras y bajalo de nuevo desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
 - **macOS 14 o posterior.** Abrí el `.dmg` y arrastrá **List Buddy** a Aplicaciones.
 - **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente.
 
