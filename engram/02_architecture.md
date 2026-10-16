@@ -19,8 +19,8 @@
 | ADR-001 | Relocate de links rotos en playlists de Traktor: backup, escritura atómica del NML, matching y sync COLLECTION↔PLAYLISTS | Aceptado | 2026-07-23 |
 | ADR-002 | Relocate de links rotos para Rekordbox 6 (F-08): backup del master.db SQLCipher, USN, transacción única y reuso del matching de ADR-001 sobre `update_content_path` | Aceptado | 2026-07-24 |
 | ADR-004 | Rekordbox solo por el XML oficial exportado: sin master.db, pyrekordbox ni SQLCipher (reemplaza a ADR-002) | Aceptado | 2026-10-14 |
-| ADR-006 | Carga de librería asíncrona y sin DOM: TRACK de Rekordbox como texto crudo (expat) y estado de carga por generación en la UI (T-094) | Propuesto | 2026-10-16 |
-| ADR-005 | Modelo de release y firma en CI: secrets en environment `release` atado a tags `v*`, tags fail-closed, sin acciones de terceros con escritura, `release_mac.sh` como única lógica | Propuesto | 2026-10-16 |
+| ADR-006 | Carga de librería asíncrona y sin DOM: TRACK de Rekordbox como texto crudo (expat) y estado de carga por generación en la UI (T-094) | Aceptado (PO, 2026-10-16) | 2026-10-16 |
+| ADR-005 | Modelo de release y firma en CI: secrets en environment `release` atado a tags `v*`, tags fail-closed, sin acciones de terceros con escritura, `release_mac.sh` como única lógica | Aceptado (PO, 2026-10-16) | 2026-10-16 |
 
 ## ADR-001: Relocate de links rotos en playlists de Traktor (F-07)
 
@@ -181,7 +181,7 @@ fixes (I-1/I-2/I-4 se aplican dos veces por la duplicación).
 
 ## ADR-005: Modelo de release y firma en CI (T-097)
 
-**Estado:** Propuesto (nerv-arquitecto, 2026-10-16; revisión P-2 de T-097). Lo acepta el PO.
+**Estado:** Aceptado (ratificado por el PO en sesión, 2026-10-16) (nerv-arquitecto, 2026-10-16; revisión P-2 de T-097). Lo acepta el PO.
 
 **Contexto:** `.github/workflows/release.yml` firma con el Developer ID del PO y notariza con una API key de App Store Connect, en un repo público con un solo mantenedor. Hoy los secrets son del repo y quien decide si se firma es un `if:` dentro del propio workflow. Un PR del mismo repo o un `workflow_dispatch` sobre una rama corren el YAML de esa rama con los secrets disponibles. Un `if` no sirve como frontera de seguridad.
 
@@ -198,7 +198,7 @@ fixes (I-1/I-2/I-4 se aplican dos veces por la duplicación).
 
 ## ADR-006: Carga de librería asíncrona y sin DOM (T-094)
 
-**Estado:** Propuesto (nerv-arquitecto, 2026-10-16; revisión P-2 de T-094). Lo acepta el PO.
+**Estado:** Aceptado (ratificado por el PO en sesión, 2026-10-16) (nerv-arquitecto, 2026-10-16; revisión P-2 de T-094). Lo acepta el PO.
 
 **Contexto:** SEC-09/TEC-05: `ET.parse` del rekordbox.xml retenía el DOM entero (8,3× el XML en RSS) y bloqueaba el hilo de UI. `iterparse` medido es más lento que `ET.parse` (13,7 s vs 10 s en 169 MB) y re-serializar los hijos costaba otros 8 s. Además, `write_playlists_xml` necesita el TRACK completo (cues, beatgrid) para exportar.
 
