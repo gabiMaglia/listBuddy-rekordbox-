@@ -4,6 +4,11 @@
 > cierre (P-10). Las lecciones de proceso que aplican a CUALQUIER proyecto se promueven
 > a ~/.nerv/playbook.md; lo específico de este proyecto queda acá.
 
+### 2026-10-16 — Integración y cierre de T-092..T-097 (QA + arquitecto + verifier)
+**Bien:** el verifier ciego encontró 5 defectos reales que QA había aprobado o dejado como «Deducido» (previa≠export, estado del player tras error, marcas perdidas en recarga doble, lock inútil en Windows, ruleset sin Restrict updates): la independencia paga. La revisión de arquitectura por tope P-2 también dio defectos de código reales (corrupción silenciosa con etiquetas > 64 KiB, codecs no textuales). Dos agentes en paralelo máximo: cero flakiness. Gate determinista + ratificación explícita del PO en vez de estampas inventadas.
+**Mal:** 7 de 13 rondas de QA y 2 de las refutaciones del verifier fueron por tests débiles (subcadenas, `lambda: True`, regex incompletas), varias escritas por el Orquestador «porque era simple»: cada una costó una ronda entera (~100k tokens). Dos veces commiteé informes de verifier con la ruta personal porque corrí `git grep` ANTES de `git add`. Los dos arquitectos numeraron su ADR igual (005) al correr en paralelo. El `_state.md` decía «a medias» lo que seguía corriendo en otra sesión.
+**Acción:** antes de mandar a QA un test escrito por el Orquestador, correr la mutación obvia uno mismo (ya es regla P-18, cumplirla). `git grep` de rutas personales DESPUÉS de `git add -A`, siempre. Numeración de ADR: el Orquestador reserva el número en el handoff cuando lanza arquitectos en paralelo. Al cerrar con agentes en vuelo, el state debe decir «sesión X sigue viva con N agentes», no «pueden estar a medias».
+
 ### 2026-10-15 — QA formal T-080..T-085 + D-11
 **Bien:** tres nerv-qa en paralelo con artefacto propio y prohibición de tocar el backlog; el Done lo consolidó después un solo QA → sin carreras sobre el mismo archivo y backlog-check OK. QA encontró un bug real de producto (D-11, duplicados por codificación) que se reprodujo con un archivo real, se arregló con clave canónica y se verificó con mutación.
 **Mal:** nerv-gate.sh no aplica a auditorías post-merge (pide handoff de retorno y --files) → los tres QA lo reemplazaron por suite + mutaciones; falta un modo «auditoría» del gate. El `.app` auditado era viejo (D-10).

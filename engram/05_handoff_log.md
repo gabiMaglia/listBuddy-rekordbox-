@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 13:00] CIERRE DE SESIÓN
+- Hecho hoy: retoma coordinada con la sesión anterior (sus 6 agentes terminaron T-092..T-097); integración en `release/1.0.0-rc2` (4 conflictos + 2 fixes de integración); gate P-12 por ticket (PASS tras ratificación del PO de los planes); QA formal 13 rondas (7 rechazos), arquitecto en T-094/T-097 (tope P-2, ADR-005/006 aceptados), verifier ciego 9 rondas (4 refutaciones con defectos reales: nombres previa≠export, playing_changed tras error, recarga doble perdía marcas, lock sin colorama para Windows, ruleset de tags). Suite 757 passed. Merge a main y push autorizado. Altas T-098/T-099, deuda D-29..D-32.
+- Próximo paso: PO configura GitHub (environment/ruleset/secrets) y Apple; nerv-devops revisa Settings; datos legales; tag v1.0.0.
+- Quien retoma: nerv-orquestador → nerv-devops (pre-tag) / nerv-arquitecto (ADR-005 §1).
+
 ### [2026-10-16 09:20] Verifier T-094 CONFIRMADO (Done) · verifier T-092 REFUTADO → fix del Orquestador · verifiers T-096/T-097 en curso
 - T-092 D1 (real, Windows): el lock con hashes se compila en macOS y no trae `colorama` (qrcode y pytest la exigen solo en win32) → `pip install --require-hashes` fallaría en Windows y el .ps1 seguía. Fix: `colorama` pineada en requirements.in (locks regenerados, licencia BSD-3 registrada), `$LASTEXITCODE` tras cada pip en build_windows.ps1. D2: `safe_release_url` rechaza segmentos `.`/`..` también decodificados (`%2e`) y espacios/`\n` finales. Tests rojos antes (8).
 - Siguiente: re-verificación ciega de T-092 cuando termine uno de los dos verifiers en vuelo; después suite completa, merge a main, push, cierre.
