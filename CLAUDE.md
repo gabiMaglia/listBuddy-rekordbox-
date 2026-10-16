@@ -211,7 +211,15 @@ Para este proyecto, **seguir con PyInstaller** salvo que surja un problema grave
   pip install --require-hashes -r requirements.txt   # así lo instalan release_mac.sh y build_windows.ps1
   ```
 
-  El lock lo resuelve la plataforma donde corre `pip-compile` (hoy macOS): un paquete que solo se instala en Windows (p. ej. `colorama` de pytest) no aparece en `requirements-dev.txt`. PyInstaller (`==6.20.0`) se instala aparte en ambos scripts, sin hash. Tras cambiar versiones, correr `scripts/collect_licenses.py`.
+  El lock lo resuelve la plataforma donde corre `pip-compile` (hoy macOS): un paquete que solo se instala en Windows (p. ej. `colorama` de pytest) no aparece en `requirements-dev.txt`. Tras cambiar versiones, correr `scripts/collect_licenses.py`.
+- **Toolchain de build con hashes (T-107, SEC-17/SEC-23):** PyInstaller (6.22.x) y sus dependencias (hooks-contrib, setuptools, macholib, altgraph, pip) viven en `requirements-build.in` → `requirements-build.txt`, y `release_mac.sh` los instala con `--require-hashes`. Para subir de versión, editar el `.in` y regenerar (en un venv aparte con `pip-tools`; `--allow-unsafe` es obligatorio, sin él setuptools/pip quedan sin hash):
+
+  ```bash
+  pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-build.txt requirements-build.in
+  ```
+
+  Resuelve la plataforma donde corre (macOS: sin pefile/pywin32-ctypes). Después correr el smoke de CI (`check_bundle.sh` + minos-check) con el PyInstaller nuevo.
+- **CI en dos fases (D-a):** `release_mac.sh --build-only` (venv, deps, PyInstaller, `check_bundle`, minos; sin firmar) corre ANTES de importar el certificado; luego `release_mac.sh --skip-build` firma, arma el DMG y notariza. `--build-only` y `--skip-build` son excluyentes. `dist/` se limpia de artefactos propios viejos y el script aborta si hay archivos ajenos.
 - El spec saca QtPdf/QtQuick/QtQml/QtVirtualKeyboard (`excludes` + filtro de `a.binaries`/`a.datas`) y `check_bundle.sh` falla si reaparecen.
 
 ---

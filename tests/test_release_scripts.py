@@ -121,9 +121,8 @@ def test_build_windows_matches_spec_output_and_pins_pyinstaller() -> None:
     assert "name='listBuddy'" in spec and "COLLECT(" in spec          # one-dir
     assert r"dist\listBuddy\listBuddy.exe" in ps1
     assert r'"dist\listBuddy.exe"' not in ps1
-    release = _RELEASE.read_text(encoding="utf-8")
-    pin = re.search(r"pyinstaller==([\d.]+)", ps1)
-    assert pin and pin.group(1) == re.search(r"pyinstaller==([\d.]+)", release).group(1)
+    # T-107: macOS toma PyInstaller de requirements-build.txt; el .ps1 sigue con su pin hasta T-108.
+    assert re.search(r"pyinstaller==[\d.]+", ps1)
     assert not re.search(r"install pyinstaller\s*--quiet", ps1)
 
 
@@ -224,7 +223,7 @@ def test_release_publishes_checksums_and_source_tarball_static() -> None:
     for needle in ("shasum -a 256", ".dmg.sha256", "-src.tar.gz", ".tar.gz.sha256",
                    "git archive --format=tar.gz --prefix=listbuddy-${VERSION}/"):
         assert needle in code, needle
-    assert "--require-hashes" in code and "pyinstaller==6.20.0" in code
+    assert "--require-hashes" in code and "requirements-build.txt" in code   # PyInstaller viene del lock (T-107)
 
 
 def test_source_tarball_has_licenses_and_no_dev_or_engram_files(tmp_path) -> None:
@@ -374,7 +373,7 @@ def test_c2_tag_aborts_before_build_without_signing_or_notarization() -> None:
     # Orden: después de importar cert y credenciales, antes del build.
     at = build.index(f"- name: {name}")
     assert build.index("- name: Importar certificado") < at
-    assert at < build.index("- name: Build, firma, DMG y notarización")
+    assert at < build.index("- name: Firma, DMG y notarización")
     assert build.index("- name: Guardar credenciales") < at
 
 
@@ -599,3 +598,264 @@ def test_minos_unknown_macho_above_minimum_aborts(tmp_path) -> None:
     r = _run_minos(tmp_path, {"PySide6/QtCore.abi3.so": "26.0", "libnuevo.dylib": "15.0"})
     assert r.returncode == 1
     assert "libnuevo.dylib" in r.stderr
+
+
+# ── T-107: release/CI endurecido ────────────────────────────────────────────
+
+def _snippet(name: str) -> str:
+    """Tramo del script entre `# >>> name` y `# <<< name` (se ejecuta aparte, con binarios falsos)."""
+    text = _RELEASE.read_text(encoding="utf-8")
+    assert f"# >>> {name}" in text and f"# <<< {name}" in text, name
+    return text.split(f"# >>> {name}", 1)[1].split(f"# <<< {name}", 1)[0]
+
+
+def _fake_bin(tmp_path, **scripts: str):
+    """Directorio de binarios falsos para el PATH; cada valor es el cuerpo sh del comando."""
+    bin_dir = tmp_path / "fakebin"
+    bin_dir.mkdir(exist_ok=True)
+    for name, body in scripts.items():
+        f = bin_dir / name
+        f.write_text("#!/bin/sh\n" + body + "\n")
+        f.chmod(0o755)
+    return bin_dir
+
+
+def _run_snippet(tmp_path, name: str, call: str, bin_dir, *, system_path: bool = True, **env):
+    script = f"set -euo pipefail\n{_snippet(name)}\n{call}\n"
+    e = {"PATH": f"{bin_dir}:/usr/bin:/bin" if system_path else str(bin_dir), **env}
+    return subprocess.run(["/bin/bash", "-c", script], capture_output=True, text=True, env=e, cwd=tmp_path, timeout=60)
+
+
+# xcrun falso: cuenta las llamadas a `stapler staple` y falla las primeras $FAILS veces.
+_FAKE_XCRUN = (
+    'echo "$*" >> "$CALLS"\n'
+    'if [ "$2" = staple ]; then\n'
+    '  n=$(grep -c "stapler staple" "$CALLS")\n'
+    '  [ "$n" -gt "$FAILS" ] || { echo "Error 65 CloudKit" >&2; exit 65; }\n'
+    'fi\n'
+    'exit 0'
+)
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+@pytest.mark.parametrize("fails,ok", [(0, True), (2, True), (5, True), (6, False), (7, False)])
+def test_t107_staple_retries_then_validates_or_aborts(tmp_path, fails, ok) -> None:
+    """APP-23: `stapler staple` se reintenta (6 intentos); 2 fallos → OK + validate; 7 fallos → exit 1."""
+    calls = tmp_path / "calls.txt"
+    bin_dir = _fake_bin(tmp_path, xcrun=_FAKE_XCRUN)
+    r = _run_snippet(tmp_path, "staple-retry", 'staple_with_retry "/x/List Buddy.app"', bin_dir,
+                     CALLS=str(calls), FAILS=str(fails), STAPLE_DELAY="0")
+    lines = calls.read_text().splitlines()
+    staples = [l for l in lines if "stapler staple" in l]
+    assert (r.returncode == 0) is ok, r.stdout + r.stderr
+    if ok:
+        assert len(staples) == fails + 1
+        assert lines[-1] == "stapler validate /x/List Buddy.app"
+    else:
+        assert r.returncode == 1 and len(staples) == 6
+        assert not any("validate" in l for l in lines)
+        assert "notariz" in r.stderr and "List Buddy.app" in r.stderr
+
+
+def test_t107_staple_used_for_app_and_dmg_without_bare_calls() -> None:
+    outside = _RELEASE.read_text(encoding="utf-8").split("# <<< staple-retry", 1)[1]
+    assert re.findall(r"^\s*xcrun stapler (?:staple|validate)", outside, re.M) == []
+    assert 'staple_with_retry "$APP"' in outside and 'staple_with_retry "$DMG"' in outside
+
+
+def test_t107_notary_logs_carry_arch_suffix_and_travel_as_evidence() -> None:
+    """APP-25: notary-{app,dmg}-<v><arch>.json no se pisan entre patas y salen como artefacto de evidencia."""
+    code = "\n".join(_code_lines(_RELEASE))
+    names = re.findall(r"dist/notary-[^\s\"']+\.json", code)
+    assert len(names) == 2 and all("${ARCH_SUFFIX}" in n for n in names), names
+    text = _WORKFLOW.read_text(encoding="utf-8")
+    uploads = re.findall(r"uses: actions/upload-artifact@[^\n]*\n(.*?)(?=\n      - |\n  \w)", text, re.S)
+    notary = [u for u in uploads if "notary-" in u]
+    assert len(notary) == 1
+    assert "${{ matrix.arch }}" in notary[0] and "notary" in notary[0].split("path:")[0]
+    assert "if-no-files-found: ignore" in notary[0]   # ad-hoc no genera logs
+    assert all("notary-" not in u for u in uploads if u is not notary[0])
+    step = _steps("evidencia de notarización")
+    assert re.search(r"^\s*if:\s*always\(\)", step, re.M)   # también si el notary rechaza
+    # nunca entra al GitHub Release: los assets se listan uno por uno
+    assert "notary" not in _step_run("Crear release") and "notary" not in _step_run("Verificar assets")
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+@pytest.mark.parametrize("case,macos,policy,rc,expect_rc,expect_text", [
+    ("ok", "14.8.8", "exit 0", None, 0, ""),
+    ("falla", "15.1", 'echo "ticket" >&2; exit 1', None, 1, "syspolicy_check"),
+    ("sin_binario", "15.1", None, None, 0, "AVISO"),
+    ("macos13", "13.7", "exit 1", None, 0, "AVISO"),
+])
+def test_t107_syspolicy_check_distribution(tmp_path, case, macos, policy, rc, expect_rc, expect_text) -> None:
+    """APP-27: `syspolicy_check distribution "$APP"` tras el staple; sin binario o macOS < 14 avisa y sigue."""
+    fakes = {"sw_vers": f'echo "{macos}"'}
+    if policy is not None:
+        fakes["syspolicy_check"] = f'echo "$*" >> "$CALLS"\n{policy}'
+    bin_dir = _fake_bin(tmp_path, **fakes)
+    calls = tmp_path / "calls.txt"
+    # Sin /usr/bin en el PATH: ahí vive el syspolicy_check real y «sin_binario» no probaría nada.
+    r = _run_snippet(tmp_path, "syspolicy", 'syspolicy_check_app "/x/List Buddy.app"', bin_dir,
+                     system_path=False, CALLS=str(calls))
+    assert r.returncode == expect_rc, r.stdout + r.stderr
+    assert expect_text in r.stdout + r.stderr
+    if case in ("ok", "falla"):
+        assert calls.read_text().strip() == "distribution /x/List Buddy.app"
+    else:
+        assert not calls.exists()
+
+
+def test_t107_syspolicy_runs_after_app_staple_and_before_dmg() -> None:
+    text = _RELEASE.read_text(encoding="utf-8").split("# <<< syspolicy", 1)[1]
+    assert text.index('staple_with_retry "$APP"') < text.index('syspolicy_check_app "$APP"') < text.index("hdiutil create")
+
+
+def test_t107_release_docs_cover_min_macos_bindings_warning_and_first_release_order() -> None:
+    """APP-28: RELEASE.md explica el mínimo 14.4, el AVISO de los 12 bindings y el orden del primer release."""
+    doc = (PROJECT_ROOT / "docs" / "RELEASE.md").read_text(encoding="utf-8")
+    section = doc.split("## Requisitos y avisos del log", 1)[1].split("\n## ", 1)[0]
+    for needle in ("macOS 14.4", "12 bindings", "minos 26.0", "14.8", "AVISO"):
+        assert needle in section, needle
+    order = doc.split("## Orden del primer release", 1)[1].split("\n## ", 1)[0]
+    positions = [order.index(k) for k in ("D-14", "Developer ID Application", "API key", "environment `release`",
+                                          "ruleset", "smoke", "git tag", "Gatekeeper", "Publish release")]
+    assert positions == sorted(positions)
+    for needle in ("stapler staple", "reintenta", "syspolicy_check", "notary-app-", "--build-only"):
+        assert needle in doc, needle
+
+
+def _mk_dist(tmp_path, names: list[str]):
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    for n in names:
+        p = dist / n
+        if n.endswith(".app") or n == "List Buddy":
+            (p / "Contents").mkdir(parents=True)
+            (p / "Contents" / "x").write_text("x")
+        else:
+            p.write_text("x")
+    return dist
+
+
+_OURS = ["List Buddy.app", "List Buddy", "listBuddy.app", "listBuddy", "listBuddy-1.0.dmg", "ListBuddy-1.0.0-arm64.dmg",
+         "ListBuddy-1.0.0-arm64.dmg.sha256", "listbuddy-1.0.0-src.tar.gz", "notary-app-1.0.0.json", ".DS_Store"]
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+@pytest.mark.parametrize("skip_build,kept", [(0, []), (1, ["List Buddy.app"])])
+def test_t107_clean_dist_removes_our_old_artifacts(tmp_path, skip_build, kept) -> None:
+    """TEC-27: los artefactos viejos propios se borran; con --skip-build el .app recién buildeado se conserva."""
+    dist = _mk_dist(tmp_path, _OURS)
+    r = _run_snippet(tmp_path, "clean-dist", "clean_dist", _fake_bin(tmp_path), SKIP_BUILD=str(skip_build),
+                     DRY_RUN="0", APP="dist/List Buddy.app")
+    assert r.returncode == 0, r.stderr
+    assert sorted(p.name for p in dist.iterdir()) == kept
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t107_clean_dist_aborts_on_foreign_files_and_deletes_nothing(tmp_path) -> None:
+    dist = _mk_dist(tmp_path, _OURS + ["tesis-final.pdf"])
+    r = _run_snippet(tmp_path, "clean-dist", "clean_dist", _fake_bin(tmp_path), SKIP_BUILD="0", DRY_RUN="0",
+                     APP="dist/List Buddy.app")
+    assert r.returncode == 1 and "tesis-final.pdf" in r.stderr
+    assert len(list(dist.iterdir())) == len(_OURS) + 1
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t107_clean_dist_dry_run_lists_without_touching(tmp_path) -> None:
+    dist = _mk_dist(tmp_path, _OURS + ["tesis-final.pdf"])
+    r = _run_snippet(tmp_path, "clean-dist", "clean_dist", _fake_bin(tmp_path), SKIP_BUILD="0", DRY_RUN="1",
+                     APP="dist/List Buddy.app")
+    assert r.returncode == 0
+    out = r.stdout + r.stderr
+    assert "[dry-run]" in out and "ListBuddy-1.0.0-arm64.dmg" in out and "tesis-final.pdf" in out
+    assert len(list(dist.iterdir())) == len(_OURS) + 1
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t107_clean_dist_without_dist_dir_is_noop(tmp_path) -> None:
+    r = _run_snippet(tmp_path, "clean-dist", "clean_dist", _fake_bin(tmp_path), SKIP_BUILD="0", DRY_RUN="0",
+                     APP="dist/List Buddy.app")
+    assert r.returncode == 0 and not (tmp_path / "dist").exists()
+
+
+# ── T-107 SEC-17/SEC-23: toolchain de build con hashes y build antes de la clave ──
+
+_BUILD_LOCK = PROJECT_ROOT / "requirements-build.txt"
+
+
+def test_t107_build_lock_is_fully_hashed_and_pins_pyinstaller_6_22() -> None:
+    from _reqs import pinned, unhashed
+    assert (PROJECT_ROOT / "requirements-build.in").is_file()
+    assert unhashed(_BUILD_LOCK) == []
+    locked = pinned(_BUILD_LOCK)
+    assert re.fullmatch(r"6\.22\.\d+", locked["pyinstaller"])
+    # lo que PyInstaller ejecuta en el build y el propio pip van pineados con hash (sin «unsafe» suelto)
+    for dep in ("pyinstaller-hooks-contrib", "setuptools", "macholib", "altgraph", "packaging", "pip"):
+        assert dep in locked, dep
+    text = _BUILD_LOCK.read_text(encoding="utf-8")
+    assert "pip-compile" in text and "--generate-hashes" in text
+
+
+def test_t107_release_script_installs_build_toolchain_only_with_require_hashes() -> None:
+    code = "\n".join(_code_lines(_RELEASE))
+    installs = [l for l in code.splitlines() if "pip install" in l and "echo" not in l]
+    assert installs and all("--require-hashes" in l for l in installs), installs
+    assert any("-r requirements-build.txt" in l for l in installs)
+    assert any("-r requirements.txt" in l for l in installs)
+    assert "PYINSTALLER_PIN" not in code and "pyinstaller==" not in code.lower()
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_t107_build_only_and_skip_build_are_exclusive_and_planned(tmp_path) -> None:
+    r = subprocess.run(["bash", str(_RELEASE), "--build-only", "--skip-build"], cwd=PROJECT_ROOT,
+                       env=_env(tmp_path, "3.14.8"), capture_output=True, text=True, timeout=60)
+    assert r.returncode == 2 and "--build-only" in r.stderr
+    r = subprocess.run(["bash", str(_RELEASE), "--dry-run", "--build-only"], cwd=PROJECT_ROOT,
+                       env=_env(tmp_path, "3.14.8"), capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert "requirements-build.txt" in r.stdout and "--build-only" in r.stdout
+    assert "codesign" not in r.stdout and "notarytool" not in r.stdout and "hdiutil" not in r.stdout
+
+
+def test_t107_build_only_exits_before_any_signing() -> None:
+    code = "\n".join(_code_lines(_RELEASE))
+    body = code.split("# plutil", 1)[0] + code  # el exit va entre el minos-check y la firma
+    text = _RELEASE.read_text(encoding="utf-8")
+    assert text.index("# <<< minos-check") < text.rindex('if [ "$BUILD_ONLY" = 1 ]') < text.index("# ── Firma inside-out")
+    assert "BUILD_ONLY" in body
+
+
+def test_t107_workflow_builds_before_certificate_in_two_phases() -> None:
+    """D-a / SEC-17: pip y PyInstaller nunca corren con la clave de firma disponible."""
+    build = _job_text("build")
+    order = [m.group(1) for m in re.finditer(r"^      - name: (.+)$", build, re.M)]
+    def at(part: str) -> int:
+        idx = [i for i, n in enumerate(order) if part in n]
+        assert len(idx) == 1, (part, order)
+        return idx[0]
+    phase1, cert, creds, strict, phase2 = (at("Build sin credenciales"), at("Importar certificado"),
+                                           at("Guardar credenciales"), at("Exigir firma y notarización"),
+                                           at("Firma, DMG y notarización"))
+    assert phase1 < cert < creds < strict < phase2
+    assert at("Exigir secrets de firma en tags") < phase1       # el fail-closed barato sigue antes del build
+    run1, run2 = _steps("Build sin credenciales"), _steps("Firma, DMG y notarización")
+    assert re.search(r"release_mac\.sh --build-only --arch-suffix", run1)
+    assert re.search(r"release_mac\.sh --skip-build --arch-suffix", run2)
+    # Nada de secrets, identidad ni keychain en el entorno de la fase 1
+    phase1_step = _steps("Build sin credenciales")
+    for forbidden in ("secrets.", "DEVELOPER_ID", "NOTARY_", "KEYCHAIN"):
+        assert forbidden not in phase1_step, forbidden
+    # y los secrets solo se referencian en pasos posteriores al build
+    first_secret = build.index("secrets.MACOS_CERT_P12_BASE64 }}\n          MACOS")
+    assert first_secret > build.index("- name: Build sin credenciales")
+    assert "requirements-build.txt" in _WORKFLOW.read_text(encoding="utf-8").split("pull_request:", 1)[1].split("permissions:", 1)[0]
+
+
+
+def test_t107_claude_md_documents_build_lock_regeneration() -> None:
+    doc = (PROJECT_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-build.txt requirements-build.in" in doc
+    assert "PyInstaller (`==6.20.0`) se instala aparte" not in doc
+    assert "--build-only" in doc
