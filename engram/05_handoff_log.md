@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 02:20] Correcciones de arquitectura mergeadas · ADR-005/006 aceptados · 3ª QA (X) de T-094 y T-097
+- nerv-desktop T-094 (`fix/t094-arq`): C1 ventana no recorta más allá del último `<` + guarda + `SetReparseDeferralEnabled(False)` (hallazgo propio: expat 2.6+ difería el evento un bloque); C2 export captura `ET.ParseError` con diálogo claro; C3 lista blanca de codificaciones de texto. 17 tests rojos antes.
+- nerv-desktop T-097 (`fix/t097-arq`): C1 environment `release` solo en tags (`smoke` sin secrets), C2 abort fail-closed en tags, C3 `gh release create --draft --verify-tag` sin terceros, C4 perfil de notarytool en keychain temporal + `NOTARY_KEYCHAIN`. Todos los tests con mutaciones rojas. El PO debe configurar en GitHub: environment `release` con regla de tag `v*` y los 5 secrets de environment; ruleset de tags; required reviewers opcional (detalle en docs/RELEASE.md).
+- PO aceptó ADR-005 y ADR-006 en sesión. Suite completa en rc2: 732 passed, 2 skipped. 3ª QA (X) lanzada para ambos.
+- Quien retoma: nerv-orquestador → merge a main + push si aprueban; nerv-verifier de los Strong pendiente (ver nota siguiente).
+
 ### [2026-10-16 01:30] Arquitectos T-094 y T-097: DISEÑO CON CORRECCIONES → nerv-desktop (intento 3)
 - T-097: modelo de confianza mal (solo un `if` en el propio YAML guardaba el certificado). C1 secrets en environment `release` atado a tags `v*`; C2 tag sin firma+notarización aborta antes del build; C3 `gh release create --draft --verify-tag` en vez de acción de terceros con `contents: write`; C4 credenciales de notarytool en el keychain temporal (`--keychain`, `NOTARY_KEYCHAIN`). Deuda D-a..D-f a 1.0.1. ADR-005 Propuesto. Recomienda nerv-devops antes del primer tag real (settings de GitHub fuera del repo). Rama `fix/t097-arq`.
 - T-094: diseño apto (texto crudo con expat, cancelación por generación) con 3 defectos reales: C1 ventana de bytes corrompe el texto crudo si una etiqueta de TRACK > 64 KiB cruza el bloque; C2 export sin capturar `ET.ParseError`; C3 declaración acepta codecs no textuales (`zlib_codec`). Deuda: diferir carga al primer paint (1.1). ADR-006 Propuesto (renumerado: ambos arquitectos usaron 005). Rama `fix/t094-arq`.
