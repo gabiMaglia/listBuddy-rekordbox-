@@ -58,7 +58,11 @@ Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBud
   Lo mismo vale para el fuente de esa versión, `listbuddy-<versión>-src.tar.gz` (con su `listbuddy-<versión>-src.tar.gz.sha256`). Si dice `FAILED`, no lo abras y bajalo de nuevo desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
 - **macOS 14 o posterior.** Hay un `.dmg` para Apple Silicon (`-arm64`) y otro para Intel (`-x86_64`);
   abrilo y arrastrá **List Buddy** a Aplicaciones.
-- **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente.
+- **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente. Cuando se publique, el
+  `.exe` **no va a estar firmado** (decisión del proyecto: no pagamos un certificado Authenticode). Windows
+  SmartScreen va a mostrar «Windows protegió tu PC»: hacé click en **Más información** → **Ejecutar de todas
+  formas**. Antes de eso, verificá el `.sha256` del archivo como se explica arriba: la verificación del hash
+  reemplaza a la firma como prueba de que bajaste lo que publicamos.
 
 > **Si macOS bloquea la app** («no se puede abrir porque no se puede verificar al desarrollador»):
 > andá a **Ajustes del Sistema → Privacidad y seguridad**, bajá hasta el aviso de List Buddy y
