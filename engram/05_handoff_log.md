@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-15 23:05] QA T-095 APROBADO · T-092 APROBADO (intento 2) · T-096 RECHAZADO → fix → re-QA (X)
+- T-095 S APROBADO 10/10 (deudas D-29/D-30). T-092 X APROBADO 3/3. T-096 S RECHAZADO: D1 sin test para 3.14.10 en `version_ge` (mutación `sort -V`→`sort` sobrevive). Fix del Orquestador (simple, autorizado por el PO): caso `("3.14.10", {})` en la parametrización; rojo con la mutación, verde sin ella.
+- Re-QA T-096 nivel X (2º intento). T-094 en QA. Falta T-097 y los nerv-verifier.
+- Quien retoma: nerv-orquestador.
+
 ### [2026-10-15 22:40] QA T-092 RECHAZADO (1/2) → fix del Orquestador → re-QA (intento 2, X)
 - Defectos: D1 `_open_update_link` sin test (mutación sobrevive) · D2 ruta personal en engram/qa/T-093.md rompe la suite en rc2. Ambos simples: el PO autorizó al Orquestador a resolver lo simple («si es simple hacelo vos»).
 - Fix: `tests/test_update_link_barrier.py` (2 tests en subproceso; proof of red: con `url = self._update_url` falla, con `safe_release_url` pasa); rutas personales saneadas a `<HOME>` (`git grep` vacío, test verde).

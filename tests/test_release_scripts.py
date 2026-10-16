@@ -171,7 +171,7 @@ def test_release_aborts_on_old_python_and_explains_install(tmp_path) -> None:
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
-@pytest.mark.parametrize("version,extra", [("3.14.8", {}), ("3.15.0", {}), ("3.14.7", {"ALLOW_OLD_PYTHON": "1"})])
+@pytest.mark.parametrize("version,extra", [("3.14.8", {}), ("3.14.10", {}), ("3.15.0", {}), ("3.14.7", {"ALLOW_OLD_PYTHON": "1"})])
 def test_release_accepts_new_python_or_override(tmp_path, version, extra) -> None:
     r = _dry_run(tmp_path, version, **extra)
     assert r.returncode == 0, r.stdout + r.stderr
