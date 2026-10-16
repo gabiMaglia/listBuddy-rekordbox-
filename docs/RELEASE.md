@@ -86,8 +86,10 @@ y [TN3147](https://developer.apple.com/documentation/technotes/tn3147-migrating-
    ```
    Tiene que responder (lista vacía si nunca notarizaste) sin error de autenticación.
 
-En CI el workflow hace `xcrun notarytool store-credentials listbuddy --key … --key-id … --issuer …`
-en el runner y le pasa `NOTARY_PROFILE=listbuddy` al script, igual que en una release manual.
+En CI el workflow hace `xcrun notarytool store-credentials listbuddy --key … --key-id … --issuer … --keychain <temporal>`
+en el keychain temporal del runner y le pasa `NOTARY_PROFILE=listbuddy` y `NOTARY_KEYCHAIN=<temporal>` al script
+(que los usa en `notarytool submit`/`log`). Al terminar, el paso de limpieza borra el keychain y con él las
+credenciales. En tu Mac, sin `NOTARY_KEYCHAIN`, el script usa el perfil del keychain por defecto.
 
 ## Cómo publicar una versión
 

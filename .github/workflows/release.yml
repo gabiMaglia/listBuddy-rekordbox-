@@ -124,8 +124,11 @@ jobs:
           KEY_PATH="$RUNNER_TEMP/AuthKey_${NOTARY_KEY_ID}.p8"
           echo -n "$NOTARY_KEY_P8_BASE64" | base64 --decode -o "$KEY_PATH"
           xcrun notarytool store-credentials listbuddy \
-            --key "$KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID"
+            --key "$KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID" \
+            --keychain "$KEYCHAIN_PATH"
           rm -f "$KEY_PATH"
+          # Perfil en el keychain temporal (el único en la lista de búsqueda); la limpieza lo borra.
+          echo "NOTARY_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "NOTARY_PROFILE=listbuddy" >> "$GITHUB_ENV"
 
       # Fail-closed: un tag nunca produce un borrador con DMG ad-hoc o sin notarizar, ni siquiera

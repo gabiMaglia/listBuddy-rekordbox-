@@ -416,3 +416,39 @@ def test_c3_release_job_fails_if_an_expected_asset_is_missing() -> None:
         assert needle in job, needle
     step = _steps("Verificar assets")
     assert "exit 1" in step or "::error::" in step
+
+
+# ── C4: credenciales de notarytool en el keychain temporal ──────────────────
+
+_SIGN_ENV = {"DEVELOPER_ID": "Developer ID Application: X (TEAM)", "NOTARY_PROFILE": "listbuddy",
+             "ALLOW_OLD_PYTHON": "1"}
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_c4_dry_run_passes_keychain_only_with_notary_keychain(tmp_path) -> None:
+    kc = "/tmp/ci/listbuddy-signing.keychain-db"
+    with_kc = _dry_run(tmp_path, "3.14.8", NOTARY_KEYCHAIN=kc, **_SIGN_ENV)
+    assert with_kc.returncode == 0, with_kc.stderr
+    line = next(l for l in with_kc.stdout.splitlines() if "notarytool submit" in l)
+    assert f"--keychain {kc}" in line
+    without = _dry_run(tmp_path, "3.14.8", **_SIGN_ENV)
+    assert without.returncode == 0, without.stderr
+    line = next(l for l in without.stdout.splitlines() if "notarytool submit" in l)
+    assert "--keychain " not in line.replace("--keychain-profile", "")
+    assert "--keychain-profile listbuddy" in line
+
+
+def test_c4_script_passes_keychain_to_submit_and_log() -> None:
+    code = "\n".join(_code_lines(_RELEASE))
+    for sub in ("notarytool submit", "notarytool log"):
+        row = next(l for l in code.splitlines() if sub in l)
+        nxt = code[code.index(row):code.index(row) + 300]
+        assert "NOTARY_KC" in nxt, sub
+    assert 'NOTARY_KC=(--keychain "$NOTARY_KEYCHAIN")' in code
+
+
+def test_c4_workflow_stores_profile_in_temp_keychain() -> None:
+    step = _steps("Guardar credenciales de notarytool")
+    assert re.search(r'store-credentials listbuddy[\s\S]{0,200}?--keychain "\$KEYCHAIN_PATH"', step)
+    assert 'echo "NOTARY_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"' in step
+    assert 'security delete-keychain "$KEYCHAIN_PATH"' in _steps("Limpiar keychain temporal")
