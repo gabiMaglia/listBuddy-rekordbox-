@@ -36,3 +36,25 @@ def test_openssl_version_in_notices_matches_build_interpreter() -> None:
     m_doc = re.search(r"^\| OpenSSL \(dentro de Python\) \| (\d+\.\d+\.\d+) \|", notices, re.M)
     assert m_doc, "la fila de OpenSSL debe llevar la versión x.y.z"
     assert m_doc.group(1) == m_ssl.group(1)
+
+
+def test_qt_embedded_third_party_notices_are_reproduced_and_linked() -> None:
+    """LEG-27: los BSD/MIT/zlib/libpng/FreeType exigen reproducir el aviso."""
+    qt = (PROJECT_ROOT / "licenses" / "qt-third-party.md").read_text(encoding="utf-8")
+    for needle in ("doc.qt.io/qt-6/licenses-used-in-qt.html", "LibPNG", "HarfBuzz", "Freetype 2",
+                   "PCRE2", "zlib", "LibJPEG-turbo", "Permission is hereby granted"):
+        assert needle in qt, needle
+    notices = (PROJECT_ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    assert "`licenses/qt-third-party.md`" in notices
+    # SQLite solo viaja con QtSql, que el bundle no incluye: queda dicho, no omitido.
+    assert "SQLite" in notices and "QtSql" in notices
+
+
+def test_certifi_mpl_source_availability_notice() -> None:
+    notices = (PROJECT_ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    assert "MPL-2.0" in notices and "sección 3.2" in notices
+    assert "https://github.com/certifi/python-certifi" in notices
+
+
+def test_collect_licenses_checks_the_hand_maintained_qt_file() -> None:
+    assert "qt-third-party.md" in (PROJECT_ROOT / "scripts" / "collect_licenses.py").read_text(encoding="utf-8")
