@@ -94,3 +94,24 @@ Suposiciones marcadas:
 - fsync en un FS sin soporte: me abstengo.
 - Sondeo de contenido de FFmpeg: me abstengo.
 - Criterio 6 (suite completa): me abstengo.
+
+## Verificación 2
+
+Juzgué `587aabb` en un worktree detached aparte, con las mismas sondas de la verificación 1 (ventana real con `BOOT`, `QT_QPA_PLATFORM=offscreen`, un proceso por sonda, tmp dentro del worktree y borrado al final).
+
+| Defecto | Estado | Cita / evidencia |
+|---|---|---|
+| D1 export tras cerrar | **CORREGIDO** | `ui.py:2141` marca `_closing` y `ui.py:2311-2312` no arranca el export. Sonda con chequeo de 0,5 s y `close()`: `worker=None`, 0 archivos, rc=0. |
+| D2 play tras cerrar | **CORREGIDO** | `ui.py:2142` y `ui.py:1987`. Sonda: `played after close: []`, ningún WaveformWorker, rc=0. |
+| D3 último click | **CORREGIDO** | `ui.py:1969`. Sonda A→B lento→A: `['play A.mp3', 'toggle A.mp3']`, `playing_path=A.mp3`. |
+| D4 cierre colgado | **CORREGIDO** | `ui.py:2174-2177` agrega `LibraryLoadWorker` y `DestinationCheck` a los hilos de solo lectura. Con la carga colgada 40 s y con el `mkdir` colgado: «salida directa», rc=0 a los 4 y 6 s. |
+| D5 botón muerto / guarda de relocate | **CORREGIDO** | `ui.py:2298-2299` muestra «Verificando destino…». `ui.py:2313-2320` vuelve a mirar el relocate antes de exportar y `ui.py:2671-2676` frena el relocate mientras se chequea el destino. Queda un resto: con un destino que no responde nunca, el segundo click sigue sin efecto (`ui.py:2296-2297`), pero ahora con el estado a la vista. No lo cuento como defecto. |
+| D6 latencia | **CORREGIDO** | `worker.py:248-252` vacía el lote entre bloques. Sonda con una copia de 2 s en 20 bloques: las líneas previas salen a los **0,13 s** (antes 2,03 s). |
+| **V7 (nuevo)** relocate termina mientras se cierra | **SE REPRODUCE** | `closeEvent` espera el relocate (`ui.py:2157`). Su `finished_ok` llega en cola después del cierre, y `_on_relocate_finished` no mira `_closing`: con `ok` y `repaired>0` llama a `_reload_after_path_change()` (`ui.py:2858` → `ui.py:1250`), que arranca un `LibraryLoadWorker` nuevo con la ventana ya cerrada. Sonda `p_reloc_race.py`: `RELOAD called closing= True`, un worker de carga nuevo corriendo después de `exec`, `QThread: Destroyed while thread '' is still running`, **rc=250**. Viola TEC-24. Es la misma clase de defecto que D1/D2. |
+
+Regresiones:
+- Lotes, fsync, hardlink, lista blanca y cierre: `tests/test_export_integrity.py`, `tests/test_audio_whitelist_t105.py`, `tests/test_close_hung_t105.py`, `tests/test_close_races_t105.py`, `tests/test_ui_io_off_thread_t105.py`, `tests/test_autoadvance.py`, `tests/test_footer.py` y `tests/test_export_crash.py` dan **88 passed**. `tests/test_export_log_batch.py` da 2 passed.
+- 1.900 archivos de 64 KiB: con log 2,89 / 2,99 s contra sin log 2,69 / 2,81 s, o sea **1,07× / 1,06×** (≤ 1,3×). Siguen siendo 1.900 archivos.
+- La suite completa no la corrí: me abstengo.
+
+**Veredicto: REFUTADO.** D1-D6 quedan corregidos, pero sigue un defecto de cierre: **V7**. Arreglo esperado: que `_on_relocate_finished` no recargue (ni abra modales) si `self._closing`.
