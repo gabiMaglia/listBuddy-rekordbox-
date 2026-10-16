@@ -96,3 +96,27 @@ def test_tests_yml_has_a_windows_job_with_hashes_and_the_marker() -> None:
     mac = _TESTS_YML.read_text(encoding="utf-8").split("  windows:", 1)[0]
     mac_runs = [l.strip() for l in mac.splitlines() if l.strip().startswith("run:") and "pytest" in l]
     assert mac_runs == ["run: python -m pytest -q"], mac_runs
+
+
+@pytest.mark.parametrize("code", [
+    "import json, styles; print(1)", "import os, json,styles", "import json, ui_components as uc", "from styles import THEMES",
+    "import sys\nimport footer", "import json; import ui",
+])
+def test_gui_detection_sees_gui_modules_in_any_position_of_the_import(code) -> None:
+    """O1 del verifier: `import json, styles` cargaba QtWidgets y el clasificador lo dejaba pasar."""
+    from _qt_isolated import looks_like_gui
+    assert looks_like_gui(code)
+
+
+@pytest.mark.parametrize("code", ["import json, worker", "from preview_worker import PreviewWorker", "import stylesheet_x", "print('footer')"])
+def test_gui_detection_does_not_flag_qtcore_only_modules(code) -> None:
+    from _qt_isolated import looks_like_gui
+    assert not looks_like_gui(code)
+
+
+def test_tests_that_import_styles_next_to_json_are_in_the_qt_partition() -> None:
+    qt = "\n".join(_collect("qt"))
+    for n in ("test_header.py::test_t069_badge_text_meets_contrast_in_both_themes",
+              "test_footer.py::test_footer_export_button_text_meets_contrast_in_both_states"):
+        assert n in qt, n
+    assert "test_contrast.py::" in qt                       # los que usan _themes() (helper con `import json, styles`)

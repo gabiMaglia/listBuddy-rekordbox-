@@ -27,7 +27,9 @@ GUI_MODULES = ("about_dialog", "app_logging", "audio_decode", "audio_player", "d
                "preview_card", "styles", "ui", "ui_components", "waveform_worker")
 GUI_SNIPPET = re.compile(
     r"\bBOOT\b|\bQApplication\b|\bQt(Widgets|Gui|Multimedia|Svg)\b"
-    r"|\b(from|import)\s+(" + "|".join(GUI_MODULES) + r")\b"
+    r"|\bfrom\s+(" + "|".join(GUI_MODULES) + r")\b"
+    # `import json, styles`: el módulo GUI puede ir en cualquier posición de la lista del import
+    r"|\bimport\s+(?:[\w.]+(?:\s+as\s+\w+)?\s*,\s*)*(" + "|".join(GUI_MODULES) + r")\b"
 )
 
 
