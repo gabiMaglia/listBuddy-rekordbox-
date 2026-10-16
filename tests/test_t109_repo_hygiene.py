@@ -58,3 +58,21 @@ def test_certifi_mpl_source_availability_notice() -> None:
 
 def test_collect_licenses_checks_the_hand_maintained_qt_file() -> None:
     assert "qt-third-party.md" in (PROJECT_ROOT / "scripts" / "collect_licenses.py").read_text(encoding="utf-8")
+
+
+def _flat_disclaimer() -> str:
+    return " ".join((PROJECT_ROOT / "DISCLAIMER.md").read_text(encoding="utf-8").split())
+
+
+def test_disclaimer_attributes_qr_code_and_kofi() -> None:
+    """LEG-29."""
+    flat = _flat_disclaimer()
+    assert "«QR Code» es marca registrada de DENSO WAVE INCORPORATED" in flat
+    assert "Ko-fi procesa la donación según sus propios términos y su política de privacidad" in flat
+
+
+def test_disclaimer_states_windows_scope() -> None:
+    """LEG-31."""
+    flat = _flat_disclaimer()
+    assert "Windows 10 u 11 de 64 bits" in flat
+    assert "sin firma de código" in flat and ".sha256" in flat
