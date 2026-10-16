@@ -2,7 +2,7 @@
 
 `.github/workflows/release.yml` buildea List Buddy para **Apple Silicon (arm64)** y **Intel (x86_64)**
 en dos runners de GitHub, firma con Developer ID, notariza y deja un **GitHub Release en borrador**
-con los DMG y sus `.sha256`. Todo el trabajo de build/firma/notarización lo hace
+con los DMG, el tarball de código fuente (`listbuddy-<v>-src.tar.gz`) y sus `.sha256`. Todo el trabajo de build/firma/notarización lo hace
 `scripts/release_mac.sh --arch-suffix`; el workflow solo prepara credenciales y sube artefactos.
 
 | Disparador | Qué hace |
@@ -10,7 +10,7 @@ con los DMG y sus `.sha256`. Todo el trabajo de build/firma/notarización lo hac
 | Tag `v*` (p. ej. `v1.0.0`) | Build + firma + notarización en ambas arquitecturas → Release en borrador |
 | `workflow_dispatch` (botón «Run workflow») sobre una rama | Build ad-hoc en el environment `smoke` (sin secrets, no distribuible); los DMG quedan como artefactos del run |
 | `workflow_dispatch` sobre un tag `v*` | Igual que el push del tag: firma, notariza y crea el borrador de Release |
-| Pull request que toca `release_mac.sh`, `check_bundle.sh`, el spec, `entitlements.plist` o `requirements.txt` | Build de humo con firma ad-hoc; **nunca** importa el certificado ni guarda credenciales, aunque el PR sea del mismo repo |
+| Pull request que toca `release.yml`, `release_mac.sh`, `check_bundle.sh`, el spec, `entitlements.plist` o `requirements.txt` | Build de humo con firma ad-hoc; **nunca** importa el certificado ni guarda credenciales, aunque el PR sea del mismo repo |
 
 En un pull request, un dispatch sobre una rama o un fork (sin secrets) el workflow **no falla**: firma ad-hoc y
 avisa con un `::warning::`. Ese DMG no sirve para distribuir.
@@ -34,8 +34,11 @@ rama, editable por cualquiera con write) nunca los reciben: GitHub aplica la reg
    secret», y borrá del repositorio cualquier secret con estos nombres que exista de antes).
 4. Opcional, **decisión del PO**: **Required reviewers** con tu usuario. Suma un click de aprobación por
    release y frena un token comprometido que pushee un tag.
-5. Recomendado: Settings → Rules → **New tag ruleset** sobre `refs/tags/v*` con *Restrict creations*
-   (solo el mantenedor puede crear tags de release).
+5. **Obligatorio (ADR-005 §1, es parte de la frontera de los secrets):** Settings → Rules → **New tag ruleset**
+   sobre `refs/tags/v*` con *Restrict creations*, *Restrict updates* y *Restrict deletions*, sin bypass salvo
+   el mantenedor. Sin *Restrict updates*, cualquiera con permiso de escritura puede **mover** un tag `v*`
+   existente a otro commit: ese push pasa la regla del environment `release`, recibe los secrets y firma y
+   notariza código arbitrario con tu Developer ID.
 
 Fuera de un tag el job usa el environment `smoke` (GitHub lo crea solo; no le cargues secrets ni reglas).
 
@@ -106,6 +109,7 @@ credenciales. En tu Mac, sin `NOTARY_KEYCHAIN`, el script usa el perfil del keyc
 4. Entrá a **Releases** → el borrador **List Buddy v1.0.0** tiene:
    - `ListBuddy-1.0.0-arm64.dmg` + `.sha256`
    - `ListBuddy-1.0.0-x86_64.dmg` + `.sha256`
+   - `listbuddy-1.0.0-src.tar.gz` + `.sha256` (el código fuente correspondiente, GPL §6; sale del commit del tag)
    - las notas generadas automáticamente (editalas) y los archivos de código fuente que GitHub agrega solo.
 5. Bajá un DMG con Safari en una Mac limpia (o una VM) y abrilo **sin red**: tiene que abrir sin pedir
    nada (ticket estampado). Recién ahí **Publish release**: `update_checker.py` avisa a los usuarios.
