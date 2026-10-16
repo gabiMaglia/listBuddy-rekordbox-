@@ -37,7 +37,9 @@ $pyi     = Join-Path $venv "Scripts\pyinstaller.exe"
 
 Write-Host "Instalando dependencias…"
 & $pip install --upgrade pip --quiet
-& $pip install -r (Join-Path $ROOT "requirements.txt") --quiet
+# SEC-07: --require-hashes rechaza todo paquete fuera del lock; PyInstaller va pineado y aparte
+# (con hashes activos pip exige hash en cada requisito de la misma corrida).
+& $pip install --require-hashes -r (Join-Path $ROOT "requirements.txt") --quiet
 & $pip install pyinstaller==6.20.0 --quiet
 
 # ── 3. Build ───────────────────────────────────────────────────────────────
@@ -47,14 +49,13 @@ Set-Location $ROOT
 & $pyi rb_exporter.spec --noconfirm
 
 # ── 4. Resultado ───────────────────────────────────────────────────────────
-# El spec de Windows es one-dir: el .exe vive dentro de dist\listBuddy\.
-$exe = Join-Path $ROOT "dist\listBuddy\listBuddy.exe"
+$exe = Join-Path $ROOT "dist\listBuddy.exe"
 if (Test-Path $exe) {
     $size = [math]::Round((Get-Item $exe).Length / 1MB, 1)
     Write-Host ""
-    Write-Host "Build OK: dist\listBuddy\listBuddy.exe ($size MB)" -ForegroundColor Green
+    Write-Host "Build OK: dist\listBuddy.exe ($size MB)" -ForegroundColor Green
     Write-Host ""
-    Write-Host "Para distribuir: comprimir la carpeta dist\listBuddy en un .zip o usar Inno Setup (las DLL de Qt deben quedar sueltas: LGPL)."
+    Write-Host "Para distribuir: comprimir dist\listBuddy.exe en un .zip o usar Inno Setup."
 } else {
     Write-Error "Build fallido. Revisar la salida de PyInstaller arriba."
 }

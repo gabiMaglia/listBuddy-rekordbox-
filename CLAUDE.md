@@ -44,7 +44,7 @@ styles.py            → Tokens de diseño dark/light + load_qss().
 about_dialog.py      → «Acerca de» (avisos GPL) + visor de LICENSE y THIRD_PARTY_NOTICES.md.
 licenses/            → Textos completos de licencias de terceros (regenerar con scripts/collect_licenses.py).
 rb_exporter.spec     → Spec de PyInstaller para empaquetar (produce "listBuddy" ejecutable).
-requirements.txt     → Dependencias pineadas exactas.
+requirements.in / requirements.txt → Dependencias directas y su lock con hashes (T-096); lo mismo para requirements-dev.*.
 plans/               → Planes de implementación autocontenidos para ejecutar con Sonnet.
 ```
 
@@ -186,6 +186,22 @@ El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **
 | **Nuitka** | Compila a C, binario más pequeño y rápido | Compilación lenta, requiere compilador C |
 
 Para este proyecto, **seguir con PyInstaller** salvo que surja un problema grave.
+
+### Release macOS y cadena de suministro (T-096)
+
+- `scripts/release_mac.sh` exige Python >= 3.14.8 (libexpat 2.8.5); `PYTHON=/ruta/python3.14` fija el intérprete, `ALLOW_OLD_PYTHON=1` lo saltea.
+- `--dry-run` solo valida prerrequisitos e imprime el plan (no buildea). `--skip-build` reusa `dist/List Buddy.app` (re-firma, .dmg y checksums).
+- Deja en `dist/`: `ListBuddy-<v>.dmg` + `.dmg.sha256` y `listbuddy-<v>-src.tar.gz` + `.sha256` (`git archive` de HEAD; `.gitattributes` excluye `engram/`). Se suben juntos al release.
+- Dependencias con hashes: se editan `requirements.in` / `requirements-dev.in` y se regeneran los locks (en un venv aparte con `pip-tools`):
+
+  ```bash
+  pip-compile --generate-hashes --strip-extras --output-file=requirements.txt requirements.in
+  pip-compile --generate-hashes --strip-extras --output-file=requirements-dev.txt requirements-dev.in
+  pip install --require-hashes -r requirements.txt   # así lo instalan release_mac.sh y build_windows.ps1
+  ```
+
+  El lock lo resuelve la plataforma donde corre `pip-compile` (hoy macOS): un paquete que solo se instala en Windows (p. ej. `colorama` de pytest) no aparece en `requirements-dev.txt`. PyInstaller (`==6.20.0`) se instala aparte en ambos scripts, sin hash. Tras cambiar versiones, correr `scripts/collect_licenses.py`.
+- El spec saca QtPdf/QtQuick/QtQml/QtVirtualKeyboard (`excludes` + filtro de `a.binaries`/`a.datas`) y `check_bundle.sh` falla si reaparecen.
 
 ---
 

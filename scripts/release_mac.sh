@@ -4,7 +4,12 @@
 #   scripts/release_mac.sh                 # build y .dmg con firma ad-hoc (uso propio)
 #   DEVELOPER_ID="Developer ID Application: Gabriel Maglia (TEAMID)" \
 #   NOTARY_PROFILE=listbuddy scripts/release_mac.sh   # firma Developer ID + notariza
-#   scripts/release_mac.sh --dry-run       # muestra firma/notarización sin ejecutarlas
+#   scripts/release_mac.sh --dry-run       # valida prerrequisitos e imprime el plan; no buildea ni firma
+#   scripts/release_mac.sh --skip-build    # reusa dist/List Buddy.app existente (solo firma, .dmg, checksums)
+#   PYTHON=/ruta/a/python3.14 scripts/release_mac.sh   # fija el intérprete (si no, el primer python3 del PATH)
+#
+# Python >= 3.14.8 (trae libexpat 2.8.5, CVE-2026-93990); ALLOW_OLD_PYTHON=1 lo saltea bajo tu riesgo.
+# Deja en dist/: el .dmg con su .sha256 y listbuddy-<v>-src.tar.gz (fuente del commit HEAD) con su .sha256.
 #
 # NOTARY_PROFILE se crea una sola vez con:
 #   xcrun notarytool store-credentials listbuddy --apple-id <mail> --team-id <TEAMID>
@@ -17,16 +22,41 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DRY_RUN=0
+SKIP_BUILD=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
-    *) echo "Uso: $0 [--dry-run]" >&2; exit 2 ;;
+    --skip-build) SKIP_BUILD=1 ;;
+    *) echo "Uso: $0 [--dry-run] [--skip-build]" >&2; exit 2 ;;
   esac
 done
 
-# En --dry-run los pasos que firman o hablan con Apple solo se imprimen.
-run() {
-  if [ "$DRY_RUN" = 1 ]; then echo "[dry-run] $*"; else "$@"; fi
+MIN_PYTHON="3.14.8"
+PY="${PYTHON:-python3}"
+PYINSTALLER_PIN="pyinstaller==6.20.0"
+
+# py_version INTERPRETE -> «3.14.8». Con --skip-build no hace falta un intérprete.
+py_version() { "$1" -c 'import sys; print(".".join(map(str, sys.version_info[:3])))'; }
+
+# version_ge A B: A >= B comparando por versión (sort -V).
+version_ge() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$2" ]; }
+
+check_python() {
+  local interp="$1" ver
+  ver=$(py_version "$interp" 2>/dev/null) || { echo "ERROR: no pude ejecutar $interp" >&2; exit 1; }
+  if version_ge "$ver" "$MIN_PYTHON"; then return 0; fi
+  if [ "${ALLOW_OLD_PYTHON:-0}" = 1 ]; then
+    echo "AVISO: Python $ver < $MIN_PYTHON (libexpat 2.8.4, CVE-2026-93990); sigo por ALLOW_OLD_PYTHON=1." >&2
+    return 0
+  fi
+  {
+    echo "ERROR: $interp es Python $ver; el release exige >= $MIN_PYTHON (libexpat 2.8.5)."
+    echo "  Homebrew:   brew install python@3.14 && PYTHON=\"\$(brew --prefix python@3.14)/bin/python3.14\" $0"
+    echo "  python.org: instalá 3.14.8+ desde https://www.python.org/downloads/macos/ y corré"
+    echo "              PYTHON=/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14 $0"
+    echo "  Bajo tu riesgo: ALLOW_OLD_PYTHON=1 $0"
+  } >&2
+  exit 1
 }
 
 VERSION=$(sed -n 's/^_APP_VERSION = "\(.*\)"/\1/p' ui.py)
@@ -36,7 +66,7 @@ ZIP="dist/ListBuddy-${VERSION}.zip"      # solo para subir a notarización (un z
 DMG_ID="com.gabrielmaglia.listbuddy.dmg"
 IDENTITY="${DEVELOPER_ID:--}"             # «-» = ad-hoc
 STAGE=""
-trap '[ -n "$STAGE" ] && rm -rf "$STAGE"; rm -f "$ZIP"' EXIT
+trap '[ -z "$STAGE" ] || rm -rf "$STAGE"; rm -f "$ZIP"' EXIT
 
 if [ -n "${DEVELOPER_ID:-}" ] && [ -z "${NOTARY_PROFILE:-}" ]; then
   echo "AVISO: hay DEVELOPER_ID pero no NOTARY_PROFILE: se firma pero NO se notariza;" >&2
@@ -62,15 +92,55 @@ fi
 # plutil -lint no detecta «--» en un comentario XML y codesign aborta: xmllint sí.
 xmllint --noout entitlements.plist
 
-if [ ! -x .venv-build/bin/python ]; then
-  python3 -m venv .venv-build
+if [ "$SKIP_BUILD" = 1 ]; then
+  [ -d "$APP" ] || { echo "ERROR: --skip-build necesita $APP ya buildeado (corré sin --skip-build)." >&2; exit 1; }
+else
+  check_python "$PY"
 fi
-echo "Python de build: $(.venv-build/bin/python -c 'import sys,platform;print(sys.version.split()[0], platform.machine())')"
-# Siempre: un venv viejo con dependencias desactualizadas no puede buildear en silencio.
-.venv-build/bin/pip install -q -r requirements.txt pyinstaller==6.20.0
 
-rm -rf build "$APP" "$DMG" "$ZIP"
-.venv-build/bin/pyinstaller --noconfirm rb_exporter.spec
+SUMS_DMG="dist/ListBuddy-${VERSION}.dmg.sha256"
+SRC="dist/listbuddy-${VERSION}-src.tar.gz"
+SUMS_SRC="dist/listbuddy-${VERSION}-src.tar.gz.sha256"
+
+if [ "$DRY_RUN" = 1 ]; then
+  # Solo prerrequisitos (arriba) y plan: no se buildea, no se firma, no se toca dist/.
+  echo "[dry-run] versión $VERSION · identidad: $IDENTITY · intérprete: $PY"
+  if [ "$SKIP_BUILD" = 1 ]; then
+    echo "[dry-run] reusa $APP existente (--skip-build)"
+  else
+    echo "[dry-run] .venv-build/bin/pip install --require-hashes -r requirements.txt"
+    echo "[dry-run] .venv-build/bin/pip install $PYINSTALLER_PIN"
+    echo "[dry-run] .venv-build/bin/pyinstaller --noconfirm rb_exporter.spec"
+  fi
+  echo "[dry-run] scripts/check_bundle.sh \"$APP\" + verificación de minos con otool"
+  echo "[dry-run] codesign inside-out (--sign $IDENTITY): Mach-O sueltos, frameworks y el .app"
+  if [ "$IDENTITY" != "-" ] && [ -n "${NOTARY_PROFILE:-}" ]; then
+    echo "[dry-run] xcrun notarytool submit (app y dmg) --keychain-profile $NOTARY_PROFILE + stapler staple"
+  else
+    echo "[dry-run] sin notarización (hace falta DEVELOPER_ID y NOTARY_PROFILE)"
+  fi
+  echo "[dry-run] hdiutil create $DMG"
+  echo "[dry-run] shasum -a 256 -> $SUMS_DMG"
+  echo "[dry-run] git archive HEAD -> $SRC y $SUMS_SRC"
+  exit 0
+fi
+
+rm -f "$DMG" "$ZIP" "$SUMS_DMG" "$SRC" "$SUMS_SRC"
+if [ "$SKIP_BUILD" = 0 ]; then
+  if [ ! -x .venv-build/bin/python ]; then
+    "$PY" -m venv .venv-build
+  fi
+  check_python .venv-build/bin/python
+  echo "Python de build: $(.venv-build/bin/python -c 'import sys,platform;print(sys.version.split()[0], platform.machine())')"
+  # Siempre: un venv viejo con dependencias desactualizadas no puede buildear en silencio.
+  # --require-hashes rechaza cualquier paquete que no esté en el lock (SEC-07). PyInstaller va
+  # aparte: con hashes activos pip exige hash en TODO lo que se instale en esa corrida.
+  .venv-build/bin/pip install -q --require-hashes -r requirements.txt
+  .venv-build/bin/pip install -q "$PYINSTALLER_PIN"
+
+  rm -rf build "$APP"
+  .venv-build/bin/pyinstaller --noconfirm rb_exporter.spec
+fi
 
 scripts/check_bundle.sh "$APP"
 
@@ -108,20 +178,20 @@ fi
 while IFS= read -r -d '' f; do
   case "$f" in "$APP/Contents/MacOS/listBuddy") continue ;; esac
   file -b "$f" | grep -q Mach-O || continue
-  run codesign --force "$TS_FLAG" --sign "$IDENTITY" "$f"
+  codesign --force "$TS_FLAG" --sign "$IDENTITY" "$f"
 done < <(find "$APP/Contents" -type f \( -name '*.dylib' -o -name '*.so' -o -perm -u=x \) -print0)
 
 # 2) frameworks (Qt y Python): se firma el .framework, el más anidado primero.
 while IFS= read -r fw; do
-  run codesign --force "$TS_FLAG" --sign "$IDENTITY" "$fw"
+  codesign --force "$TS_FLAG" --sign "$IDENTITY" "$fw"
 done < <(find "$APP/Contents" -type d -name '*.framework' | awk '{print length, $0}' | sort -rn | cut -d' ' -f2-)
 
 # 3) el .app: hardened runtime + entitlements solo acá.
-run codesign --force "$TS_FLAG" ${RT_FLAGS[@]+"${RT_FLAGS[@]}"} \
+codesign --force "$TS_FLAG" ${RT_FLAGS[@]+"${RT_FLAGS[@]}"} \
   --entitlements entitlements.plist --sign "$IDENTITY" "$APP"
-run codesign --verify --deep --strict --verbose=2 "$APP"
+codesign --verify --deep --strict --verbose=2 "$APP"
 
-if [ "$IDENTITY" != "-" ] && [ "$DRY_RUN" = 0 ]; then
+if [ "$IDENTITY" != "-" ]; then
   # Ningún Mach-O puede quedar ad-hoc o con otro Team ID (notarización lo rechaza).
   TEAM_ID=$(codesign -dv "$APP" 2>&1 | sed -n 's/^TeamIdentifier=//p')
   while IFS= read -r f; do
@@ -138,9 +208,6 @@ fi
 # notarize ARCHIVO ETIQUETA: sube, espera y exige «Accepted» (el log queda en dist/).
 notarize() {
   local file="$1" label="$2" out sub_id
-  if [ "$DRY_RUN" = 1 ]; then
-    echo "[dry-run] xcrun notarytool submit $file --keychain-profile $NOTARY_PROFILE --wait"; return 0
-  fi
   out=$(xcrun notarytool submit "$file" --keychain-profile "$NOTARY_PROFILE" --wait 2>&1 | tee /dev/stderr)
   sub_id=$(printf '%s\n' "$out" | sed -n 's/^ *id: //p' | head -1)
   if [ -n "$sub_id" ]; then
@@ -156,10 +223,10 @@ if [ "$IDENTITY" != "-" ] && [ -n "${NOTARY_PROFILE:-}" ]; then CAN_NOTARIZE=1; 
 
 if [ "$CAN_NOTARIZE" = 1 ]; then
   # El .app se notariza primero (vía zip) para estamparle el ticket: así abre offline.
-  run ditto -c -k --keepParent "$APP" "$ZIP"
+  ditto -c -k --keepParent "$APP" "$ZIP"
   notarize "$ZIP" app
-  run xcrun stapler staple "$APP"
-  run xcrun stapler validate "$APP"
+  xcrun stapler staple "$APP"
+  xcrun stapler validate "$APP"
   rm -f "$ZIP"
 fi
 
@@ -170,17 +237,28 @@ hdiutil create -volname "List Buddy ${VERSION}" -srcfolder "$STAGE" -ov -format 
 hdiutil verify "$DMG"
 
 if [ "$IDENTITY" != "-" ]; then
-  run codesign --timestamp -i "$DMG_ID" --sign "$IDENTITY" "$DMG"
-  run codesign --verify --strict --verbose=2 "$DMG"
+  codesign --timestamp -i "$DMG_ID" --sign "$IDENTITY" "$DMG"
+  codesign --verify --strict --verbose=2 "$DMG"
 fi
 
 if [ "$CAN_NOTARIZE" = 1 ]; then
   notarize "$DMG" dmg
-  run xcrun stapler staple "$DMG"
-  run xcrun stapler validate "$DMG"
-  run spctl --assess --type open --context context:primary-signature --verbose "$DMG"
-  run hdiutil verify "$DMG"
+  xcrun stapler staple "$DMG"
+  xcrun stapler validate "$DMG"
+  spctl --assess --type open --context context:primary-signature --verbose "$DMG"
+  hdiutil verify "$DMG"
 fi
 
-shasum -a 256 "$DMG"
+# Checksums relativos al nombre del archivo: «shasum -a 256 -c» funciona en la carpeta de descarga (SEC-06).
+(cd dist && shasum -a 256 "$(basename "$DMG")" > "$(basename "$SUMS_DMG")")
+
+# Fuente correspondiente (GPL §6 / LGPL, LEG-07/D-27): sale del commit HEAD, sin .venv* ni engram/
+# (.gitattributes). Si hay cambios sin commitear NO viajan: aviso.
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  echo "AVISO: hay cambios sin commitear; $SRC se genera del commit HEAD, no del árbol actual." >&2
+fi
+git archive --format=tar.gz --prefix=listbuddy-${VERSION}/ -o "$SRC" HEAD
+(cd dist && shasum -a 256 "$(basename "$SRC")" > "$(basename "$SUMS_SRC")")
+
+cat "$SUMS_DMG" "$SUMS_SRC"
 echo "Listo: $DMG ($(lipo -archs "$APP/Contents/MacOS/listBuddy"))"
