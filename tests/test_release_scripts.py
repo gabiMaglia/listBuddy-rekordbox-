@@ -190,6 +190,18 @@ def test_dry_run_prints_plan_without_building(tmp_path) -> None:
         assert needle in r.stdout, needle
 
 
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+def test_arch_suffix_names_dmg_with_machine_arch(tmp_path) -> None:
+    """T-097 (QA D4): --arch-suffix debe dar «ListBuddy-<v>-<uname -m>.dmg»; sin el flag, sin sufijo."""
+    arch = subprocess.run(["uname", "-m"], capture_output=True, text=True).stdout.strip()
+    with_flag = subprocess.run(["bash", str(_RELEASE), "--dry-run", "--arch-suffix"], cwd=PROJECT_ROOT,
+                               env=_env(tmp_path, "3.14.8"), capture_output=True, text=True, timeout=60)
+    assert with_flag.returncode == 0, with_flag.stderr
+    assert re.search(rf"dist/ListBuddy-[\d.]+-{re.escape(arch)}\.dmg\.sha256", with_flag.stdout), with_flag.stdout
+    without = _dry_run(tmp_path, "3.14.8")
+    assert re.search(r"dist/ListBuddy-[\d.]+\.dmg\.sha256", without.stdout), without.stdout
+
+
 def test_release_skip_build_flag_static() -> None:
     code = "\n".join(_code_lines(_RELEASE))
     assert "--skip-build" in code and "SKIP_BUILD" in code
@@ -236,3 +248,46 @@ def test_readme_download_section_explains_checksum_verification() -> None:
     section = readme.split("## Descargar", 1)[1].split("\n## ", 1)[0]
     for needle in ("shasum -a 256 -c", ".dmg.sha256", "-src.tar.gz"):
         assert needle in section, needle
+
+
+# ── T-097 (QA intento 1): workflow de release ───────────────────────────────
+
+_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "release.yml"
+
+
+def _steps(name_part: str) -> str:
+    """Texto del paso del workflow cuyo `name:` contiene name_part (hasta el próximo `- `)."""
+    text = _WORKFLOW.read_text(encoding="utf-8")
+    m = re.search(rf"- name: [^\n]*{re.escape(name_part)}[^\n]*\n(.*?)(?=\n      - |\n  \w)", text, re.S)
+    assert m, name_part
+    return m.group(0)
+
+
+def test_workflow_never_signs_on_pull_request() -> None:
+    """D1: PR del mismo repo también recibe secrets; certificado y notarización solo fuera de PR."""
+    for name in ("Importar certificado", "Guardar credenciales de notarytool"):
+        assert "github.event_name != 'pull_request'" in _steps(name), name
+
+
+def test_workflow_uploads_source_tarball_from_one_leg_only() -> None:
+    """D2: con merge-multiple, el -src.tar.gz de dos patas se pisaría; sale de una sola."""
+    text = _WORKFLOW.read_text(encoding="utf-8")
+    uploads = re.findall(r"uses: actions/upload-artifact@[^\n]*\n(.*?)(?=\n      - |\n  \w)", text, re.S)
+    assert len(uploads) >= 2
+    first = uploads[0]
+    assert "src.tar.gz" not in first
+    assert any("src.tar.gz" in u and "matrix.arch == 'arm64'" in u for u in uploads)
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+@pytest.mark.parametrize("dev,notary,expected", [
+    ("", "", "Firma: ad-hoc · Notarización: no"),
+    ("Developer ID Application: X (T)", "listbuddy", "Firma: Developer ID · Notarización: sí"),
+])
+def test_workflow_summary_line_renders_cleanly(dev, notary, expected) -> None:
+    """D3: la línea de resumen ejecutada en bash (el run: del paso) no mezcla las dos ramas."""
+    line = next(l.strip() for l in _steps("Resumen").splitlines() if "Firma:" in l)
+    line = line.removeprefix('echo "').removesuffix('"')
+    r = subprocess.run(["bash", "-c", f'echo "{line}"'], capture_output=True, text=True,
+                       env={"DEVELOPER_ID": dev, "NOTARY_PROFILE": notary, "PATH": "/usr/bin:/bin"})
+    assert r.stdout.strip() == expected, r.stdout
