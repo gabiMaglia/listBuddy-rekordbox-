@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR")
+sys.path.insert(0, str(__import__("pathlib").Path.home() / "Desktop" / "REKORDBOX_EXTRACTOR"))
 from PySide6.QtCore import QThread, QTimer
 from PySide6.QtWidgets import QApplication
 import app_logging

@@ -8,6 +8,8 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import sys
+import unicodedata
 from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
@@ -34,33 +36,100 @@ def get_songs(pl):
     return _get_songs(pl)
 
 
+# Tope del nombre sin extensión, en BYTES UTF-8. ext4/FAT/exFAT limitan el
+# nombre a 255 bytes; APFS y NTFS a 255 unidades UTF-16 (según conocimiento, no
+# verificado hoy). 200 bytes deja lugar a la extensión y al «.part» temporal y
+# cubre las tres (T-093, TEC-21).
 _MAX_STEM = 200
+_ELLIPSIS = "\u2026"
+
+
+# Windows clásico corta en MAX_PATH=260; se avisa con margen (T-093).
+_WIN_PATH_WARN = 240
+
+
+def _long_path_warning(dest: Path) -> str | None:
+    if sys.platform == "win32" and len(str(dest)) > _WIN_PATH_WARN:
+        return (
+            f"   ⚠  Ruta muy larga ({len(str(dest))} caracteres): Windows puede rechazarla "
+            f"por el límite de 260. Elegí una carpeta de destino más corta."
+        )
+    return None
+
+
+def _nbytes(text: str) -> int:
+    return len(text.encode("utf-8"))
+
+
+def _is_extender(ch: str) -> bool:
+    """Carácter que se pega al anterior dentro de un mismo grafema."""
+    cp = ord(ch)
+    return (
+        unicodedata.combining(ch) != 0
+        or unicodedata.category(ch) in ("Mn", "Me")
+        or cp in (0x200D, 0xFE0E, 0xFE0F)
+        or 0x1F3FB <= cp <= 0x1F3FF          # modificadores de tono de piel
+        or 0xE0020 <= cp <= 0xE007F          # etiquetas (banderas de subregión)
+    )
+
+
+def _is_regional(ch: str) -> bool:
+    return 0x1F1E6 <= ord(ch) <= 0x1F1FF
+
+
+def _splits_cluster(text: str, i: int) -> bool:
+    """True si cortar en `i` partiría un grafema (aproximación de UAX #29:
+    `unicodedata` no trae segmentación; cubre combinantes, ZWJ, selectores de
+    variación, tonos y pares de indicadores regionales)."""
+    if i <= 0 or i >= len(text):
+        return False
+    prev, cur = text[i - 1], text[i]
+    if _is_extender(cur) or prev == "\u200d":
+        return True
+    if _is_regional(prev) and _is_regional(cur):
+        run = 0
+        j = i - 1
+        while j >= 0 and _is_regional(text[j]):
+            run += 1
+            j -= 1
+        return run % 2 == 1
+    return False
+
+
+def _truncate_bytes(text: str, max_bytes: int) -> str:
+    """Recorta `text` a `max_bytes` UTF-8 agregando «…», sin partir un grafema."""
+    if _nbytes(text) <= max_bytes:
+        return text
+    room = max_bytes - _nbytes(_ELLIPSIS)
+    cut, used = 0, 0
+    for ch in text:
+        size = _nbytes(ch)
+        if used + size > room:
+            break
+        used += size
+        cut += 1
+    while cut > 0 and _splits_cluster(text, cut):
+        cut -= 1
+    return text[:cut] + _ELLIPSIS
 
 
 def _safe_filename(prefix: str, artist: str, title: str, suffix: str) -> str:
-    parts = [prefix]
-    if artist:
-        parts.append(artist)
-    parts.append(title or "Sin título")
+    title = title or "Sin título"
+    parts = [prefix] + ([artist] if artist else []) + [title]
     stem = " - ".join(parts)
-
-    if len(stem) <= _MAX_STEM:
+    if _nbytes(stem) <= _MAX_STEM:
         return stem + suffix
 
-    fixed = len(prefix) + (len(" - ") + len(artist) if artist else 0) + len(" - ")
+    fixed = _nbytes(prefix) + _nbytes(" - ") + (_nbytes(artist) + _nbytes(" - ") if artist else 0)
     budget = _MAX_STEM - fixed
-
     if budget >= 8:
-        title = title[: budget - 1] + "…"
+        title = _truncate_bytes(title, budget)
     else:
-        half = (_MAX_STEM - len(prefix) - len(" - ") * 2) // 2
-        artist = artist[: max(4, half - 1)] + "…"
-        title = title[: max(4, half - 1)] + "…"
+        half = (_MAX_STEM - _nbytes(prefix) - _nbytes(" - ") * 2) // 2
+        artist = _truncate_bytes(artist, half)
+        title = _truncate_bytes(title, half)
 
-    parts = [prefix]
-    if artist:
-        parts.append(artist)
-    parts.append(title)
+    parts = [prefix] + ([artist] if artist else []) + [title]
     return " - ".join(parts) + suffix
 
 
@@ -103,16 +172,17 @@ def _copy_atomic(src: Path, dest: Path, should_stop) -> None:
         raise
 
 
-def _remove_orphan_parts(folder: Path) -> None:
-    """Borra los `.part` que dejó una copia anterior cortada de golpe (kill, USB)."""
-    try:
-        for leftover in folder.glob("*.part"):
-            try:
-                leftover.unlink()
-            except OSError:
-                pass
-    except OSError:
-        pass
+def _remove_orphan_parts(folder: Path, names: set[str]) -> None:
+    """Borra los `.part` que dejó una copia anterior cortada de golpe (kill, USB).
+
+    Solo los que este export va a volver a escribir: un `.part` ajeno (descarga a medias,
+    otra app) en la misma carpeta no se toca.
+    """
+    for name in names:
+        try:
+            (folder / name).unlink()
+        except OSError:
+            pass
 
 
 class ExportWorker(QThread):
@@ -126,6 +196,9 @@ class ExportWorker(QThread):
         self._playlists = playlists
         self._output_root = output_root
 
+    def _report_unreadable(self, pl, exc: Exception) -> None:
+        self.log.emit(f"⚠ No se pudo leer la playlist {getattr(pl, 'Name', '?')}: {exc}")
+
     def run(self) -> None:
         copied_total = missing_total = skipped_total = 0
         missing_tracks: list[str] = []
@@ -138,16 +211,17 @@ class ExportWorker(QThread):
         # ── Pre-build: una sola query lazy por playlist ───────────────────
         playlist_songs: list[tuple] = []
         for pl in self._playlists:
-            songs = _get_songs_list(pl)
+            songs = _get_songs_list(pl, self._report_unreadable)
             if songs:
-                playlist_songs.append((pl, songs))
+                playlist_songs.append((pl, order_playlist_songs(songs)))
 
         total_songs = sum(len(s) for _, s in playlist_songs)
         self.progress.emit(0, max(total_songs, 1))
 
         # ── Chequeo de espacio en disco ───────────────────────────────────
+        folder_names = _folder_names_for_readable(playlist_songs)
         try:
-            total_bytes = _estimate_size(playlist_songs)
+            total_bytes = _estimate_size(playlist_songs, self._output_root, folder_names)
             if total_bytes > 0:
                 dest_check = (
                     self._output_root
@@ -170,7 +244,6 @@ class ExportWorker(QThread):
 
         # ── Loop principal ────────────────────────────────────────────────
         done = 0
-        folder_names = _unique_folder_names([pl.Name for pl, _ in playlist_songs])
         for (pl, songs), folder in zip(playlist_songs, folder_names):
             self.log.emit(f"▶  {pl.Name}")
             dest_dir = self._output_root / folder
@@ -180,7 +253,7 @@ class ExportWorker(QThread):
                 self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
                 return
 
-            sorted_songs = order_playlist_songs(songs)
+            sorted_songs = songs   # ya ordenadas al armar playlist_songs
 
             try:
                 dest_dir.mkdir(parents=True, exist_ok=True)
@@ -194,8 +267,8 @@ class ExportWorker(QThread):
                 _log.error("Export: no se pudo crear %s: %s", dest_dir, e)
                 self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
                 return
-            _remove_orphan_parts(dest_dir)
             pad = len(str(len(sorted_songs)))
+            _remove_orphan_parts(dest_dir, _part_names(sorted_songs, dest_dir, pad))
 
             for idx, song in enumerate(sorted_songs, start=1):
                 if self.isInterruptionRequested():
@@ -230,11 +303,10 @@ class ExportWorker(QThread):
                     missing_total += 1
                     continue
 
-                prefix   = str(idx).zfill(pad)
-                artist   = sanitize(get_artist(content))
-                title    = sanitize(getattr(content, "Title", None) or "") or "Sin título"
-                filename = _safe_filename(prefix, artist, title, src.suffix)
-                dest     = dest_dir / filename
+                dest = _planned_dest(dest_dir, idx, pad, content, src)
+                long_warning = _long_path_warning(dest)
+                if long_warning:
+                    self.log.emit(long_warning)
 
                 if _is_complete_copy(dest, src):
                     self.log.emit(f"   ⏭  Ya existe: {dest.name}")
@@ -320,6 +392,22 @@ def _unique_folder_names(names: list[str]) -> list[str]:
     return result
 
 
+def _folder_names_for_readable(playlist_songs: list[tuple]) -> list[str]:
+    """Carpetas del export: solo las playlists con pistas leídas consumen nombre.
+
+    La vista previa usa esta misma regla (`folder_names_by_playlist`), así «Mix» ilegible
+    no empuja a la «Mix» legible a «Mix (2)» en una y no en la otra (D-17).
+    """
+    return _unique_folder_names([pl.Name for pl, songs in playlist_songs if songs])
+
+
+def folder_names_by_playlist(playlists: list) -> dict[int, str]:
+    """`id(playlist)` -> carpeta que el export creará; las vacías o ilegibles no figuran."""
+    readable = [(pl, _get_songs_list(pl)) for pl in playlists]
+    readable = [(pl, songs) for pl, songs in readable if songs]
+    return {id(pl): name for (pl, _), name in zip(readable, _folder_names_for_readable(readable))}
+
+
 def _is_complete_copy(dest: Path, src: Path) -> bool:
     """«Ya existe» solo si el archivo está y pesa lo mismo que el origen.
 
@@ -334,26 +422,53 @@ def _is_complete_copy(dest: Path, src: Path) -> bool:
         return False
 
 
-def _get_songs_list(pl) -> list:
+def _get_songs_list(pl, on_error=None) -> list:
+    """Pistas de la playlist; si no se pueden leer, se loguea y se avisa (no desaparece en silencio)."""
     try:
         return list(get_songs(pl))
-    except Exception:
+    except Exception as e:
+        _log.exception("Export: no se pudo leer la playlist %s", getattr(pl, "Name", "?"))
+        if on_error is not None:
+            on_error(pl, e)
         return []
 
 
-def _estimate_size(playlist_songs: list[tuple]) -> int:
-    """Suma los tamaños de los archivos fuente que existen en disco."""
+def _planned_dest(dest_dir: Path, idx: int, pad: int, content, src: Path) -> Path:
+    """Ruta final de una pista en el destino (la usan el export y la estimación)."""
+    artist = sanitize(get_artist(content))
+    title = sanitize(getattr(content, "Title", None) or "") or "Sin título"
+    return dest_dir / _safe_filename(str(idx).zfill(pad), artist, title, src.suffix)
+
+
+def _part_names(sorted_songs: list, dest_dir: Path, pad: int) -> set[str]:
+    """Nombres `<archivo>.part` que esta playlist va a crear al copiar."""
+    names: set[str] = set()
+    for idx, song in enumerate(sorted_songs, start=1):
+        content = get_content(song)
+        src = resolve_path(getattr(content, "FolderPath", None) if content else None)
+        if src:
+            names.add(_planned_dest(dest_dir, idx, pad, content, src).name + ".part")
+    return names
+
+
+def _estimate_size(playlist_songs: list[tuple], output_root: Path, folder_names: list[str]) -> int:
+    """Bytes que faltan copiar: fuentes que existen, menos las que ya están completas en destino
+    (misma regla de «Ya existe»), para que un re-export incremental no pida espacio de más."""
     total = 0
-    for _, songs in playlist_songs:
-        for song in songs:
+    for (_, songs), folder in zip(playlist_songs, folder_names):
+        pad = len(str(len(songs)))
+        for idx, song in enumerate(songs, start=1):
             content = get_content(song)
             raw = getattr(content, "FolderPath", None) if content else None
             src = resolve_path(raw)
-            if src:
-                try:
-                    total += src.stat().st_size
-                except OSError:
-                    pass
+            if not src:
+                continue
+            if _is_complete_copy(_planned_dest(output_root / folder, idx, pad, content, src), src):
+                continue
+            try:
+                total += src.stat().st_size
+            except OSError:
+                pass
     return total
 
 

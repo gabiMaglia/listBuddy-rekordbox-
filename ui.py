@@ -8,19 +8,24 @@ Layout: header-bar (title + controls) → two-column body
 from __future__ import annotations
 
 import itertools
+import logging
 import sys
+import time
 from io import BytesIO
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Literal
+from xml.etree import ElementTree as ET
 
+from shiboken6 import isValid
 from PySide6.QtCore import (
-    QPoint, QSize, QThread, Qt, QTimer, QUrl, QSettings,
+    QEvent, QEventLoop, QPoint, QSize, QThread, Qt, QTimer, QUrl, QSettings,
     QPropertyAnimation, QEasingCurve,
 )
 from PySide6.QtGui import (
     QAction,
     QDesktopServices,
+    QImage,
     QIcon,
     QKeySequence,
     QMouseEvent,
@@ -68,7 +73,7 @@ from preview_card import (
 from row_blocks import ALL_BROKEN, NONE, block_positions, broken_notice_text, ext_chip_text, format_key_bpm
 from playlist_filter import matches
 from styles import apply_title_tracking, status_style, token
-from worker import ExportWorker
+from worker import ExportWorker, folder_names_by_playlist
 from ui_components import (
     ClickableLabel,
     WrapLabel,
@@ -80,7 +85,8 @@ from ui_components import (
     RestoreBackupDialog,
     TitleBar,
 )
-from preview_worker import PreviewWorker, GroupData, TrackRow
+from preview_worker import ExistenceRecheckWorker, PreviewWorker, GroupData, TrackRow
+from library_load_worker import LibraryLoadResult, LibraryLoadWorker
 from audio_player import AudioPlayer
 from footer import FooterBar
 from waveform_worker import WaveData, WaveformWorker
@@ -88,8 +94,9 @@ from rekordbox_fixes import FixStore, fixes_path_for
 from rekordbox_xml_relocate import RekordboxXmlRelocateWorker
 from relocate_core import BackupInfo, RelocateScope, RestoreBackupWorker, list_backups
 from traktor_relocate import RelocateWorker, is_traktor_running
-from update_checker import UpdateCheckWorker, UpdateInfo
+from update_checker import UpdateCheckWorker, UpdateInfo, safe_release_url
 
+_logger = logging.getLogger("listBuddy")
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
 # Va en cada confirmación antes de escribir sobre una librería (DISCLAIMER.md §3-4).
 _RESPONSIBILITY_LINE = (
@@ -185,20 +192,23 @@ class DonationDialog(QDialog):
 
     @staticmethod
     def _make_qr() -> QPixmap | None:
+        # qrcode solo aporta la matriz de módulos (sin Pillow): se pinta con Qt.
         try:
             import qrcode  # type: ignore
-            qr = qrcode.QRCode(box_size=5, border=2)
+
+            qr = qrcode.QRCode(border=2)
             qr.add_data(_KOFI_URL)
             qr.make(fit=True)
-            img = qr.make_image(fill_color="black", back_color="white")
-            buf = BytesIO()
-            img.save(buf, format="PNG")
-            px = QPixmap()
-            px.loadFromData(buf.getvalue())
-            return px.scaled(
+            matrix = qr.get_matrix()
+            n = len(matrix)
+            img = QImage(n, n, QImage.Format.Format_RGB32)
+            for y, row in enumerate(matrix):
+                for x, dark in enumerate(row):
+                    img.setPixel(x, y, 0xFF000000 if dark else 0xFFFFFFFF)
+            return QPixmap.fromImage(img).scaled(
                 180, 180,
                 Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
+                Qt.TransformationMode.FastTransformation,
             )
         except Exception:
             return None
@@ -223,6 +233,9 @@ class MainWindow(QMainWindow):
         self._grips: list[_ResizeGrip] = []
 
         self._db = None
+        self._load_worker: LibraryLoadWorker | None = None   # T-094: lectura de la librería en curso
+        self._load_generation = 0                            # descarta resultados de cargas reemplazadas
+        self._keep_after_load: set[Any] = set()              # playlists a re-marcar al terminar
         self._worker: ExportWorker | None = None
         self._all_cards: list[PlaylistCard] = []
         self._groups: list[PlaylistGroup] = []
@@ -274,6 +287,8 @@ class MainWindow(QMainWindow):
         # Cache de existencia de archivos: evita stat() repetido (lento en USB/red)
         # key: raw_path  value: bool
         self._exists_cache: dict[str, bool] = {}
+        self._last_exists_check = time.monotonic()   # TEC-18
+        self._recheck_worker: ExistenceRecheckWorker | None = None
 
         # Debounce: 80ms sin cambios antes de disparar el preview
         self._preview_debounce = QTimer()
@@ -301,6 +316,7 @@ class MainWindow(QMainWindow):
         self._rb_xml_path = str(self.settings.value("rb_xml_path", "") or "")
         self._tk_collection_path = str(self.settings.value("tk_collection_path", "") or "")
         self._auto_advance = self.settings.value("auto_advance", True, type=bool)
+        self._check_updates = self.settings.value("check_updates_on_start", True, type=bool)
         self._saved_device_id = str(self.settings.value("audio_device_id", "") or "")
         self._media_devices = QMediaDevices(self)
         self._media_devices.audioOutputsChanged.connect(self._refresh_audio_devices)
@@ -765,6 +781,8 @@ class MainWindow(QMainWindow):
     )
 
     def _repair_supported(self) -> bool:
+        if self._load_worker is not None:
+            return False   # sin librería cargada todavía no hay qué reparar
         if self._source == "traktor":
             return True
         return self._source == "rekordbox" and isinstance(
@@ -805,6 +823,7 @@ class MainWindow(QMainWindow):
         if source == self._source or self._is_maintenance_busy():
             return
         self._source = source
+        self._keep_after_load = set()
         self._track_meta_cache.clear()
         self._exists_cache.clear()
         # Update button states
@@ -966,6 +985,7 @@ class MainWindow(QMainWindow):
         self.log_view = QPlainTextEdit()
         self.log_view.setObjectName("log_view")
         self.log_view.setReadOnly(True)
+        self.log_view.setMaximumBlockCount(5000)   # TEC-09: 40k pistas no dejan un log sin tope
         self.log_view.setVisible(False)
         panel_lo.addWidget(self.log_view, 1)
 
@@ -1045,6 +1065,17 @@ class MainWindow(QMainWindow):
         self._auto_advance_chk.setChecked(self._auto_advance)
         self._auto_advance_chk.toggled.connect(self._on_auto_advance_toggled)
         play_box.addWidget(self._auto_advance_chk)
+
+        # ── PRIVACIDAD ─────────────────────────────────────────────────────
+        privacy_box = section("PRIVACIDAD")
+        self._update_check_chk = QCheckBox("Buscar actualizaciones al iniciar")
+        self._update_check_chk.setObjectName("settings_check")
+        self._update_check_chk.setToolTip(
+            "Al abrir la app consulta en GitHub si hay una versión nueva. No envía datos tuyos."
+        )
+        self._update_check_chk.setChecked(self._check_updates)
+        self._update_check_chk.toggled.connect(self._on_check_updates_toggled)
+        privacy_box.addWidget(self._update_check_chk)
 
         # ── LIBRERÍAS ──────────────────────────────────────────────────────
         lib_box = section("LIBRERÍAS")
@@ -1149,6 +1180,10 @@ class MainWindow(QMainWindow):
         self._auto_advance = checked
         self.settings.setValue("auto_advance", checked)
 
+    def _on_check_updates_toggled(self, checked: bool) -> None:
+        self._check_updates = checked
+        self.settings.setValue("check_updates_on_start", checked)
+
     # ── Library paths ───────────────────────────────────────────────────────
 
     def _browse_rb_path(self) -> None:
@@ -1196,58 +1231,88 @@ class MainWindow(QMainWindow):
         self._reload_after_path_change()
 
     def _reload_after_path_change(self) -> None:
-        """Vuelve a leer la fuente activa conservando las playlists marcadas."""
+        """Vuelve a leer la fuente activa; las playlists marcadas se re-marcan al terminar la carga."""
         keep = {self._playlist_cache_key(c.playlist) for c in self._all_cards if c.isChecked()}
+        if self._load_worker is not None:
+            # Carga en curso sin tarjetas aún: la última selección conocida es la pendiente.
+            keep |= self._keep_after_load
         self._clear_preview_layout()   # los datos reparados cambian con las mismas claves
         self._track_meta_cache.clear()
         self._exists_cache.clear()
+        self._keep_after_load = keep
         self._load_playlists()
+
+    # ──────────────────────────────────────── Load playlists ─────────────
+
+    def _load_playlists(self) -> None:
+        """Lee la fuente activa (Rekordbox o Traktor) en un hilo (T-094).
+
+        Vuelve enseguida con la tarjeta «Cargando librería…»; el resultado llega por
+        `_on_library_loaded` / `_on_library_failed`. Una carga nueva cancela la anterior.
+        """
+        self._cancel_library_load()
+        self._clear_playlist_area()
+        self._src_rb_btn.setToolTip("")
+        self._db = None  # una carga fallida no puede dejar la librería de la otra fuente
+
+        if self._source == "traktor":
+            path = Path(self._tk_collection_path) if self._tk_collection_path else None
+        else:
+            path = Path(self._rb_xml_path) if self._rb_xml_path else None
+        worker = LibraryLoadWorker(self._load_generation, self._source, path, self._fixes_store)
+        worker.loaded.connect(self._on_library_loaded)
+        worker.failed.connect(self._on_library_failed)
+        self._load_worker = worker
+        self._retain_thread(worker)
+        self._show_loading()
+        self._sync_maintenance_for_source()
+        worker.start()
+
+    def _cancel_library_load(self) -> None:
+        """Suelta la carga en curso: su resultado ya no se muestra y el hilo termina solo."""
+        self._load_generation += 1   # Qt igual entrega lo ya encolado: se descarta por generación
+        worker, self._load_worker = self._load_worker, None
+        if worker is None:
+            return
+        worker.loaded.disconnect()
+        worker.failed.disconnect()
+        worker.requestInterruption()
+
+    def _on_library_loaded(self, result: LibraryLoadResult) -> None:
+        if result.token != self._load_generation:
+            return
+        self._load_worker = None
+        self._clear_playlist_area()
+        self._db = result.db
+        if result.source == "traktor":
+            from traktor_db import playlist_song_count
+            src_label = "Traktor"
+        else:
+            playlist_song_count = rekordbox_xml.playlist_song_count
+            src_label = "Rekordbox"
+        self._populate_playlists(result.tree, playlist_song_count)
+        self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
+        if result.source == "rekordbox":
+            stamp = f"{self._db.exported_at:%d/%m/%Y %H:%M}"
+            self._log(f"XML exportado el {stamp}.")
+            self._src_rb_btn.setToolTip(f"XML exportado el {stamp}")
+        keep, self._keep_after_load = self._keep_after_load, set()
         if keep:
             for card in self._all_cards:
                 if self._playlist_cache_key(card.playlist) in keep:
                     card.setChecked(True)
             self._update_order_numbers()
+        self._sync_maintenance_for_source()
 
-    # ──────────────────────────────────────── Load playlists ─────────────
-
-    def _load_playlists(self) -> None:
-        """Load playlists from the active source (Rekordbox or Traktor)."""
-        self._clear_playlist_area()
-        self._src_rb_btn.setToolTip("")
-        self._db = None  # una carga fallida no puede dejar la librería de la otra fuente
-
-        try:
-            if self._source == "traktor":
-                from traktor_db import (
-                    open_collection,
-                    get_playlist_tree,
-                    playlist_song_count,
-                )
-                tk_path = Path(self._tk_collection_path) if self._tk_collection_path else None
-                col = open_collection(tk_path)
-                tree = get_playlist_tree(col)
-                self._db = col
-            else:
-                xml_path = Path(self._rb_xml_path) if self._rb_xml_path else None
-                lib = rekordbox_xml.open_library(xml_path, fixes=self._fixes_store.load())
-                tree = rekordbox_xml.get_playlist_tree(lib)
-                playlist_song_count = rekordbox_xml.playlist_song_count
-                self._db = lib
-        except RuntimeError as e:
-            action = None
-            if self._source == "rekordbox":
-                action = ("Elegir rekordbox.xml…", self._browse_rb_path)
-            self._show_not_installed(str(e), action)
-            self._sync_maintenance_for_source()
+    def _on_library_failed(self, token: int, message: str) -> None:
+        if token != self._load_generation:
             return
-
-        self._populate_playlists(tree, playlist_song_count)
-        src_label = "Traktor" if self._source == "traktor" else "Rekordbox"
-        self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
+        self._load_worker = None
+        self._keep_after_load = set()
+        action = None
         if self._source == "rekordbox":
-            stamp = f"{self._db.exported_at:%d/%m/%Y %H:%M}"
-            self._log(f"XML exportado el {stamp}.")
-            self._src_rb_btn.setToolTip(f"XML exportado el {stamp}")
+            action = ("Elegir rekordbox.xml…", self._browse_rb_path)
+        self._show_not_installed(message, action)
         self._sync_maintenance_for_source()
 
     # Seam de test: los tests con BOOT reemplazan `_load_playlists` por un no-op
@@ -1325,9 +1390,23 @@ class MainWindow(QMainWindow):
         self, detail: str, action: tuple[str, Callable[[], None]] | None = None,
     ) -> None:
         """Show a friendly 'not installed' placeholder in the playlist area."""
+        app_name = "Traktor Pro 3 / 4" if self._source == "traktor" else "Rekordbox"
+        self._show_status_card(f"{app_name} no disponible", detail, action)
+
+    def _show_loading(self) -> None:
+        """Placeholder mientras el hilo lee la librería (T-094)."""
+        if self._source == "traktor":
+            detail = "Leyendo la colección de Traktor…"
+        else:
+            detail = "Leyendo el XML de Rekordbox. Con colecciones grandes puede tardar unos segundos."
+        self._show_status_card("Cargando librería…", detail)
+
+    def _show_status_card(
+        self, title_text: str, detail: str,
+        action: tuple[str, Callable[[], None]] | None = None,
+    ) -> None:
         self._clear_playlist_area()
 
-        app_name = "Traktor Pro 3 / 4" if self._source == "traktor" else "Rekordbox"
         card = QWidget()
         card.setObjectName("not_installed_card")
         card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -1341,7 +1420,7 @@ class MainWindow(QMainWindow):
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(icon)
 
-        title = QLabel(f"{app_name} no disponible")
+        title = QLabel(title_text)
         title.setObjectName("not_installed_title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(title)
@@ -1520,6 +1599,7 @@ class MainWindow(QMainWindow):
 
         # ── Extracción de metadata en el main thread (rápido: sólo queries a DB) ──
         groups = self._extract_preview_data(selected)
+        self._name_groups_like_folders(groups)
         self._launch_preview_worker(groups)
 
     def _launch_preview_worker(self, groups: list[GroupData]) -> None:
@@ -1541,15 +1621,18 @@ class MainWindow(QMainWindow):
         keep = set(selected)
         for key in [k for k in self._preview_cards if k not in keep]:
             self._remove_preview_card(key)
+        folders = self._folder_names_of(selected)
         for order, card in enumerate(selected, start=1):
             shown = self._preview_cards.get(card)
             if shown is not None:
+                shown.data.name = folders.get(card, shown.data.name)   # un « (2)» puede aparecer o desaparecer
                 shown.set_order(order)
         self._set_broken_total(sum(g.missing_count for g in self._rendered_groups))
         new = [c for c in selected if c not in self._preview_cards]
         if not new:
             return
         groups = self._extract_preview_data(new)
+        self._name_groups_like_folders(groups)
         for group in groups:
             group.order = selected.index(group.card) + 1
         self._launch_preview_worker(groups)
@@ -1579,6 +1662,19 @@ class MainWindow(QMainWindow):
             or playlist.Name
         )
         return f"{self._source}:{uid}"
+
+    def _name_groups_like_folders(self, groups: list[GroupData]) -> None:
+        """D-17: las colisiones se resuelven contra TODAS las marcadas, no solo las del lote."""
+        folders = self._folder_names_of([c for c in self._all_cards if c.isChecked()])
+        for g in groups:
+            g.name = folders.get(g.card, g.name)
+
+    @staticmethod
+    def _folder_names_of(cards: list[PlaylistCard]) -> dict[PlaylistCard, str]:
+        """Nombre de carpeta que el export creará por playlist (D-17), con la misma función de
+        nombres únicos del worker. `cards` debe venir en el orden del árbol, como en el export."""
+        names = folder_names_by_playlist([c.playlist for c in cards])
+        return {c: names[id(c.playlist)] for c in cards if id(c.playlist) in names}
 
     def _extract_preview_data(self, selected: list[PlaylistCard]) -> list[GroupData]:
         """
@@ -1619,6 +1715,7 @@ class MainWindow(QMainWindow):
             else:
                 # Cache miss: query a la DB (solo ocurre la primera vez)
                 tracks: list[TrackRow] = []
+                read_ok = True
                 try:
                     for i, song in enumerate(_get_songs(card.playlist)):
                         content = get_content(song)
@@ -1644,9 +1741,13 @@ class MainWindow(QMainWindow):
                             relocated = bool(getattr(content, "relocated", False)),
                             streaming = streaming,
                         ))
-                except Exception:
-                    pass
-                self._track_meta_cache[cache_key] = tracks
+                except Exception as e:
+                    # TEC-10: no cachear el vacío; el próximo toggle reintenta.
+                    read_ok = False
+                    _logger.exception("Preview: no se pudo leer la playlist %s", card.playlist.Name)
+                    self._report_unreadable_playlist(card.playlist.Name, e)
+                if read_ok:
+                    self._track_meta_cache[cache_key] = tracks
 
             groups.append(GroupData(
                 name        = card.playlist.Name,
@@ -1670,6 +1771,10 @@ class MainWindow(QMainWindow):
     def _pump_render_queue(self) -> None:
         """Procesa un grupo por tick del event loop — nunca bloquea la UI."""
         if not self._render_queue:
+            return
+        if not isValid(self.preview_layout):
+            # El timer sobrevivió a la ventana (cierre, tests): nada que dibujar.
+            self._render_queue.clear()
             return
         data = self._render_queue.pop(0)
         if data.card in self._preview_cards:
@@ -1730,6 +1835,7 @@ class MainWindow(QMainWindow):
 
     def _on_preview_done(self) -> None:
         """Worker terminó. Limpia loading label si no llegó ningún grupo."""
+        self._last_exists_check = time.monotonic()
         lo = self.preview_layout
         for i in range(lo.count()):
             item = lo.itemAt(i)
@@ -2016,9 +2122,9 @@ class MainWindow(QMainWindow):
         for w in list(self._live_wave_workers):
             w.wait(1500)
         self._cancel_preview_worker()
+        self._cancel_library_load()
         if self._worker and self._worker.isRunning():
-            self._worker.requestInterruption()
-            self._worker.wait(4000)
+            self._wait_export_block(self._worker)
         if self._relocate_worker and self._relocate_worker.isRunning():
             self._relocate_worker.requestInterruption()
             # Si está bloqueado esperando el modal de desambiguación, nadie
@@ -2036,6 +2142,53 @@ class MainWindow(QMainWindow):
                 thread.requestInterruption()
                 thread.wait(2000)
         super().closeEvent(event)
+
+    _RECHECK_EVERY_S = 5.0
+
+    def event(self, e) -> bool:
+        if e.type() == QEvent.Type.WindowActivate:
+            self._recheck_existence_on_focus()
+        return super().event(e)
+
+    def _recheck_existence_on_focus(self) -> None:
+        """TEC-18: al volver a la ventana (típico: se conectó el disco) se re-mira en disco lo
+        que la vista previa muestra, con throttling de 5 s y sin tocar la UI hasta saber si
+        algo cambió."""
+        if time.monotonic() - self._last_exists_check < self._RECHECK_EVERY_S:
+            return
+        busy = self._recheck_worker is not None and self._recheck_worker.isRunning()
+        if busy or self._export_state != "idle" or self._is_maintenance_busy():
+            return
+        known = {t.raw_path: t.exists for g in self._rendered_groups for t in g.tracks
+                 if t.raw_path and not t.streaming}
+        if not known:
+            return
+        self._last_exists_check = time.monotonic()
+        worker = ExistenceRecheckWorker(known, self._source == "traktor")
+        worker.changed.connect(self._on_recheck_done)
+        self._retain_thread(worker)
+        self._recheck_worker = worker
+        worker.start()
+
+    def _on_recheck_done(self, changed: bool) -> None:
+        if not changed or self._export_state != "idle":
+            return
+        self._exists_cache.clear()
+        self._clear_preview_layout()
+        self._start_preview_worker()
+
+    def _wait_export_block(self, worker: QThread) -> None:
+        """Cierra sin abortar: la copia corta entre bloques de 1 MiB, pero un disco lento puede
+        tardar en devolver el bloque actual. Se espera sin tope (con cursor de espera); si el
+        disco está colgado de verdad, el usuario lo resuelve desconectándolo, no con un SIGABRT."""
+        worker.requestInterruption()
+        self.output_status.setText("Esperando que termine la copia…")
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            while not worker.wait(50):
+                QApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
+        finally:
+            QApplication.restoreOverrideCursor()
 
     # ──────────────────────────────────────── Actions ────────────────────
 
@@ -2191,6 +2344,12 @@ class MainWindow(QMainWindow):
     def _log(self, text: str) -> None:
         self.log_view.appendPlainText(text)
 
+    def _report_unreadable_playlist(self, name: str, exc: Exception) -> None:
+        line = f"⚠ No se pudo leer la playlist {name}: {exc}"
+        self._log(line)
+        self.output_status.setText(line)
+        self._set_status_style("warn")
+
     # ──────────────────────────────── Relocate (F-07 ADR-001 / F-08 ADR-002) ───
 
     def _forget_rb_fixes(self) -> None:
@@ -2234,6 +2393,14 @@ class MainWindow(QMainWindow):
             )
         except ValueError as e:
             dialogs.warning(self, "No se puede guardar ahí", str(e))
+            return
+        except ET.ParseError as e:
+            # Texto crudo de una pista que no se puede rearmar (p. ej. entidades del DTD).
+            dialogs.critical(
+                self, "No se pudo armar el XML",
+                "Una de las pistas del XML cargado no se pudo reconstruir, así que no se guardó nada.\n\n"
+                f"Volvé a exportar el XML desde Rekordbox y cargalo de nuevo.\n\nDetalle: {e}",
+            )
             return
         except OSError as e:
             dialogs.critical(self, "Error al guardar", f"No se pudo guardar el XML: {e}")
@@ -2779,6 +2946,8 @@ class MainWindow(QMainWindow):
         __init__, después de que la ventana ya está armada — el resultado
         (si llega) solo agrega un label discreto, nunca bloquea el arranque.
         """
+        if not self._check_updates:
+            return
         self._update_worker = UpdateCheckWorker(_APP_VERSION)
         self._update_worker.update_available.connect(self._on_update_available)
         self._update_worker.start()
@@ -2789,5 +2958,7 @@ class MainWindow(QMainWindow):
         self._update_strip.setVisible(True)
 
     def _open_update_link(self) -> None:
-        if self._update_url:
-            QDesktopServices.openUrl(QUrl(self._update_url))
+        # Segunda barrera: aunque _update_url cambie de dueño, solo se abre una URL válida.
+        url = safe_release_url(self._update_url)
+        if url:
+            QDesktopServices.openUrl(QUrl(url))

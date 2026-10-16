@@ -328,8 +328,8 @@ class TestRoundTripMacosRealNml:
     @pytest.mark.parametrize("volume,rel_from_volume_root,dir_attr,file_attr", [
         (
             "Macintosh HD",
-            "Users/gabrielsk/Music/Traktor/ContentImport/Transistor Punch/01 Kick.aif",
-            "/:Users/:gabrielsk/:Music/:Traktor/:ContentImport/:Transistor Punch/:",
+            "Users/dj/Music/Traktor/ContentImport/Transistor Punch/01 Kick.aif",
+            "/:Users/:dj/:Music/:Traktor/:ContentImport/:Transistor Punch/:",
             "01 Kick.aif",
         ),
         (

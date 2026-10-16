@@ -45,17 +45,36 @@ a = Analysis(
         'PySide6.QtSvg',
         'numpy',
         'certifi',
+        'qrcode',
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     # Defensa si el venv de build todavía tuviera PyQt6: no debe colarse al bundle.
-    excludes=['PyQt6', 'pyrekordbox', 'sqlcipher3', 'sqlalchemy'],
+    # T-096 (TEC-12): módulos Qt que la app no usa; QtVirtualKeyboard además es GPL-3.0.
+    excludes=['PyQt6', 'pyrekordbox', 'sqlcipher3', 'sqlalchemy',
+              'PySide6.QtPdf', 'PySide6.QtPdfWidgets', 'PySide6.QtQuick', 'PySide6.QtQuickWidgets',
+              'PySide6.QtQml', 'PySide6.QtVirtualKeyboard'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
 )
+
+# --- filtro Qt (T-096): los hooks de PySide6 arrastran frameworks y plugins aunque
+# el módulo Python esté excluido (QtQml/QtQuick/QtVirtualKeyboard/QtPdf y sus plugins).
+_UNUSED_QT = ('qtpdf', 'qt6pdf', 'qtquick', 'qt6quick', 'qtqml', 'qt6qml',
+              'qtvirtualkeyboard', 'qt6virtualkeyboard', 'qpdf')
+
+
+def _is_unused_qt(dest):
+    low = str(dest).lower()
+    return any(token in low for token in _UNUSED_QT)
+
+
+a.binaries = [b for b in a.binaries if not _is_unused_qt(b[0])]
+a.datas = [d for d in a.datas if not _is_unused_qt(d[0])]
+# --- fin filtro Qt
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 

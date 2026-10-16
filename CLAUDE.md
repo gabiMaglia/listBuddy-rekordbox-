@@ -32,6 +32,8 @@ app_paths.py         → Carpeta de datos del usuario (settings.ini, rekordbox_f
 rekordbox_fixes.py   → Persistencia de reparaciones de Rekordbox en rekordbox_fixes.json; se aplican al cargar el XML.
 rekordbox_xml_relocate.py → Reparar enlaces de la fuente Rekordbox (busca por nombre); las rutas nuevas van a rekordbox_fixes.json. El XML nuevo importable lo escribe rekordbox_xml.write_playlists_xml.
 traktor_db.py        → Parser de colección NML de Traktor Pro 3/4. open_collection(), get_playlist_tree().
+library_load_worker.py → LibraryLoadWorker (QThread). Lee el XML/NML fuera del hilo de UI; señales loaded(result)/failed(token, msg) (T-094).
+load_cancel.py       → LoadCancelled + CHECK: cancelación cooperativa del parseo.
 preview_worker.py    → PreviewWorker (QThread). Existence checks en background; emite GroupData.
 audio_player.py      → AudioPlayer (QMediaPlayer+FFmpeg). play/pause/seek; señales playing_changed, position_changed, track_finished.
 waveform_worker.py   → WaveformWorker (QThread). Picos de la onda del footer.
@@ -42,7 +44,7 @@ styles.py            → Tokens de diseño dark/light + load_qss().
 about_dialog.py      → «Acerca de» (avisos GPL) + visor de LICENSE y THIRD_PARTY_NOTICES.md.
 licenses/            → Textos completos de licencias de terceros (regenerar con scripts/collect_licenses.py).
 rb_exporter.spec     → Spec de PyInstaller para empaquetar (produce "listBuddy" ejecutable).
-requirements.txt     → Dependencias pineadas exactas.
+requirements.in / requirements.txt → Dependencias directas y su lock con hashes (T-096); lo mismo para requirements-dev.*.
 plans/               → Planes de implementación autocontenidos para ejecutar con Sonnet.
 ```
 
@@ -139,7 +141,7 @@ El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **
      Notariza el `.app` (zip) → `stapler staple` → DMG firmado → notariza el DMG → `stapler staple/validate` → `spctl --assess --type open --context context:primary-signature` + `hdiutil verify`.
    - Tras buildear, `scripts/check_bundle.sh "dist/List Buddy.app"` (lo corre el script) falla si hay pyrekordbox/sqlcipher/sqlalchemy o un `.rbe_settings.ini` dentro del bundle.
 
-6. **Arquitectura:** por defecto PyInstaller empaqueta para la arquitectura del sistema donde se corre. Para crear un **Universal Binary** (arm64 + x86_64):
+6. **Arquitectura:** por defecto PyInstaller empaqueta para la arquitectura del sistema donde se corre. **CI (T-097):** `.github/workflows/release.yml` buildea arm64 (`macos-15`) e Intel (`macos-15-intel`) con `scripts/release_mac.sh --arch-suffix` y publica un Release en borrador al pushear un tag `v*`; secrets y pasos en `docs/RELEASE.md`. Tests en CI: `.github/workflows/tests.yml` (solo macOS). Para crear un **Universal Binary** (arm64 + x86_64; hoy no viable: numpy cp314 no es universal2, T-086 APP-06):
    ```bash
    pyinstaller rb_exporter.spec --target-arch universal2
    ```
@@ -185,6 +187,22 @@ El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **
 
 Para este proyecto, **seguir con PyInstaller** salvo que surja un problema grave.
 
+### Release macOS y cadena de suministro (T-096)
+
+- `scripts/release_mac.sh` exige Python >= 3.14.8 (libexpat 2.8.5); `PYTHON=/ruta/python3.14` fija el intérprete, `ALLOW_OLD_PYTHON=1` lo saltea.
+- `--dry-run` solo valida prerrequisitos e imprime el plan (no buildea). `--skip-build` reusa `dist/List Buddy.app` (re-firma, .dmg y checksums).
+- Deja en `dist/`: `ListBuddy-<v>.dmg` + `.dmg.sha256` y `listbuddy-<v>-src.tar.gz` + `.sha256` (`git archive` de HEAD; `.gitattributes` excluye `engram/`). Se suben juntos al release.
+- Dependencias con hashes: se editan `requirements.in` / `requirements-dev.in` y se regeneran los locks (en un venv aparte con `pip-tools`):
+
+  ```bash
+  pip-compile --generate-hashes --strip-extras --output-file=requirements.txt requirements.in
+  pip-compile --generate-hashes --strip-extras --output-file=requirements-dev.txt requirements-dev.in
+  pip install --require-hashes -r requirements.txt   # así lo instalan release_mac.sh y build_windows.ps1
+  ```
+
+  El lock lo resuelve la plataforma donde corre `pip-compile` (hoy macOS): un paquete que solo se instala en Windows (p. ej. `colorama` de pytest) no aparece en `requirements-dev.txt`. PyInstaller (`==6.20.0`) se instala aparte en ambos scripts, sin hash. Tras cambiar versiones, correr `scripts/collect_licenses.py`.
+- El spec saca QtPdf/QtQuick/QtQml/QtVirtualKeyboard (`excludes` + filtro de `a.binaries`/`a.datas`) y `check_bundle.sh` falla si reaparecen.
+
 ---
 
 ## Empaquetado — Windows
@@ -195,7 +213,7 @@ pyinstaller rb_exporter.spec
 ```
 
 - `icon.ico` para el ícono (descomentar línea en spec).
-- UPX está habilitado (`upx=True`) para reducir tamaño. Si da problemas de antivirus, deshabilitar.
+- UPX está deshabilitado (`upx=False` en todo el spec): LGPL (ADR-003) y menos falsos positivos de antivirus sin firma. No habilitarlo.
 - Si el .exe abre pero falla al leer el XML/NML: revisar el log (`%LOCALAPPDATA%\listBuddy\logs\listBuddy.log`).
 
 ---

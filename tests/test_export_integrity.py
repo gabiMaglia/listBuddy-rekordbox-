@@ -189,3 +189,71 @@ def test_report_file_symlink_is_not_written_through() -> None:
         "print(target.exists(), done[3])\n"
     )
     assert out == "False ok"
+
+
+# ── T-093 SEC-13: nombres reservados de Windows ───────────────────────────
+
+def test_sanitize_suffixes_windows_reserved_names() -> None:
+    from rekordbox_export import sanitize
+
+    for raw, want in (
+        ("CON", "CON_"), ("con", "con_"), ("Prn", "Prn_"), ("AUX", "AUX_"), ("NUL", "NUL_"),
+        ("COM1", "COM1_"), ("com9", "com9_"), ("LPT1", "LPT1_"), ("lpt9", "lpt9_"),
+        ("CON.txt", "CON_.txt"), ("nul.tar.gz", "nul_.tar.gz"), ("COM3 .mp3", "COM3_.mp3"),
+        ("COM¹", "COM¹_"),
+    ):
+        assert sanitize(raw) == want, raw
+    for ok in ("COM0", "COM10", "CONSOLE", "Aux Cord", "LPT", "Mi CON", "x.CON"):
+        assert sanitize(ok) == ok, ok
+
+
+# ── T-093 TEC-21: el nombre se mide en bytes UTF-8 y no corta grafemas ────
+
+def test_safe_filename_150_emojis_fits_255_bytes_and_keeps_prefix_and_suffix() -> None:
+    out = _run(
+        "n = worker._safe_filename('001', 'Artista', '\\U0001F3B5' * 150, '.mp3')\n"
+        "print(len(n.encode()), len(n.encode('utf-16-le')) // 2, n.startswith('001 - Artista - '), n.endswith('\\u2026.mp3'))\n"
+    )
+    b, u16, pre, suf = out.split()
+    assert int(b) + len(".part") <= 255 and int(u16) <= 255
+    assert (pre, suf) == ("True", "True")
+
+
+def test_safe_filename_never_splits_a_grapheme_cluster() -> None:
+    out = _run(
+        "fam = '\\U0001F468\\u200D\\U0001F469\\u200D\\U0001F467'\n"          # familia: ZWJ
+        "acc = 'e\\u0301'\n"                                                   # e + acento combinante
+        "flag = '\\U0001F1E6\\U0001F1F7'\n"                                    # bandera (2 indicadores regionales)
+        "ok = True\n"
+        "for unit in (fam, acc, flag):\n"
+        "    for pad in range(0, 12):\n"
+        "        t = 'x' * pad + unit * 200\n"
+        "        n = worker._safe_filename('1', '', t, '.mp3')\n"
+        "        body = n[len('1 - '):-len('\\u2026.mp3')]\n"
+        "        ok &= len(n.encode()) <= 200 + 4 and n.endswith('\\u2026.mp3')\n"
+        "        ok &= (body.replace('x' * pad, '', 1)) == unit * (len(body.replace('x' * pad, '', 1)) // len(unit))\n"
+        "print(ok)\n"
+    )
+    assert out == "True"
+
+
+def test_safe_filename_short_names_are_untouched() -> None:
+    out = _run("print(worker._safe_filename('01', 'A', 'Canción', '.flac'))\n")
+    assert out == "01 - A - Canción.flac"
+
+
+# ── T-093: aviso de ruta larga (MAX_PATH 260 en Windows) ──────────────────
+
+def test_long_destination_path_logs_a_warning_only_on_win32() -> None:
+    out = _run(
+        "import sys\n"
+        "long_title = 'T' * 190\n"
+        "def run_on(plat):\n"
+        "    sys.platform = plat\n"
+        "    d = out / plat; d.mkdir(exist_ok=True)\n"
+        "    logs, done = export([pl('Mix', [track(1, 1, long_title)])], d)\n"
+        "    return sum('260' in l for l in logs), done[0]\n"
+        "w = run_on('win32'); l = run_on('linux')\n"
+        "print(w[0], w[1], l[0], l[1])\n"
+    )
+    assert out == "1 1 0 1"

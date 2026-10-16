@@ -37,8 +37,14 @@ $pyi     = Join-Path $venv "Scripts\pyinstaller.exe"
 
 Write-Host "Instalando dependencias…"
 & $pip install --upgrade pip --quiet
-& $pip install -r (Join-Path $ROOT "requirements.txt") --quiet
-& $pip install pyinstaller --quiet
+if ($LASTEXITCODE -ne 0) { Write-Error "No se pudo actualizar pip."; exit 1 }
+# SEC-07: --require-hashes rechaza todo paquete fuera del lock; PyInstaller va pineado y aparte
+# (con hashes activos pip exige hash en cada requisito de la misma corrida).
+# $ErrorActionPreference no corta cuando falla un comando nativo: se mira $LASTEXITCODE (verifier T-092).
+& $pip install --require-hashes -r (Join-Path $ROOT "requirements.txt") --quiet
+if ($LASTEXITCODE -ne 0) { Write-Error "pip install --require-hashes falló (lock desincronizado o hash inválido)."; exit 1 }
+& $pip install pyinstaller==6.20.0 --quiet
+if ($LASTEXITCODE -ne 0) { Write-Error "No se pudo instalar PyInstaller 6.20.0."; exit 1 }
 
 # ── 3. Build ───────────────────────────────────────────────────────────────
 Write-Host ""
@@ -47,13 +53,14 @@ Set-Location $ROOT
 & $pyi rb_exporter.spec --noconfirm
 
 # ── 4. Resultado ───────────────────────────────────────────────────────────
-$exe = Join-Path $ROOT "dist\listBuddy.exe"
+# El spec de Windows es one-dir: el .exe vive dentro de dist\listBuddy\.
+$exe = Join-Path $ROOT "dist\listBuddy\listBuddy.exe"
 if (Test-Path $exe) {
     $size = [math]::Round((Get-Item $exe).Length / 1MB, 1)
     Write-Host ""
-    Write-Host "Build OK: dist\listBuddy.exe ($size MB)" -ForegroundColor Green
+    Write-Host "Build OK: dist\listBuddy\listBuddy.exe ($size MB)" -ForegroundColor Green
     Write-Host ""
-    Write-Host "Para distribuir: comprimir dist\listBuddy.exe en un .zip o usar Inno Setup."
+    Write-Host "Para distribuir: comprimir la carpeta dist\listBuddy en un .zip o usar Inno Setup (las DLL de Qt deben quedar sueltas: LGPL)."
 } else {
     Write-Error "Build fallido. Revisar la salida de PyInstaller arriba."
 }

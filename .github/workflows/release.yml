@@ -1,0 +1,237 @@
+# Release macOS: dos builds thin (arm64 + x86_64) con scripts/release_mac.sh (T-097, APP-06).
+#
+# - Tag `v*`           → build + firma Developer ID + notarización + GitHub Release en borrador.
+# - workflow_dispatch  → sobre una rama: build ad-hoc (environment `smoke`, sin secrets) y artefactos,
+#                        sin release; sobre un tag `v*`: igual que el push del tag (firma + borrador).
+# - pull_request       → solo si cambian archivos de empaquetado: build ad-hoc de humo.
+#                        Nunca importa el certificado ni las credenciales, aunque el PR sea
+#                        del mismo repo y GitHub le pase secrets.
+#
+# Sin secrets (fork, repo sin configurar) o en pull_request el script firma ad-hoc y no falla.
+# Environment secrets de `release` (ver docs/RELEASE.md): MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD,
+# NOTARY_KEY_ID, NOTARY_ISSUER_ID, NOTARY_KEY_P8_BASE64.
+#
+# Runners (verificados 2026-10-15, actions/runner-images README): `macos-15` es arm64 y
+# `macos-15-intel` x86_64; GitHub retira Intel cuando retire la imagen macOS 15 (fall 2027).
+name: Release macOS
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - 'scripts/release_mac.sh'
+      - 'scripts/check_bundle.sh'
+      - 'rb_exporter.spec'
+      - 'entitlements.plist'
+      - 'requirements.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.14.8'
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    # Frontera de los secrets (docs/RELEASE.md): solo un tag v* entra al environment `release`
+    # (GitHub aplica la regla «Deployment branches and tags» en el servidor); cualquier otro ref
+    # cae a `smoke`, que no tiene secrets. Un `if:` del propio archivo no es una frontera.
+    environment:
+      name: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'smoke' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    env:
+      # `secrets` no se puede usar en `steps.if`; sí en `env` del job (GitHub Docs: Contexts).
+      SIGNING: ${{ secrets.MACOS_CERT_P12_BASE64 != '' && secrets.MACOS_CERT_PASSWORD != '' }}
+      NOTARIZING: ${{ secrets.NOTARY_KEY_ID != '' && secrets.NOTARY_ISSUER_ID != '' && secrets.NOTARY_KEY_P8_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          # Sin caché de pip: un run de tag restaura cachés de la rama default y este job tiene los secrets de firma.
+
+      - name: Verificar runner y versión
+        run: |
+          set -euo pipefail
+          echo "uname -m: $(uname -m)  (esperado: ${{ matrix.arch }})"
+          [ "$(uname -m)" = "${{ matrix.arch }}" ]
+          python3 --version
+          APP_VERSION=$(sed -n 's/^_APP_VERSION = "\(.*\)"/\1/p' ui.py)
+          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/v}"
+            if [ "$TAG" != "$APP_VERSION" ]; then
+              echo "::error::el tag v$TAG no coincide con _APP_VERSION=$APP_VERSION en ui.py"; exit 1
+            fi
+          fi
+
+      # ── Firma: .p12 en un keychain temporal (GitHub Docs «Installing an Apple certificate on macOS runners») ──
+      - name: Importar certificado Developer ID
+        if: github.event_name != 'pull_request' && env.SIGNING == 'true'
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/developer_id.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/listbuddy-signing.keychain-db"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 24)
+          echo -n "$MACOS_CERT_P12_BASE64" | base64 --decode -o "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          rm -f "$CERT_PATH"
+          # El nombre de la identidad sale del propio certificado: no hace falta otro secret.
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+            | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::el .p12 no contiene una identidad «Developer ID Application»"; exit 1
+          fi
+          echo "Identidad: $IDENTITY"
+          echo "DEVELOPER_ID=$IDENTITY" >> "$GITHUB_ENV"
+
+      # ── Notarización: API key de App Store Connect → perfil de notarytool (TN3147) ──
+      - name: Guardar credenciales de notarytool
+        if: github.event_name != 'pull_request' && env.SIGNING == 'true' && env.NOTARIZING == 'true'
+        env:
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+          NOTARY_KEY_P8_BASE64: ${{ secrets.NOTARY_KEY_P8_BASE64 }}
+        run: |
+          set -euo pipefail
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${NOTARY_KEY_ID}.p8"
+          echo -n "$NOTARY_KEY_P8_BASE64" | base64 --decode -o "$KEY_PATH"
+          xcrun notarytool store-credentials listbuddy \
+            --key "$KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID" \
+            --keychain "$KEYCHAIN_PATH"
+          rm -f "$KEY_PATH"
+          # Perfil en el keychain temporal (el único en la lista de búsqueda); la limpieza lo borra.
+          echo "NOTARY_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "NOTARY_PROFILE=listbuddy" >> "$GITHUB_ENV"
+
+      # Fail-closed: un tag nunca produce un borrador con DMG ad-hoc o sin notarizar, ni siquiera
+      # si el environment `release` quedó mal configurado. Corre antes del build (~15 min de firma).
+      - name: Exigir firma y notarización en tags
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request'
+        run: |
+          missing=""
+          [ "$SIGNING" = "true" ] || missing="$missing SIGNING"
+          [ "$NOTARIZING" = "true" ] || missing="$missing NOTARIZING"
+          [ -n "${DEVELOPER_ID:-}" ] || missing="$missing DEVELOPER_ID"
+          [ -n "${NOTARY_PROFILE:-}" ] || missing="$missing NOTARY_PROFILE"
+          if [ -n "$missing" ]; then
+            echo "::error::un tag v* exige firma Developer ID y notarización; falta:$missing (revisá el environment release, docs/RELEASE.md)"
+            exit 1
+          fi
+
+      - name: Aviso si no hay secrets
+        if: github.event_name == 'pull_request' || env.SIGNING != 'true' || env.NOTARIZING != 'true'
+        run: |
+          echo "::warning::firma ad-hoc, DMG no distribuible (evento=${{ github.event_name }} SIGNING=$SIGNING NOTARIZING=$NOTARIZING)"
+
+      # DEVELOPER_ID y NOTARY_PROFILE llegan por GITHUB_ENV solo si los pasos anteriores corrieron;
+      # sin ellos el script firma ad-hoc. PYTHON apunta al de setup-python.
+      - name: Build, firma, DMG y notarización
+        env:
+          PYTHON: python3
+        run: scripts/release_mac.sh --arch-suffix
+
+      - name: Resumen
+        run: |
+          {
+            echo "## List Buddy ${APP_VERSION} (${{ matrix.arch }})"
+            echo
+            echo '```'
+            cat dist/*.sha256
+            echo '```'
+            echo
+            echo "Firma: $([ -n "${DEVELOPER_ID:-}" ] && echo 'Developer ID' || echo ad-hoc) · Notarización: $([ -n "${NOTARY_PROFILE:-}" ] && echo sí || echo no)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: listbuddy-${{ env.APP_VERSION }}-${{ matrix.arch }}
+          path: |
+            dist/*.dmg
+            dist/ListBuddy-*.dmg.sha256
+            dist/notary-*.json
+          if-no-files-found: error
+          compression-level: 0
+
+      # El tarball fuente es idéntico en las dos patas: con merge-multiple se pisarían; sube una.
+      - name: Subir tarball de fuentes (una sola pata)
+        uses: actions/upload-artifact@v7
+        if: matrix.arch == 'arm64'
+        with:
+          name: listbuddy-${{ env.APP_VERSION }}-src
+          path: |
+            dist/*-src.tar.gz
+            dist/*-src.tar.gz.sha256
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Limpiar keychain temporal
+        if: always() && env.KEYCHAIN_PATH != ''
+        run: security delete-keychain "$KEYCHAIN_PATH" || true
+
+  release:
+    name: GitHub Release (borrador)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Listar assets
+        run: ls -la assets
+
+      # Los 6 assets esperados; sin ellos no se crea el borrador (reemplaza fail_on_unmatched_files).
+      - name: Verificar assets esperados
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          for f in "ListBuddy-${VERSION}-arm64.dmg" "ListBuddy-${VERSION}-arm64.dmg.sha256" \
+                   "ListBuddy-${VERSION}-x86_64.dmg" "ListBuddy-${VERSION}-x86_64.dmg.sha256" \
+                   "listbuddy-${VERSION}-src.tar.gz" "listbuddy-${VERSION}-src.tar.gz.sha256"; do
+            [ -f "assets/$f" ] || { echo "::error::falta el asset assets/$f"; exit 1; }
+          done
+
+      # `gh` es first-party (viene en el runner): ninguna action de terceros toca el token de escritura.
+      - name: Crear release en borrador
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes \
+            --title "List Buddy ${GITHUB_REF_NAME}" \
+            "assets/ListBuddy-${VERSION}-arm64.dmg" "assets/ListBuddy-${VERSION}-arm64.dmg.sha256" \
+            "assets/ListBuddy-${VERSION}-x86_64.dmg" "assets/ListBuddy-${VERSION}-x86_64.dmg.sha256" \
+            "assets/listbuddy-${VERSION}-src.tar.gz" "assets/listbuddy-${VERSION}-src.tar.gz.sha256"

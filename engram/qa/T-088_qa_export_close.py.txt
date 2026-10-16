@@ -1,6 +1,6 @@
 """Exportacion en curso + cierre de ventana (ventana real). argv[1]=coop|hang"""
 import sys, os, time, tempfile, pathlib
-sys.path.insert(0, "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR"); os.chdir("/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR")
+sys.path.insert(0, "<HOME>/Desktop/REKORDBOX_EXTRACTOR"); os.chdir("<HOME>/Desktop/REKORDBOX_EXTRACTOR")
 from PySide6.QtWidgets import QApplication
 import styles, ui, worker, rekordbox_xml as rx
 mode = sys.argv[1]

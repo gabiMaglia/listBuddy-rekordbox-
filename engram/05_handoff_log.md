@@ -3,6 +3,88 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 09:20] Verifier T-094 CONFIRMADO (Done) · verifier T-092 REFUTADO → fix del Orquestador · verifiers T-096/T-097 en curso
+- T-092 D1 (real, Windows): el lock con hashes se compila en macOS y no trae `colorama` (qrcode y pytest la exigen solo en win32) → `pip install --require-hashes` fallaría en Windows y el .ps1 seguía. Fix: `colorama` pineada en requirements.in (locks regenerados, licencia BSD-3 registrada), `$LASTEXITCODE` tras cada pip en build_windows.ps1. D2: `safe_release_url` rechaza segmentos `.`/`..` también decodificados (`%2e`) y espacios/`\n` finales. Tests rojos antes (8).
+- Siguiente: re-verificación ciega de T-092 cuando termine uno de los dos verifiers en vuelo; después suite completa, merge a main, push, cierre.
+- Quien retoma: nerv-orquestador.
+
+### [2026-10-16 05:00] Verifier T-095 CONFIRMADO (Done) · verifier T-094 REFUTADO → fix → re-verificación · verifier T-092 lanzado
+- T-094 V1: recargas encadenadas pisaban `_keep_after_load` (regresión vs main). nerv-desktop (`fix/t094-ver`): `keep |= _keep_after_load` si hay carga en vuelo; cambio de fuente sigue descartando, como main; 3 tests, 2 rojos antes. Mergeado. PO ratificó RSS ≤ 3× medido con cues (sin cues 4,6× = nota).
+- En vuelo: verifier T-092 y re-verifier T-094. Faltan verifiers T-096 y T-097. Después: suite completa, merge a main, push.
+- Quien retoma: nerv-orquestador.
+
+### [2026-10-16 04:00] QA T-097 APROBADO (4º) · verifier T-095 REFUTADO → fix nerv-desktop → re-verificación
+- Verifier T-095 (ciego) encontró 2 defectos reales que QA había dejado como «deducidos»: V1 previa numera carpetas con playlists ilegibles que el export no crea; V2 `_last_playing` atascado tras error de audio. nerv-desktop (`fix/t095-ver`): helper `folder_names_by_playlist` compartido (ui → worker); `AudioPlayer._on_error` resetea estado. 3 tests rojos antes. Mergeado en rc2.
+- Lección (retro): el verifier ciego aporta sobre QA — lo «deducido» no es inocuo por default. Verifier T-094 en curso; siguen T-095 (re), T-092, T-096, T-097.
+- Quien retoma: nerv-orquestador → nerv-verifier.
+
+### [2026-10-16 03:20] nerv-orquestador → nerv-qa T-097 (4º, X) + nerv-verifier T-095 (S)
+- QA T-097 sobre el fix de D7/D8 (HEAD 5c3d4fe). Verifier ciego de T-095 sin acceso a engram/qa/T-095.md ni handoffs (P-12); entregable `engram/qa/T-095_verifier.md`. Siguen, de a dos: verifiers de T-092, T-094, T-096 (y T-097 cuando apruebe).
+- Quien retoma: nerv-orquestador.
+
+### [2026-10-16 03:10] QA T-094 APROBADO (3º) · QA T-097 RECHAZADO (3º: D7 test vacuo, D8 doc) → fix del Orquestador → 4ª QA (X)
+- T-097 D7: `_step_run` extrae el `run:` real; `test_c3_release_job_lists_all_six_assets…` exige los 6 nombres como token entero en la verificación y en `gh release create` (un primer intento por subcadena dejó pasar «-arm64.dmg» por «-arm64.dmg.sha256»); `test_c3_asset_check_step_really_fails_when_one_is_missing` ejecuta el paso en bash con cada asset ausente. `_steps` ahora encuentra el último paso del archivo (`\Z`). Rojo con: DMG fuera del create, sha256 fuera del create, asset fuera del bucle, bucle → `exit 1`. D8: cabecera y tabla de RELEASE.md dicen la verdad sobre dispatch en rama (`smoke`) y en tag.
+- Quien retoma: nerv-orquestador → nerv-qa T-097 (4º intento, X).
+
+### [2026-10-16 02:20] Correcciones de arquitectura mergeadas · ADR-005/006 aceptados · 3ª QA (X) de T-094 y T-097
+- nerv-desktop T-094 (`fix/t094-arq`): C1 ventana no recorta más allá del último `<` + guarda + `SetReparseDeferralEnabled(False)` (hallazgo propio: expat 2.6+ difería el evento un bloque); C2 export captura `ET.ParseError` con diálogo claro; C3 lista blanca de codificaciones de texto. 17 tests rojos antes.
+- nerv-desktop T-097 (`fix/t097-arq`): C1 environment `release` solo en tags (`smoke` sin secrets), C2 abort fail-closed en tags, C3 `gh release create --draft --verify-tag` sin terceros, C4 perfil de notarytool en keychain temporal + `NOTARY_KEYCHAIN`. Todos los tests con mutaciones rojas. El PO debe configurar en GitHub: environment `release` con regla de tag `v*` y los 5 secrets de environment; ruleset de tags; required reviewers opcional (detalle en docs/RELEASE.md).
+- PO aceptó ADR-005 y ADR-006 en sesión. Suite completa en rc2: 732 passed, 2 skipped. 3ª QA (X) lanzada para ambos.
+- Quien retoma: nerv-orquestador → merge a main + push si aprueban; nerv-verifier de los Strong pendiente (ver nota siguiente).
+
+### [2026-10-16 01:30] Arquitectos T-094 y T-097: DISEÑO CON CORRECCIONES → nerv-desktop (intento 3)
+- T-097: modelo de confianza mal (solo un `if` en el propio YAML guardaba el certificado). C1 secrets en environment `release` atado a tags `v*`; C2 tag sin firma+notarización aborta antes del build; C3 `gh release create --draft --verify-tag` en vez de acción de terceros con `contents: write`; C4 credenciales de notarytool en el keychain temporal (`--keychain`, `NOTARY_KEYCHAIN`). Deuda D-a..D-f a 1.0.1. ADR-005 Propuesto. Recomienda nerv-devops antes del primer tag real (settings de GitHub fuera del repo). Rama `fix/t097-arq`.
+- T-094: diseño apto (texto crudo con expat, cancelación por generación) con 3 defectos reales: C1 ventana de bytes corrompe el texto crudo si una etiqueta de TRACK > 64 KiB cruza el bloque; C2 export sin capturar `ET.ParseError`; C3 declaración acepta codecs no textuales (`zlib_codec`). Deuda: diferir carga al primer paint (1.1). ADR-006 Propuesto (renumerado: ambos arquitectos usaron 005). Rama `fix/t094-arq`.
+- Quien retoma: nerv-desktop ×2 → nerv-orquestador → nerv-qa (3ª QA, X). Pendiente del PO: ratificar ADR-005 y ADR-006.
+
+### [2026-10-16 00:55] nerv-orquestador → nerv-arquitecto T-094 + T-097 (tope P-2, decisión del PO)
+- El PO eligió cumplir P-2 al pie: revisión de diseño post-hoc (P-19.7) de cada entrega antes de una 3ª QA. Entregable: sección «Revisión de arquitectura» en engram/plans/T-09x.md con veredicto y correcciones (bloqueantes vs deuda); ADR si corresponde.
+- T-094: parser expat crudo + reparseo por pista, ventana de bytes, carga en constructor, cancelación por token. T-097: modelo de confianza del workflow (secrets en PR, environment), thin builds, corte script/YAML, deducidos de QA.
+- Quien retoma: nerv-arquitecto → nerv-orquestador → nerv-qa (3ª QA, X) si el diseño es apto.
+
+### [2026-10-16 00:40] T-094 y T-097 RECHAZADAS por 2ª vez (solo tests débiles) → fixes del Orquestador → tope P-2
+- T-094 D3: `test_traktor_cancellation_is_checked_while_scanning` (3000 entradas, cancela en la 2ª consulta; rojo con `ticks == 1`). T-097 D6: `_step_if_operands` parsea el `if:` real y exige la guarda como operando de `&&` sin `||`; paso del tarball con `name:` como ancla; rojo con `&&`→`||` y con `|| true`.
+- Ambos tickets llegan al tope de 2 rechazos (P-2 → nerv-arquitecto + informar al PO). En los dos casos QA declaró el código correcto y objetó solo la fuerza de los tests. Se consulta al PO antes de gastar en arquitecto.
+- Quien retoma: nerv-orquestador (espera decisión del PO).
+
+### [2026-10-16 00:05] T-094 RECHAZADO → PO ratifica ≤ 1,5 s + fix D2 · T-097 fix mergeado → re-QA (X) de ambos
+- T-094 D1: ventana 1,3 s vs < 1 s. PO decide en sesión: aceptar ~1,3 s (criterio ≤ 1,5 s, anotado en la fila). D2: `test_cancellation_is_checked_while_scanning` (`_CHUNK`=4096, cancela al 3º bloque, `_build_tree` parcheado para que solo `_scan` pueda cortar); rojo sin el chequeo de `_scan`, verde con él.
+- T-097: nerv-desktop corrigió D1-D5 en `fix/t097-qa1` (5 commits, prueba de rojo de D4 con dry-run real) → mergeado en rc2, actionlint OK.
+- Re-QA nivel X de T-094 y T-097 (2º intento). Después: nerv-verifier de los 5 Strong, suite completa, merge a main, push.
+- Quien retoma: nerv-orquestador → nerv-qa.
+
+### [2026-10-15 23:30] QA T-096 APROBADO (intento 2) · QA T-097 RECHAZADO → nerv-desktop (intento 2, X)
+- T-097 S RECHAZADO con 5 defectos (secrets en PR del mismo repo, tarball duplicado entre patas, bug de expansión en Resumen, test que asserta texto fuente, cifra sin fuente). No es simple → handoff a nerv-desktop en worktree `fix/t097-qa1` desde `release/1.0.0-rc2` (release_mac.sh ya fusionado con T-096). Nivel X para la re-QA.
+- Quien retoma: nerv-desktop → nerv-orquestador → nerv-qa.
+
+### [2026-10-15 23:05] QA T-095 APROBADO · T-092 APROBADO (intento 2) · T-096 RECHAZADO → fix → re-QA (X)
+- T-095 S APROBADO 10/10 (deudas D-29/D-30). T-092 X APROBADO 3/3. T-096 S RECHAZADO: D1 sin test para 3.14.10 en `version_ge` (mutación `sort -V`→`sort` sobrevive). Fix del Orquestador (simple, autorizado por el PO): caso `("3.14.10", {})` en la parametrización; rojo con la mutación, verde sin ella.
+- Re-QA T-096 nivel X (2º intento). T-094 en QA. Falta T-097 y los nerv-verifier.
+- Quien retoma: nerv-orquestador.
+
+### [2026-10-15 22:40] QA T-092 RECHAZADO (1/2) → fix del Orquestador → re-QA (intento 2, X)
+- Defectos: D1 `_open_update_link` sin test (mutación sobrevive) · D2 ruta personal en engram/qa/T-093.md rompe la suite en rc2. Ambos simples: el PO autorizó al Orquestador a resolver lo simple («si es simple hacelo vos»).
+- Fix: `tests/test_update_link_barrier.py` (2 tests en subproceso; proof of red: con `url = self._update_url` falla, con `safe_release_url` pasa); rutas personales saneadas a `<HOME>` (`git grep` vacío, test verde).
+- Re-QA T-092 en nivel X (2º intento, P-11): nerv-qa con pase hostil sobre el fix y el resto del ticket.
+- Quien retoma: nerv-orquestador.
+
+### [2026-10-15 22:20] nerv-orquestador → nerv-qa T-092 (S) + T-095 (S)
+- Gate run 3: PASS en T-092/094/095/096/097 (nivel S, plan estampado con ratificación del PO, proof of red OK, suite verde). QA de a dos (lección retro: 5 en paralelo dieron flakiness), worktrees propios sobre `release/1.0.0-rc2`.
+- T-092: revisar también el ajuste de integración del gate D-14 (`--dry-run` avisa, release aborta). T-095: revisar la resolución en worker.py (`_planned_dest` + `_long_path_warning`) y las «Diferencias con el encargo» del handoff.
+- Siguen: T-094 + T-096, luego T-097; después nerv-verifier (P-12) por cada Strong.
+- Quien retoma: nerv-orquestador.
+
+### [2026-10-15 22:05] nerv-orquestador → nerv-qa T-093 (A)
+- Gate PASS (A, 339 líneas, proof of red OK, suite verde). QA en worktree propio sobre `release/1.0.0-rc2`; diff `main...feat/t093-nombres` (7 archivos). Entregable `engram/qa/T-093.md` (§Plan · §GAP · §Casos · §Defectos).
+- Pendiente: gate run 3 de T-092/094/095/096/097 (plan OK; handoffs con índice P-1) → QA Strong de a dos, luego nerv-verifier.
+- Quien retoma: nerv-orquestador.
+
+### [2026-10-15 21:45] Integración T-092..T-097 + gate P-12 + decisión del PO sobre planes
+- Integración en `release/1.0.0-rc2` (merge en orden T-092→T-093→T-095→T-094→T-096→T-097; conflictos resueltos en worker.py, ui.py, release_mac.sh, build_windows.ps1, requirements, tests). Dos fixes de integración: gate D-14 avisa en `--dry-run` y aborta en el release real; ruta one-dir de T-092 conservada. Locks regenerados con qrcode. Suite 684 passed / 2 skipped.
+- `nerv-gate.sh` por ticket (return handoffs en `engram/qa/handoffs/`): T-093 PASS (A, proof of red OK). T-092/094/095/096/097 nivel S computado → REJECTED PLAN_GATE_MISSING (estampa por sección). El Orquestador NO estampó por su cuenta; el PO revisó los 5 planes con sus desvíos y los aprobó uno por uno en sesión → estampa «ratificada por el PO» en QUÉ/CÓMO, gate re-corrido.
+- Próximo paso: QA Strong (nerv-qa) de los 5 + QA Advisory de T-093, luego nerv-verifier (P-11/P-12) para los Strong; merge a main y push.
+- Quien retoma: nerv-orquestador → nerv-qa.
+
 ### [2026-10-15 20:10] Retoma sesión (rekordbox-extractor-e7) — coordinación con la sesión anterior
 - Hallazgo: la sesión anterior (`rekordbox-extractor-ad`) sigue viva con los 6 agentes nerv-desktop de T-092..T-097 commiteando en `feat/t09x` (no quedaron a medias). PO decide: dejarla terminar; esta sesión integra, QA y cierra. Se le pidió por mensaje cross-session no lanzar trabajo nuevo y quedar idle.
 - Lista de pendientes del PO (TEC-05/06/08/09/10/12/16, D-16..D-26, TEC-21) mapeada 1:1 a T-092..T-096 ya aprobados: sin brainstorm nuevo. Altas: T-098 (TEC-20, Windows) y T-099 (TEC-14, 1.1).

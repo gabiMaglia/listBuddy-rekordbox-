@@ -34,6 +34,8 @@ class AudioPlayer(QObject):
         self._output.setVolume(0.9)
         self._player.setAudioOutput(self._output)
         self._current: str = ""
+        self._last_playing = False
+        self._switching = False
 
         self._player.playbackStateChanged.connect(self._on_state)
         self._player.errorOccurred.connect(self._on_error)
@@ -48,8 +50,13 @@ class AudioPlayer(QObject):
         if not path:
             return
         self._current = path
-        self._player.setSource(QUrl.fromLocalFile(path))
-        self._player.play()
+        # setSource() pasa por Stopped un instante: no es un corte real del usuario.
+        self._switching = True
+        try:
+            self._player.setSource(QUrl.fromLocalFile(path))
+            self._player.play()
+        finally:
+            self._switching = False
         self.track_changed.emit(path)
 
     def toggle(self) -> None:
@@ -89,12 +96,19 @@ class AudioPlayer(QObject):
     # ── Internos ──────────────────────────────────────────────────────────
 
     def _on_state(self, state: QMediaPlayer.PlaybackState) -> None:
-        self.playing_changed.emit(
-            state == QMediaPlayer.PlaybackState.PlayingState
-        )
+        playing = state == QMediaPlayer.PlaybackState.PlayingState
+        if self._switching and not playing and self._last_playing:
+            return
+        if playing != self._last_playing:
+            self._last_playing = playing
+            self.playing_changed.emit(playing)
 
     def _on_error(self, _err: QMediaPlayer.Error, msg: str) -> None:
         if _err != QMediaPlayer.Error.NoError:
+            # Un error es una parada real: sin esto la próxima pista que suene no emite True.
+            if self._last_playing:
+                self._last_playing = False
+                self.playing_changed.emit(False)
             self.error.emit(msg or "No se pudo reproducir el archivo")
 
     def _on_position(self, pos: int) -> None:

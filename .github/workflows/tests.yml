@@ -1,0 +1,39 @@
+# Suite de tests en macOS (T-097). Solo macOS: los tests de Qt arrancan ventanas reales en
+# intérpretes aparte (tests/_qt_isolated.py) y miran fuentes, contraste y SIGSEGV del proceso;
+# no están validados en Linux (offscreen pasa en macOS, pero sin evidencia en ubuntu).
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: pytest (macOS, Python 3.14.8)
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14.8'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Instalar dependencias
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Tests
+        run: python -m pytest -q
