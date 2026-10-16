@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from branding import APP_NAME, COPYRIGHT, SOURCE_URL
+from branding import APP_NAME, COPYRIGHT, LICENSE_PRICE_USD, PURCHASE_URL, SOURCE_URL
 from styles import ROOT, apply_title_tracking, token
 
 LICENSE_PATH = ROOT / "LICENSE"
@@ -37,7 +37,7 @@ DISCLAIMER_PATH = ROOT / "DISCLAIMER.md"
 
 # Igual a «Versión del aviso» de DISCLAIMER.md (un test lo verifica). Cambiarla
 # vuelve a mostrar el aviso a quien ya lo había aceptado.
-DISCLAIMER_VERSION = "2026-10-16.2"
+DISCLAIMER_VERSION = "2026-10-16.3"
 _DISCLAIMER_KEY = "disclaimer_accepted"
 
 _LEGAL_TEXT = (
@@ -60,6 +60,14 @@ _TRADEMARKS_TEXT = (
     f"Instruments GmbH. {APP_NAME} es un proyecto independiente: no es un "
     "producto oficial ni está afiliado, patrocinado ni respaldado por esas "
     "empresas; lee tu librería localmente, para tu propio uso."
+)
+
+
+_SALE_TEXT = (
+    f"Licencia de uso y soporte: USD {LICENSE_PRICE_USD}, a través de Polar "
+    "(polar.sh), que cobra los impuestos y te factura. El programa se puede "
+    "descargar de Releases; lo que se paga es la licencia de uso con soporte, "
+    "no una donación."
 )
 
 
@@ -157,8 +165,8 @@ _NOTICE_TEXT = (
     "cue points ni archivos de música más allá de lo que la ley establezca. "
     "<b>Hacé tu propia copia de seguridad</b> antes de reparar o restaurar."
     "<br><br>"
-    f"{APP_NAME} no es un producto de AlphaTheta (rekordbox) ni de Native "
-    "Instruments (Traktor)."
+    f"{APP_NAME} no es un producto oficial de AlphaTheta (rekordbox) ni de "
+    "Native Instruments (Traktor)."
 )
 
 
@@ -233,14 +241,20 @@ class AboutDialog(QDialog):
         repo = _link(SOURCE_URL, SOURCE_URL.removeprefix("https://"), token(theme, "link"))
         source = QLabel(
             f"Código fuente: el código de cada versión está en {repo}. {APP_NAME} es "
-            "software libre (GPL v3): podés compilarlo vos; lo que se vende es el "
-            "binario listo para usar."
+            "software libre (GPL v3): podés compilarlo vos."
         )
         source.setObjectName("about_body")
         source.setWordWrap(True)
         source.setOpenExternalLinks(True)
         source.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         layout.addWidget(source)
+
+        sale = QLabel(f"{_SALE_TEXT} {_link(PURCHASE_URL, 'Cómo comprar', token(theme, 'link'))}")
+        sale.setObjectName("about_body")
+        sale.setWordWrap(True)
+        sale.setOpenExternalLinks(True)
+        sale.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        layout.addWidget(sale)
 
         row = QHBoxLayout()
         row.setSpacing(8)
