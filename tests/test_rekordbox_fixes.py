@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
+import pytest
+
+import rekordbox_fixes
 from rekordbox_fixes import FixStore, fixes_path_for
 
 
@@ -11,13 +14,27 @@ def test_missing_file_is_empty(tmp_path: Path) -> None:
 
 
 def test_merge_persists_and_accumulates(tmp_path: Path) -> None:
+    # Rutas absolutas del SO: «/new/a.mp3» no es absoluta en Windows (T-112).
+    a, b = str(tmp_path / "new" / "a.mp3"), str(tmp_path / "new" / "b.mp3")
     s = FixStore(tmp_path / "f.json")
-    assert s.merge({"file://localhost/a.mp3": "/new/a.mp3"}) == {"file://localhost/a.mp3": "/new/a.mp3"}
-    s.merge({"file://localhost/b.mp3": "/new/b.mp3"})
-    assert FixStore(tmp_path / "f.json").load() == {
-        "file://localhost/a.mp3": "/new/a.mp3", "file://localhost/b.mp3": "/new/b.mp3",
-    }
+    assert s.merge({"file://localhost/a.mp3": a}) == {"file://localhost/a.mp3": a}
+    s.merge({"file://localhost/b.mp3": b})
+    assert FixStore(tmp_path / "f.json").load() == {"file://localhost/a.mp3": a, "file://localhost/b.mp3": b}
     assert s.count() == 2
+
+
+@pytest.mark.parametrize("value, accepted", [
+    ("C:\\Music\\a.mp3", True),
+    ("\\\\nas\\music\\a.mp3", True),
+    ("/x/y/a.mp3", False),          # POSIX en Windows: el JSON es por máquina, se descarta
+    ("Music\\a.mp3", False),
+])
+def test_load_is_strict_about_absolute_paths_in_windows_semantics(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str, accepted: bool) -> None:
+    monkeypatch.setattr(rekordbox_fixes, "_PURE", PureWindowsPath)
+    p = tmp_path / "f.json"
+    p.write_text(json.dumps({"fixes": {"k": value}}), encoding="utf-8")
+    assert FixStore(p).load() == ({"k": value} if accepted else {})
 
 
 def test_corrupt_file_reads_as_empty_and_is_not_deleted(tmp_path: Path) -> None:
