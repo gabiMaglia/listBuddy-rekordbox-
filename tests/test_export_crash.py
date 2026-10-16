@@ -81,6 +81,8 @@ def test_start_export_warns_before_starting_when_the_destination_is_unusable() -
         "w._footer.set_dest(str(dest))\n"
         "w._selected_playlists = lambda: [object()]\n"
         "w._start_export()\n"
+        "end = time.time() + 0.5\n"
+        "while time.time() < end: app.processEvents()\n"
         "print(len(started), len(warned), 'conectado' in (warned[0] if warned else ''), w._export_state)\n"
     )
     assert out == "0 1 True idle"

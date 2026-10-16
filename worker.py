@@ -192,6 +192,25 @@ def _remove_orphan_parts(folder: Path, names: set[str]) -> None:
             pass
 
 
+class DestinationCheck(QThread):
+    """Crea la carpeta de destino fuera del hilo de UI: en un volumen de red caído el `mkdir`
+    bloquea y congelaba la ventana (TEC-31)."""
+
+    checked = Signal(bool)
+
+    def __init__(self, path: Path) -> None:
+        super().__init__()
+        self._path = path
+
+    def run(self) -> None:
+        try:
+            self._path.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            self.checked.emit(False)
+            return
+        self.checked.emit(True)
+
+
 class ExportWorker(QThread):
     log         = Signal(str)
     progress    = Signal(int, int)        # (hechas, total)
