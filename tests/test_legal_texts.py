@@ -64,7 +64,7 @@ def test_disclaimer_warranty_return_law_age_and_contact() -> None:
     flat = _flat("DISCLAIMER.md")
     for needle in (
         "Garantía legal, conformidad y devolución",
-        "14 días corridos", "art. 34 de la Ley 24.240",
+        "10 días corridos", "art. 34 de la Ley 24.240",
         "Ley aplicable y jurisdicción", "leyes de la República Argentina",
         "mayor de edad",
         "Gabriel Maglia",
@@ -127,7 +127,7 @@ def test_source_code_notice_next_to_the_download() -> None:
 def test_first_run_notice_mentions_purchase_rights_and_non_official() -> None:
     src = _flat("about_dialog.py")
     assert "con los derechos que te da la ley de tu país" in src
-    assert "no es un producto de AlphaTheta" in src
+    assert "no es un producto oficial de AlphaTheta" in src
     assert "Si compraste tu copia" in src
 
 

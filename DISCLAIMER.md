@@ -95,11 +95,17 @@ mostrar el aviso de SmartScreen al abrirlo por primera vez. Para verificar que
 lo que descargaste es el archivo publicado, comparalo con el `.sha256` que se
 publica junto a cada descarga, igual que en macOS.
 
-Además, podés **revocar la compra sin dar motivos dentro de los 14 días
-corridos** desde que la hiciste (en Argentina, el plazo legal mínimo es de 10
-días: art. 34 de la Ley 24.240), escribiendo al contacto de la sección 10 o
-usando el enlace de devolución de la plataforma donde compraste; te
-reintegramos el importe por el mismo medio de pago. Las copias obtenidas sin
+Además, podés **revocar la compra sin dar motivos dentro de los 10 días
+corridos** desde que la hiciste (art. 34 de la Ley 24.240). La devolución la
+gestiona Polar, que es quien te vendió, según la política de devolución de
+Polar, y te reintegra el importe por el mismo medio de pago; si preferís,
+escribinos al contacto de la sección 10 y te ayudamos con el trámite. Aparte
+de ese plazo, **te devolvemos el dinero si List Buddy no funciona** en alguno
+de los sistemas indicados arriba y no logramos corregirlo.
+
+**Garantía legal.** Se te reconoce la garantía legal mínima que corresponda
+según la ley de tu país (en Argentina, los arts. 10 bis y 11 de la Ley 24.240,
+en la medida en que apliquen a software descargado). Las copias obtenidas sin
 cargo (por ejemplo, compiladas desde el código fuente bajo la GPL) no incluyen
 soporte ni garantía comercial, sin perjuicio de los derechos que la ley te
 reconozca.
@@ -179,17 +185,18 @@ Buddy te lo vuelve a mostrar al abrirlo.
 
 ## 9 bis. Ley aplicable y jurisdicción
 
-Este aviso se rige por las leyes de la República Argentina. Si sos consumidor,
-también te amparan las normas imperativas del país donde vivís, y cualquier
-reclamo puede presentarse ante los tribunales o autoridades de defensa del
-consumidor de tu domicilio. Para cualquier otro caso, son competentes los
-tribunales ordinarios de Rosario, Argentina.
+Este aviso se rige por las leyes de la República Argentina. Para cualquier
+conflicto son competentes los tribunales ordinarios de Rosario, Argentina, **sin
+perjuicio de los derechos irrenunciables que te da la ley como consumidor**:
+si lo sos, también te amparan las normas imperativas del país donde vivís y
+podés reclamar ante los tribunales o las autoridades de defensa del consumidor
+de tu domicilio.
 
 ## 9 ter. Edad
 
-Para comprar List Buddy tenés que ser mayor de edad según la ley de tu país o
-contar con autorización de tu madre, padre o tutor. Usar el programa no
-requiere edad mínima; no recolecta datos de nadie.
+Para comprar List Buddy tenés que tener 18 años o más (ser mayor de edad según
+la ley de tu país) o contar con autorización de tu madre, padre o tutor. Usar
+el programa no requiere edad mínima; no recolecta datos de nadie.
 
 ## 10. Contacto
 
