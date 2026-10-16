@@ -133,3 +133,13 @@ def test_readme_explains_gatekeeper_block() -> None:
     text = " ".join((PROJECT_ROOT / "README.md").read_text(encoding="utf-8").split())
     assert "Privacidad y seguridad" in text and "Abrir de todos modos" in text
     assert "notarizada" in text
+
+
+def test_readme_explains_unsigned_windows_build_and_smartscreen() -> None:
+    """T-101 (SEC-06, decisión del PO 2026-10-16: Windows sin firma Authenticode): el README lo dice y explica
+    cómo pasar SmartScreen y por qué el .sha256 reemplaza a la firma."""
+    text = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    assert "no va a estar firmado" in text and "SmartScreen" in text
+    assert "Más información" in text and "Ejecutar de todas formas" in text
+    assert ".sha256" in text
+
