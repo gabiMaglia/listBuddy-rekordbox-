@@ -288,7 +288,7 @@ def test_export_from_xml_copies_numbered_files_and_reports_missing() -> None:
         "audio = tmp / 'uno.mp3'; audio.write_bytes(b'abc')\n"
         "xml = tmp / 'rekordbox.xml'\n"
         "xml.write_text('<?xml version=\"1.0\"?><DJ_PLAYLISTS Version=\"1.0.0\"><COLLECTION>'\n"
-        "  f'<TRACK TrackID=\"1\" Name=\"Uno\" Artist=\"Ana\" Location=\"file://localhost{audio}\"/>'\n"
+        "  f'<TRACK TrackID=\"1\" Name=\"Uno\" Artist=\"Ana\" Location=\"{rekordbox_xml.path_to_location(audio)}\"/>'\n"
         "  '<TRACK TrackID=\"2\" Name=\"Dos\" Artist=\"Beto\" Location=\"file://localhost/no/existe/dos.mp3\"/>'\n"
         "  '</COLLECTION><PLAYLISTS><NODE Type=\"0\" Name=\"ROOT\"><NODE Type=\"1\" Name=\"Set\" KeyType=\"0\">'\n"
         "  '<TRACK Key=\"1\"/><TRACK Key=\"2\"/></NODE></NODE></PLAYLISTS></DJ_PLAYLISTS>', encoding='utf-8')\n"
