@@ -76,3 +76,38 @@ Observaciones (no son defectos de los criterios; para backlog):
 - C4 (suite completa).
 - Si el job completo entra en 90 min.
 - La salida real de `syspolicy_check` con un ticket recién emitido.
+
+## Addendum: re-verificación de `552c35d` (fix del Orquestador sobre D1 y D2)
+
+Lo revisé en un worktree detached nuevo sobre `552c35d`. No corrí la suite completa.
+
+- **D2: CORREGIDO.**
+  - `scripts/release_mac.sh:127-128` ahora incluye `listBuddy.app` entre los nombres propios.
+  - Repliqué en el `dist/` del worktree los mismos nombres que hay en el `dist/` real del checkout principal: `List Buddy`, `List Buddy.app`, `ListBuddy-1.0.0.dmg`, `listBuddy`, `listBuddy-1.0.dmg` y `listBuddy.app`.
+  - Con `release_mac.sh --dry-run --arch-suffix` no queda nada ajeno: «limpiaría» los 6.
+  - Con `--skip-build` conserva `List Buddy.app` y limpia los otros 5.
+  - En los dos casos `dist/` quedó intacto.
+  - Mutación: si quito `listBuddy.app` del `case`, `test_t107_clean_dist_removes_our_old_artifacts[0-kept0]` y `[1-kept1]` fallan. Lo revertí y los 5 tests `clean_dist` vuelven a pasar.
+  - actionlint: exit 0.
+- **D1: NO CORREGIDO, el comentario sigue sin coincidir con el orden.**
+  - `.github/workflows/release.yml:160-162` ahora dice que el paso «corre después de la fase 1 … y antes de importar el certificado».
+  - El paso «Exigir firma y notarización en tags» está en `:163`. Va **después** de «Importar certificado Developer ID» (`:113`) y de «Guardar credenciales de notarytool» (`:142`).
+  - Tiene que ir ahí: mira `DEVELOPER_ID` y `NOTARY_PROFILE` (`:168-169`), y esas variables las exportan esos dos pasos a `GITHUB_ENV` (`:139`, `:158`).
+  - Lo correcto es que corre después de importar el certificado y las credenciales, y antes de la fase 2 (`:184`), es decir, antes de gastar firma y notarización.
+
+**Veredicto final: REFUTADO.** Queda un solo defecto: D1, el comentario de `release.yml:160-162` invierte el orden respecto al certificado. D2 está cerrado. Las observaciones O1-O5 siguen igual.
+
+## Addendum 2: re-verificación de `84170ff` (D1)
+
+Lo revisé con `git show`, sin worktree. El diff de `552c35d..84170ff` solo toca líneas de comentario de `.github/workflows/release.yml` (todas las líneas cambiadas empiezan con `#`).
+
+- **D1: CORREGIDO.**
+  - Ahora `:160-163` dice que el paso corre después de la fase 1, de importar el certificado y de guardar las credenciales, y antes de la fase 2.
+  - Eso coincide con el orden real que da `grep -n "      - name:"`: «Build sin credenciales (fase 1)» `:107` < «Importar certificado Developer ID» `:113` < «Guardar credenciales de notarytool» `:142` < «Exigir firma y notarización en tags» `:164` < «Firma, DMG y notarización (fase 2)» `:185`.
+  - También es correcto que necesita `DEVELOPER_ID` y `NOTARY_PROFILE`: el paso los verifica y los pasos `:113` y `:142` los exportan a `GITHUB_ENV`.
+- D2 quedó cerrado en el Addendum 1, y `84170ff` no toca `scripts/`.
+
+**Veredicto final: CONFIRMADO.** No queda ningún defecto abierto.
+- C1-C3 cumplen.
+- Me abstengo de C4 (suite completa), que la tiene que correr QA o el Orquestador.
+- Las observaciones O1-O5 quedan como sugerencias para backlog. Ninguna bloquea.
