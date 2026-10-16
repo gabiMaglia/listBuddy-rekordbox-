@@ -504,3 +504,27 @@ def test_windows_lock_has_colorama_and_build_script_stops_on_pip_failure() -> No
     assert len(installs) >= 2
     assert ps1.count("$LASTEXITCODE -ne 0") >= len(installs), "cada pip install debe cortar el script si falla"
 
+
+def test_workflow_hygiene_no_set_x_cleanup_always_summary_without_secrets() -> None:
+    """Verifier T-097 (observaciones): sin `set -x` en ningún `run:` (los secrets irían al log), la limpieza del
+    keychain corre siempre (`always()`), y el resumen no imprime variables de secrets."""
+    text = _WORKFLOW.read_text(encoding="utf-8")
+    assert not re.search(r"^\s*set -x\b|^\s*set -euxo|^\s*set -eux", text, re.M)
+    cleanup_if = [l for l in _steps("Limpiar keychain").splitlines() if re.match(r"\s*if:\s*\S", l)]
+    assert len(cleanup_if) == 1 and cleanup_if[0].split("if:", 1)[1].strip().startswith("always()")
+    summary = _step_run("Resumen")
+    for secret in ("MACOS_CERT_P12_BASE64", "MACOS_CERT_PASSWORD", "NOTARY_KEY_ID", "NOTARY_ISSUER_ID", "NOTARY_KEY_P8_BASE64"):
+        assert secret not in summary, secret
+
+
+def test_release_docs_require_tag_ruleset_with_restrict_updates() -> None:
+    """Verifier T-097 D1: el ruleset de tags es parte de la frontera (ADR-005 §1), no una recomendación,
+    y debe bloquear actualizaciones (mover un tag v* existente a otro commit) además de creaciones."""
+    doc = (PROJECT_ROOT / "docs" / "RELEASE.md").read_text(encoding="utf-8")
+    step = doc[doc.index("New tag ruleset"):][:600]
+    assert "Restrict creations" in step and "Restrict updates" in step and "Restrict deletions" in step
+    assert "Recomendado" not in doc[max(0, doc.index("New tag ruleset") - 120):doc.index("New tag ruleset")]
+    for asset in ("listbuddy-<v>-src.tar.gz", "listbuddy-1.0.0-src.tar.gz"):
+        assert asset in doc, asset
+    assert "`release.yml`, `release_mac.sh`" in doc
+
