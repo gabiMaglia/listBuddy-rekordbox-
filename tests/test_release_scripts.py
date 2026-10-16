@@ -859,3 +859,33 @@ def test_t107_claude_md_documents_build_lock_regeneration() -> None:
     assert "pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-build.txt requirements-build.in" in doc
     assert "PyInstaller (`==6.20.0`) se instala aparte" not in doc
     assert "--build-only" in doc
+
+
+# ── T-108: lock de build para Windows (SEC-20) ──────────────────────────────
+
+_WIN_LOCK = PROJECT_ROOT / "requirements-build-windows.txt"
+_WIN_IN = PROJECT_ROOT / "requirements-build-windows.in"
+
+
+def test_t108_windows_build_lock_has_windows_only_deps_and_hashes() -> None:
+    """PyInstaller exige pefile y pywin32-ctypes solo en win32; pip-compile corre en macOS y no los resuelve
+    solo, así que van explícitos en el .in. Sin ellos `--require-hashes` instala un PyInstaller que no arranca."""
+    from _reqs import pinned, unhashed
+    assert _WIN_IN.exists() and _WIN_LOCK.exists()
+    pins = pinned(_WIN_LOCK)
+    assert pins["pyinstaller"] == "6.22.3"
+    assert {"pefile", "pywin32-ctypes", "altgraph", "pyinstaller-hooks-contrib", "setuptools", "pip"} <= set(pins)
+    assert unhashed(_WIN_LOCK) == []
+    assert pinned(PROJECT_ROOT / "requirements-build.txt")["pyinstaller"] == pins["pyinstaller"]
+    in_names = {m.group(1).lower() for l in _WIN_IN.read_text(encoding="utf-8").splitlines()
+                if (m := re.match(r"^([A-Za-z0-9][A-Za-z0-9._-]*)", l))}
+    assert {"pyinstaller", "pefile", "pywin32-ctypes", "pip"} <= in_names
+
+
+def test_t108_claude_md_documents_windows_lock_regeneration() -> None:
+    doc = (PROJECT_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    section = doc.split("## Empaquetado — Windows", 1)[1].split("\n## ", 1)[0]
+    for needle in ("pip-compile --generate-hashes --allow-unsafe --strip-extras",
+                   "requirements-build-windows.in", "requirements-build-windows.txt",
+                   "pefile", "pywin32-ctypes", "--platform win_amd64"):
+        assert needle in section, needle
