@@ -34,3 +34,4 @@
 | T-075 | ídem (2026-10-12) + engram/qa/T-076.md (lote) | auditado en lote con T-076 |
 | T-077 | ídem (2026-10-12); capturas en engram/qa/T-077/ | handoff no pidió artefacto .md |
 | T-078 | ídem (2026-10-12, iteración 1) | handoff no pidió artefacto |
+| T-101 | 03_backlog (Done 2026-10-16) | solo doc (README) + test estático, decisión explícita del PO de no firmar Windows; el Orquestador lo hizo sin nerv-qa por economía (P-E); cubierto por `test_readme_explains_unsigned_windows_build_and_smartscreen` |
