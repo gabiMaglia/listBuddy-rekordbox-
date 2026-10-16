@@ -144,7 +144,7 @@ class ExportWorker(QThread):
         for pl in self._playlists:
             songs = _get_songs_list(pl, self._report_unreadable)
             if songs:
-                playlist_songs.append((pl, songs))
+                playlist_songs.append((pl, order_playlist_songs(songs)))
 
         total_songs = sum(len(s) for _, s in playlist_songs)
         self.progress.emit(0, max(total_songs, 1))
@@ -184,7 +184,7 @@ class ExportWorker(QThread):
                 self.finished_ok.emit(copied_total, missing_total, skipped_total, "error")
                 return
 
-            sorted_songs = order_playlist_songs(songs)
+            sorted_songs = songs   # ya ordenadas al armar playlist_songs
 
             try:
                 dest_dir.mkdir(parents=True, exist_ok=True)
@@ -368,9 +368,8 @@ def _estimate_size(playlist_songs: list[tuple], output_root: Path, folder_names:
     (misma regla de «Ya existe»), para que un re-export incremental no pida espacio de más."""
     total = 0
     for (_, songs), folder in zip(playlist_songs, folder_names):
-        sorted_songs = order_playlist_songs(songs)
-        pad = len(str(len(sorted_songs)))
-        for idx, song in enumerate(sorted_songs, start=1):
+        pad = len(str(len(songs)))
+        for idx, song in enumerate(songs, start=1):
             content = get_content(song)
             raw = getattr(content, "FolderPath", None) if content else None
             src = resolve_path(raw)

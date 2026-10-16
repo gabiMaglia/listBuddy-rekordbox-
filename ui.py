@@ -1527,6 +1527,7 @@ class MainWindow(QMainWindow):
 
         # ── Extracción de metadata en el main thread (rápido: sólo queries a DB) ──
         groups = self._extract_preview_data(selected)
+        self._name_groups_like_folders(groups)
         self._launch_preview_worker(groups)
 
     def _launch_preview_worker(self, groups: list[GroupData]) -> None:
@@ -1559,6 +1560,7 @@ class MainWindow(QMainWindow):
         if not new:
             return
         groups = self._extract_preview_data(new)
+        self._name_groups_like_folders(groups)
         for group in groups:
             group.order = selected.index(group.card) + 1
         self._launch_preview_worker(groups)
@@ -1589,6 +1591,12 @@ class MainWindow(QMainWindow):
         )
         return f"{self._source}:{uid}"
 
+    def _name_groups_like_folders(self, groups: list[GroupData]) -> None:
+        """D-17: las colisiones se resuelven contra TODAS las marcadas, no solo las del lote."""
+        folders = self._folder_names_of([c for c in self._all_cards if c.isChecked()])
+        for g in groups:
+            g.name = folders.get(g.card, g.name)
+
     @staticmethod
     def _folder_names_of(cards: list[PlaylistCard]) -> dict[PlaylistCard, str]:
         """Nombre de carpeta que el export creará por playlist (D-17), con la misma función de
@@ -1616,8 +1624,6 @@ class MainWindow(QMainWindow):
 
         from rekordbox_export import get_content, get_artist, sanitize
 
-        # Las colisiones se resuelven contra TODAS las marcadas, no solo las que llegan acá.
-        folders = self._folder_names_of([c for c in self._all_cards if c.isChecked() or c in selected])
         groups: list[GroupData] = []
         for idx, card in enumerate(selected):
             cache_key = self._playlist_cache_key(card.playlist)
@@ -1672,7 +1678,7 @@ class MainWindow(QMainWindow):
                     self._track_meta_cache[cache_key] = tracks
 
             groups.append(GroupData(
-                name        = folders.get(card, card.playlist.Name),
+                name        = card.playlist.Name,
                 order       = idx + 1,
                 total_count = card._track_count,
                 tracks      = tracks,
