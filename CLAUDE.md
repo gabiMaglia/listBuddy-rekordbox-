@@ -32,6 +32,8 @@ app_paths.py         → Carpeta de datos del usuario (settings.ini, rekordbox_f
 rekordbox_fixes.py   → Persistencia de reparaciones de Rekordbox en rekordbox_fixes.json; se aplican al cargar el XML.
 rekordbox_xml_relocate.py → Reparar enlaces de la fuente Rekordbox (busca por nombre); las rutas nuevas van a rekordbox_fixes.json. El XML nuevo importable lo escribe rekordbox_xml.write_playlists_xml.
 traktor_db.py        → Parser de colección NML de Traktor Pro 3/4. open_collection(), get_playlist_tree().
+library_load_worker.py → LibraryLoadWorker (QThread). Lee el XML/NML fuera del hilo de UI; señales loaded(result)/failed(token, msg) (T-094).
+load_cancel.py       → LoadCancelled + CHECK: cancelación cooperativa del parseo.
 preview_worker.py    → PreviewWorker (QThread). Existence checks en background; emite GroupData.
 audio_player.py      → AudioPlayer (QMediaPlayer+FFmpeg). play/pause/seek; señales playing_changed, position_changed, track_finished.
 waveform_worker.py   → WaveformWorker (QThread). Picos de la onda del footer.
