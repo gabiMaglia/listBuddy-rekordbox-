@@ -267,3 +267,13 @@ def test_workflow_never_signs_on_pull_request() -> None:
     """D1: PR del mismo repo también recibe secrets; certificado y notarización solo fuera de PR."""
     for name in ("Importar certificado", "Guardar credenciales de notarytool"):
         assert "github.event_name != 'pull_request'" in _steps(name), name
+
+
+def test_workflow_uploads_source_tarball_from_one_leg_only() -> None:
+    """D2: con merge-multiple, el -src.tar.gz de dos patas se pisaría; sale de una sola."""
+    text = _WORKFLOW.read_text(encoding="utf-8")
+    uploads = re.findall(r"uses: actions/upload-artifact@[^\n]*\n(.*?)(?=\n      - |\n  \w)", text, re.S)
+    assert len(uploads) >= 2
+    first = uploads[0]
+    assert "src.tar.gz" not in first
+    assert any("src.tar.gz" in u and "matrix.arch == 'arm64'" in u for u in uploads)

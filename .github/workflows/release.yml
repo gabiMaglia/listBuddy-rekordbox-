@@ -152,9 +152,19 @@ jobs:
           name: listbuddy-${{ env.APP_VERSION }}-${{ matrix.arch }}
           path: |
             dist/*.dmg
-            dist/*-src.tar.gz
-            dist/*.sha256
+            dist/ListBuddy-*.dmg.sha256
             dist/notary-*.json
+          if-no-files-found: error
+          compression-level: 0
+
+      # El tarball fuente es idéntico en las dos patas: con merge-multiple se pisarían; sube una.
+      - uses: actions/upload-artifact@v7
+        if: matrix.arch == 'arm64'
+        with:
+          name: listbuddy-${{ env.APP_VERSION }}-src
+          path: |
+            dist/*-src.tar.gz
+            dist/*-src.tar.gz.sha256
           if-no-files-found: error
           compression-level: 0
 
