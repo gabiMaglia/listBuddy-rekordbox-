@@ -110,3 +110,14 @@ D1 y D2 de la verificación 1 quedan **cerrados en la doc** (`docs/RELEASE.md:5,
 2. **D2 (guarda de higiene incompleta).** `tests/test_release_scripts.py:512` dice «sin `set -x` en ningún `run:`», pero no detecta `set -o xtrace` (mutación verde) ni, por su regex, `set -ex` o `set -xeuo pipefail`. Los secrets del import (`release.yml:91-92`) irían al log con trazas. Fix: detectar cualquier `set` con `x` entre las flags cortas, o `-o xtrace`.
 
 Grounded: sí (file:line, salida de comando o doc citada). Supuestos marcados: los de Abstenciones.
+
+### Addendum (2026-10-16): re-verificación acotada de D1/D2
+
+Base: worktree nuevo, detached en `release/1.0.0-rc2` HEAD `e8223125287dbdab1b165bd9a4d14f95fad4d786` (commit «test(ci): detección de xtrace…»).
+- `actionlint 1.7.12` → rc=0. `ALLOW_OLD_PYTHON=1 pytest -q -n 0 tests/test_release_scripts.py` → 59 passed.
+- D1: `tests/test_release_scripts.py:528-535` toma el paso numerado entero, exige que empiece con «**Obligatorio», valida la frase de reglas antes de «Sin *Restrict» y exige «sin bypass salvo … mantenedor». Las 4 mutaciones de la verificación 2 dan **rojo**: updates→creations, updates fuera de la lista, Obligatorio→Opcional y bypass→rol Write.
+- D2: la regex de `:513` cubre `set -<flags con x>`, `set -o xtrace` y `bash -x`. Las 3 mutaciones dan **rojo**: `set -o xtrace`, `set -ex` y `set -xeuo pipefail`. `always()`→`success()` sigue rojo.
+- Caché: `release.yml:66-69` ya no tiene `cache: pip`, y volver a agregarlo da **rojo** (`:515`). La doc de re-runs y dispatch de tags quedó en `docs/RELEASE.md:42-44`. La nota del ADR-005 es una nota del Orquestador; el texto de §1 sigue pendiente del arquitecto (no bloquea).
+- Residual, no es defecto: «sin bypass salvo el mantenedor y cualquier colaborador» queda verde. Es una redacción adversarial que ningún test estático de texto razonable cubre. El ruleset real vive en Settings y QA no lo puede verificar (ADR-005, Consecuencias).
+
+**Veredicto final: CONFIRMADO.** D1 y D2 de la verificación 2 están cerrados con cita y con mutaciones en rojo. No hay defectos nuevos. Grounded: sí. Las abstenciones de la verificación 2 siguen vigentes, salvo la de la caché, que ya no aplica.
