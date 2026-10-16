@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import stat
 import sys
 import time
 import unicodedata
@@ -231,6 +232,31 @@ class ExportWorker(QThread):
     def _report_unreadable(self, pl, exc: Exception) -> None:
         self._emit(f"⚠ No se pudo leer la playlist {getattr(pl, 'Name', '?')}: {exc}")
 
+    def _report_target(self, dest_dir: Path) -> Path | None:
+        """Dónde escribir el reporte: el nombre de siempre, o uno alterno si ahí hay algo ajeno.
+
+        Un hardlink (`st_nlink > 1`) comparte inodo con otro archivo y `write_text` lo
+        truncaría (SEC-21); un symlink tampoco se atraviesa (SEC-03).
+        """
+        base = dest_dir / "_no_exportados.txt"
+        for n in range(1, 100):
+            path = base if n == 1 else dest_dir / f"_no_exportados ({n}).txt"
+            try:
+                st = path.lstat()
+            except FileNotFoundError:
+                return self._note_alternate(base, path)
+            if not stat.S_ISLNK(st.st_mode) and st.st_nlink <= 1:
+                return self._note_alternate(base, path)
+        return None
+
+    def _note_alternate(self, base: Path, path: Path) -> Path:
+        if path != base:
+            self._emit(
+                f"   ⚠  {base.name} es un enlace a otro archivo: "
+                f"el reporte se escribió como {path.name}"
+            )
+        return path
+
     def run(self) -> None:
         copied_total = missing_total = skipped_total = 0
         missing_tracks: list[str] = []
@@ -384,8 +410,8 @@ class ExportWorker(QThread):
         # limpias. No afecta copied_total/missing_total/skipped_total.
         for dest_dir, lines in missing_by_dest.items():
             try:
-                report_path = dest_dir / "_no_exportados.txt"
-                if report_path.is_symlink():
+                report_path = self._report_target(dest_dir)
+                if report_path is None:
                     self._emit(f"   ⚠  No se escribió _no_exportados.txt en {dest_dir}: es un acceso directo")
                     continue
                 report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
