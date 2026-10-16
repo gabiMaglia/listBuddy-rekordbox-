@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 00:55] nerv-orquestador → nerv-arquitecto T-094 + T-097 (tope P-2, decisión del PO)
+- El PO eligió cumplir P-2 al pie: revisión de diseño post-hoc (P-19.7) de cada entrega antes de una 3ª QA. Entregable: sección «Revisión de arquitectura» en engram/plans/T-09x.md con veredicto y correcciones (bloqueantes vs deuda); ADR si corresponde.
+- T-094: parser expat crudo + reparseo por pista, ventana de bytes, carga en constructor, cancelación por token. T-097: modelo de confianza del workflow (secrets en PR, environment), thin builds, corte script/YAML, deducidos de QA.
+- Quien retoma: nerv-arquitecto → nerv-orquestador → nerv-qa (3ª QA, X) si el diseño es apto.
+
 ### [2026-10-16 00:40] T-094 y T-097 RECHAZADAS por 2ª vez (solo tests débiles) → fixes del Orquestador → tope P-2
 - T-094 D3: `test_traktor_cancellation_is_checked_while_scanning` (3000 entradas, cancela en la 2ª consulta; rojo con `ticks == 1`). T-097 D6: `_step_if_operands` parsea el `if:` real y exige la guarda como operando de `&&` sin `||`; paso del tarball con `name:` como ancla; rojo con `&&`→`||` y con `|| true`.
 - Ambos tickets llegan al tope de 2 rechazos (P-2 → nerv-arquitecto + informar al PO). En los dos casos QA declaró el código correcto y objetó solo la fuerza de los tests. Se consulta al PO antes de gastar en arquitecto.

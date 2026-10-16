@@ -19,6 +19,8 @@
 | ADR-001 | Relocate de links rotos en playlists de Traktor: backup, escritura atómica del NML, matching y sync COLLECTION↔PLAYLISTS | Aceptado | 2026-07-23 |
 | ADR-002 | Relocate de links rotos para Rekordbox 6 (F-08): backup del master.db SQLCipher, USN, transacción única y reuso del matching de ADR-001 sobre `update_content_path` | Aceptado | 2026-07-24 |
 | ADR-004 | Rekordbox solo por el XML oficial exportado: sin master.db, pyrekordbox ni SQLCipher (reemplaza a ADR-002) | Aceptado | 2026-10-14 |
+| ADR-005 | Carga de librería asíncrona y sin DOM: TRACK de Rekordbox como texto crudo (expat) y estado de carga por generación en la UI (T-094) | Propuesto | 2026-10-16 |
+| ADR-005 | Modelo de release y firma en CI: secrets en environment `release` atado a tags `v*`, tags fail-closed, sin acciones de terceros con escritura, `release_mac.sh` como única lógica | Propuesto | 2026-10-16 |
 
 ## ADR-001: Relocate de links rotos en playlists de Traktor (F-07)
 
@@ -176,3 +178,36 @@ fixes (I-1/I-2/I-4 se aplican dos veces por la duplicación).
 **Consecuencias:** + sin clave, sin SQLCipher, bundle más chico, funciona con Rekordbox abierto, soporta 6 y 7 por igual. − el usuario reexporta el XML cuando cambia sus playlists; se pierde el relocate de Rekordbox. Traktor sin cambios (NML en texto plano, sin cifrado).
 
 **Addendum (T-081, 2026-10-15):** List Buddy puede reparar enlaces de la fuente Rekordbox sin escribir archivos de Rekordbox ni el XML del usuario: las rutas nuevas van a `rekordbox_fixes.json` en la carpeta de datos de la app y se aplican al cargar. «Exportar XML para Rekordbox» escribe un XML nuevo (formato oficial) con las playlists marcadas, que el usuario importa desde el panel «rekordbox xml» de Rekordbox. Se rechaza escribir sobre el XML cargado. La configuración empaquetada pasó a la carpeta de datos del usuario (`app_paths.py`).
+
+## ADR-005: Modelo de release y firma en CI (T-097)
+
+**Estado:** Propuesto (nerv-arquitecto, 2026-10-16; revisión P-2 de T-097). Lo acepta el PO.
+
+**Contexto:** `.github/workflows/release.yml` firma con el Developer ID del PO y notariza con una API key de App Store Connect, en un repo público con un solo mantenedor. Hoy los secrets son del repo y quien decide si se firma es un `if:` dentro del propio workflow. Un PR del mismo repo o un `workflow_dispatch` sobre una rama corren el YAML de esa rama con los secrets disponibles. Un `if` no sirve como frontera de seguridad.
+
+**Decisión:**
+1. **Frontera:** los secrets de firma y notarización son *environment secrets* del environment `release`, restringido a tags `v*` («Selected branches and tags», evaluada contra `GITHUB_REF` del lado del servidor). Solo un job que corre sobre un tag `v*` los recibe. Un ruleset de tags restringe la creación de `v*` al mantenedor. Que haya reviewers obligatorios en `release` lo decide el PO.
+2. **Fail-closed:** un tag `v*` sin firma Developer ID **y** notarización aborta. El modo ad-hoc sin fallar solo existe fuera de tags (PR, dispatch sobre rama, forks).
+3. **Cadena de suministro:** ningún job con secrets o con `contents: write` ejecuta acciones de terceros. Las first-party van por tag mayor y las de terceros, si hicieran falta, por SHA completo. La publicación se hace con `gh release create --draft`.
+4. **Separación:** la lógica de release (build, firma inside-out, DMG, notarización, checksums, fuente) vive solo en `scripts/release_mac.sh` y se prueba con `--dry-run`. El YAML orquesta: runners, credenciales efímeras en un keychain temporal (incluido el perfil de notarytool) y subida de artefactos.
+5. **Forma:** dos builds thin (`macos-15` arm64 y `macos-15-intel` x86_64; universal2 descartado por APP-06), release en **borrador** y publicación manual tras verificar offline en una Mac limpia.
+
+**Alternativa descartada:** mantener los secrets del repo y endurecer el `if` (`github.event_name != 'pull_request'`). Quien abre el PR controla el archivo, así que ese `if` no protege nada.
+
+**Consecuencias:** + el certificado solo se usa desde un tag que creó el mantenedor, un release nunca sale ad-hoc y no queda código de terceros con permiso de escritura. − parte de la configuración vive en GitHub Settings, fuera del repo, y QA no la puede verificar (se cubre con un checklist en `docs/RELEASE.md`). Un dispatch sobre una rama ya no firma. La pata Intel sale del workflow cuando GitHub retire `macos-15` (otoño 2027). Pendiente (deuda): importar la clave después del build, para que pip y PyInstaller no corran con la clave desbloqueada.
+
+## ADR-005: Carga de librería asíncrona y sin DOM (T-094)
+
+**Estado:** Propuesto (nerv-arquitecto, 2026-10-16; revisión P-2 de T-094). Lo acepta el PO.
+
+**Contexto:** SEC-09/TEC-05: `ET.parse` del rekordbox.xml retenía el DOM entero (8,3× el XML en RSS) y bloqueaba el hilo de UI. `iterparse` medido es más lento que `ET.parse` (13,7 s vs 10 s en 169 MB) y re-serializar los hijos costaba otros 8 s. Además, `write_playlists_xml` necesita el TRACK completo (cues, beatgrid) para exportar.
+
+**Decisión:**
+1. *Rekordbox:* `rekordbox_xml._scan` hace una sola pasada con expat, sin Elements. De cada `COLLECTION/TRACK` guarda los 5 atributos que usa la app y el **texto crudo UTF-8 del elemento**, cortado por `CurrentByteIndex`. `RbxTrack.element` es una propiedad que devuelve una **copia nueva** (`ET.fromstring(raw)`) y solo la consume el export. Invariantes: (a) la ventana de bytes retenida siempre cubre la etiqueta pendiente de expat (no se recorta más allá del último `<` alimentado ni de `cap_start`); (b) solo se admiten fragmentos autocontenidos: entidades del DTD interno o prefijos declarados fuera del TRACK no forman parte del formato de AlphaTheta y fallan al exportar con un mensaje claro; (c) si el archivo no es UTF-8 se transcodifica con un codec **de texto** y se fuerza UTF-8 en expat.
+2. *Traktor:* `iterparse` sobre COLLECTION/ENTRY con `clear()`; PLAYLISTS queda en DOM (solo referencias).
+3. *UI:* la carga corre en `LibraryLoadWorker` (QThread). `_load_worker is not None` es el estado «cargando»: sin tarjetas, export y reparación deshabilitados. Cada carga tiene una generación (`_load_generation`). Cancelar = subir la generación + desconectar + `requestInterruption()` + `_retain_thread`, y los resultados de otra generación se descartan. `closeEvent` espera los hilos retenidos con tope. Toda carga nueva (recargar, cambio de fuente, cambio de ruta) pasa por `_load_playlists`.
+
+**Descartado:** B, releer el XML por TrackID al exportar. El archivo puede cambiar o desaparecer entre la carga y el export, y obliga a un segundo parseo de cientos de MB.
+
+**Consecuencias:** + RSS 2,4× (≤ 3×), la ventana responde durante la carga y el round-trip del export es idéntico por construcción. − Se retiene el texto crudo de las pistas que están en alguna playlist (~1,6× el XML). El export reparsea cada fragmento. Las features nuevas que lean la librería tienen que esperar `_on_library_loaded` y respetar el estado «cargando».
+
