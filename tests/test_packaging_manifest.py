@@ -132,7 +132,7 @@ def test_pyinstaller_pinned_in_both_build_scripts_t096() -> None:
 def test_docs_state_macos_14_4_as_minimum() -> None:
     # T-103/D-15: ningún doc de cara al usuario/release da 14 (o 14.0) como mínimo.
     root = Path(__file__).resolve().parent.parent
-    for name in ("README.md", "CLAUDE.md", "docs/RELEASE.md", "DISCLAIMER.md"):
+    for name in ("README.md", "CLAUDE.md", "docs/RELEASE.md", "DISCLAIMER.md", "CHANGELOG.md"):
         f = root / name
         if not f.exists():
             continue
