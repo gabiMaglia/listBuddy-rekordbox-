@@ -8,7 +8,8 @@ from _qt_isolated import PROJECT_ROOT, run_isolated
 
 def test_qrcode_pinned_and_in_spec() -> None:
     req = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8")
-    assert re.search(r"^qrcode==\d+\.\d+(\.\d+)?$", req, re.M)
+    # El lock lleva hashes (SEC-07): la línea del pin termina en « \» antes de los --hash.
+    assert re.search(r"^qrcode==\d+\.\d+(\.\d+)?( \\)?$", req, re.M)
     spec = (PROJECT_ROOT / "rb_exporter.spec").read_text(encoding="utf-8")
     assert "'qrcode'" in spec
 
