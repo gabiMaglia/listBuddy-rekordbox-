@@ -323,6 +323,13 @@ def _fold(name: str) -> str:
     return unicodedata.normalize("NFC", name).casefold()
 
 
+def _is_dangling_symlink(p: Path) -> bool:
+    try:
+        return p.is_symlink() and not p.exists()
+    except OSError:
+        return True
+
+
 def build_basename_index(
     search_root: Path,
     should_stop: Callable[[], bool] | None = None,
@@ -356,7 +363,10 @@ def build_basename_index(
             break
         dirs[:] = [d for d in dirs if d != _BACKUP_DIR_NAME]
         for name in files:
-            index.setdefault(_fold(name), []).append(Path(root) / name)
+            full = Path(root) / name
+            if _is_dangling_symlink(full):
+                continue  # SEC-16: no ofrecer como destino un enlace que no lleva a nada
+            index.setdefault(_fold(name), []).append(full)
             count += 1
             if count % progress_every == 0:
                 if on_progress is not None:
@@ -475,6 +485,8 @@ def find_candidates(
         match_type = "normalized"
     candidates: list[Candidate] = []
     for p in paths:
+        if _is_dangling_symlink(p):
+            continue
         try:
             size = p.stat().st_size
         except OSError:
