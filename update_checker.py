@@ -29,7 +29,7 @@ import logging
 import ssl
 import urllib.error
 import urllib.request
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, unquote
 from dataclasses import dataclass
 
 import threading
@@ -63,8 +63,14 @@ def safe_release_url(url: object) -> str | None:
         return None
     if parts.username or parts.password or port is not None or "@" in parts.netloc:
         return None
+    if url != url.strip():
+        return None   # un «\n» o espacio final no es parte de ninguna URL de GitHub
     path = parts.path
-    if ".." in path.split("/") or not (path == _RELEASES_PATH or path.startswith(_RELEASES_PATH + "/")):
+    # Los segmentos se miran también decodificados: «%2e%2e» es «..» para el navegador (verifier T-092).
+    segments = path.split("/") + unquote(path).split("/")
+    if any(seg in (".", "..") for seg in segments):
+        return None
+    if not (path == _RELEASES_PATH or path.startswith(_RELEASES_PATH + "/")):
         return None
     return url
 

@@ -37,10 +37,14 @@ $pyi     = Join-Path $venv "Scripts\pyinstaller.exe"
 
 Write-Host "Instalando dependencias…"
 & $pip install --upgrade pip --quiet
+if ($LASTEXITCODE -ne 0) { Write-Error "No se pudo actualizar pip."; exit 1 }
 # SEC-07: --require-hashes rechaza todo paquete fuera del lock; PyInstaller va pineado y aparte
 # (con hashes activos pip exige hash en cada requisito de la misma corrida).
+# $ErrorActionPreference no corta cuando falla un comando nativo: se mira $LASTEXITCODE (verifier T-092).
 & $pip install --require-hashes -r (Join-Path $ROOT "requirements.txt") --quiet
+if ($LASTEXITCODE -ne 0) { Write-Error "pip install --require-hashes falló (lock desincronizado o hash inválido)."; exit 1 }
 & $pip install pyinstaller==6.20.0 --quiet
+if ($LASTEXITCODE -ne 0) { Write-Error "No se pudo instalar PyInstaller 6.20.0."; exit 1 }
 
 # ── 3. Build ───────────────────────────────────────────────────────────────
 Write-Host ""

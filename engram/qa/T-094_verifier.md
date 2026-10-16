@@ -41,3 +41,38 @@ Criterios con cita: 7 de 8 (el 3 queda en abstención).
 1. **Una segunda recarga durante una carga en curso pierde las playlists marcadas** (`ui.py:1235` y `ui.py:1239`). Mientras hay carga, `_all_cards` está vacío (`_load_playlists` → `_clear_playlist_area`, `ui.py:1251`), así que `keep` da `set()` y pisa el `_keep_after_load` pendiente. Lo reproduje así: marcar 3 playlists, Ctrl+R (se conservan) y después Ctrl+R dos veces con 0,4 s de diferencia. Resultado: `checked after double reload []` (`cancel.py keep_marks`, fx40k). En `main` la recarga era síncrona y siempre volvía a marcar (`git show main:ui.py`, l.1198-1209). Viola el plan CÓMO 4 (`engram/plans/T-094.md`): el código lo cumple para una sola recarga y lo rompe para recargas encadenadas. También pasa con Ctrl+R repetido, con elegir otra ruta en Configuración durante la carga (`ui.py:1199-1225`) y con una reparación que termina mientras se carga. El único test (`tests/test_library_load_t094.py:69-76`) no cubre el caso. Para confirmar la causa raíz, muté la línea 1239 a `keep if self._load_worker is None else (keep | self._keep_after_load)`: las marcas sobreviven (`['Playlist 3','Playlist 4','Playlist 5']`). Después la revertí.
 
 Abstenciones: criterio 3 (suite completa, no corrida por instrucción). Supuestos para el PO: A1 y A2.
+
+## Verificación 2 (2026-10-16)
+
+Árbol juzgado: `release/1.0.0-rc2` @ f895c84 (worktree aislado y descartable; incluye el fix fece472). No leí `engram/qa/T-094.md` ni los handoffs ni la narrativa del implementador. Criterios: `engram/03_backlog.md:72` (texto ratificado: RSS sobre XML con cues) y `engram/plans/T-094.md:19` (CÓMO 4). Intérprete `.venv/bin/python`, Intel, `QT_QPA_PLATFORM=offscreen`. Sondas en `/private/tmp/claude-501/-Users-gabrielsk-Desktop-REKORDBOX-EXTRACTOR/b4fcb7d1-4284-4b55-9f7a-dc9bfcfaff16/scratchpad/vprobe2/k.py` (escenarios) más `vprobe/measure.py` de la verificación 1. La única mutación fue en `ui.py:1236-1238` y la revertí con `git checkout ui.py` (árbol limpio).
+
+Diff del fix (`git show fece472`): `ui.py:1236-1238` agrega `if self._load_worker is not None: keep |= self._keep_after_load`. Suma 3 tests en `tests/test_library_load_t094.py`: recargas encadenadas, cambio de ruta en vuelo y cambio de fuente en vuelo. Desde 7d10c38, el resto del código que cambió es de T-095 (`ui.py:1628`, `:1676-1677`, `worker.py`, `audio_player.py`) y no toca la carga.
+
+### §Criterios
+
+| # | Criterio | Veredicto | Cita / evidencia |
+|---|---|---|---|
+| 1a | Ventana visible ≤ 1,5 s con 40k pistas | Cumple, con poco margen | `measure.py` sobre `fx40k_cues.xml` (133,9 MB): 1,231 / 1,249 / 1,465 s desde el constructor. La última corrida deja 35 ms de margen (ver supuesto A2 de la verificación 1). |
+| 1b | RSS ≤ 3× sobre un XML con cues/beatgrid (ratificado) | Cumple | Pico de RSS de 341,8-347,3 MB contra 133,9 MB = **2,55-2,59×** (las mismas 3 corridas). El caso sin cues (4,6×) queda como nota, según la ratificación de `03_backlog.md:72`. Cierra A1. |
+| 2 | Export con cues/beatgrid idénticos (round-trip) | Cumple | `tests/test_t094_load.py:33` (18 tests verdes con `-n 0`) y `tests/test_t094_arq_export.py` (1 verde). El fix no toca `rekordbox_xml.py`. El byte a byte de la verificación 1 (`p5.py`, 13 XML) sigue valiendo porque `rekordbox_xml.py` no cambió desde 7d10c38. |
+| 3 | Suite completa exit 0 | **Me abstengo** | No la corrí por instrucción (hay otro agente en paralelo). `tests/test_library_load_t094.py` con `-n 0` da 9/9 verdes. |
+| CÓMO 4 | La recarga y el cambio de fuente cancelan y relanzan; las marcas se restauran en `loaded` | Cumple | Cancelar y relanzar: `ui.py:1253` y `:1270-1279`. La recarga acumula las marcas pendientes mientras hay un worker (`ui.py:1236-1238`, `:1242`). La restauración y el consumo en `loaded` están en `ui.py:1299-1304`. El cambio de fuente descarta: `ui.py:826`. Las claves llevan la fuente como prefijo (`ui.py:1658-1664`). |
+
+Criterios con cita: 4 de 5 (el 3 queda en abstención).
+
+### §Pase hostil (`k.py`, fx40k: 3 playlists marcadas, Playlist 3/4/5; exit 0 en todos)
+
+1. **Sonda de la verificación 1** (2 Ctrl+R separados por 0,4 s): `['Playlist 3','Playlist 4','Playlist 5']`. Antes daba `[]`.
+2. **3 Ctrl+R** separados por 0,2 y 0,3 s: se conservan las 3. **Dos rondas de doble Ctrl+R** seguidas: se conservan.
+3. **Cambio de ruta a mitad de la carga** (Ctrl+R y, a los 0,3 s, `_reload_after_path_change`): se conservan.
+4. **Recarga, cambio a Traktor y recarga en vuelo**: en Traktor quedan `[]` marcadas y `_keep_after_load == set()`. Al volver a Rekordbox y recargar: `[]`. Las marcas de Rekordbox no se filtran a Traktor ni vuelven solas. Es lo mismo que hace `main` y lo fija el test nuevo. Además, la clave con prefijo de fuente (`ui.py:1664`) impide un cruce aunque quedara algo pendiente.
+5. **Carga fallida y después una recarga exitosa** (ruta inexistente a mitad de la carga, luego la ruta buena): al fallar queda `pending set()` (`ui.py:1311`) y después `[]`. Se pierden las marcas. Es igual que en `main`: en `git show main:ui.py` l.1198-1209 la clave se calcula de las tarjetas, y tras un fallo no hay tarjetas. No es una regresión ni viola un criterio. Lo dejo como **Deducido N1 para el PO**: el usuario que se equivoca de XML a mitad de una recarga y lo corrige pierde la selección.
+6. **La playlist marcada ya no existe en el XML nuevo** (`tiny.xml`, 1 playlist «P»): 1 tarjeta, ninguna marcada y `pending set()`. No queda nada colgado. Al volver al XML original: `[]`. La selección no se resucita, igual que en `main`.
+7. **Sin resurrección de desmarcas**: con la carga terminada desmarco Playlist 4 y hago Ctrl+R ×2: queda `['Playlist 3','Playlist 5']`. El pendiente se consume en `ui.py:1299`, así que una selección vieja no vuelve a entrar.
+8. **Cerrar la ventana con la carga en vuelo** tras 2 Ctrl+R: cierra en 0,00 s, sin hilos corriendo y sin crash. Las líneas de stderr que no son `qt.*` no muestran errores. `_keep_after_load` queda con las 3 claves, pero no tiene consumidor: `_cancel_library_load` (`ui.py:2125`) sube la generación y desconecta. Es inofensivo.
+9. **Mutación**: dejé `ui.py:1238` sin efecto. Fallan `test_checked_playlists_survive_chained_reloads_before_the_first_one_shows_cards` y `test_checked_playlists_survive_a_path_change_in_the_middle_of_a_reload`, y la sonda vuelve a dar `x2 False []`. Los tests nuevos sí discriminan. Revertida.
+10. **Invariante del guard**: `_load_worker is not None` implica que no hay tarjetas, porque `_load_playlists` llama a `_clear_playlist_area` (`ui.py:1254`, `:1375`). Además, `_on_library_loaded` pone el worker en `None` antes de poblar (`ui.py:1284`). No encontré un estado en el que haya worker vivo y tarjetas marcadas a la vez.
+
+### §Veredicto
+
+**CONFIRMADO.** El defecto 1 de la verificación 1 está cerrado (`ui.py:1236-1238`, evidencia en los puntos 1-3 y 9). No encontré defectos nuevos. Abstención: criterio 3 (suite completa). Nota para el PO: N1 (Deducido, igual que en `main`). A2 (offscreen/Intel) sigue abierto: una corrida dio 1,465 s.
