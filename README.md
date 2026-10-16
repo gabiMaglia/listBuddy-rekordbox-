@@ -39,10 +39,11 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 - 🎹 **Key · BPM** — tonalidad y tempo de cada pista en la vista previa.
 - ⏯ **Controles** — play/pausa desde la nota ♪ o con la **barra espaciadora**, barra de progreso con seek, y auto-avance al siguiente track.
 - ⚠️ **Detección de archivos faltantes** — las pistas cuyo archivo no está en disco se marcan en rojo y no se pueden reproducir.
-- 🔧 **Reparar enlaces rotos (relocate)** — si moviste tu música de carpeta o disco, List Buddy busca cada archivo faltante por nombre en la ubicación que le indiques y **repara el enlace** (en Traktor, en tu `collection.nml`; en Rekordbox, en un archivo propio de List Buddy, ver abajo). En Traktor siempre hace un **backup automático** antes de escribir (en Rekordbox no se escribe nada de Rekordbox: las reparaciones quedan en List Buddy), y ante varios candidatos te pregunta cuál es (con un checkbox opcional para resolver todo automáticamente por mejor coincidencia).
+- 🔧 **Reparar enlaces rotos (relocate)** — si moviste tu música de carpeta o disco, List Buddy busca cada archivo faltante por nombre en la ubicación que le indiques y **repara el enlace** (en Traktor, en tu `collection.nml`; en Rekordbox, en un archivo propio de List Buddy, ver abajo). En Traktor siempre hace un **backup automático** antes de escribir (en Rekordbox no se modifica nada de Rekordbox: las reparaciones quedan en List Buddy), y ante varios candidatos te pregunta cuál es (con un checkbox opcional para resolver todo automáticamente por mejor coincidencia).
 - ⚙️ **Configuración** — selector de dispositivo de salida de audio, auto-avance y override de la ruta de la librería.
 - 🌗 **Tema claro / oscuro** estilo macOS.
-- ⚡ **Sin congelamientos** — las operaciones pesadas (existencia de archivos, decodificación, copia) corren en hilos separados.
+- 📦 **Exportación a medio camino** — cada canción se copia primero a un archivo `.part` y recién al terminar toma su nombre final; si la copia se corta (por ejemplo, desconectás un disco) puede quedar algún `.part`, que List Buddy limpia cuando vuelve a exportar esas mismas canciones a esa carpeta.
+- ⚡ **Interfaz que responde** — la interfaz sigue respondiendo mientras carga la librería, revisa archivos, decodifica o copia: esas tareas corren en hilos separados.
 
 ## Descargar
 
@@ -58,6 +59,9 @@ Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBud
   Lo mismo vale para el fuente de esa versión, `listbuddy-<versión>-src.tar.gz` (con su `listbuddy-<versión>-src.tar.gz.sha256`). Si dice `FAILED`, no lo abras y bajalo de nuevo desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
 - **macOS 14.4 o posterior.** En 14.4-14.7 no está probado (se probó en 14.8). Hay un `.dmg` para Apple Silicon (`-arm64`) y otro para Intel (`-x86_64`);
   abrilo y arrastrá **List Buddy** a Aplicaciones.
+  **¿Cuál bajo?** Menú  → **Acerca de esta Mac**: si dice «Chip Apple M…», bajá el `-arm64`; si dice
+  «Procesador Intel», el `-x86_64`. Si elegís el equivocado, la app no abre (o abre muy lenta bajo
+  emulación): borrala y bajá el otro, no se pierde nada.
 - **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente. Cuando se publique, el
   `.exe` **no va a estar firmado** (decisión del proyecto: no pagamos un certificado Authenticode). Windows
   SmartScreen va a mostrar «Windows protegió tu PC»: hacé click en **Más información** →
@@ -125,8 +129,8 @@ encontrado), podés reparar los enlaces sin salir de List Buddy:
      automáticamente* para que tome la mejor coincidencia sin preguntar).
    - **0** → la deja sin tocar y la lista en el log.
 4. Antes de escribir, se crea un **backup** de tu librería en una subcarpeta
-   `listBuddy_backups/` junto al archivo original. Si algo falla, no se escribe
-   nada: tu librería queda intacta.
+   `listBuddy_backups/` junto al archivo original. Si algo falla, tu librería
+   original no se toca: la escritura va a un `.tmp` que se descarta.
 
 > La escritura es atómica y con backup previo, pero **es tu librería real**:
 > revisá el resumen y tené el backup a mano por las dudas.

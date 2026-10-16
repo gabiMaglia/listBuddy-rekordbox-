@@ -76,3 +76,24 @@ def test_disclaimer_states_windows_scope() -> None:
     flat = _flat_disclaimer()
     assert "Windows 10 u 11 de 64 bits" in flat
     assert "sin firma de código" in flat and ".sha256" in flat
+
+
+def test_readme_claims_are_verifiable_and_dmg_guide_present() -> None:
+    """LEG-33 + APP-24."""
+    readme = " ".join((PROJECT_ROOT / "README.md").read_text(encoding="utf-8").split())
+    assert "Sin congelamientos" not in readme
+    assert "la interfaz sigue respondiendo mientras carga" in readme
+    assert "Si algo falla, no se escribe nada" not in readme
+    assert ".part" in readme
+    assert "Acerca de esta Mac" in readme
+    assert "Chip Apple M" in readme and "arm64" in readme
+    assert "Procesador Intel" in readme and "x86_64" in readme
+
+
+def test_claude_md_lists_every_module_and_current_python() -> None:
+    """TEC-30."""
+    text = (PROJECT_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "3.14.8" in text and "3.14.3" not in text
+    arch = text.split("## Arquitectura", 1)[1].split("## Entorno", 1)[0]
+    missing = [p.name for p in sorted(PROJECT_ROOT.glob("*.py")) if p.name not in arch]
+    assert not missing, missing
