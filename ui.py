@@ -247,6 +247,7 @@ class MainWindow(QMainWindow):
         self._preview_workers: list[PreviewWorker] = []      # T-106: uno por lote de extracción
         # T-106 (TEC-23): trabajo por lotes con presupuesto de tiempo por tick del event loop.
         self._mark_queue: list[PlaylistCard] = []            # «Marcar todas» pendiente
+        self._scroll_to_restore: int | None = None           # scroll a devolver tras un recheck
         self._populate_job: Iterator[None] | None = None     # poblado del árbol en curso
         self._populate_on_done: Callable[[], None] | None = None
         self._mark_value = True
@@ -1940,6 +1941,8 @@ class MainWindow(QMainWindow):
         # Continuar con el siguiente grupo en el próximo tick
         if self._render_queue:
             QTimer.singleShot(0, self._pump_render_queue)
+        elif self._scroll_to_restore is not None and not self._feed_queue:
+            QTimer.singleShot(0, self._restore_preview_scroll)
 
     def _on_card_repair(self, auto: bool, data: GroupData) -> None:
         """Botonera de la tarjeta (D1 del PO): actúa SOLO sobre los rotos de esa carpeta."""
@@ -2340,12 +2343,29 @@ class MainWindow(QMainWindow):
         self._recheck_worker = worker
         worker.start()
 
-    def _on_recheck_done(self, changed: bool) -> None:
+    def _on_recheck_done(self, changed: frozenset[str]) -> None:
+        """T-106: rehace solo las tarjetas con alguna pista cuyo estado cambió y conserva el
+        resto y el scroll de la vista previa (antes se reconstruía todo y volvía arriba)."""
         if not changed or self._export_state != "idle":
             return
-        self._exists_cache.clear()
-        self._clear_preview_layout()
-        self._start_preview_worker()
+        for raw in changed:
+            self._exists_cache.pop(raw, None)
+        affected = [card for card, pc in self._preview_cards.items()
+                    if any(t.raw_path in changed for t in pc.data.tracks)]
+        if not affected:
+            return
+        for card in affected:
+            self._remove_preview_card(card)
+        self._set_broken_total(sum(g.missing_count for g in self._rendered_groups))
+        self._scroll_to_restore = self.preview_scroll.verticalScrollBar().value()
+        selected = [c for c in self._all_cards if c.isChecked()]
+        self._feed_preview(affected, {c: i for i, c in enumerate(selected, start=1)},
+                           self._folder_names_of(selected))
+
+    def _restore_preview_scroll(self) -> None:
+        value, self._scroll_to_restore = self._scroll_to_restore, None
+        if value is not None and isValid(self.preview_scroll):
+            self.preview_scroll.verticalScrollBar().setValue(value)
 
     def _wait_export_block(self, worker: QThread) -> None:
         """Cierra sin abortar: la copia corta entre bloques de 1 MiB, pero un disco lento puede

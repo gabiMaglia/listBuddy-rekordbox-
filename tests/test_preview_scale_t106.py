@@ -141,3 +141,32 @@ def test_populating_800_playlists_never_blocks_the_ui_over_100ms_and_keeps_order
         "print(ok, len(names), names == expected, len(w._groups), dog.worst_ms < 150, int(dog.worst_ms))\n"
     )
     assert out.startswith("True 800 True 20 True"), out
+
+
+def test_recheck_with_one_changed_file_rebuilds_only_that_card_and_keeps_the_scroll() -> None:
+    out = run(
+        "import tempfile, pathlib\n"
+        "from PySide6.QtCore import QEvent\n"
+        "import rekordbox_xml as rx\n"
+        "d = pathlib.Path(tempfile.mkdtemp())\n"
+        "for i in range(50):\n"
+        "    if i != 30: (d / f'p{i}.mp3').write_bytes(b'x')\n"
+        "w, _ = make(); cards = []\n"
+        "for i in range(50):\n"
+        "    tr = [rx.RbxTrack(title=f't{i}', artist='A', file_path=d / f'p{i}.mp3', TrackNo=1)]\n"
+        "    c = PlaylistCard(rx.RbxPlaylist(name=f'P{i}', ID=f'p{i}', tracks=tr), 1, i)\n"
+        "    w._all_cards.append(c); c.setChecked(True); cards.append(c)\n"
+        "w._start_preview_worker()\n"
+        "spin(lambda: len(w._preview_cards) == 50 and not w._render_queue)\n"
+        "spin(lambda: False, 0.5)\n"
+        "bar = w.preview_scroll.verticalScrollBar(); bar.setValue(bar.maximum() // 2); app.processEvents()\n"
+        "pos = bar.value(); before = dict(w._preview_cards)\n"
+        "(d / 'p30.mp3').write_bytes(b'x')\n"
+        "w._last_exists_check -= 10\n"
+        "app.sendEvent(w, QEvent(QEvent.Type.WindowActivate))\n"
+        "spin(lambda: w._preview_cards.get(cards[30]) is not None and w._preview_cards[cards[30]] is not before[cards[30]] and not w._render_queue, 20)\n"
+        "spin(lambda: False, 0.5)\n"
+        "same = sum(w._preview_cards[c] is before[c] for c in cards)\n"
+        "print(len(w._preview_cards), same, w._broken_total, pos > 0, bar.value() == pos, bar.value(), pos)\n"
+    )
+    assert out.startswith("50 49 0 True True"), out

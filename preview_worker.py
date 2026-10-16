@@ -70,9 +70,10 @@ def path_exists(raw: str, is_traktor: bool) -> bool:
 
 class ExistenceRecheckWorker(QThread):
     """TEC-18: vuelve a mirar en disco las rutas ya dibujadas (se conectó el disco, se
-    borró un archivo) sin congelar la UI. Emite `changed(True)` si alguna cambió de estado."""
+    borró un archivo) sin congelar la UI. Emite `changed(frozenset)` con las rutas cuyo
+    estado cambió (vacío = nada cambió), así la ventana rehace solo las tarjetas afectadas."""
 
-    changed: Signal = Signal(bool)
+    changed: Signal = Signal(object)
 
     def __init__(self, known: dict[str, bool], is_traktor: bool) -> None:
         super().__init__()
@@ -80,14 +81,13 @@ class ExistenceRecheckWorker(QThread):
         self._is_traktor = is_traktor
 
     def run(self) -> None:
-        diff = False
+        diff: set[str] = set()
         for raw, was in self._known.items():
             if self.isInterruptionRequested():
                 return
             if path_exists(raw, self._is_traktor) != was:
-                diff = True
-                break
-        self.changed.emit(diff)
+                diff.add(raw)
+        self.changed.emit(frozenset(diff))
 
 
 class PreviewWorker(QThread):
