@@ -411,6 +411,17 @@ def _scan(path: Path, should_cancel: CancelCheck | None) -> tuple[ET.Element, di
     return root, index
 
 
+def _build_track_index(root: ET.Element) -> dict[str, TraktorTrack]:
+    """Build {KEY: TraktorTrack} from a ya parseado <COLLECTION> (para tests y usos chicos)."""
+    index: dict[str, TraktorTrack] = {}
+    collection = root.find("COLLECTION")
+    for entry in collection.findall("ENTRY") if collection is not None else ():
+        made = _entry_to_track(entry)
+        if made is not None:
+            index[made[0]] = made[1]
+    return index
+
+
 def _entry_to_track(entry: ET.Element) -> tuple[str, TraktorTrack] | None:
     """<ENTRY> de COLLECTION → (KEY, TraktorTrack); None si no tiene LOCATION."""
     loc = entry.find("LOCATION")

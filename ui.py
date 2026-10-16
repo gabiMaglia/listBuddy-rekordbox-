@@ -81,6 +81,7 @@ from ui_components import (
     TitleBar,
 )
 from preview_worker import PreviewWorker, GroupData, TrackRow
+from library_load_worker import LibraryLoadResult, LibraryLoadWorker
 from audio_player import AudioPlayer
 from footer import FooterBar
 from waveform_worker import WaveData, WaveformWorker
@@ -223,6 +224,9 @@ class MainWindow(QMainWindow):
         self._grips: list[_ResizeGrip] = []
 
         self._db = None
+        self._load_worker: LibraryLoadWorker | None = None   # T-094: lectura de la librería en curso
+        self._load_generation = 0                            # descarta resultados de cargas reemplazadas
+        self._keep_after_load: set[Any] = set()              # playlists a re-marcar al terminar
         self._worker: ExportWorker | None = None
         self._all_cards: list[PlaylistCard] = []
         self._groups: list[PlaylistGroup] = []
@@ -765,6 +769,8 @@ class MainWindow(QMainWindow):
     )
 
     def _repair_supported(self) -> bool:
+        if self._load_worker is not None:
+            return False   # sin librería cargada todavía no hay qué reparar
         if self._source == "traktor":
             return True
         return self._source == "rekordbox" and isinstance(
@@ -805,6 +811,7 @@ class MainWindow(QMainWindow):
         if source == self._source or self._is_maintenance_busy():
             return
         self._source = source
+        self._keep_after_load = set()
         self._track_meta_cache.clear()
         self._exists_cache.clear()
         # Update button states
@@ -1196,58 +1203,85 @@ class MainWindow(QMainWindow):
         self._reload_after_path_change()
 
     def _reload_after_path_change(self) -> None:
-        """Vuelve a leer la fuente activa conservando las playlists marcadas."""
+        """Vuelve a leer la fuente activa; las playlists marcadas se re-marcan al terminar la carga."""
         keep = {self._playlist_cache_key(c.playlist) for c in self._all_cards if c.isChecked()}
         self._clear_preview_layout()   # los datos reparados cambian con las mismas claves
         self._track_meta_cache.clear()
         self._exists_cache.clear()
+        self._keep_after_load = keep
         self._load_playlists()
+
+    # ──────────────────────────────────────── Load playlists ─────────────
+
+    def _load_playlists(self) -> None:
+        """Lee la fuente activa (Rekordbox o Traktor) en un hilo (T-094).
+
+        Vuelve enseguida con la tarjeta «Cargando librería…»; el resultado llega por
+        `_on_library_loaded` / `_on_library_failed`. Una carga nueva cancela la anterior.
+        """
+        self._cancel_library_load()
+        self._clear_playlist_area()
+        self._src_rb_btn.setToolTip("")
+        self._db = None  # una carga fallida no puede dejar la librería de la otra fuente
+
+        if self._source == "traktor":
+            path = Path(self._tk_collection_path) if self._tk_collection_path else None
+        else:
+            path = Path(self._rb_xml_path) if self._rb_xml_path else None
+        worker = LibraryLoadWorker(self._load_generation, self._source, path, self._fixes_store)
+        worker.loaded.connect(self._on_library_loaded)
+        worker.failed.connect(self._on_library_failed)
+        self._load_worker = worker
+        self._retain_thread(worker)
+        self._show_loading()
+        self._sync_maintenance_for_source()
+        worker.start()
+
+    def _cancel_library_load(self) -> None:
+        """Suelta la carga en curso: su resultado ya no se muestra y el hilo termina solo."""
+        self._load_generation += 1   # Qt igual entrega lo ya encolado: se descarta por generación
+        worker, self._load_worker = self._load_worker, None
+        if worker is None:
+            return
+        worker.loaded.disconnect()
+        worker.failed.disconnect()
+        worker.requestInterruption()
+
+    def _on_library_loaded(self, result: LibraryLoadResult) -> None:
+        if result.token != self._load_generation:
+            return
+        self._load_worker = None
+        self._clear_playlist_area()
+        self._db = result.db
+        if result.source == "traktor":
+            from traktor_db import playlist_song_count
+            src_label = "Traktor"
+        else:
+            playlist_song_count = rekordbox_xml.playlist_song_count
+            src_label = "Rekordbox"
+        self._populate_playlists(result.tree, playlist_song_count)
+        self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
+        if result.source == "rekordbox":
+            stamp = f"{self._db.exported_at:%d/%m/%Y %H:%M}"
+            self._log(f"XML exportado el {stamp}.")
+            self._src_rb_btn.setToolTip(f"XML exportado el {stamp}")
+        keep, self._keep_after_load = self._keep_after_load, set()
         if keep:
             for card in self._all_cards:
                 if self._playlist_cache_key(card.playlist) in keep:
                     card.setChecked(True)
             self._update_order_numbers()
+        self._sync_maintenance_for_source()
 
-    # ──────────────────────────────────────── Load playlists ─────────────
-
-    def _load_playlists(self) -> None:
-        """Load playlists from the active source (Rekordbox or Traktor)."""
-        self._clear_playlist_area()
-        self._src_rb_btn.setToolTip("")
-        self._db = None  # una carga fallida no puede dejar la librería de la otra fuente
-
-        try:
-            if self._source == "traktor":
-                from traktor_db import (
-                    open_collection,
-                    get_playlist_tree,
-                    playlist_song_count,
-                )
-                tk_path = Path(self._tk_collection_path) if self._tk_collection_path else None
-                col = open_collection(tk_path)
-                tree = get_playlist_tree(col)
-                self._db = col
-            else:
-                xml_path = Path(self._rb_xml_path) if self._rb_xml_path else None
-                lib = rekordbox_xml.open_library(xml_path, fixes=self._fixes_store.load())
-                tree = rekordbox_xml.get_playlist_tree(lib)
-                playlist_song_count = rekordbox_xml.playlist_song_count
-                self._db = lib
-        except RuntimeError as e:
-            action = None
-            if self._source == "rekordbox":
-                action = ("Elegir rekordbox.xml…", self._browse_rb_path)
-            self._show_not_installed(str(e), action)
-            self._sync_maintenance_for_source()
+    def _on_library_failed(self, token: int, message: str) -> None:
+        if token != self._load_generation:
             return
-
-        self._populate_playlists(tree, playlist_song_count)
-        src_label = "Traktor" if self._source == "traktor" else "Rekordbox"
-        self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
+        self._load_worker = None
+        self._keep_after_load = set()
+        action = None
         if self._source == "rekordbox":
-            stamp = f"{self._db.exported_at:%d/%m/%Y %H:%M}"
-            self._log(f"XML exportado el {stamp}.")
-            self._src_rb_btn.setToolTip(f"XML exportado el {stamp}")
+            action = ("Elegir rekordbox.xml…", self._browse_rb_path)
+        self._show_not_installed(message, action)
         self._sync_maintenance_for_source()
 
     # Seam de test: los tests con BOOT reemplazan `_load_playlists` por un no-op
@@ -1325,9 +1359,23 @@ class MainWindow(QMainWindow):
         self, detail: str, action: tuple[str, Callable[[], None]] | None = None,
     ) -> None:
         """Show a friendly 'not installed' placeholder in the playlist area."""
+        app_name = "Traktor Pro 3 / 4" if self._source == "traktor" else "Rekordbox"
+        self._show_status_card(f"{app_name} no disponible", detail, action)
+
+    def _show_loading(self) -> None:
+        """Placeholder mientras el hilo lee la librería (T-094)."""
+        if self._source == "traktor":
+            detail = "Leyendo la colección de Traktor…"
+        else:
+            detail = "Leyendo el XML de Rekordbox. Con colecciones grandes puede tardar unos segundos."
+        self._show_status_card("Cargando librería…", detail)
+
+    def _show_status_card(
+        self, title_text: str, detail: str,
+        action: tuple[str, Callable[[], None]] | None = None,
+    ) -> None:
         self._clear_playlist_area()
 
-        app_name = "Traktor Pro 3 / 4" if self._source == "traktor" else "Rekordbox"
         card = QWidget()
         card.setObjectName("not_installed_card")
         card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -1341,7 +1389,7 @@ class MainWindow(QMainWindow):
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(icon)
 
-        title = QLabel(f"{app_name} no disponible")
+        title = QLabel(title_text)
         title.setObjectName("not_installed_title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(title)
@@ -2016,6 +2064,7 @@ class MainWindow(QMainWindow):
         for w in list(self._live_wave_workers):
             w.wait(1500)
         self._cancel_preview_worker()
+        self._cancel_library_load()
         if self._worker and self._worker.isRunning():
             self._worker.requestInterruption()
             self._worker.wait(4000)
