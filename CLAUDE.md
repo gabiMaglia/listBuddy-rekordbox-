@@ -141,7 +141,7 @@ El `.spec` ya está configurado. Para macOS el resultado es un `.app` bundle. **
      Notariza el `.app` (zip) → `stapler staple` → DMG firmado → notariza el DMG → `stapler staple/validate` → `spctl --assess --type open --context context:primary-signature` + `hdiutil verify`.
    - Tras buildear, `scripts/check_bundle.sh "dist/List Buddy.app"` (lo corre el script) falla si hay pyrekordbox/sqlcipher/sqlalchemy o un `.rbe_settings.ini` dentro del bundle.
 
-6. **Arquitectura:** por defecto PyInstaller empaqueta para la arquitectura del sistema donde se corre. Para crear un **Universal Binary** (arm64 + x86_64):
+6. **Arquitectura:** por defecto PyInstaller empaqueta para la arquitectura del sistema donde se corre. **CI (T-097):** `.github/workflows/release.yml` buildea arm64 (`macos-15`) e Intel (`macos-15-intel`) con `scripts/release_mac.sh --arch-suffix` y publica un Release en borrador al pushear un tag `v*`; secrets y pasos en `docs/RELEASE.md`. Tests en CI: `.github/workflows/tests.yml` (solo macOS). Para crear un **Universal Binary** (arm64 + x86_64; hoy no viable: numpy cp314 no es universal2, T-086 APP-06):
    ```bash
    pyinstaller rb_exporter.spec --target-arch universal2
    ```
