@@ -230,8 +230,13 @@ class ExportWorker(QThread):
     # (TEC-22): las líneas se juntan y salen en un solo log() por lote.
     def _emit(self, text: str) -> None:
         self._log_buf.append(text)
-        if (len(self._log_buf) >= _LOG_BATCH_LINES
-                or time.monotonic() - self._log_flushed_at >= _LOG_BATCH_SECONDS):
+        if len(self._log_buf) >= _LOG_BATCH_LINES:
+            self._flush_log()
+        else:
+            self._flush_if_due()
+
+    def _flush_if_due(self) -> None:
+        if self._log_buf and time.monotonic() - self._log_flushed_at >= _LOG_BATCH_SECONDS:
             self._flush_log()
 
     def _flush_log(self) -> None:
@@ -239,6 +244,12 @@ class ExportWorker(QThread):
             self.log.emit("\n".join(self._log_buf))
             self._log_buf = []
         self._log_flushed_at = time.monotonic()
+
+    def _stop_requested(self) -> bool:
+        """Lo consulta la copia entre bloques de 1 MiB: de paso vacía el lote vencido, así una
+        copia larga no retiene las líneas anteriores (verifier T-105 D6)."""
+        self._flush_if_due()
+        return self.isInterruptionRequested()
 
     def _finish(self, copied: int, missing: int, skipped: int, status: str) -> None:
         self._flush_log()   # el último lote sale antes de finished_ok
@@ -390,7 +401,7 @@ class ExportWorker(QThread):
                     skipped_total += 1
                 else:
                     try:
-                        _copy_atomic(src, dest, self.isInterruptionRequested)
+                        _copy_atomic(src, dest, self._stop_requested)
                         self._emit(f"   ✓  {dest.name}")
                         copied_total += 1
                     except _CopyInterrupted:

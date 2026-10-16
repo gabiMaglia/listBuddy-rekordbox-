@@ -282,6 +282,8 @@ class MainWindow(QMainWindow):
         self._export_state: Literal["idle", "running", "cancelling"] = "idle"
         self._last_export_dest: str = ""
         self._dest_check: DestinationCheck | None = None
+        self._status_before_check = ""
+        self._closing = False   # cerrar invalida lo que llegue en cola (chequeo de destino, resolución de ruta)
         self._play_gen = 0
 
         # Cache de metadata de tracks: evita re-queries SQLAlchemy (N+1 problem)
@@ -1964,6 +1966,7 @@ class MainWindow(QMainWindow):
         # Click en la fila que ya suena → pausa/reanuda en vez de reiniciar
         if allow_toggle and raw_path and raw_path == self._playing_path \
                 and self._audio.current_path():
+            self._play_gen += 1   # el último gesto fue este: una resolución tardía ya no vale
             self._audio.toggle()
             return
 
@@ -1981,7 +1984,7 @@ class MainWindow(QMainWindow):
         self, gen: int, resolved: str | None, row: FileRow | None, raw_path: str,
         track: TrackRow | None,
     ) -> None:
-        if gen != self._play_gen or not resolved:
+        if self._closing or gen != self._play_gen or not resolved:
             return
         if not is_playable_audio(resolved):
             self._on_audio_error(NOT_PLAYABLE_MESSAGE)   # SEC-18: ni se abre
@@ -2135,6 +2138,8 @@ class MainWindow(QMainWindow):
                 event.ignore()
                 return
 
+        self._closing = True
+        self._play_gen += 1
         self._audio.stop()
         self._cancel_waveform()
         for w in list(self._live_wave_workers):
@@ -2162,10 +2167,14 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
         self._exit_if_threads_hung()
 
-    # Hilos que solo leen (stat, decoder, resolución de ruta): si uno queda colgado en el kernel
+    # Hilos que solo leen o solo crean la carpeta vacía de destino (stat, decoder, carga de la
+    # librería, resolución de ruta): si uno queda colgado en el kernel
     # se puede abandonar. Cualquier otro (relocate, restore, carga, destino) escribe o crea
     # archivos y se espera entero.
-    _READ_ONLY_THREADS = (ExistenceRecheckWorker, PlayResolveWorker, PreviewWorker, WaveformWorker)
+    _READ_ONLY_THREADS = (
+        DestinationCheck, ExistenceRecheckWorker, LibraryLoadWorker, PlayResolveWorker,
+        PreviewWorker, WaveformWorker,
+    )
 
     def _exit_if_threads_hung(self) -> None:
         """TEC-24: un `stat`/decoder colgado en el kernel (USB dormido, SMB caído) no se puede
@@ -2286,15 +2295,30 @@ class MainWindow(QMainWindow):
             return
         if self._dest_check is not None:
             return   # ya se está comprobando el destino de un click anterior
+        self._status_before_check = self.output_status.text()
+        self.output_status.setText("Verificando destino…")
         check = DestinationCheck(Path(output))
         self._dest_check = check
         self._retain_thread(check)
         check.checked.connect(lambda ok, o=output, s=selected: self._on_dest_checked(o, s, ok))
         check.start()
 
+    def _restore_status_after_check(self) -> None:
+        self.output_status.setText(self._status_before_check)
+
     def _on_dest_checked(self, output: str, selected: list, ok: bool) -> None:
         self._dest_check = None
+        if self._closing:
+            return   # la ventana ya se cerró: nunca arrancar un export después de closeEvent
+        if self._relocate_worker and self._relocate_worker.isRunning():
+            self._restore_status_after_check()
+            dialogs.warning(
+                self, "Relocate en curso",
+                "Esperá a que termine la reparación de enlaces antes de exportar.",
+            )
+            return
         if not ok:
+            self._restore_status_after_check()
             # Típico: el destino guardado está en un disco que hoy no está montado.
             dialogs.warning(
                 self, "No se puede usar la carpeta de destino",
@@ -2643,6 +2667,12 @@ class MainWindow(QMainWindow):
             )
             return
         if self._relocate_worker and self._relocate_worker.isRunning():
+            return
+        if self._dest_check is not None:
+            dialogs.warning(
+                self, "Verificando destino",
+                "Esperá un momento: se está verificando la carpeta de destino de la exportación.",
+            )
             return
 
         # R-03 (Traktor) / R-01 (Rekordbox) — "cerrá la app antes de reparar
