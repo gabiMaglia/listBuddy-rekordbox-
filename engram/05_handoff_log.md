@@ -3,6 +3,10 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 19:30] T-104 consolidada → corte aprobado por el PO → T-105..T-111
+- PO: Nivel 0 + Nivel 1 ahora; 1.0.0 PAGA (LEG-22 → T-110, bloqueado hasta MoR/precio); purgar historia por LEG-25 (T-111, al final). Ola 1 en paralelo con archivos disjuntos: T-105 (worker/audio/ui-export), T-107 (release/CI/RELEASE.md), T-109 (docs legales/privacidad/fixes/app_paths). Ola 2: T-106 (ui preview, tras T-105), T-108 (Windows, tras T-107). T-105/T-107 nivel S → plan QUÉ/CÓMO en engram/plans (QUÉ = corte aprobado por el PO; CÓMO estampado por nerv-desktop antes de codear).
+- Quien retoma: nerv-desktop ×3 → nerv-orquestador → gate → nerv-qa.
+
 ### [2026-10-16 17:00] PO pide re-auditoría completa → T-104, 4 auditores en paralelo (solo lectura)
 - Base: main @ d9c9f8f (T-087..T-103 Done). Misma estructura que T-086; cada pata reporta cerrado/abierto/nuevo contra su informe de T-086. App lanzada para el PO (`python main.py`, venv 3.14.8). Sin suite completa ni builds en los auditores (la app está corriendo).
 - Quien retoma: auditores → nerv-orquestador consolida → PO aprueba el corte.
