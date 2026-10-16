@@ -15,5 +15,6 @@
 | 2026-10-15 | GitHub (origin) | `git push origin main` hasta 8a7de9f (merges T-081, onda, streaming + cierre de sprint) — ejecutado POR EL PO | gabiMaglia/listBuddy-rekordbox- @ 8a7de9f | T-081, T-083..T-085 | PO («ya pushee») |
 | 2026-10-16 | GitHub (origin) | `git push origin main` 4922586..f45d809 (T-086 auditoría, T-087..T-097 Done con QA + verifier, ADR-005/006, workflows CI) — ejecutado por el Orquestador | gabiMaglia/listBuddy-rekordbox- @ f45d809 | T-086..T-097 | PO («Sí, pushear main», AskUserQuestion 2026-10-16) |
 | 2026-10-16 | GitHub (origin) | `git push origin main` (T-100 Done, T-101 doc, engram) — ejecutado por el Orquestador | gabiMaglia/listBuddy-rekordbox- @ 82ebd21 | T-100, T-101 | PO (autorización de push de la sesión, 2026-10-16) |
+| 2026-10-16 | GitHub (origin) | `git push origin main` (T-103 Done, D-15 resuelta, T-102, engram) — ejecutado por el Orquestador | gabiMaglia/listBuddy-rekordbox- @ 1cc011f | T-102, T-103 | PO (autorización de push de la sesión, 2026-10-16) |
 
 - 2026-10-15 · (ninguna escritura externa en la sesión de la tarde: merges locales a main, sin push, sin PR, sin tracker) · T-086..T-097 · —
