@@ -60,3 +60,23 @@ def test_failed_save_removes_the_tmp_and_reraises(tmp_path, monkeypatch) -> None
         store.save({"a": "b"})
     assert not (tmp_path / "rekordbox_fixes.json.tmp").exists()
     assert not store.path.exists()
+
+
+def test_load_discards_non_str_and_relative_values_with_a_warning(
+    tmp_path: Path, caplog
+) -> None:
+    import logging
+
+    good = str(tmp_path / "ok.mp3")
+    p = tmp_path / "f.json"
+    p.write_text(json.dumps({"version": 1, "fixes": {
+        "file://localhost/a.mp3": 1,
+        "file://localhost/b.mp3": None,
+        "file://localhost/c.mp3": ["/x/c.mp3"],
+        "file://localhost/d.mp3": "rel/d.mp3",
+        "file://localhost/e.mp3": good,
+        "": good,
+    }}), encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="listBuddy"):
+        assert FixStore(p).load() == {"file://localhost/e.mp3": good}
+    assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 5
