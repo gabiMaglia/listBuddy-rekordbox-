@@ -19,6 +19,7 @@ import traceback
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+from app_paths import make_private
 from branding import APP_NAME
 
 _LOGGER = "listBuddy"
@@ -37,11 +38,25 @@ def log_dir() -> Path:
     return d
 
 
+class _PrivateRotatingFileHandler(RotatingFileHandler):
+    """RotatingFileHandler cuyo archivo (también tras cada rotación) queda en 0600:
+    el log lleva rutas con el nombre de usuario (SEC-11)."""
+
+    def _open(self):  # type: ignore[no-untyped-def]
+        stream = super()._open()
+        make_private(Path(self.baseFilename))
+        return stream
+
+
 def setup_logging(version: str = "") -> Path:
     """Configura el logger raíz: archivo rotativo + stderr. Devuelve la ruta del log."""
     path = log_dir() / "listBuddy.log"
 
-    file_h = RotatingFileHandler(
+    # Rotaciones creadas por versiones anteriores (0644): se ajustan antes de abrir.
+    for old in path.parent.glob(path.name + ".*"):
+        make_private(old)
+    make_private(path)
+    file_h = _PrivateRotatingFileHandler(
         path, maxBytes=512_000, backupCount=3, encoding="utf-8"
     )
     file_h.setFormatter(logging.Formatter(
