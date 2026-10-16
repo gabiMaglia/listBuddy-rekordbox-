@@ -42,14 +42,14 @@ This plugin does not support propagateSizeHints()
 ..............This plugin does not support propagateSizeHints()
 This plugin does not support propagateSizeHints()
 .Traceback (most recent call last):
-  File "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
+  File "<HOME>/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
     if lo.count() >= 1:
        ~~~~~~~~^^
 RuntimeError: libshiboken: Internal C++ object (PySide6.QtWidgets.QVBoxLayout) already deleted.
 .............This plugin does not support propagateSizeHints()
 .This plugin does not support propagateSizeHints()
 .........................Traceback (most recent call last):
-  File "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
+  File "<HOME>/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
     if lo.count() >= 1:
        ~~~~~~~~^^
 RuntimeError: libshiboken: Internal C++ object (PySide6.QtWidgets.QVBoxLayout) already deleted.
@@ -57,17 +57,17 @@ RuntimeError: libshiboken: Internal C++ object (PySide6.QtWidgets.QVBoxLayout) a
 This plugin does not support propagateSizeHints()
 This plugin does not support propagateSizeHints()
 ........................Traceback (most recent call last):
-  File "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
+  File "<HOME>/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
     if lo.count() >= 1:
        ~~~~~~~~^^
 RuntimeError: libshiboken: Internal C++ object (PySide6.QtWidgets.QVBoxLayout) already deleted.
 ....Traceback (most recent call last):
-  File "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
+  File "<HOME>/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
     if lo.count() >= 1:
        ~~~~~~~~^^
 RuntimeError: libshiboken: Internal C++ object (PySide6.QtWidgets.QVBoxLayout) already deleted.
 ..Traceback (most recent call last):
-  File "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
+  File "<HOME>/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
     if lo.count() >= 1:
        ~~~~~~~~^^
 RuntimeError: libshiboken: Internal C++ object (PySide6.QtWidgets.QVBoxLayout) already deleted.
@@ -103,7 +103,7 @@ This plugin does not support propagateSizeHints()
 ......................This plugin does not support propagateSizeHints()
 This plugin does not support propagateSizeHints()
 ......................Traceback (most recent call last):
-  File "/Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
+  File "<HOME>/Desktop/REKORDBOX_EXTRACTOR/ui.py", line 1686, in _pump_render_queue
     if lo.count() >= 1:
        ~~~~~~~~^^
 RuntimeError: libshiboken: Internal C++ object (PySide6.QtWidgets.QVBoxLayout) already deleted.

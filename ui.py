@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import itertools
 import sys
-from io import BytesIO
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Literal
@@ -21,6 +20,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QAction,
     QDesktopServices,
+    QImage,
     QIcon,
     QKeySequence,
     QMouseEvent,
@@ -88,7 +88,7 @@ from rekordbox_fixes import FixStore, fixes_path_for
 from rekordbox_xml_relocate import RekordboxXmlRelocateWorker
 from relocate_core import BackupInfo, RelocateScope, RestoreBackupWorker, list_backups
 from traktor_relocate import RelocateWorker, is_traktor_running
-from update_checker import UpdateCheckWorker, UpdateInfo
+from update_checker import UpdateCheckWorker, UpdateInfo, safe_release_url
 
 _KOFI_URL = "https://ko-fi.com/gabrielmaglia"
 # Va en cada confirmación antes de escribir sobre una librería (DISCLAIMER.md §3-4).
@@ -185,20 +185,23 @@ class DonationDialog(QDialog):
 
     @staticmethod
     def _make_qr() -> QPixmap | None:
+        # qrcode solo aporta la matriz de módulos (sin Pillow): se pinta con Qt.
         try:
             import qrcode  # type: ignore
-            qr = qrcode.QRCode(box_size=5, border=2)
+
+            qr = qrcode.QRCode(border=2)
             qr.add_data(_KOFI_URL)
             qr.make(fit=True)
-            img = qr.make_image(fill_color="black", back_color="white")
-            buf = BytesIO()
-            img.save(buf, format="PNG")
-            px = QPixmap()
-            px.loadFromData(buf.getvalue())
-            return px.scaled(
+            matrix = qr.get_matrix()
+            n = len(matrix)
+            img = QImage(n, n, QImage.Format.Format_RGB32)
+            for y, row in enumerate(matrix):
+                for x, dark in enumerate(row):
+                    img.setPixel(x, y, 0xFF000000 if dark else 0xFFFFFFFF)
+            return QPixmap.fromImage(img).scaled(
                 180, 180,
                 Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
+                Qt.TransformationMode.FastTransformation,
             )
         except Exception:
             return None
@@ -301,6 +304,7 @@ class MainWindow(QMainWindow):
         self._rb_xml_path = str(self.settings.value("rb_xml_path", "") or "")
         self._tk_collection_path = str(self.settings.value("tk_collection_path", "") or "")
         self._auto_advance = self.settings.value("auto_advance", True, type=bool)
+        self._check_updates = self.settings.value("check_updates_on_start", True, type=bool)
         self._saved_device_id = str(self.settings.value("audio_device_id", "") or "")
         self._media_devices = QMediaDevices(self)
         self._media_devices.audioOutputsChanged.connect(self._refresh_audio_devices)
@@ -1046,6 +1050,17 @@ class MainWindow(QMainWindow):
         self._auto_advance_chk.toggled.connect(self._on_auto_advance_toggled)
         play_box.addWidget(self._auto_advance_chk)
 
+        # ── PRIVACIDAD ─────────────────────────────────────────────────────
+        privacy_box = section("PRIVACIDAD")
+        self._update_check_chk = QCheckBox("Buscar actualizaciones al iniciar")
+        self._update_check_chk.setObjectName("settings_check")
+        self._update_check_chk.setToolTip(
+            "Al abrir la app consulta en GitHub si hay una versión nueva. No envía datos tuyos."
+        )
+        self._update_check_chk.setChecked(self._check_updates)
+        self._update_check_chk.toggled.connect(self._on_check_updates_toggled)
+        privacy_box.addWidget(self._update_check_chk)
+
         # ── LIBRERÍAS ──────────────────────────────────────────────────────
         lib_box = section("LIBRERÍAS")
         helper = QLabel(
@@ -1148,6 +1163,10 @@ class MainWindow(QMainWindow):
     def _on_auto_advance_toggled(self, checked: bool) -> None:
         self._auto_advance = checked
         self.settings.setValue("auto_advance", checked)
+
+    def _on_check_updates_toggled(self, checked: bool) -> None:
+        self._check_updates = checked
+        self.settings.setValue("check_updates_on_start", checked)
 
     # ── Library paths ───────────────────────────────────────────────────────
 
@@ -2779,6 +2798,8 @@ class MainWindow(QMainWindow):
         __init__, después de que la ventana ya está armada — el resultado
         (si llega) solo agrega un label discreto, nunca bloquea el arranque.
         """
+        if not self._check_updates:
+            return
         self._update_worker = UpdateCheckWorker(_APP_VERSION)
         self._update_worker.update_available.connect(self._on_update_available)
         self._update_worker.start()
@@ -2789,5 +2810,7 @@ class MainWindow(QMainWindow):
         self._update_strip.setVisible(True)
 
     def _open_update_link(self) -> None:
-        if self._update_url:
-            QDesktopServices.openUrl(QUrl(self._update_url))
+        # Segunda barrera: aunque _update_url cambie de dueño, solo se abre una URL válida.
+        url = safe_release_url(self._update_url)
+        if url:
+            QDesktopServices.openUrl(QUrl(url))

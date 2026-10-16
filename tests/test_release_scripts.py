@@ -88,3 +88,23 @@ def test_release_scripts_are_executable_in_git(script) -> None:
         cwd=PROJECT_ROOT, capture_output=True, text=True, check=True,
     ).stdout.split()[0]
     assert mode == "100755", f"{script.name} está en git como {mode}"
+
+
+def test_build_windows_matches_spec_output_and_pins_pyinstaller() -> None:
+    """TEC-11/APP-19: el spec de Windows es one-dir (dist/listBuddy/listBuddy.exe) y PyInstaller va pineado."""
+    ps1 = (PROJECT_ROOT / "scripts" / "build_windows.ps1").read_text(encoding="utf-8")
+    spec = (PROJECT_ROOT / "rb_exporter.spec").read_text(encoding="utf-8")
+    assert "name='listBuddy'" in spec and "COLLECT(" in spec          # one-dir
+    assert r"dist\listBuddy\listBuddy.exe" in ps1
+    assert r'"dist\listBuddy.exe"' not in ps1
+    release = _RELEASE.read_text(encoding="utf-8")
+    pin = re.search(r"pyinstaller==([\d.]+)", ps1)
+    assert pin and pin.group(1) == re.search(r"pyinstaller==([\d.]+)", release).group(1)
+    assert not re.search(r"install pyinstaller\s*--quiet", ps1)
+
+
+def test_claude_md_upx_matches_spec() -> None:
+    spec = (PROJECT_ROOT / "rb_exporter.spec").read_text(encoding="utf-8")
+    doc = (PROJECT_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "upx=True" not in spec and "upx=False" in spec
+    assert "UPX está habilitado" not in doc and "upx=True" not in doc
