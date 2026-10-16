@@ -204,11 +204,25 @@ def test_healthy_and_repaired_track_to_the_same_file_share_one_entry_despite_esc
     # D-11: el XML de Rekordbox puede traer ( ) ' & ! sin escapar; path_to_location los escapa.
     f = tmp_path / "Björk - Joga (Live) 'Remix' & Co!.mp3"
     f.write_bytes(b"x")
-    healthy = "file://localhost" + str(f).replace(" ", "%20").replace("ö", "%C3%B6")
+    # Como lo exporta Rekordbox: solo espacios y no-ASCII escapados. Derivada de path_to_location
+    # para que sea válida con la ruta de cualquier SO (C:\\... en Windows).
+    healthy = rx.path_to_location(f)
+    for raw, esc in (("(", "%28"), (")", "%29"), ("'", "%27"), ("&", "%26"), ("!", "%21")):
+        healthy = healthy.replace(esc, raw)
     assert healthy != rx.path_to_location(f)          # precondición: codificación distinta
     locations, keys = _export_locations(tmp_path, _same_file_xml(tmp_path, healthy), str(f))
     assert locations == [healthy]                      # se conserva la Location que trajo Rekordbox
     assert keys == ["1", "1"]
+
+
+def test_path_to_location_is_identical_for_posix_and_windows_paths() -> None:
+    # T-112: el escape no depende del SO (quote explícito), solo del texto de la ruta.
+    from pathlib import PurePosixPath, PureWindowsPath
+    tail = "Bj\u00f6rk - Joga (Live) 'Remix' & Co!.mp3"
+    assert rx.path_to_location(PurePosixPath("/Users/dj") / tail) == (
+        "file://localhost/Users/dj/Bj%C3%B6rk%20-%20Joga%20%28Live%29%20%27Remix%27%20%26%20Co%21.mp3")
+    assert rx.path_to_location(PureWindowsPath("C:/Users/dj") / tail) == (
+        "file://localhost/C:/Users/dj/Bj%C3%B6rk%20-%20Joga%20%28Live%29%20%27Remix%27%20%26%20Co%21.mp3")
 
 
 def test_healthy_and_repaired_track_share_one_entry_despite_unicode_form(tmp_path: Path) -> None:
