@@ -257,3 +257,17 @@ def test_long_destination_path_logs_a_warning_only_on_win32() -> None:
         "print(w[0], w[1], l[0], l[1])\n"
     )
     assert out == "1 1 0 1"
+
+
+def test_part_file_is_fsynced_before_it_replaces_the_final_name() -> None:
+    # T-105 (TEC-28): sin fsync, un corte de energía deja el tamaño correcto con datos a medias.
+    out = _run(
+        "calls = []\n"
+        "rf, rr = os.fsync, os.replace\n"
+        "def fs(fd): calls.append('fsync'); return rf(fd)\n"
+        "def rp(a, b): calls.append('replace'); return rr(a, b)\n"
+        "os.fsync, os.replace = fs, rp\n"
+        "export([pl('Mix', [track(1, 1)])])\n"
+        "print(calls)\n"
+    )
+    assert out == "['fsync', 'replace']"
