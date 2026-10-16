@@ -3,6 +3,10 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 17:00] PO pide re-auditoría completa → T-104, 4 auditores en paralelo (solo lectura)
+- Base: main @ d9c9f8f (T-087..T-103 Done). Misma estructura que T-086; cada pata reporta cerrado/abierto/nuevo contra su informe de T-086. App lanzada para el PO (`python main.py`, venv 3.14.8). Sin suite completa ni builds en los auditores (la app está corriendo).
+- Quien retoma: auditores → nerv-orquestador consolida → PO aprueba el corte.
+
 ### [2026-10-16 16:30] T-103 Done (D-15 resuelta) · push
 - T-103: gate PASS (A), QA APROBADO 4/4 (minos-check exacto sobre el bundle, guarda de arranque con osascript/MessageBox inyectables), mergeado a main. D-15 cerrada: mínimo 14.4; 14.4-14.7 sin probar, documentado. D-34 menor. Suite 776 passed. Push a origin/main.
 - 3er bloque del PO cerrado salvo lo externo (APP-02 cert, hardened runtime real) y T-102 (decisión futura).
