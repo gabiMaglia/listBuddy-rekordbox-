@@ -1,6 +1,6 @@
 # Aviso legal y descargo de responsabilidad — List Buddy
 
-Versión del aviso: 2026-10-16.2
+Versión del aviso: 2026-10-16.3
 
 Este aviso explica qué hace List Buddy con tus archivos, qué garantías tenés y
 cuáles no, y cómo reclamar. Complementa las secciones 15 («Disclaimer of
