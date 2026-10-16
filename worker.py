@@ -8,6 +8,8 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import sys
+import unicodedata
 from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
@@ -34,33 +36,100 @@ def get_songs(pl):
     return _get_songs(pl)
 
 
+# Tope del nombre sin extensión, en BYTES UTF-8. ext4/FAT/exFAT limitan el
+# nombre a 255 bytes; APFS y NTFS a 255 unidades UTF-16 (según conocimiento, no
+# verificado hoy). 200 bytes deja lugar a la extensión y al «.part» temporal y
+# cubre las tres (T-093, TEC-21).
 _MAX_STEM = 200
+_ELLIPSIS = "\u2026"
+
+
+# Windows clásico corta en MAX_PATH=260; se avisa con margen (T-093).
+_WIN_PATH_WARN = 240
+
+
+def _long_path_warning(dest: Path) -> str | None:
+    if sys.platform == "win32" and len(str(dest)) > _WIN_PATH_WARN:
+        return (
+            f"   ⚠  Ruta muy larga ({len(str(dest))} caracteres): Windows puede rechazarla "
+            f"por el límite de 260. Elegí una carpeta de destino más corta."
+        )
+    return None
+
+
+def _nbytes(text: str) -> int:
+    return len(text.encode("utf-8"))
+
+
+def _is_extender(ch: str) -> bool:
+    """Carácter que se pega al anterior dentro de un mismo grafema."""
+    cp = ord(ch)
+    return (
+        unicodedata.combining(ch) != 0
+        or unicodedata.category(ch) in ("Mn", "Me")
+        or cp in (0x200D, 0xFE0E, 0xFE0F)
+        or 0x1F3FB <= cp <= 0x1F3FF          # modificadores de tono de piel
+        or 0xE0020 <= cp <= 0xE007F          # etiquetas (banderas de subregión)
+    )
+
+
+def _is_regional(ch: str) -> bool:
+    return 0x1F1E6 <= ord(ch) <= 0x1F1FF
+
+
+def _splits_cluster(text: str, i: int) -> bool:
+    """True si cortar en `i` partiría un grafema (aproximación de UAX #29:
+    `unicodedata` no trae segmentación; cubre combinantes, ZWJ, selectores de
+    variación, tonos y pares de indicadores regionales)."""
+    if i <= 0 or i >= len(text):
+        return False
+    prev, cur = text[i - 1], text[i]
+    if _is_extender(cur) or prev == "\u200d":
+        return True
+    if _is_regional(prev) and _is_regional(cur):
+        run = 0
+        j = i - 1
+        while j >= 0 and _is_regional(text[j]):
+            run += 1
+            j -= 1
+        return run % 2 == 1
+    return False
+
+
+def _truncate_bytes(text: str, max_bytes: int) -> str:
+    """Recorta `text` a `max_bytes` UTF-8 agregando «…», sin partir un grafema."""
+    if _nbytes(text) <= max_bytes:
+        return text
+    room = max_bytes - _nbytes(_ELLIPSIS)
+    cut, used = 0, 0
+    for ch in text:
+        size = _nbytes(ch)
+        if used + size > room:
+            break
+        used += size
+        cut += 1
+    while cut > 0 and _splits_cluster(text, cut):
+        cut -= 1
+    return text[:cut] + _ELLIPSIS
 
 
 def _safe_filename(prefix: str, artist: str, title: str, suffix: str) -> str:
-    parts = [prefix]
-    if artist:
-        parts.append(artist)
-    parts.append(title or "Sin título")
+    title = title or "Sin título"
+    parts = [prefix] + ([artist] if artist else []) + [title]
     stem = " - ".join(parts)
-
-    if len(stem) <= _MAX_STEM:
+    if _nbytes(stem) <= _MAX_STEM:
         return stem + suffix
 
-    fixed = len(prefix) + (len(" - ") + len(artist) if artist else 0) + len(" - ")
+    fixed = _nbytes(prefix) + _nbytes(" - ") + (_nbytes(artist) + _nbytes(" - ") if artist else 0)
     budget = _MAX_STEM - fixed
-
     if budget >= 8:
-        title = title[: budget - 1] + "…"
+        title = _truncate_bytes(title, budget)
     else:
-        half = (_MAX_STEM - len(prefix) - len(" - ") * 2) // 2
-        artist = artist[: max(4, half - 1)] + "…"
-        title = title[: max(4, half - 1)] + "…"
+        half = (_MAX_STEM - _nbytes(prefix) - _nbytes(" - ") * 2) // 2
+        artist = _truncate_bytes(artist, half)
+        title = _truncate_bytes(title, half)
 
-    parts = [prefix]
-    if artist:
-        parts.append(artist)
-    parts.append(title)
+    parts = [prefix] + ([artist] if artist else []) + [title]
     return " - ".join(parts) + suffix
 
 
@@ -235,6 +304,9 @@ class ExportWorker(QThread):
                 title    = sanitize(getattr(content, "Title", None) or "") or "Sin título"
                 filename = _safe_filename(prefix, artist, title, src.suffix)
                 dest     = dest_dir / filename
+                long_warning = _long_path_warning(dest)
+                if long_warning:
+                    self.log.emit(long_warning)
 
                 if _is_complete_copy(dest, src):
                     self.log.emit(f"   ⏭  Ya existe: {dest.name}")
