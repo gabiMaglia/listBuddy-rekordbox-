@@ -63,11 +63,21 @@ La descarga es pública; para usarla con licencia y soporte, mirá [Comprar](#co
   **¿Cuál bajo?** Menú  → **Acerca de esta Mac**: si dice «Chip Apple M…», bajá el `-arm64`; si dice
   «Procesador Intel», el `-x86_64`. Si elegís el equivocado, la app no abre (o abre muy lenta bajo
   emulación): borrala y bajá el otro, no se pierde nada.
-- **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente. Cuando se publique, el
-  `.exe` **no va a estar firmado** (decisión del proyecto: no pagamos un certificado Authenticode). Windows
-  SmartScreen va a mostrar «Windows protegió tu PC»: hacé click en **Más información** →
-  **Ejecutar de todas formas**. Antes de eso, verificá el `.sha256` del archivo como se explica arriba:
-  la verificación del hash reemplaza a la firma como prueba de que bajaste lo que publicamos.
+- **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente. Cuando se publique, vendrá como
+  `listBuddy-<versión>-win64.zip` junto a su `.sha256`, y **no va a estar firmado** (decisión del proyecto: no pagamos un
+  certificado Authenticode). Con los dos archivos en la misma carpeta, en PowerShell:
+
+  ```powershell
+  Get-FileHash .\listBuddy-<versión>-win64.zip -Algorithm SHA256     # el Hash debe ser igual al del .sha256
+  Get-Content .\listBuddy-<versión>-win64.zip.sha256                 # «<hash> *<archivo>»
+  # alternativa: certutil -hashfile listBuddy-<versión>-win64.zip SHA256
+  ```
+
+  **Qué prueba el hash:** que el archivo que bajaste es idéntico al que figura en el `.sha256` (descarga corrupta o
+  cortada). **Qué no prueba:** la autoría (quién lo publicó); si alguien pudiera reemplazar el zip también podría reemplazar el
+  `.sha256`, y sin firma no hay forma de distinguirlo. Bajalo solo desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
+  Windows SmartScreen va a mostrar «Windows protegió tu PC»: hacé click en **Más información** →
+  **Ejecutar de todas formas**.
 
 > **Si macOS bloquea la app** («no se puede abrir porque no se puede verificar al desarrollador»):
 > andá a **Ajustes del Sistema → Privacidad y seguridad**, bajá hasta el aviso de List Buddy y

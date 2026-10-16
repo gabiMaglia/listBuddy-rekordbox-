@@ -153,9 +153,31 @@ Cada paso se verifica antes de pasar al siguiente.
 10. **Publish release** (editar notas).
 11. Archivar la evidencia (`notary-*.json` de cada pata) en `engram/qa/`.
 
+## Windows (manual)
+
+Windows no tiene release automático (el PO no lo pidió; `release.yml` solo buildea macOS) y se publica **sin firma
+Authenticode** (T-101). La integridad del build la dan el lock con hashes, el chequeo del bundle y el `.sha256`. Solo
+se buildea en Windows (PyInstaller no cruza plataformas).
+
+1. Python >= 3.14.8 en el PATH (o `-Python C:\ruta\python.exe`); `scripts\build_windows.ps1` aborta con instrucciones si es más viejo.
+2. `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` y `.\scripts\build_windows.ps1`. Hace, y corta en el primer fallo:
+   gate D-14 (marcadores `[A DEFINIR POR EL PO]`) → borra y recrea `.venv-build` (nunca usa `.venv`: arrastra Pillow/PyQt6) →
+   `pip install --require-hashes` de `requirements.txt` y `requirements-build-windows.txt` → PyInstaller 6.22.3 →
+   `scripts\check_bundle.ps1` (nombres de `scripts/bundle_forbidden.txt`: pyrekordbox, sqlcipher, sqlalchemy, PIL/Pillow, PyQt6,
+   QtPdf, QtWebEngine, QtQuick/QtQml, VirtualKeyboard) → `dist\listBuddy-<v>-win64.zip` + `.sha256`.
+3. Verificar el resultado: `Get-FileHash dist\listBuddy-<v>-win64.zip -Algorithm SHA256` debe coincidir con el `.sha256`;
+   abrir `dist\listBuddy\listBuddy.exe` en una máquina limpia (SmartScreen avisa: es esperado).
+4. Subir el zip y el `.sha256` al Release en borrador a mano. El README ya explica qué prueba el hash (corrupción, no autoría).
+
+El lock se regenera con `pip-compile` (comando en CLAUDE.md, sección Windows). El job `windows-latest` de `tests.yml`
+corre el subconjunto de tests sin GUI de Qt ni herramientas POSIX en cada push y PR.
+
+Pendiente (deuda): pata Windows en `release.yml` y *artifact attestation* (`gh attestation verify`), que sí daría
+autoría verificable sin certificado; hoy no existe.
+
 ## Qué no cubre
 
-- Windows: no hay runner ni firma (ver `scripts/build_windows.ps1` y T-086 APP-19/20).
+- Windows: no hay runner de release ni firma; ver «Windows (manual)».
 - universal2: numpy no publica wheel universal2 para cp314 (T-086 APP-06); por eso son dos DMG.
 - Validación local: `actionlint` sobre los workflows y `scripts/release_mac.sh --dry-run --arch-suffix`.
   El workflow real solo se puede probar pusheando un tag (o con «Run workflow»).
