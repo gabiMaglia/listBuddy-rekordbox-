@@ -2162,15 +2162,32 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
         self._exit_if_threads_hung()
 
+    # Hilos que solo leen (stat, decoder, resolución de ruta): si uno queda colgado en el kernel
+    # se puede abandonar. Cualquier otro (relocate, restore, carga, destino) escribe o crea
+    # archivos y se espera entero.
+    _READ_ONLY_THREADS = (ExistenceRecheckWorker, PlayResolveWorker, PreviewWorker, WaveformWorker)
+
     def _exit_if_threads_hung(self) -> None:
         """TEC-24: un `stat`/decoder colgado en el kernel (USB dormido, SMB caído) no se puede
-        esperar sin tope ni destruir en vuelo (Qt aborta con SIGABRT). Esos hilos solo leen, así
-        que no hay nada que proteger: se guarda lo propio y el proceso sale limpio, el SO libera el
-        hilo. El export no entra acá: escribe, y se espera entero (D-16)."""
-        hung = [t for t in (*self._live_threads, *self._live_wave_workers) if t.isRunning()]
-        if not hung:
+        esperar sin tope ni destruir en vuelo (Qt aborta con SIGABRT). Si SOLO quedan hilos de
+        lectura, se guarda lo propio y el proceso sale limpio (el SO libera el hilo). Si queda
+        vivo un hilo que escribe, se espera sin tope con cursor de espera, como el export (D-16):
+        cortarlo a mitad dejaría un NML/JSON a medias."""
+        alive = [t for t in (*self._live_threads, *self._live_wave_workers) if t.isRunning()]
+        writers = [t for t in alive if not isinstance(t, self._READ_ONLY_THREADS)]
+        if writers:
+            self.output_status.setText("Esperando que termine la operación en curso…")
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            try:
+                for t in writers:
+                    while not t.wait(50):
+                        QApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
+            finally:
+                QApplication.restoreOverrideCursor()
+            alive = [t for t in alive if t.isRunning()]
+        if not alive:
             return
-        _logger.warning("Cierre con %d hilo(s) de lectura colgado(s): salida directa", len(hung))
+        _logger.warning("Cierre con %d hilo(s) de lectura colgado(s): salida directa", len(alive))
         self.settings.sync()
         logging.shutdown()
         os._exit(0)
