@@ -37,6 +37,9 @@ def looks_like_gui(code: str) -> bool:
     return GUI_SNIPPET.search(code) is not None
 
 
+# Consola de Windows (cp1252): sin esto un print('▶') del subproceso muere con UnicodeEncodeError (T-112).
+UTF8_ENV = {"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
+
 _warm: subprocess.Popen[str] | None = None
 
 
@@ -55,10 +58,10 @@ def _run_warm(code: str, timeout: float) -> subprocess.CompletedProcess[str]:
     """Snippet de ventana en el intérprete Qt reutilizable (ver _qt_warm_worker)."""
     global _warm
     if _warm is None or _warm.poll() is not None:
-        env = {**os.environ, "QT_QPA_PLATFORM": "offscreen", "PYTHONPATH": str(PROJECT_ROOT)}
+        env = {**os.environ, **UTF8_ENV, "QT_QPA_PLATFORM": "offscreen", "PYTHONPATH": str(PROJECT_ROOT)}
         _warm = subprocess.Popen(
             [sys.executable, str(Path(__file__).with_name("_qt_warm_worker.py"))],
-            cwd=PROJECT_ROOT, env=env, text=True, bufsize=1,
+            cwd=PROJECT_ROOT, env=env, text=True, encoding="utf-8", bufsize=1,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=None,
         )
     assert _warm.stdin is not None and _warm.stdout is not None
@@ -88,6 +91,7 @@ def run_isolated(code: str, timeout: float = 60.0, cold: bool = False) -> subpro
         return _run_warm(code, timeout)
     env = {
         **os.environ,
+        **UTF8_ENV,
         "QT_QPA_PLATFORM": "offscreen",
         "PYTHONPATH": str(PROJECT_ROOT),
     }
@@ -97,5 +101,6 @@ def run_isolated(code: str, timeout: float = 60.0, cold: bool = False) -> subpro
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=timeout,
     )
