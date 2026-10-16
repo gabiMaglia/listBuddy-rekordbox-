@@ -16,6 +16,7 @@ _SLOW_PREVIEW = (
     "    time.sleep(0.05); return orig(self, raw)\n"
     "preview_worker.PreviewWorker._check = slow\n"
     "class FakeCard:\n"
+    "    playlist = type('P', (), {'Name': 'G'})()\n"
     "    def isChecked(self): return True\n"
     "def groups():\n"
     "    rows = [preview_worker.TrackRow(num='%03d' % i, title='t', artist='a', ext='.mp3',\n"
