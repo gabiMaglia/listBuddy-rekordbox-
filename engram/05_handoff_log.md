@@ -3,6 +3,10 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 15:10] T-100 Done · T-101 descartada · push
+- T-100 (SEC-11+SEC-16): gate PASS (A), QA APROBADO 5/5, mergeado a main. T-101: PO decidió «publicar Windows sin firma» → README explica SmartScreen y .sha256 (test estático), sin nerv-qa (declarado en qa/_debt.md). Error propio: una cadena con `tail` enmascaró un test rojo y se mergeó; corregido al minuto (lección: `set -o pipefail` o chequear el exit de pytest, no del tail). Suite 767 passed; push a origin/main.
+- Quien retoma: nerv-orquestador (espera Apple/GitHub del PO).
+
 ### [2026-10-16 14:10] nerv-orquestador → nerv-desktop T-100 (A) · alta T-101 (bloqueado en el PO)
 - Lista SEC del PO mapeada: SEC-09/06-sha/07/08/12/13/10 ya Done en T-092..T-096. Quedaban SEC-11 (log/settings con rutas: documentar + 0600) y SEC-16 (validar `rekordbox_fixes.json`, symlinks colgantes) → T-100, nivel A (Gherkin = plan, P-19.3), rama `feat/t100-privacidad-fixes` desde main. SEC-06 Authenticode → T-101, bloqueado: cuenta Azure Trusted Signing o certificado, decisión del PO.
 - Quien retoma: nerv-desktop → nerv-orquestador → nerv-qa.
