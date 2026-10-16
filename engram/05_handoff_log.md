@@ -3,6 +3,12 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 00:05] T-094 RECHAZADO → PO ratifica ≤ 1,5 s + fix D2 · T-097 fix mergeado → re-QA (X) de ambos
+- T-094 D1: ventana 1,3 s vs < 1 s. PO decide en sesión: aceptar ~1,3 s (criterio ≤ 1,5 s, anotado en la fila). D2: `test_cancellation_is_checked_while_scanning` (`_CHUNK`=4096, cancela al 3º bloque, `_build_tree` parcheado para que solo `_scan` pueda cortar); rojo sin el chequeo de `_scan`, verde con él.
+- T-097: nerv-desktop corrigió D1-D5 en `fix/t097-qa1` (5 commits, prueba de rojo de D4 con dry-run real) → mergeado en rc2, actionlint OK.
+- Re-QA nivel X de T-094 y T-097 (2º intento). Después: nerv-verifier de los 5 Strong, suite completa, merge a main, push.
+- Quien retoma: nerv-orquestador → nerv-qa.
+
 ### [2026-10-15 23:30] QA T-096 APROBADO (intento 2) · QA T-097 RECHAZADO → nerv-desktop (intento 2, X)
 - T-097 S RECHAZADO con 5 defectos (secrets en PR del mismo repo, tarball duplicado entre patas, bug de expansión en Resumen, test que asserta texto fuente, cifra sin fuente). No es simple → handoff a nerv-desktop en worktree `fix/t097-qa1` desde `release/1.0.0-rc2` (release_mac.sh ya fusionado con T-096). Nivel X para la re-QA.
 - Quien retoma: nerv-desktop → nerv-orquestador → nerv-qa.

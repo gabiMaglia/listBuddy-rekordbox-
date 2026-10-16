@@ -101,6 +101,27 @@ def test_open_library_can_be_cancelled(tmp_path: Path) -> None:
         rx.open_library(xml, should_cancel=lambda: True)
 
 
+def test_cancellation_is_checked_while_scanning(tmp_path: Path, monkeypatch) -> None:
+    """QA T-094 D2: la cancelación corta el parseo en sí, no solo el armado del árbol posterior."""
+    xml = tmp_path / "rekordbox.xml"
+    _big_xml(xml, 1500)                      # ~300 KB → decenas de bloques con _CHUNK chico
+    monkeypatch.setattr(rx, "_CHUNK", 4096)
+
+    def never_here(*a, **k):
+        raise AssertionError("el parseo terminó entero: la cancelación no se miró en _scan")
+    monkeypatch.setattr(rx, "_build_tree", never_here)
+
+    calls = {"n": 0}
+
+    def cancel_on_third_block() -> bool:
+        calls["n"] += 1
+        return calls["n"] >= 3
+
+    with pytest.raises(rx.LoadCancelled):
+        rx.open_library(xml, should_cancel=cancel_on_third_block)
+    assert calls["n"] == 3
+
+
 @pytest.mark.parametrize("body,fragment", [
     ("<NOPE/>", "no es un XML de Rekordbox"),
 ])
