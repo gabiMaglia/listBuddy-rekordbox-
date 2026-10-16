@@ -3,6 +3,10 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-16 15:40] 3er bloque del PO (Apple) → D-15 decidida · T-102 (App Store, futuro) · nerv-desktop T-103 (A)
+- APP-06/13/19 ya Done (T-097/T-092); APP-20 descartado (T-101); APP-02 y hardened runtime real: del PO. D-15 con datos: Qt 6.12 frameworks minos 14.4; 12 bindings PySide/shiboken minos 26.0 que cargan en 14.8; sin VM 14.x. PO decide: mínimo 14.4 + guarda de arranque → T-103 (A, Gherkin = plan), rama `feat/t103-minos-144`.
+- Quien retoma: nerv-desktop → nerv-orquestador → nerv-qa.
+
 ### [2026-10-16 15:10] T-100 Done · T-101 descartada · push
 - T-100 (SEC-11+SEC-16): gate PASS (A), QA APROBADO 5/5, mergeado a main. T-101: PO decidió «publicar Windows sin firma» → README explica SmartScreen y .sha256 (test estático), sin nerv-qa (declarado en qa/_debt.md). Error propio: una cadena con `tail` enmascaró un test rojo y se mergeó; corregido al minuto (lección: `set -o pipefail` o chequear el exit de pytest, no del tail). Suite 767 passed; push a origin/main.
 - Quien retoma: nerv-orquestador (espera Apple/GitHub del PO).
