@@ -83,7 +83,8 @@ República Argentina, la Ley 24.240) cuando correspondan.
 
 ## 5 bis. Garantía legal, conformidad y devolución
 
-Si compraste List Buddy, tenés derecho a que haga lo que dice esta
+Si compraste List Buddy (licencia de uso y soporte, USD 9, vendida por Polar
+como merchant of record), tenés derecho a que haga lo que dice esta
 documentación (sección 2 y README) en los sistemas indicados (macOS 14.4 o
 posterior; Windows 10 u 11 de 64 bits; Rekordbox 6 o 7 por su XML exportado;
 Traktor Pro 3 o 4). Si no funciona como se describe, avisanos y lo corregimos, te damos una versión
@@ -175,7 +176,10 @@ guarda tus datos de pago.
 
 Si comprás List Buddy, Polar Software Inc. (operador de polar.sh) procesa tus
 datos de compra como vendedor de la licencia, según su política de privacidad;
-nosotros solo recibimos lo necesario para atender tu reclamo.
+nosotros solo recibimos lo necesario para atender tu reclamo. Polar trata
+tu nombre, correo, país, datos de facturación e impuestos y medio de pago;
+detalles en <https://polar.sh/legal/privacy>. List Buddy no recibe ni guarda
+tus datos de pago.
 
 ## 9. Cambios a este aviso
 

@@ -48,6 +48,7 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 ## Descargar
 
 Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
+La descarga es pública; para usarla con licencia y soporte, mirá [Comprar](#comprar).
 
 - **Código fuente:** el de cada versión está en la sección [Código fuente](#código-fuente).
 - **Verificá la descarga:** cada release trae un `.sha256` junto al archivo. Con el `.dmg` y su `.dmg.sha256` en la misma carpeta:
@@ -255,12 +256,25 @@ Python · PySide6 · numpy · PyInstaller
 
 List Buddy es software libre (GPL v3): el código de cada versión está en
 [github.com/gabiMaglia/listBuddy-rekordbox-](https://github.com/gabiMaglia/listBuddy-rekordbox-)
-y podés compilarlo vos: el código fuente está disponible sin cargo. Lo que se vende
-es el binario firmado para macOS, listo para usar.
+y podés compilarlo vos: el código fuente está disponible sin cargo.
 
-## Donaciones
+## Comprar
 
-Si te sirvió y lo compilaste vos, podés invitarme un café:
+La 1.0.0 es de pago: la **licencia de uso + soporte** cuesta **USD 9** y se compra en
+[Polar](https://polar.sh) (polar.sh), que actúa como merchant of record: cobra los impuestos,
+te factura y gestiona la devolución según su política. El `.dmg` es público en
+[Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases) y el programa es software
+libre (GPL v3): lo que comprás es la licencia de uso con soporte, no una donación. Tenés 10 días
+corridos para arrepentirte (ver el [Aviso legal](DISCLAIMER.md), sección 5 bis).
+
+El enlace de compra de Polar se publica con el release; hasta entonces esta sección es el punto de
+compra. Vendedor: Gabriel Maglia, Monotributista, CUIT 20-32758971-8, Rosario, Argentina ·
+gab.maglia@gmail.com.
+
+## Apoyar con un café
+
+Aparte de la licencia, si te sirvió y querés invitarme un café (propina voluntaria, no reemplaza
+la licencia), está Ko-fi:
 
 **[ko-fi.com/gabrielmaglia](https://ko-fi.com/gabrielmaglia)** — o escaneá el QR desde
 el menú **Ayuda → Donar en Ko-fi…** dentro de la app.
