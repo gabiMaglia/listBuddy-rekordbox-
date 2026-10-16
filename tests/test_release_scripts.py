@@ -599,3 +599,66 @@ def test_minos_unknown_macho_above_minimum_aborts(tmp_path) -> None:
     r = _run_minos(tmp_path, {"PySide6/QtCore.abi3.so": "26.0", "libnuevo.dylib": "15.0"})
     assert r.returncode == 1
     assert "libnuevo.dylib" in r.stderr
+
+
+# ── T-107: release/CI endurecido ────────────────────────────────────────────
+
+def _snippet(name: str) -> str:
+    """Tramo del script entre `# >>> name` y `# <<< name` (se ejecuta aparte, con binarios falsos)."""
+    text = _RELEASE.read_text(encoding="utf-8")
+    assert f"# >>> {name}" in text and f"# <<< {name}" in text, name
+    return text.split(f"# >>> {name}", 1)[1].split(f"# <<< {name}", 1)[0]
+
+
+def _fake_bin(tmp_path, **scripts: str):
+    """Directorio de binarios falsos para el PATH; cada valor es el cuerpo sh del comando."""
+    bin_dir = tmp_path / "fakebin"
+    bin_dir.mkdir(exist_ok=True)
+    for name, body in scripts.items():
+        f = bin_dir / name
+        f.write_text("#!/bin/sh\n" + body + "\n")
+        f.chmod(0o755)
+    return bin_dir
+
+
+def _run_snippet(tmp_path, name: str, call: str, bin_dir, **env):
+    script = f"set -euo pipefail\n{_snippet(name)}\n{call}\n"
+    e = {"PATH": f"{bin_dir}:/usr/bin:/bin", **env}
+    return subprocess.run(["bash", "-c", script], capture_output=True, text=True, env=e, cwd=tmp_path, timeout=60)
+
+
+# xcrun falso: cuenta las llamadas a `stapler staple` y falla las primeras $FAILS veces.
+_FAKE_XCRUN = (
+    'echo "$*" >> "$CALLS"\n'
+    'if [ "$2" = staple ]; then\n'
+    '  n=$(grep -c "stapler staple" "$CALLS")\n'
+    '  [ "$n" -gt "$FAILS" ] || { echo "Error 65 CloudKit" >&2; exit 65; }\n'
+    'fi\n'
+    'exit 0'
+)
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+@pytest.mark.parametrize("fails,ok", [(0, True), (2, True), (5, True), (6, False), (7, False)])
+def test_t107_staple_retries_then_validates_or_aborts(tmp_path, fails, ok) -> None:
+    """APP-23: `stapler staple` se reintenta (6 intentos); 2 fallos → OK + validate; 7 fallos → exit 1."""
+    calls = tmp_path / "calls.txt"
+    bin_dir = _fake_bin(tmp_path, xcrun=_FAKE_XCRUN)
+    r = _run_snippet(tmp_path, "staple-retry", 'staple_with_retry "/x/List Buddy.app"', bin_dir,
+                     CALLS=str(calls), FAILS=str(fails), STAPLE_DELAY="0")
+    lines = calls.read_text().splitlines()
+    staples = [l for l in lines if "stapler staple" in l]
+    assert (r.returncode == 0) is ok, r.stdout + r.stderr
+    if ok:
+        assert len(staples) == fails + 1
+        assert lines[-1] == "stapler validate /x/List Buddy.app"
+    else:
+        assert r.returncode == 1 and len(staples) == 6
+        assert not any("validate" in l for l in lines)
+        assert "notariz" in r.stderr and "List Buddy.app" in r.stderr
+
+
+def test_t107_staple_used_for_app_and_dmg_without_bare_calls() -> None:
+    outside = _RELEASE.read_text(encoding="utf-8").split("# <<< staple-retry", 1)[1]
+    assert re.findall(r"^\s*xcrun stapler (?:staple|validate)", outside, re.M) == []
+    assert 'staple_with_retry "$APP"' in outside and 'staple_with_retry "$DMG"' in outside

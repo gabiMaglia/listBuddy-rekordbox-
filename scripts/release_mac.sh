@@ -230,6 +230,27 @@ if [ "$IDENTITY" != "-" ]; then
   done < <(find "$APP/Contents" -type f \( -name '*.dylib' -o -name '*.so' -o -perm -u=x \))
 fi
 
+# >>> staple-retry
+# staple_with_retry RUTA: estampa el ticket y lo valida (APP-23). Justo después de «Accepted» el ticket
+# puede no haberse propagado (error 65, CloudKit): se reintenta con espera creciente en vez de tirar
+# una notarización ya aprobada. STAPLE_ATTEMPTS / STAPLE_DELAY existen para los tests.
+staple_with_retry() {
+  local target="$1" attempts="${STAPLE_ATTEMPTS:-6}" delay="${STAPLE_DELAY:-30}" i=1
+  until xcrun stapler staple "$target"; do
+    if [ "$i" -ge "$attempts" ]; then
+      echo "ERROR: stapler staple falló $attempts veces sobre $target." >&2
+      echo "       La notarización YA fue aceptada: es la propagación del ticket. Re-ejecutá el job/script;" >&2
+      echo "       la segunda submission es rápida y el ticket suele estar disponible." >&2
+      return 1
+    fi
+    echo "AVISO: stapler staple falló ($i/$attempts) sobre $target; el ticket puede tardar en propagarse. Reintento en $((delay * i)) s." >&2
+    sleep $((delay * i))
+    i=$((i + 1))
+  done
+  xcrun stapler validate "$target"
+}
+# <<< staple-retry
+
 # notarize ARCHIVO ETIQUETA: sube, espera y exige «Accepted» (el log queda en dist/).
 notarize() {
   local file="$1" label="$2" out sub_id
@@ -251,8 +272,7 @@ if [ "$CAN_NOTARIZE" = 1 ]; then
   # El .app se notariza primero (vía zip) para estamparle el ticket: así abre offline.
   ditto -c -k --keepParent "$APP" "$ZIP"
   notarize "$ZIP" app
-  xcrun stapler staple "$APP"
-  xcrun stapler validate "$APP"
+  staple_with_retry "$APP"
   rm -f "$ZIP"
 fi
 
@@ -269,8 +289,7 @@ fi
 
 if [ "$CAN_NOTARIZE" = 1 ]; then
   notarize "$DMG" dmg
-  xcrun stapler staple "$DMG"
-  xcrun stapler validate "$DMG"
+  staple_with_retry "$DMG"
   spctl --assess --type open --context context:primary-signature --verbose "$DMG"
   hdiutil verify "$DMG"
 fi
