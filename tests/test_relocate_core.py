@@ -341,3 +341,32 @@ class TestUnicodeNormalizationLookup:
         b = rc._normalize_key(unicodedata.normalize("NFC", "canción.mp3"))
         assert a == b
         assert rc._normalize_key("Straße.mp3") == rc._normalize_key("STRASSE.mp3")
+
+
+class TestDanglingSymlinks:
+    """SEC-16: un symlink de archivo colgante no es candidato; uno válido sí."""
+
+    @staticmethod
+    def _track(name: str):
+        from types import SimpleNamespace
+        return SimpleNamespace(original_path=Path("/viejo") / name, title="x", artist="y")
+
+    def test_index_and_candidates_skip_dangling_symlink(self, tmp_path):
+        (tmp_path / "x.mp3").symlink_to(tmp_path / "no_existe.mp3")
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        real = sub / "real.mp3"
+        real.write_bytes(b"a")
+        (tmp_path / "ok.mp3").symlink_to(real)
+
+        from relocate_core import build_basename_index, find_candidates
+        index = build_basename_index(tmp_path)
+        assert "x.mp3" not in index
+        assert find_candidates(self._track("x.mp3"), index) == []
+        assert [c.path.name for c in find_candidates(self._track("ok.mp3"), index)] == ["ok.mp3"]
+
+    def test_find_candidates_also_drops_dangling_paths_in_a_given_index(self, tmp_path):
+        from relocate_core import find_candidates
+        dangling = tmp_path / "x.mp3"
+        dangling.symlink_to(tmp_path / "no_existe.mp3")
+        assert find_candidates(self._track("x.mp3"), {"x.mp3": [dangling]}) == []
