@@ -903,9 +903,11 @@ def _forbidden_patterns() -> list[str]:
 
 
 def test_t108_forbidden_list_covers_the_audit_names() -> None:
-    low = " ".join(_forbidden_patterns()).lower()
-    for needle in ("pyrekordbox", "sqlcipher", "sqlalchemy", ".rbe_settings.ini", "pil", "pillow", "pyqt6", "qtpdf",
-                   "qtwebengine", "qtquick", "qtqml", "virtualkeyboard"):
+    pats = {p.lower() for p in _forbidden_patterns()}
+    for exact in ("pil", "pillow*", "pyqt6*", ".rbe_settings.ini"):        # nombres exactos: `pil` suelto no puede pasar por «pillow»
+        assert exact in pats, exact
+    low = " ".join(sorted(pats))
+    for needle in ("pyrekordbox", "sqlcipher", "sqlalchemy", "qtpdf", "qtwebengine", "qtquick", "qtqml", "virtualkeyboard"):
         assert needle in low, needle
 
 
