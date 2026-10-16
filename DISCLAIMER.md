@@ -1,6 +1,6 @@
 # Aviso legal y descargo de responsabilidad — List Buddy
 
-Versión del aviso: 2026-10-15.2
+Versión del aviso: 2026-10-16.1
 
 Este aviso explica qué hace List Buddy con tus archivos, qué garantías tenés y
 cuáles no, y cómo reclamar. Complementa las secciones 15 («Disclaimer of
@@ -121,10 +121,29 @@ que manejás con él.
 
 List Buddy no recolecta ni envía datos personales ni de tu librería. Al
 arrancar consulta una vez en GitHub si hay una versión nueva; esa consulta
-expone tu dirección IP a GitHub según sus propias políticas. Los registros de
-diagnóstico (`listBuddy.log`) se guardan solo en tu equipo y **pueden contener
-rutas de archivos con tu nombre de usuario y los nombres de tus carpetas**:
-revisalos antes de adjuntarlos a un reporte público. Si comprás List Buddy, la
+expone tu dirección IP a GitHub según sus propias políticas, y la apagás en
+Configuración → Privacidad desmarcando «Buscar actualizaciones al iniciar».
+
+Todo lo que List Buddy guarda queda solo en tu equipo:
+
+- **`listBuddy.log`** (diagnóstico): **puede contener rutas de archivos con tu
+  nombre de usuario y los nombres de tus carpetas** (el XML o NML que abriste,
+  la carpeta de búsqueda de una reparación, los backups, la carpeta de destino)
+  y las trazas de los errores. Revisalo antes de adjuntarlo a un reporte
+  público. Vive en `~/Library/Logs/listBuddy` en macOS y en
+  `%LOCALAPPDATA%\listBuddy\logs` en Windows.
+- **`settings.ini`** (tus preferencias): guarda `rb_xml_path`,
+  `tk_collection_path`, `last_dest_folder` y `audio_device_id`, o sea las rutas
+  de tus librerías y de tu destino. Vive en la carpeta de datos de List Buddy:
+  `~/Library/Application Support/listBuddy` en macOS y `%APPDATA%\listBuddy`
+  en Windows.
+
+Para borrarlos, cerrá List Buddy y borrá `listBuddy.log` (o la carpeta de logs)
+y la carpeta de datos (o solo `settings.ini`). Se vuelven a crear vacíos la
+próxima vez que abras la app. En macOS y Linux estos archivos se crean legibles
+solo por tu usuario.
+
+Si comprás List Buddy, la
 plataforma de pago [A DEFINIR POR EL PO: nombre del merchant of record]
 procesa tus datos de compra como vendedor de la licencia, según su política de
 privacidad; nosotros solo recibimos lo necesario para atender tu reclamo.
