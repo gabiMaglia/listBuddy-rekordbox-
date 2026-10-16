@@ -24,6 +24,8 @@ OUT = ROOT / "licenses"
 PACKAGES: dict[str, str] = {
     "numpy": "numpy.txt",
     "certifi": "certifi.txt",
+    "qrcode": "qrcode.txt",
+    "colorama": "colorama.txt",
 }
 
 

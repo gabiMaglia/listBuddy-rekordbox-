@@ -49,8 +49,21 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
 
 - **Código fuente:** el de cada versión está en la sección [Código fuente](#código-fuente).
-- **macOS 14 o posterior.** Abrí el `.dmg` y arrastrá **List Buddy** a Aplicaciones.
+- **Verificá la descarga:** cada release trae un `.sha256` junto al archivo. Con el `.dmg` y su `.dmg.sha256` en la misma carpeta:
+
+  ```bash
+  shasum -a 256 -c ListBuddy-<versión>.dmg.sha256     # debe decir: ListBuddy-<versión>.dmg: OK
+  ```
+
+  Lo mismo vale para el fuente de esa versión, `listbuddy-<versión>-src.tar.gz` (con su `listbuddy-<versión>-src.tar.gz.sha256`). Si dice `FAILED`, no lo abras y bajalo de nuevo desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
+- **macOS 14 o posterior.** Hay un `.dmg` para Apple Silicon (`-arm64`) y otro para Intel (`-x86_64`);
+  abrilo y arrastrá **List Buddy** a Aplicaciones.
 - **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente.
+
+> **Si macOS bloquea la app** («no se puede abrir porque no se puede verificar al desarrollador»):
+> andá a **Ajustes del Sistema → Privacidad y seguridad**, bajá hasta el aviso de List Buddy y
+> tocá **Abrir de todos modos**. En macOS 15 ya no alcanza con Control-clic → Abrir.
+> La versión notarizada no debería pedirte esto; si te lo pide, avisanos.
 
 ## Requisitos
 
@@ -155,6 +168,7 @@ La configuración y las reparaciones viven en `~/Library/Application Support/lis
 
 - **Dispositivo de salida de audio** — elegí por qué salida suena la previsualización.
 - **Auto-avance** — on/off.
+- **Buscar actualizaciones al iniciar** — activado por defecto; apagalo si no querés que la app consulte GitHub al abrir.
 - **Librerías** — elegí acá el `rekordbox.xml` exportado (Rekordbox) y, si está en una
   ubicación no estándar, el `collection.nml` (Traktor). El botón
   **Auto** vuelve a la autodetección.

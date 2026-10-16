@@ -131,7 +131,23 @@ class WaveformWorker(QThread):
 
         decoder.bufferReady.connect(on_buffer)
         decoder.finished.connect(loop.quit)
+        # Archivo que no abre: sin esto el loop esperaba el timeout entero (90 s).
+        # QAudioDecoder avisa con `error` (no `errorOccurred`, que es de QMediaPlayer).
+        failed: list[bool] = []
+
+        def on_error(*_: object) -> None:
+            failed.append(True)   # puede salir dentro de start(), antes de loop.exec()
+            loop.quit()
+
+        decoder.error.connect(on_error)
+        # Y un cancel() también corta el loop aunque no lleguen buffers.
+        watch = QTimer()
+        watch.setInterval(100)
+        watch.timeout.connect(lambda: loop.quit() if self._stop else None)
+        watch.start()
         QTimer.singleShot(DECODE_TIMEOUT, loop.quit)
         decoder.start()
-        loop.exec()
+        if not failed:
+            loop.exec()
+        watch.stop()
         decoder.stop()

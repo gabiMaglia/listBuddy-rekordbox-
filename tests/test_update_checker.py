@@ -125,3 +125,53 @@ class TestCertifiPackaging:
         spec = (PROJECT_ROOT / "rb_exporter.spec").read_text(encoding="utf-8")
         assert "collect_data_files('certifi')" in spec
         assert "'certifi'" in spec
+
+
+# ── T-092 (SEC-10): solo se abren URLs de releases del repo ────────────────
+
+import pytest
+
+_OK = "https://github.com/gabiMaglia/listBuddy-rekordbox-/releases/tag/v1.2.0"
+
+
+class TestSafeReleaseUrl:
+    def test_accepts_release_tag(self):
+        assert update_checker.safe_release_url(_OK) == _OK
+
+    def test_accepts_releases_listing(self):
+        assert update_checker.safe_release_url(update_checker._RELEASES_PAGE_URL) == update_checker._RELEASES_PAGE_URL
+
+    @pytest.mark.parametrize("bad", [
+        "file:///etc/passwd",
+        "javascript:alert(1)",
+        "http://github.com/gabiMaglia/listBuddy-rekordbox-/releases",
+        "https://evil.com/gabiMaglia/listBuddy-rekordbox-/releases",
+        "https://github.com.evil.com/gabiMaglia/listBuddy-rekordbox-/releases",
+        "https://github.com@evil.com/gabiMaglia/listBuddy-rekordbox-/releases",
+        "https://github.com:8443/gabiMaglia/listBuddy-rekordbox-/releases",
+        "https://github.com/otro/repo/releases/tag/v9",
+        "https://github.com/gabiMaglia/listBuddy-rekordbox-/issues/1",
+        "https://github.com/gabiMaglia/listBuddy-rekordbox-/releases/../../../evil",
+        "https://github.com/gabiMaglia/listBuddy-rekordbox-/releasesX",
+        "",
+        None,
+        123,
+    ])
+    def test_rejects_everything_else(self, bad):
+        assert update_checker.safe_release_url(bad) is None
+
+
+class TestSafeReleaseUrlEncodedDots:
+    """Verifier T-092 D2: `%2e%2e` y `.%2e` son `..` para el navegador; no pueden pasar la validación."""
+
+    @pytest.mark.parametrize("path", ["%2e%2e/evil", "%2E%2E/evil", ".%2e/evil", "a/%2e%2e/%2e%2e/x", "%2e/x"])
+    def test_percent_encoded_dot_segments_are_rejected(self, path):
+        assert update_checker.safe_release_url(f"https://github.com/gabiMaglia/listBuddy-rekordbox-/releases/{path}") is None
+
+    @pytest.mark.parametrize("tail", ["\n", "\t", " ", "\r"])
+    def test_trailing_whitespace_is_rejected(self, tail):
+        assert update_checker.safe_release_url(_OK + tail) is None
+
+    def test_plain_tag_still_accepted(self):
+        assert update_checker.safe_release_url(_OK + "/download/x.dmg") == _OK + "/download/x.dmg"
+

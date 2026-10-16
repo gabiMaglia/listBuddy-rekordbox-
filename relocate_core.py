@@ -48,6 +48,7 @@ import os
 import re
 import shutil
 import threading
+import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -313,6 +314,15 @@ class RestoreBackupWorker(QThread):
 _INDEX_PROGRESS_EVERY = 250  # T-007: cada cuántos archivos se reporta avance
 
 
+def _fold(name: str) -> str:
+    """Clave de comparación de nombres: NFC + casefold.
+
+    APFS conserva el nombre tal como se creó (NFD o NFC) y el XML/NML suele
+    traerlo en NFC: sin normalizar, «Canción» no encontraría a «Canción» (T-093, TEC-06).
+    """
+    return unicodedata.normalize("NFC", name).casefold()
+
+
 def build_basename_index(
     search_root: Path,
     should_stop: Callable[[], bool] | None = None,
@@ -320,7 +330,7 @@ def build_basename_index(
     progress_every: int = _INDEX_PROGRESS_EVERY,
 ) -> dict[str, list[Path]]:
     """
-    Índice {basename.lower(): [paths]} construido UNA sola vez por corrida
+    Índice {_fold(basename): [paths]} construido UNA sola vez por corrida
     (evita re-escanear disco por pista; un scan completo es caro en
     discos USB/red). Salta la carpeta de backups propia para no ofrecerla
     como candidato.
@@ -346,7 +356,7 @@ def build_basename_index(
             break
         dirs[:] = [d for d in dirs if d != _BACKUP_DIR_NAME]
         for name in files:
-            index.setdefault(name.lower(), []).append(Path(root) / name)
+            index.setdefault(_fold(name), []).append(Path(root) / name)
             count += 1
             if count % progress_every == 0:
                 if on_progress is not None:
@@ -375,7 +385,7 @@ def _normalize_key(filename: str) -> str:
     """
     stem = Path(filename).stem
     stem = _NUMERIC_PREFIX_RE.sub("", stem)
-    return stem.lower()
+    return _fold(stem)
 
 
 def build_normalized_index(index: dict[str, list[Path]]) -> dict[str, list[Path]]:
@@ -457,7 +467,7 @@ def find_candidates(
     `track` es duck-typed (BrokenTrack de Traktor o de Rekordbox): solo se
     leen `original_path`/`title`/`artist`, comunes a ambos.
     """
-    key = track.original_path.name.lower()
+    key = _fold(track.original_path.name)
     paths = index.get(key, [])
     match_type = "exact"
     if not paths and normalized_index is not None:

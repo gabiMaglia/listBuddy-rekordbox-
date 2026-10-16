@@ -54,6 +54,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from load_cancel import CHECK_EVERY, CancelCheck, LoadCancelled
+
+__all__ = ["LoadCancelled"]  # re-export: lo importan los tests y la UI desde acá
+
 
 # ─────────────────────────────────────────────── Data classes ────────────
 
@@ -345,10 +349,13 @@ def detect_installed_version() -> str | None:
 
 # ─────────────────────────────────────────────── Parser ──────────────────
 
-def open_collection(path: Path | None = None) -> TraktorCollection:
+def open_collection(
+    path: Path | None = None, *, should_cancel: CancelCheck | None = None,
+) -> TraktorCollection:
     """
     Parse the NML file and return a TraktorCollection.
     Raises RuntimeError with a user-friendly message if not found.
+    `should_cancel` se consulta durante el parseo; si da True se lanza LoadCancelled.
     """
     if path is None:
         path = find_collection_path()
@@ -360,59 +367,96 @@ def open_collection(path: Path | None = None) -> TraktorCollection:
         )
 
     try:
-        root = ET.parse(str(path)).getroot()
+        root, track_index = _scan(path, should_cancel)
     except ET.ParseError as e:
         raise RuntimeError(
             f"No se pudo leer la librería de Traktor.\nDetalle: {e}"
         ) from e
 
-    track_index = _build_track_index(root)
     tree = _build_tree(root, track_index)
     return TraktorCollection(path=path, tree=tree)
 
 
+def _scan(path: Path, should_cancel: CancelCheck | None) -> tuple[ET.Element, dict[str, TraktorTrack]]:
+    """Parseo en streaming (T-094): cada COLLECTION/ENTRY se convierte en
+    TraktorTrack y se vacía, así el DOM de la colección nunca se acumula;
+    PLAYLISTS (solo referencias) sí queda en el árbol para `_build_tree`."""
+    index: dict[str, TraktorTrack] = {}
+    root: ET.Element | None = None
+    stack: list[ET.Element] = []
+    seen_collection = False
+    in_collection = False
+    ticks = 0
+    for event, el in ET.iterparse(str(path), events=("start", "end")):
+        ticks += 1
+        if should_cancel is not None and ticks % CHECK_EVERY == 1 and should_cancel():
+            raise LoadCancelled()
+        if event == "start":
+            if root is None:
+                root = el
+            stack.append(el)
+            if el.tag == "COLLECTION" and len(stack) == 2 and not seen_collection:
+                seen_collection = in_collection = True
+            continue
+        stack.pop()
+        if el.tag == "COLLECTION" and len(stack) == 1:
+            in_collection = False
+        elif in_collection and el.tag == "ENTRY" and len(stack) == 2:
+            made = _entry_to_track(el)
+            if made is not None:
+                index[made[0]] = made[1]
+            el.clear()
+            stack[1].clear()
+    assert root is not None  # ET.iterparse lanza ParseError ante un documento vacío
+    return root, index
+
+
 def _build_track_index(root: ET.Element) -> dict[str, TraktorTrack]:
-    """Build {KEY: TraktorTrack} from <COLLECTION>."""
+    """Build {KEY: TraktorTrack} from a ya parseado <COLLECTION> (para tests y usos chicos)."""
     index: dict[str, TraktorTrack] = {}
     collection = root.find("COLLECTION")
-    if collection is None:
-        return index
-
-    for entry in collection.findall("ENTRY"):
-        loc = entry.find("LOCATION")
-        if loc is None:
-            continue
-
-        volume = loc.get("VOLUME", "")
-        dir_attr = loc.get("DIR", "")
-        file_attr = loc.get("FILE", "")
-
-        key = _location_to_key(volume, dir_attr, file_attr)
-        file_path = _location_to_path(volume, dir_attr, file_attr)
-
-        title = entry.get("TITLE", "") or file_attr
-        artist = entry.get("ARTIST", "") or ""
-
-        bpm: float | None = None
-        tempo_el = entry.find("TEMPO")
-        if tempo_el is not None:
-            try:
-                raw = float(tempo_el.get("BPM", 0) or 0)
-                bpm = raw if raw > 0 else None
-            except (ValueError, TypeError):
-                pass
-
-        info_el = entry.find("INFO")
-        musical_key = (info_el.get("KEY", "") if info_el is not None else "").strip()
-
-        index[key] = TraktorTrack(
-            title=title,
-            artist=artist,
-            file_path=file_path,
-            bpm=bpm,
-            key=musical_key,
-        )
+    for entry in collection.findall("ENTRY") if collection is not None else ():
+        made = _entry_to_track(entry)
+        if made is not None:
+            index[made[0]] = made[1]
     return index
+
+
+def _entry_to_track(entry: ET.Element) -> tuple[str, TraktorTrack] | None:
+    """<ENTRY> de COLLECTION → (KEY, TraktorTrack); None si no tiene LOCATION."""
+    loc = entry.find("LOCATION")
+    if loc is None:
+        return None
+
+    volume = loc.get("VOLUME", "")
+    dir_attr = loc.get("DIR", "")
+    file_attr = loc.get("FILE", "")
+
+    key = _location_to_key(volume, dir_attr, file_attr)
+    file_path = _location_to_path(volume, dir_attr, file_attr)
+
+    title = entry.get("TITLE", "") or file_attr
+    artist = entry.get("ARTIST", "") or ""
+
+    bpm: float | None = None
+    tempo_el = entry.find("TEMPO")
+    if tempo_el is not None:
+        try:
+            raw = float(tempo_el.get("BPM", 0) or 0)
+            bpm = raw if raw > 0 else None
+        except (ValueError, TypeError):
+            pass
+
+    info_el = entry.find("INFO")
+    musical_key = (info_el.get("KEY", "") if info_el is not None else "").strip()
+
+    return key, TraktorTrack(
+        title=title,
+        artist=artist,
+        file_path=file_path,
+        bpm=bpm,
+        key=musical_key,
+    )
 
 
 def _build_tree(

@@ -18,6 +18,12 @@ import argparse
 from pathlib import Path
 
 
+_WIN_RESERVED = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"{d}{n}" for d in ("COM", "LPT") for n in "123456789\u00b9\u00b2\u00b3"}
+)
+
+
 def sanitize(name: str) -> str:
     """Elimina caracteres inválidos para nombres de carpeta/archivo en Windows.
 
@@ -28,7 +34,24 @@ def sanitize(name: str) -> str:
     """
     for ch in r'\/:*?"<>|':
         name = name.replace(ch, "_")
-    return name.strip(" .\t\r\n")
+    name = name.strip(" .\t\r\n")
+    # Windows reserva estos nombres aunque lleven extensión («CON.txt»), sin
+    # importar mayúsculas; los pendrives se leen en Windows, así que aplica en
+    # todas las plataformas (T-093, SEC-13).
+    stem, dot, rest = name.partition(".")
+    if stem.rstrip(" ").upper() in _WIN_RESERVED:
+        name = stem.rstrip(" ") + "_" + dot + rest
+    return name
+
+
+# Primer componente típico de un disco de Windows tras «/C/».
+_WIN_TOP_DIRS = frozenset(
+    {"users", "windows", "program files", "program files (x86)", "programdata", "documents and settings"}
+)
+
+
+def _looks_like_windows_path(rest: str) -> bool:
+    return rest.split("/", 1)[0].casefold() in _WIN_TOP_DIRS
 
 
 def resolve_path(raw_path: str) -> Path | None:
@@ -39,9 +62,14 @@ def resolve_path(raw_path: str) -> Path | None:
     if not raw_path:
         return None
     p = raw_path.strip()
-    # Estilo Unix '/C/Users/...' → 'C:/Users/...'
-    if p.startswith("/") and len(p) > 2 and p[2] == "/":
-        p = p[1] + ":" + p[2:]
+    # Estilo '/C/Users/...' → 'C:/Users/...' solo si de verdad es un volumen de
+    # Windows: una ruta POSIX real como '/a/musica.mp3' no se toca (T-093, TEC-19).
+    if p.startswith("/") and len(p) > 2 and p[2] == "/" and p[1].isalpha():
+        posix = Path(p)
+        if sys.platform != "win32" and posix.exists():
+            return posix
+        if sys.platform == "win32" or _looks_like_windows_path(p[3:]):
+            p = p[1] + ":" + p[2:]
     path = Path(p)
     return path if path.exists() else None
 

@@ -11,6 +11,7 @@ preview_worker.py, db.key_bpm_of y ui.py.
 """
 from __future__ import annotations
 
+import codecs
 import contextlib
 import copy
 import os
@@ -22,8 +23,31 @@ from datetime import datetime
 from pathlib import Path, PurePath, PureWindowsPath
 from urllib.parse import quote, unquote
 from xml.etree import ElementTree as ET
+from xml.parsers import expat
 
+from load_cancel import CancelCheck, LoadCancelled
+
+__all__ = ["LoadCancelled"]  # re-export: lo importan los tests y la UI desde acá
+
+_CHUNK = 1 << 20   # lectura del XML por bloques (también es la granularidad de la cancelación)
+_MARGIN = 1 << 16  # bytes que se conservan por detrás del último bloque (etiqueta cortada)
 _DRIVE = re.compile(r"^/[A-Za-z]:")
+
+
+@dataclass(slots=True, eq=False)
+class _TrackSrc:
+    """`<TRACK>` de COLLECTION sin DOM: los pocos atributos que la app lee y el
+    texto XML crudo del elemento completo (cues, beatgrid, el resto de los
+    atributos) para reconstruirlo idéntico al exportar."""
+    name: str
+    artist: str
+    bpm: str
+    tonality: str
+    location: str
+    raw: bytes
+
+    def to_element(self) -> ET.Element:
+        return ET.fromstring(self.raw)
 
 
 @dataclass
@@ -37,7 +61,14 @@ class RbxTrack:
     location: str = ""    # URI Location original del XML (clave de las reparaciones)
     relocated: bool = False  # True si la ruta viene de una reparación de List Buddy
     streaming: bool = False   # Location que no es un archivo (Beatport, TIDAL, SoundCloud…)
-    element: ET.Element | None = field(default=None, repr=False, compare=False)
+    # Fuente compacta del TRACK original (atributos + cues/beatgrid serializados),
+    # solo para write_playlists_xml. No es un DOM vivo (T-094 / SEC-09).
+    _src: "_TrackSrc | None" = field(default=None, repr=False, compare=False)
+
+    @property
+    def element(self) -> ET.Element | None:
+        """TRACK original reconstruido a pedido (copia nueva en cada llamada)."""
+        return self._src.to_element() if self._src is not None else None
 
     @property
     def FolderPath(self) -> str:
@@ -149,94 +180,273 @@ def _float_or_none(raw: str | None) -> float | None:
     return value if value > 0 else None
 
 
-def _index_collection(root: ET.Element) -> tuple[dict[str, ET.Element], dict[str, ET.Element]]:
-    by_id: dict[str, ET.Element] = {}
-    by_location: dict[str, ET.Element] = {}
-    for el in root.iterfind("./COLLECTION/TRACK"):
-        if el.get("TrackID"):
-            by_id[el.get("TrackID", "")] = el
-        if el.get("Location"):
-            by_location[el.get("Location", "")] = el
-    return by_id, by_location
-
-
 def is_streaming_location(location: str) -> bool:
     """Una Location que no es `file:` es una pista de streaming: no hay archivo que copiar."""
     return bool(location) and not location.lower().startswith("file:")
 
 
-def _track(el: ET.Element, position: int, fixes: dict[str, str]) -> RbxTrack:
-    location = el.get("Location", "") or ""
+def _track(src: _TrackSrc, position: int, fixes: dict[str, str]) -> RbxTrack:
+
+    location = src.location
     streaming = is_streaming_location(location)
     original = Path(location) if streaming else location_to_path(location)
     fixed = None if streaming else fixes.get(location)
     # Una reparación solo vale mientras el archivo original siga ausente.
-    # El chequeo de disco solo se hace si hay reparación guardada (drives lentos).
+    # El chequeo de disco solo se hace si hay reparación guardada (drives lentos);
+    # corre en el hilo de carga, nunca en el de UI (TEC-17).
     use_fix = bool(fixed) and not original.exists()
     return RbxTrack(
-        title=el.get("Name", "") or "",
-        artist=el.get("Artist", "") or "",
+        title=src.name,
+        artist=src.artist,
         file_path=Path(fixed) if use_fix else original,
-        bpm=_float_or_none(el.get("AverageBpm")),
-        key=(el.get("Tonality", "") or "").strip(),
+        bpm=_float_or_none(src.bpm),
+        key=src.tonality.strip(),
         TrackNo=position,
         location=location,
         relocated=use_fix,
         streaming=streaming,
-        element=el,
+        _src=src,
     )
 
 
-def _build_tree(root: ET.Element, fixes: dict[str, str]) -> list[dict]:
-    by_id, by_location = _index_collection(root)
+@dataclass(slots=True)
+class _Node:
+    """NODE de PLAYLISTS sin DOM: nombre, tipo y las referencias a pistas."""
+    name: str
+    type: str
+    key_type: str
+    keys: list[str] = field(default_factory=list)
+    children: list["_Node"] = field(default_factory=list)
 
-    def walk(node: ET.Element, prefix: str, node_id: str) -> dict:
-        name = node.get("Name", "") or ""
-        if node.get("Type") == "1":
-            index = by_location if node.get("KeyType") == "1" else by_id
+
+@dataclass(slots=True)
+class _Parsed:
+    by_id: dict[str, _TrackSrc]
+    by_location: dict[str, _TrackSrc]
+    root_node: _Node | None
+
+
+_XML_DECL_ENCODING = re.compile(rb"""\s*<\?xml[^>]*?\sencoding\s*=\s*["']([\w.:-]+)["']""")
+# Fin de una etiqueta de apertura: respeta '>' dentro de valores entre comillas.
+_OPEN_TAG = re.compile(rb"""<[^\s/>]+(?:[^>"']|"[^"]*"|'[^']*')*>""")
+
+
+# Codificaciones de texto que un exportador real declara. Lista blanca y no `_is_text_encoding`
+# (privado de CPython, deja pasar idna/punycode/unicode_escape/utf-7). Se comparan por nombre
+# canónico de `codecs.lookup`, así cubre los alias. zlib/bz2/base64/hex/rot13 quedan fuera:
+# `zlib_codec` descomprimiría sin tope.
+_XML_ENCODINGS = frozenset(
+    codecs.lookup(n).name for n in (
+        "utf-8", "utf-16", "utf-16-le", "utf-16-be", "utf-32", "utf-32-le", "utf-32-be", "ascii",
+        *(f"iso8859-{i}" for i in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15, 16)),
+        *(f"cp125{i}" for i in range(9)), "cp437", "cp850", "cp852", "cp866", "cp874",
+        "koi8-r", "koi8-u", "mac-roman", "mac-cyrillic", "shift_jis", "cp932", "euc-jp",
+        "euc-kr", "cp949", "gb2312", "gbk", "gb18030", "big5", "cp950",
+    )
+)
+
+
+def _transcode_from(head: bytes) -> str | None:
+    """Codificación a decodificar si el archivo no es UTF-8; None si se lee tal cual."""
+    if head.startswith(codecs.BOM_UTF8):
+        return None
+    if head.startswith((codecs.BOM_UTF32_LE, codecs.BOM_UTF32_BE)):
+        return "utf-32"
+    if head.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        return "utf-16"
+    if head[:2] == b"<\x00":
+        return "utf-16-le"
+    if head[:2] == b"\x00<":
+        return "utf-16-be"
+    m = _XML_DECL_ENCODING.match(head)
+    enc = m.group(1).decode("ascii").lower() if m else "utf-8"
+    if enc in ("utf-8", "utf8"):
+        return None
+    try:
+        known = codecs.lookup(enc).name in _XML_ENCODINGS
+    except LookupError:
+        known = False
+    if not known:
+        raise LookupError(f"codificación no admitida: {enc}")
+    return enc
+
+
+def _window_keep(base: int, fed: int, cap_start: int | None, window: bytearray) -> int:
+    """Offset absoluto desde el que hay que conservar la ventana tras alimentar a expat.
+
+    Nunca pasa del último `<` alimentado: un `<` sin escapar no puede estar dentro de una
+    etiqueta de apertura, así que la etiqueta que expat dejó pendiente empieza ahí o después
+    (aunque mida más que _MARGIN).
+    """
+    keep = max(base, min(fed - _MARGIN, fed if cap_start is None else cap_start))
+    lt = window.rfind(b"<")
+    if lt >= 0:
+        keep = max(base, min(keep, base + lt))
+    return keep
+
+
+def _scan(path: Path, should_cancel: CancelCheck | None) -> _Parsed:
+    """Un solo pasaje con expat y sin DOM: COLLECTION/TRACK → `_TrackSrc`,
+    PLAYLISTS → `_Node`. Nunca existe un Element; la memoria es lo que se retiene.
+
+    De cada TRACK de COLLECTION se corta el texto crudo usando el offset de bytes
+    que informa expat; los hijos (TEMPO, POSITION_MARK…) no se procesan uno a uno.
+    """
+    by_id: dict[str, _TrackSrc] = {}
+    by_location: dict[str, _TrackSrc] = {}
+    root_node: _Node | None = None
+    tags: list[str] = []
+    nstack: list[_Node] = []
+    window = bytearray()        # bytes alimentados desde `base` (lo que aún puede hacer falta cortar)
+    base = 0
+    cap_start: int | None = None   # offset absoluto del TRACK de COLLECTION en curso
+    cap_attrs: dict[str, str] = {}
+    inner = 0                      # profundidad dentro del TRACK capturado
+
+    def start(name: str, attrs: dict[str, str]) -> None:
+        nonlocal cap_start, cap_attrs, inner
+        if cap_start is not None:
+            inner += 1
+            return
+        tags.append(name)
+        depth = len(tags)
+        if depth == 1:
+            if name != "DJ_PLAYLISTS":
+                raise RuntimeError(f"Ese archivo no es un XML de Rekordbox.\n\n{_HOW_TO_EXPORT}")
+        elif name == "TRACK" and depth == 3 and tags[1] == "COLLECTION":
+            cap_start, cap_attrs, inner = parser.CurrentByteIndex, attrs, 0
+        elif name == "NODE" and depth >= 3 and tags[1] == "PLAYLISTS":
+            if depth == 3 and root_node is not None:
+                nstack.append(_Node("", "", ""))      # NODE raíz repetido: se descarta
+            else:
+                nstack.append(_Node(attrs.get("Name", "") or "", attrs.get("Type", "") or "",
+                                    attrs.get("KeyType", "") or ""))
+        elif name == "TRACK" and nstack and tags[-2] == "NODE":
+            nstack[-1].keys.append(attrs.get("Key", "") or "")
+
+    def end(name: str) -> None:
+        nonlocal cap_start, root_node, inner
+        if cap_start is not None:
+            if inner:
+                inner -= 1
+                return
+            a = cap_start - base
+            e = parser.CurrentByteIndex - base
+            if a < 0 or e < a:
+                # El texto crudo ya no está en la ventana: mejor fallar que exportar basura.
+                raise ET.ParseError("no se pudo recortar un TRACK del XML (ventana de lectura inválida)")
+            # expat informa el inicio de `</TRACK>`, o el FIN de la etiqueta si es `<TRACK …/>`.
+            # El `>` de cierre puede no haber llegado todavía: se reescribe en vez de buscarlo.
+            raw = window[a:e]
+            if not (raw[-2:] == b"/>" and _OPEN_TAG.match(raw).end() == len(raw)):
+                raw += b"</TRACK>"
+            attrs = cap_attrs
+            src = _TrackSrc(attrs.get("Name", "") or "", attrs.get("Artist", "") or "",
+                            attrs.get("AverageBpm", "") or "", attrs.get("Tonality", "") or "",
+                            attrs.get("Location", "") or "", bytes(raw))
+            track_id = attrs.get("TrackID")
+            if track_id:
+                by_id[track_id] = src
+            if src.location:
+                by_location[src.location] = src
+            cap_start = None
+            tags.pop()
+            return
+        tags.pop()
+        if name == "NODE" and nstack and len(tags) >= 2 and tags[1] == "PLAYLISTS":
+            node = nstack.pop()
+            if len(tags) == 2:                        # era el NODE raíz de PLAYLISTS
+                if root_node is None:
+                    root_node = node
+            elif nstack:
+                nstack[-1].children.append(node)
+
+    # Si el archivo no es UTF-8 se transcodifica a UTF-8 y se fuerza esa codificación
+    # en expat: así los offsets son de bytes UTF-8 y el texto crudo se reparsea sin deriva.
+    parser = expat.ParserCreate("utf-8")
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    # Expat >= 2.6 difiere el reparseo de una etiqueta cortada hasta tener el doble de bytes:
+    # los eventos llegarían tarde y la ventana ya habría descartado el inicio del TRACK.
+    if hasattr(parser, "SetReparseDeferralEnabled"):
+        parser.SetReparseDeferralEnabled(False)
+    try:
+        with open(path, "rb") as fh:
+            chunk = fh.read(_CHUNK)
+            source_enc = _transcode_from(chunk[:512])
+            decoder = codecs.getincrementaldecoder(source_enc)() if source_enc else None
+            fed = 0
+            while chunk:
+                if should_cancel is not None and should_cancel():
+                    raise LoadCancelled()
+                try:
+                    data = decoder.decode(chunk).encode("utf-8") if decoder else chunk
+                except Exception as e:     # un decoder ajeno (TypeError, zlib.error…) no escapa del friendly error
+                    raise ET.ParseError(f"no se pudo decodificar: {e}") from e
+                window += data
+                fed += len(data)
+                parser.Parse(data, False)
+                # expat guarda internamente una etiqueta cortada al final del bloque: se deja margen.
+                keep = _window_keep(base, fed, cap_start, window)
+                del window[:keep - base]
+                base = keep
+                chunk = fh.read(_CHUNK)
+            parser.Parse(b"", True)
+    except (expat.ExpatError, UnicodeError, LookupError) as e:
+        raise ET.ParseError(str(e)) from e
+    return _Parsed(by_id, by_location, root_node)
+
+
+def _build_tree(parsed: _Parsed, fixes: dict[str, str], should_cancel: CancelCheck | None = None) -> list[dict]:
+    def walk(node: _Node, prefix: str, node_id: str) -> dict:
+        if node.type == "1":
+            index = parsed.by_location if node.key_type == "1" else parsed.by_id
             tracks: list[RbxTrack] = []
-            for ref in node.iterfind("./TRACK"):
-                el = index.get(ref.get("Key", ""))
-                if el is None or not el.get("Location"):
+            for key in node.keys:
+                if should_cancel is not None and len(tracks) % 512 == 0 and should_cancel():
+                    raise LoadCancelled()
+                src = index.get(key)
+                if src is None or not src.location:
                     continue
-                track = _track(el, len(tracks) + 1, fixes)
+                track = _track(src, len(tracks) + 1, fixes)
                 if track.file_path.name:
                     tracks.append(track)
-            return {"playlist": RbxPlaylist(name, node_id, tracks), "children": []}
-        return {"playlist": RbxFolder(name, node_id), "children": walk_children(node, node_id)}
+            return {"playlist": RbxPlaylist(node.name, node_id, tracks), "children": []}
+        return {"playlist": RbxFolder(node.name, node_id), "children": walk_children(node, node_id)}
 
-    def walk_children(parent: ET.Element, prefix: str) -> list[dict]:
+    def walk_children(parent: _Node, prefix: str) -> list[dict]:
         seen: dict[str, int] = {}
         out: list[dict] = []
-        for child in parent.iterfind("./NODE"):
-            name = child.get("Name", "") or ""
-            seen[name] = seen.get(name, 0) + 1
-            unique = name if seen[name] == 1 else f"{name}#{seen[name]}"
+        for child in parent.children:
+            seen[child.name] = seen.get(child.name, 0) + 1
+            unique = child.name if seen[child.name] == 1 else f"{child.name}#{seen[child.name]}"
             out.append(walk(child, prefix, f"{prefix}/{unique}" if prefix else unique))
         return out
 
-    root_node = root.find("./PLAYLISTS/NODE")
-    if root_node is None:
+    if parsed.root_node is None:
         return []
-    return walk_children(root_node, "")
+    return walk_children(parsed.root_node, "")
 
 
-def open_library(path: Path | None, fixes: dict[str, str] | None = None) -> RekordboxXmlLibrary:
-    """Abre el rekordbox.xml exportado. RuntimeError con texto para el usuario si falla."""
+def open_library(
+    path: Path | None, fixes: dict[str, str] | None = None, *,
+    should_cancel: CancelCheck | None = None,
+) -> RekordboxXmlLibrary:
+    """Abre el rekordbox.xml exportado. RuntimeError con texto para el usuario si falla.
+
+    `should_cancel` se consulta durante el parseo; si devuelve True se lanza `LoadCancelled`."""
     if path is None:
         raise RuntimeError(f"Todavía no elegiste el XML de Rekordbox.\n\n{_HOW_TO_EXPORT}")
     if not path.is_file():
         raise RuntimeError(f"No se encontró el archivo:\n{path}\n\n{_HOW_TO_EXPORT}")
     try:
-        root = ET.parse(path).getroot()
+        parsed = _scan(path, should_cancel)
     except (ET.ParseError, OSError) as e:
         raise RuntimeError(
             f"El XML de Rekordbox no se pudo leer (¿quedó a medio exportar?).\n\n"
             f"Volvé a exportarlo desde Rekordbox.\n\nDetalle: {e}"
         ) from e
-    if root.tag != "DJ_PLAYLISTS":
-        raise RuntimeError(f"Ese archivo no es un XML de Rekordbox.\n\n{_HOW_TO_EXPORT}")
-    return RekordboxXmlLibrary(path, _build_tree(root, fixes or {}))
+    return RekordboxXmlLibrary(path, _build_tree(parsed, fixes or {}, should_cancel))
 
 
 def get_playlist_tree(library: RekordboxXmlLibrary) -> list[dict]:
