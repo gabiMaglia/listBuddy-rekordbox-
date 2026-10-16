@@ -56,7 +56,7 @@ Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBud
   ```
 
   Lo mismo vale para el fuente de esa versión, `listbuddy-<versión>-src.tar.gz` (con su `listbuddy-<versión>-src.tar.gz.sha256`). Si dice `FAILED`, no lo abras y bajalo de nuevo desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
-- **macOS 14 o posterior.** Hay un `.dmg` para Apple Silicon (`-arm64`) y otro para Intel (`-x86_64`);
+- **macOS 14.4 o posterior.** En 14.4-14.7 no está probado (se probó en 14.8). Hay un `.dmg` para Apple Silicon (`-arm64`) y otro para Intel (`-x86_64`);
   abrilo y arrastrá **List Buddy** a Aplicaciones.
 - **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente. Cuando se publique, el
   `.exe` **no va a estar firmado** (decisión del proyecto: no pagamos un certificado Authenticode). Windows

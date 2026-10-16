@@ -125,9 +125,10 @@ if is_mac:
             'CFBundleShortVersionString': APP_VERSION,
             'CFBundleVersion': APP_VERSION,
             'NSHighResolutionCapable': True,
-            # Mínimo REAL: lo fija el Mach-O con minos más alto (Python 3.14 y numpy: 14.0).
-            # release_mac.sh verifica con otool que ningún binario pida más que esto.
-            'LSMinimumSystemVersion': '14.0',
+            # 14.4 porque los frameworks de Qt 6.12 tienen minos 14.4 (Python y numpy: 14.0).
+            # Los 12 bindings de PySide6/shiboken declaran 26.0 pero cargan en 14.8 (T-103/D-15);
+            # release_mac.sh verifica con otool que nada más pida más que esto.
+            'LSMinimumSystemVersion': '14.4',
             'LSApplicationCategoryType': 'public.app-category.music',
             # Carpetas protegidas por TCC: sin estas claves el aviso del sistema no explica nada.
             'NSDesktopFolderUsageDescription':

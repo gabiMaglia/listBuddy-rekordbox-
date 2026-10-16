@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from _qt_isolated import PROJECT_ROOT
 from _reqs import pinned, unhashed
@@ -64,7 +65,7 @@ def test_rekordbox_db_stack_is_not_shipped() -> None:
 def test_info_plist_store_and_privacy_keys() -> None:
     # T-087 APP-05/09/10: categoría, motivos TCC (rioplatense) y mínimo real de macOS.
     assert "'LSApplicationCategoryType': 'public.app-category.music'" in _SPEC
-    assert "'LSMinimumSystemVersion': '14.0'" in _SPEC
+    assert "'LSMinimumSystemVersion': '14.4'" in _SPEC
     for key in (
         "NSDesktopFolderUsageDescription", "NSDocumentsFolderUsageDescription",
         "NSDownloadsFolderUsageDescription", "NSRemovableVolumesUsageDescription",
@@ -126,3 +127,20 @@ def test_pyinstaller_pinned_in_both_build_scripts_t096() -> None:
         text = (PROJECT_ROOT / "scripts" / script).read_text(encoding="utf-8")
         assert "pyinstaller==6.20.0" in text.lower(), script
         assert "--require-hashes" in text, script
+
+
+def test_docs_state_macos_14_4_as_minimum() -> None:
+    # T-103/D-15: ningún doc de cara al usuario/release da 14 (o 14.0) como mínimo.
+    root = Path(__file__).resolve().parent.parent
+    for name in ("README.md", "CLAUDE.md", "docs/RELEASE.md", "DISCLAIMER.md"):
+        f = root / name
+        if not f.exists():
+            continue
+        text = f.read_text(encoding="utf-8")
+        assert "macOS 14 o posterior" not in text, name
+        assert "mínimo macOS 14:" not in text, name
+        assert "minos 14.0`)" not in text, name
+        assert "macOS 13 o" not in text, name
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    assert "macOS 14.4 o posterior" in readme and "14.4-14.7" in readme
+    assert "macOS 14.4" in (root / "CLAUDE.md").read_text(encoding="utf-8")
