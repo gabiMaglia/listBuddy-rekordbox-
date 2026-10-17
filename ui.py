@@ -1253,7 +1253,8 @@ class MainWindow(QMainWindow):
     def _reload_after_path_change(self) -> None:
         """Vuelve a leer la fuente activa; las playlists marcadas se re-marcan al terminar la carga."""
         keep = {self._playlist_cache_key(c.playlist) for c in self._all_cards if c.isChecked()}
-        if self._load_worker is not None or self._populate_job is not None:
+        if (self._load_worker is not None or self._populate_job is not None
+                or self._populate_on_done is not None):
             # Carga o poblado en curso: las marcas aún no se aplicaron, la pendiente es la última conocida.
             keep |= self._keep_after_load
         if self._mark_value:

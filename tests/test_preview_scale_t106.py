@@ -201,3 +201,18 @@ def test_reload_in_the_middle_of_populating_keeps_the_pending_tick() -> None:
         "print(len(w._keep_after_load))\n"
     )
     assert out == "1", out
+
+
+def test_reload_between_end_of_populating_and_its_deferred_finish_keeps_the_pending_tick() -> None:
+    out = run(
+        TREE_CODE +
+        "w, _ = make(); warm_up()\n"
+        "w._finish_populate = lambda: None   # congela el tick intermedio: poblado terminado, cierre diferido pendiente\n"
+        "w._populate_playlists(tree(800), lambda pl: 5, on_done=lambda: None)\n"
+        "spin(lambda: w._populate_job is None and len(w._all_cards) == 800, 60)\n"
+        "key = w._playlist_cache_key\n"
+        "w._keep_after_load = {key(SimpleNamespace(Name='S3', uuid='x', is_folder=False))}\n"
+        "w._reload_after_path_change()\n"
+        "print(len(w._keep_after_load))\n"
+    )
+    assert out == "1", out
