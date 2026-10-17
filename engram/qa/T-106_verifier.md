@@ -31,3 +31,37 @@ Criterios con cita: 4 de 5 (el 5, abstención).
 2. **Ctrl+R a mitad del poblado pierde las marcas a restaurar (regresión de T-094).** `_on_library_loaded` pone `_load_worker = None` (`ui.py:1324`) antes del poblado por lotes. Las marcas se re-aplican recién en `_finish_library_load` (`ui.py:1348`). `_reload_after_path_change` solo suma `_keep_after_load` si `_load_worker is not None` (`ui.py:1256-1258`). Repro: `_keep_after_load` con 1 clave, poblado de 800 en curso y `_reload_after_path_change()` dejan `_keep_after_load` en 0. La ventana de la carrera mide ≈1,6 s con 800 playlists. Antes, el poblado y la restauración eran síncronos.
 
 Supuestos señalados: el criterio 5 (suite exit 0) no lo verifiqué yo. El criterio 3 es inestable bajo carga (1,52 s en 1 de 4 corridas).
+
+## Verificación 2
+
+Rama `feat/t106-preview-escala` @ 5e90dc9 (commits 976a5e5 V1 y 5e90dc9 V2), en un worktree nuevo detached. Offscreen, `-n 0`.
+
+- **V1 corregido.** En `ui.py:2396-2407` el recheck cancela lo que está en vuelo y vuelve a pedir todas las marcadas que no tienen tarjeta. Repetí mi repro con dos rechecks encadenados mientras había 270 grupos en cola: quedan **300 de 300** tarjetas y la cola vacía.
+- **El criterio 2 se sigue cumpliendo con la previa ya completa.** Con 60 tarjetas y 1 cambio, 59 conservan la identidad y el scroll queda igual (7886 → 7886). Con la previa completa, `missing` coincide con las afectadas.
+- **V2 corregido para el repro original.** `ui.py:1256-1261`. Con Ctrl+R dos veces a mitad del poblado, al final queda marcada `['S3']`. Un recheck durante el poblado no rompe nada: S3 se restaura y no quedan tarjetas de previa huérfanas. Al cambiar de fuente con marcas pendientes de la otra fuente, al final no hay ninguna marcada y `_keep_after_load` queda vacío: no se cruzan, se cumple T-094 (`ui.py:846`).
+- **Hueco siguiente (nuevo).** Entre el último tick del pump (`ui.py:1437`, `_populate_job = None`) y el `_finish_populate` diferido (`ui.py:1440`, `singleShot(0)`) las dos condiciones de `ui.py:1256` son falsas, pero las marcas siguen pendientes en `_keep_after_load`. Llamé a `_reload_after_path_change()` justo en ese tick (procesando los eventos de a uno) y **la marca S3 se pierde** (lista final `[]`). Me abstengo sobre si un Ctrl+R real entra en ese tick: en Cocoa no está demostrado el orden entre el input nativo y los eventos encolados. Que el estado tiene el hueco sí está demostrado.
+- **Regresión.** `test_preview_scale_t106.py`, `test_library_load_t094.py` y `test_robustez_t095.py`: 32/32 PASS. No corrí la suite completa (905 passed según el coordinador): me abstengo.
+
+**Veredicto V2: REFUTADO (menor).**
+3. Ctrl+R en el tick entre el fin del pump y `_finish_populate` pierde las marcas pendientes (`ui.py:1256` no contempla `_populate_on_done is not None`). Repro directo: S3 → `[]`. Supuesto señalado: que el input real llegue en ese tick no está demostrado.
+
+V1 y el criterio 2: confirmados.
+
+## Verificación 3
+
+Rama @ 6bc0670 (V3), en un worktree nuevo detached. Offscreen, `-n 0`.
+
+- **Repro del tick intermedio.** Hay recarga en el tick entre el fin del pump y `_finish_populate` → la marca queda `['S3']` (antes daba `[]`). La guarda está en `ui.py:1256-1257`.
+- **Mutación.** Quité `or self._populate_on_done is not None` y el test `test_reload_between_end_of_populating_and_its_deferred_finish_keeps_the_pending_tick` falla con `'0' == '1'`; mi repro vuelve a dar `[]`. Revertida, el archivo pasa 8 de 8.
+- **Estados entre carga, poblado y cierre**, con lo que cubre cada uno en `_reload_after_path_change`:
+  - (a) Hilo leyendo, o `loaded` encolado sin entregar: `_load_worker` ≠ None.
+  - (b) `_on_library_loaded`: pone `_load_worker = None` y en la misma llamada arma `_populate_job` y `_populate_on_done` (`ui.py:1328-1341`). No queda ningún tick en el medio.
+  - (c) Lotes: `_populate_job` ≠ None.
+  - (d) Fin del pump hasta `_finish_populate` diferido (`ui.py:1437-1440`): `_populate_on_done` ≠ None (V3).
+  - (e) `_finish_populate` saca `on_done` y en la misma llamada corre `_finish_library_load` (`ui.py:1447-1450`). Ahí `keep` pasa a `_mark_queue`, con un primer lote síncrono.
+  - (f) Re-marcado por lotes: `_mark_value` y `_mark_queue` (`ui.py:1260-1262`).
+  - (g) Terminado: las marcas ya están en las tarjetas (`isChecked`).
+- **Caso del `_finish_populate` viejo tras un Ctrl+R en (d).** Se lleva el `on_done` viejo, pero `_finish_library_load` lo descarta por token (`ui.py:1347`). `keep` sigue en `_keep_after_load`, cubierto por (a).
+- **Fallo de carga.** `_on_library_failed` vacía `keep` a propósito (comportamiento previo de T-094).
+
+**Veredicto V3: CONFIRMADO.** No encontré otro tick sin cubrir.
