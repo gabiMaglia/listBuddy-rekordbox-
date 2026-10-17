@@ -2390,12 +2390,17 @@ class MainWindow(QMainWindow):
                     if any(t.raw_path in changed for t in pc.data.tracks)]
         if not affected:
             return
+        # A mitad del dibujo hay tarjetas marcadas aún sin dibujar: se cancela lo en vuelo (traería
+        # datos viejos) y se vuelve a pedir TODO lo que falta, no solo las afectadas.
+        self._cancel_preview_worker()
+        self._render_queue.clear()
         for card in affected:
             self._remove_preview_card(card)
         self._set_broken_total(sum(g.missing_count for g in self._rendered_groups))
         self._scroll_to_restore = self.preview_scroll.verticalScrollBar().value()
         selected = [c for c in self._all_cards if c.isChecked()]
-        self._feed_preview(affected, {c: i for i, c in enumerate(selected, start=1)},
+        missing = [c for c in selected if c not in self._preview_cards]
+        self._feed_preview(missing, {c: i for i, c in enumerate(selected, start=1)},
                            self._folder_names_of(selected))
 
     def _restore_preview_scroll(self) -> None:

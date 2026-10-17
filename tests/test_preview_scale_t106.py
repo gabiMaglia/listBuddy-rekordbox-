@@ -170,3 +170,34 @@ def test_recheck_with_one_changed_file_rebuilds_only_that_card_and_keeps_the_scr
         "print(len(w._preview_cards), same, w._broken_total, pos > 0, bar.value() == pos, bar.value(), pos)\n"
     )
     assert out.startswith("50 49 0 True True"), out
+
+
+def test_recheck_in_the_middle_of_drawing_still_ends_with_every_ticked_card_drawn() -> None:
+    out = run(
+        "w, _ = make(); cards = setup(w, 300)\n"
+        "w._set_all(True)\n"
+        "spin(lambda: len(w._preview_cards) >= 30, 60)\n"
+        "first = next(iter(w._preview_cards))\n"
+        "w._rendered_groups[0].tracks[0].exists = False\n"
+        "path = w._rendered_groups[0].tracks[0].raw_path\n"
+        "w._on_recheck_done(frozenset({path}))\n"
+        "ok = spin(lambda: len(w._preview_cards) == 300 and not w._render_queue and not w._feed_queue, 120)\n"
+        "print(ok, len(w._preview_cards), sum(c.isChecked() for c in cards))\n"
+    )
+    assert out == "True 300 300", out
+
+
+def test_reload_in_the_middle_of_populating_keeps_the_pending_tick() -> None:
+    out = run(
+        TREE_CODE +
+        "w, _ = make(); warm_up()\n"
+        "t = tree(800)\n"
+        "w._populate_playlists(t, lambda pl: 5)\n"
+        "spin(lambda: len(w._all_cards) > 50, 30)\n"
+        "assert w._populate_job is not None\n"
+        "key = w._playlist_cache_key\n"
+        "w._keep_after_load = {key(SimpleNamespace(Name='S3', uuid='x', is_folder=False))}\n"
+        "w._reload_after_path_change()\n"
+        "print(len(w._keep_after_load))\n"
+    )
+    assert out == "1", out
