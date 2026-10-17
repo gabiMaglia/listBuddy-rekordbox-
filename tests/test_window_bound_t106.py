@@ -1,7 +1,8 @@
 """T-106 / TEC-25: cota de la ventana con una colección de 40k pistas (T-094: ≤ 1,5 s).
 
 Marcado `slow`: depende de la máquina, así que no entra a la corrida por defecto
-(`-m "not slow"` en pytest.ini) y se salta en CI. A mano: `pytest -m slow tests/test_window_bound_t106.py`."""
+(`-m "not slow"` en pytest.ini) y se salta en CI. Varianza medida: 1,28-1,45 s en corridas normales y una de 1,52 s con la máquina cargada
+(el parseo compite por el GIL con la ventana); por eso no corre en CI ni por defecto. A mano: `pytest -m slow tests/test_window_bound_t106.py`."""
 from __future__ import annotations
 
 import os
