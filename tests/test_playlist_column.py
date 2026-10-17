@@ -191,6 +191,7 @@ TREE = [node("Café Tech"), node("TECHNO"), node("Deep House"),
 def load(w):
     w._populate_playlists(TREE, lambda pl: 5)
     app.processEvents()
+    settle(w)   # T-106: el poblado es por lotes
 
 def vis(w):
     return [c.name for c in w._all_cards if not c.isHidden()]
