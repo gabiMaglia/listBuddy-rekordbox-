@@ -1,0 +1,33 @@
+# T-106 — Verifier ciego (P-11/P-12)
+
+Rama `feat/t106-preview-escala` @ d4980f7, worktree detached, `QT_QPA_PLATFORM=offscreen`, `-n 0`.
+No se leyeron `engram/qa/T-106.md` ni el handoff de vuelta. Líneas citadas de la rama.
+
+## §Criterios
+
+| # | Criterio | Estado | Evidencia |
+|---|---|---|---|
+| 1 | 800 pl: «Marcar todas» ≤ 100 ms por tick y previa completa; último tick del poblado < 150 ms | Cumple (en el test y medido) | `ui.py:2431` presupuesto de 25 ms; `ui.py:2440-2455` `_pump_mark`; `ui.py:1731-1748` `_pump_feed`; `ui.py:1419-1437` `_pump_populate`. Medido una vez (800 × 20, offscreen): Marcar todas, peor hueco 82 ms de `thread_time` / 89 ms de reloj de pared, 0 huecos > 100 ms, 800/800 tarjetas, 39,7 s hasta la previa completa. Poblado: 104/157 ms (CPU/pared) en la primera corrida con carga y 84/85, 84/85, 83/84 ms en las tres siguientes. Tests `test_preview_scale_t106.py` 5/5 PASS. |
+| 2 | Recheck con 1 cambio no reconstruye todo (test) | Cumple | `ui.py:2380-2399`; test `test_recheck_with_one_changed_file_rebuilds_only_that_card_and_keeps_the_scroll`. Mutación: con la reconstrucción completa (vuelta al código viejo) el test falla, y revertida pasa. |
+| 3 | Test de cota 1,5 s | Cumple, con margen chico | `tests/test_window_bound_t106.py:59`. Con `-m slow` midió 1,35 / 1,38 / 1,35 s, pero una corrida con la QA en paralelo dio 1,52 s y FALLÓ. El margen es de ≈10 %. |
+| 4 | Cancelar corta la carga en < 1 s (test) | Cumple | `ui.py:1308-1317` y `ui.py:1292-1301`; `tests/test_load_progress_t106.py` 4/4 PASS (Rekordbox y Traktor). |
+| 5 | Suite exit 0 | Me abstengo | No corrí la suite completa porque la QA corre en paralelo (instrucción). Corrí 104 tests de regresión de T-089, T-094, T-095 y T-105 y pasaron todos (ver §Pase hostil 7). |
+
+Criterios con cita: 4 de 5 (el 5, abstención).
+
+## §Pase hostil
+
+1. **Lote huérfano del pump.** Al destildar durante el pump se cancela lo pendiente: `ui.py:2436` reemplaza la cola; lo cubren los tests de destildar. El cierre cancela todos los workers y vacía `_feed_queue` (`ui.py:1669-1682`, `ui.py:2296`). Queda abierto: `closeEvent` no vacía `_mark_queue` ni `_populate_job`, así que los pumps siguen hasta agotarse con la ventana cerrada (`ui.py:2279-2312`). En la app real `app.exec()` vuelve al cerrarse la última ventana, por eso no lo cuento como defecto. Lo que SÍ deja tarjetas sin dibujar es el recheck (defecto 1).
+2. **Presupuesto.** Se mide con reloj de pared (`time.perf_counter`, `ui.py:1426`, `ui.py:1737`, `ui.py:2444`). Siempre procesa al menos una unidad por tick (1 tarjeta / 4 extracciones / 1 paso), así que una máquina lenta se degrada a una unidad por tick y se pasa del presupuesto como mucho por una unidad. El único tick sin acotar es el `show()` final del poblado (`ui.py:1436`): es O(n) y quedó aceptado por el PO (< 150 ms). Los tests miden CPU del hilo de UI (`thread_time`), no reloj de pared, así que no ven la espera por el GIL contra los `PreviewWorker`. Medido: la diferencia CPU/pared fue de 7 ms con 800 × 20, sin consecuencia.
+3. **Poblado con árbol oculto.** Ctrl+R o cambio de fuente a mitad del poblado: `_clear_playlist_area` corta el job y vuelve a mostrar el contenedor (`ui.py:1478-1481`), y el `_finish_populate` atrasado se descarta por generación (`ui.py:1341`). Las marcas restauradas (T-094) **se pierden con Ctrl+R a mitad del poblado**: es el defecto 2.
+4. **Recheck incremental.** Si la tarjeta afectada ya estaba destildada, no reaparece: lo probé y queda en 9/10. Con un recheck en vuelo mientras la previa todavía se dibuja, o con dos rechecks encadenados, **se pierden tarjetas**: defecto 1. Sobre el scroll: se restaura el valor absoluto en píxeles (`ui.py:2396`, `ui.py:2401-2404`), así que si las tarjetas de arriba cambian de altura la vista se corre. No lo cuento como defecto: el criterio pide «scroll conservado» y el test lo cubre con alturas iguales.
+5. **Cancelar.** El progreso sale del hilo del worker solo por señal (`library_load_worker.py:69-73`), conectada en `ui.py:1285`. El slot filtra por generación y por `isValid` (`ui.py:1303-1307`). Al cancelar, la generación sube (`ui.py:1294`) y lo que ya estaba encolado se descarta, así que cancelar y recargar de inmediato es seguro. En Traktor, `get_playlist_tree` no consulta la cancelación, pero las señales ya están desconectadas y el hilo queda retenido. Los tests no cubren cancelar durante `_build_tree` (Rekordbox): me abstengo de afirmar el tiempo en esa fase.
+6. **`slow` fuera de la corrida por defecto.** `pytest.ini:6` tiene `-m "not slow"`. En el job de macOS el test sale como «deselected», sin aviso. En Windows, `-m "not qt and not posix"` pisa el `-m` de addopts, pero el `skipif CI` lo saltea. El test solo corre a mano. El criterio lo permite («marcado lento/skip en CI»). Riesgo: con margen de ≈10 %, nadie se entera si regresa.
+7. **Regresiones.** `test_close_races_t105`, `test_close_hung_t105`, `test_library_load_t094`, `test_t094_load`, `test_playlist_area_reload`, `test_preview_lazy_t089`, `test_preview_column` y `test_robustez_t095`: 104/104 PASS. Las guardas `_closing` están en `ui.py:2383` y `ui.py:1339`.
+
+## §Veredicto: REFUTADO
+
+1. **El recheck descarta grupos en cola y la previa queda incompleta para siempre.** `_on_recheck_done` (`ui.py:2398`) llama a `_feed_preview`, que hace `self._render_queue.clear()` y **reemplaza** `_feed_queue` (`ui.py:1724-1725`) sin cancelar ni volver a pedir lo pendiente. Repro (300 playlists, «Marcar todas», recheck con 1 ruta cambiada cuando había 30 tarjetas dibujadas y 270 grupos en cola): queda en **30 de 300 tarjetas**, la cola vacía y sin debounce pendiente. El disparo es realista: el recheck salta al activar la ventana (`ui.py:2357-2378`), el throttle de 5 s cuenta desde el último `_on_preview_done` de lote y con 800 playlists la previa tarda ≈40 s en dibujarse. Es el escenario típico de TEC-18 (conectar el disco). Viola el criterio 1 («la previa completa») y es una regresión: antes de T-106 el recheck reconstruía todo.
+2. **Ctrl+R a mitad del poblado pierde las marcas a restaurar (regresión de T-094).** `_on_library_loaded` pone `_load_worker = None` (`ui.py:1324`) antes del poblado por lotes. Las marcas se re-aplican recién en `_finish_library_load` (`ui.py:1348`). `_reload_after_path_change` solo suma `_keep_after_load` si `_load_worker is not None` (`ui.py:1256-1258`). Repro: `_keep_after_load` con 1 clave, poblado de 800 en curso y `_reload_after_path_change()` dejan `_keep_after_load` en 0. La ventana de la carrera mide ≈1,6 s con 800 playlists. Antes, el poblado y la restauración eran síncronos.
+
+Supuestos señalados: el criterio 5 (suite exit 0) no lo verifiqué yo. El criterio 3 es inestable bajo carga (1,52 s en 1 de 4 corridas).
