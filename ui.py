@@ -2437,7 +2437,7 @@ class MainWindow(QMainWindow):
             self.settings.setValue("last_dest_folder", text.strip())
 
     # Presupuesto de trabajo por tick: deja pasar el input y el repintado (TEC-23, ≤ 100 ms).
-    _BATCH_BUDGET_S = 0.025
+    _BATCH_BUDGET_S = 0.010
 
     def _set_all(self, checked: bool, only_visible: bool = False) -> None:
         """Marca/desmarca en lotes: con cientos de playlists un solo bucle congelaba la ventana.

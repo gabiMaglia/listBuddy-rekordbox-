@@ -216,3 +216,35 @@ def test_reload_between_end_of_populating_and_its_deferred_finish_keeps_the_pend
         "print(len(w._keep_after_load))\n"
     )
     assert out == "1", out
+
+
+REAL = '''
+import tempfile, pathlib
+import rekordbox_xml as rx
+d = pathlib.Path(tempfile.mkdtemp())
+files = []
+for i in range(20):
+    (d / f"f{i}.mp3").write_bytes(b"x"); files.append(d / f"f{i}.mp3")
+def real_tree(n):
+    out = []
+    for g in range(n):
+        tr = [rx.RbxTrack(title=f"T{g}-{i}", artist="Art", file_path=files[i], TrackNo=i + 1) for i in range(20)]
+        out.append({"playlist": rx.RbxPlaylist(name=f"P{g}", ID=f"id{g}", tracks=tr), "children": []})
+    return out
+'''
+
+
+def test_mark_all_800_with_real_extraction_and_cards_in_the_tree_stays_under_100ms() -> None:
+    out = run(
+        REAL +
+        "w, _ = make(); warm_up()\n"
+        "w._populate_playlists(real_tree(800), rx.playlist_song_count)\n"
+        "spin(lambda: w._populate_job is None and w.playlist_container.isVisible() and len(w._all_cards) == 800, 60)\n"
+        "spin(lambda: False, 0.5); warm_up()\n"
+        "dog = Watchdog()\n"
+        "w._set_all(True)\n"
+        "done = spin(lambda: len(w._preview_cards) == 800 and not w._render_queue and not w._feed_queue)\n"
+        "dog.stop()\n"
+        "print(done, sum(c.isChecked() for c in w._all_cards), len(w._preview_cards), dog.worst_ms < 100, int(dog.worst_ms))\n"
+    )
+    assert out.startswith("True 800 800 True"), out
