@@ -43,7 +43,8 @@ from typing import NamedTuple
 REPO = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_RENAMES = pathlib.Path(__file__).with_name("t099_renames.toml")
 sys.path.insert(0, str(REPO / "tests"))
-from _t099_ratchets import RATCHETS_REL, BaseUnavailable, merge_base, monotonic_errors, parse  # noqa: E402
+from _t099_ratchets import (RATCHETS_REL, BaseUnavailable, base_ratchets, merge_base,  # noqa: E402
+                            monotonic_errors, parse)
 
 CONFIG_FILES = ("pytest.ini", "conftest.py", "pyproject.toml", "setup.cfg", "tox.ini")
 
@@ -213,13 +214,10 @@ def check(root: pathlib.Path, ref: str, renames: list[Rename]) -> int:
             print(f"✗ {rel}: existe en la base y HEAD lo borró")
             bad += 1
             continue
-        old_b, new_b = _git(root, "show", f"{base}:{rel}"), _git(root, "show", f"HEAD:{rel}")
         if rel == RATCHETS_REL:
-            errors = monotonic_errors(parse(old_b.decode("utf-8")), parse(new_b.decode("utf-8")))
-            for e in errors:
-                print(f"✗ {rel}: {e}")
-            bad += bool(errors)
-        elif rel.startswith("tests/") and rel.endswith(".py"):
+            continue   # se valida abajo, también en la rama que lo crea
+        old_b, new_b = _git(root, "show", f"{base}:{rel}"), _git(root, "show", f"HEAD:{rel}")
+        if rel.startswith("tests/") and rel.endswith(".py"):
             expected = rewrite(old_b.decode("utf-8"), renames, f"{base[:10]}:{rel}")
             actual = new_b.decode("utf-8")
             if actual != expected:
@@ -232,6 +230,13 @@ def check(root: pathlib.Path, ref: str, renames: list[Rename]) -> int:
             except UnicodeDecodeError:
                 pass
             bad += 1
+    if RATCHETS_REL in after:
+        # Mismo ancla que tests/test_t099_ratchets.py: el merge-base o, si ahí no existe, el commit que lo agregó.
+        anchor, old_data = base_ratchets(root, refs)
+        errors = monotonic_errors(old_data, parse(_git(root, "show", f"HEAD:{RATCHETS_REL}").decode("utf-8")))
+        for e in errors:
+            print(f"✗ {RATCHETS_REL} (contra {anchor[:10]}): {e}")
+        bad += bool(errors)
     for rel in sorted(after - before):
         if rel.rsplit("/", 1)[-1] in CONFIG_FILES:
             print(f"✗ {rel}: configuración de pytest nueva (cambia qué se recolecta o cómo corre)")

@@ -223,6 +223,7 @@ def test_check_fails_on_a_new_conftest(repo: pathlib.Path) -> None:
 
 
 def _set_ratchets(repo: pathlib.Path, **changes: Any) -> None:
+    (repo / "tests" / "baselines").mkdir(exist_ok=True)
     (repo / "tests" / "baselines" / "t099_ratchets.json").write_text(json.dumps({**RATCHETS, **changes}),
                                                                      encoding="utf-8")
     _commit(repo, "trinquete")
@@ -270,3 +271,14 @@ def test_a_rewrite_error_exits_2_and_writes_nothing(repo: pathlib.Path) -> None:
     r = _cli(repo)
     assert r.returncode == 2 and "test_c.py:2" in r.stderr, r.stdout + r.stderr
     assert (repo / "tests" / "test_a.py").read_text(encoding="utf-8") == before
+
+
+def test_check_rejects_a_raised_ratchet_in_the_branch_that_creates_the_file(repo: pathlib.Path) -> None:
+    _git(repo, "rm", "-q", "tests/baselines/t099_ratchets.json")
+    _commit(repo, "main sin trinquetes")
+    _git(repo, "branch", "-f", "main", "HEAD")
+    _codemod_and_commit(repo)
+    _set_ratchets(repo)                               # la rama lo crea
+    _set_ratchets(repo, max_lines={"ui.py": 3100})    # y después lo sube
+    r = _cli(repo, "--check")
+    assert r.returncode == 1 and "max_lines: ui.py subió de 3000 a 3100" in r.stdout, r.stdout + r.stderr
