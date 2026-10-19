@@ -1,0 +1,1494 @@
+{
+  "logFormatVersion": 1,
+  "jobId": "5887492a-0af1-45dc-b88b-1cdde62b2a41",
+  "status": "Accepted",
+  "statusSummary": "Ready for distribution",
+  "statusCode": 0,
+  "archiveFilename": "ListBuddy-1.0.0.dmg",
+  "uploadDate": "2026-10-19T18:57:44.881Z",
+  "sha256": "c2b5f1ec494f0c8d067d6b7ff5d08ba0a0158495adef4848a94866af1d2065ef",
+  "ticketContents": [
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtWidgets.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6c79b220f5e05cd315cd4508d80898f55bcae928",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/tls/libqopensslbackend.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "5356ab1bf069a901dd290c23578bc34f8bf80e4e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtSvg.framework/Versions/Current",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "aefb92265cfc9288668cd801cb376c87d91ae0ac",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_interpqueues.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6c4e4b5e70a7fc7bc6cb79b2e26f68dfdb713ac5",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/mtrand.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "1c709e469b4decafbdca22fcd6a2d7d35da00c2a",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqtiff.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c6df02ceefdeae2371c2ed373a287059f0733d74",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_asyncio.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "e2c0f6e44273e5b0ef038f3ee41a19af75219260",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/libavformat.63.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "09bfbf20b76d77cdd3effde17ff9f2fc19efd6e4",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtWidgets.framework/Versions/Current",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "0c0c7445e0c66cbb695987e4150553669435eb3f",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtNetwork.framework/Versions/Current",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "be2dc5c14296d61eff55026c7f906c1836e21dfc",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_codecs_tw.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a7ce0269aa93169efc638dec68cd4edd94a69225",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtSvg.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d3629e1f2618e8944db0f7c05f053310dfe6082f",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_json.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "59217d117ff691eabff3cccbf7a7d4d8c6625c6e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtNetwork.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "4dd324911b74d6e1e21f78e15327ea9cd39dde1a",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_struct.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d2039f795bfd2a687f2bd4204248fda69228cedc",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/pyexpat.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "3ae7d49f78b90839e65659a7c0c5d0ef89124231",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtConcurrent.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "62cfaee4c8b15cd5163acc28ab8ced354712d134",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_ssl.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d8decec160007f00d220b9ad9eca6312cbc53950",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_bounded_integers.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "92e45695103cf62d27f6d321c30085c1df705109",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtGui.framework/Versions/Current",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "116cb5adf9164726af309a2390c74163f5a55190",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "0bddc8191a9d70d87ef27d77b2a513ee0b711888",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_bisect.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c42353a3cb812839a6e42d8fa137ec96b6c7688b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/tls/libqsecuretransportbackend.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "e4574803d5ea97888db0152c0d1440b6b3a57415",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_csv.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "dcb76ad7363b161de907f17c61a9910a8b1096ee",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_elementtree.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "f95812a51fe599ee2019ef22a4a81c36cbc92d3c",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_posixsubprocess.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "9d6403d3b303c6c9919f55516abe0b345ea74bb9",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_codecs_iso2022.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "01904e7269797cd71e86709278fc2dd34e0574fc",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/shiboken6/Shiboken.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "f227d4d5b95630200c08515ce0e4218d058dd04f",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_sfc64.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "1e1cddf60ef79b4cf49d188405f1f8197f6af67b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtCore.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "24555ee82ea574a8e76c14d06443fe96b1cf3d34",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtCore.framework/Versions/Current",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d60c2b3796f384188ecc9dc5031da02967266ce7",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/networkinformation/libqapplenetworkinformation.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "bee0d329511588139918e73003abe8fafdf7a052",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/libavcodec.63.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "3e6b7a3c0353a2f15288ae664bdd4512b8311fbc",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_generator.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "3184cb9cb7f62a455dfd75f24b4fb7089019102a",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/linalg/_umath_linalg.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "aa113b056e71227e30cd8d3dcd0edf2351d92019",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/fft/_pocketfft_umath.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c45706adf8ab8204cd34d515d676b2a477da1a7a",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/xxsubtype.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a8f492b4db6051e915a47b45015fb2ec9372afca",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/math.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "760a0a56ce03a6c785d9434ac34ab65084875140",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/libswresample.7.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b6ef724f7bc96683d2f1652508d8cf11a8983207",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_decimal.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "27da9075790619c8011ee9811bc1aadf4642bd7b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/libpyside6.abi3.6.12.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "45063d79b3984457fdbcb9eee74c099aac2fc5b1",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_scproxy.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6874cd0e4831ec12effea8efc2db132a7ed946f4",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_sha1.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "0323bda88d26d027530891f50e53cff8b39a4edd",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/platforms/libqcocoa.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a9b445af34f53e1d3c661790827d69e15e30e80d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/grp.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "9756338041c6f1432e18f2ae2be8ac107eea3e34",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/bit_generator.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "e01fc80114fee519d41474205f66f1bd5f16bccf",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/generic/libqtuiotouchplugin.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "7f320e4c5b4aff73c6f4d065b6a1edb336e9780b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqgif.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "f77c0f9a6cf61166da4bab2c52807bdbae432baf",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_codecs_kr.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "2e7834a86b2824f14de9fdbceb7b45729842e8b4",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/styles/libqmacstyle.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "859a000bd33776064d0f89e7d32dc1464fcac96d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqjpeg.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "aadd99b08f7de37f691502f3e641cc3184ca3a5b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/platforms/libqminimal.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "f30a0cec1046ac66dc8a51638e1e4c06d2eab49d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/libavutil.61.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "79b1b0640082d4c5a6739c8cb35b490f70b2af83",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtMultimediaWidgets.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b66729f087858da0407f81b10ce4f223b2b27c12",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/zlib.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "3082f79b5e9b34c619e8b0f55b2b2715512e1f8d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtDBus.framework/Versions/Current",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "cdbd8d02734e3f9c3dcce297c5ffb82c55dcb0e1",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_mt19937.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "2292e45c04d14fb6f20a558fa561d77364a0fb72",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_statistics.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c6733f40a75bf631ff55a8a4f0a6c8f603db1d01",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/multimedia/libffmpegmediaplugin.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b7074960b245e14469d86823174834b1203df7f5",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_interpreters.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c1decd7067abc1faca186f28f2f758d56e6935a4",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_codecs_hk.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a9e397449cc17c7312ae45151981fff360aab783",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_pickle.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b64ef32320f538c06039a5f09a01963ec0649602",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_bz2.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "1a0ada04fb04876f3821aa01dd9caa1e958db242",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/fcntl.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "2aea722c58865dbd72e8b929b03f116c0cd359ea",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_random.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "7d64bce118e20d8e3103ebf4d190a9130c22299d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/libzstd.1.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "879bead63d423f37cc6abecc7aa6de423914a243",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_sha3.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "12b2b24db28e7de6f9797cfeb699afb227a15e03",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/array.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "1d11cd2f1a8a5e893d42bc4d6a5782cf4313bb27",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/_core/_multiarray_umath.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "222251b52a20998aeed2d37679851d3c2268e4da",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_md5.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c8d5c16b1961641e96e16148e4ead31418837ce0",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtGui.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b861dd79c370aefb9a879b6843688c1ad54f398e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqmacjp2.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "5449ac7f75c56c6ae24d1e6cb49d0d350a781e15",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_multiprocessing.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "85bb3b6a94e60186a5e636afa798918adf58d227",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/platforms/libqoffscreen.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c1815b022e8bcba0ce819cff2679b69dbc5e8f84",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqtga.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "3690da3dbcffed4bea7881840a68ef757ee207d4",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_queue.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "289c63f45deb2db10fc5869a7a61584d2f14620c",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/shiboken6/libshiboken6.abi3.6.12.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "7750950c67c336b361e69357dfa99e88a07c3beb",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/Python.framework/Versions/Current",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "8a8000c89d2ec085fc638a4ee0e0dc2cb059352d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/unicodedata.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b72eb7b9373ec4a6a1ec307cf9db5869cbe51132",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtMultimediaWidgets.framework/Versions/Current",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "5d6a1aea698c64a35a1de77f685200e318d4e3e9",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/multimedia/libdarwinmediaplugin.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "5e1945554d5dc85ab6b566b26723d0fe1088d17e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtConcurrent.framework/Versions/Current",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "74cd1853520fc1ace447b0b8d2a04ca4c9fb4712",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/libssl.4.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "3da4d3e2761b5e718d63c688a0444d18e2248e95",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqsvg.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "cdf08ce24f484650655b796a6087b47a6ec2c623",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_posixshmem.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "04a8fc4f38918bbac6e28916eef658e197b00c94",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/tls/libqcertonlybackend.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a6ffa90af808ac441a001f6c1e717c143bccd59a",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/_core/_multiarray_tests.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6b520d5e6a9dd5e11d4ac11177c584e0fe97d11f",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_hmac.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "ec68d5bee9229937d89c2f4bc118eab2e3bd64ec",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/libexpat.1.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "cc85ba4ff076e4d24e73aecf7c675037ae8250f8",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_blake2.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "cf2c66072eed2492b814922602e89c3f1c29375b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/libmpdec.4.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "88b01d657a5dd86a801653f3e96a7e8e1db0c90e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtDBus.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a65ae003b9673a66d171de2784f93e49984bd36e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/readline.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "4fc6c553559a1d837ac795f238b7896e8f416f80",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/binascii.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "81a06eb726b71ee822301162bf95976a64e1c0c6",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_hashlib.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "65ebf93275b04fcee63c64c89013b5e4a3715803",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_heapq.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c4baebc0f1fbbc442cc1e8e7c2416c9986c08cb7",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/iconengines/libqsvgicon.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "17ca3c06ad8160a5b10dae41f8c4e503b4e53d42",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_multibytecodec.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "2c2f6388080b17f39ecd612d93af638c751c7b9e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/liblzma.5.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "9961a88e67e8000b1144f144df42683e01d43f72",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_codecs_cn.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "1323edf9b65ec1ef147e447ef75c5d8ba57c9b66",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/select.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d8dbec7c9576f289150e6ac0e2574e431249d506",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqwbmp.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "5fd47436da23016ae26dbc058eeae125ba6b8f80",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_sha2.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "8da2396fc213f619e9d2ee9851ea9bf98b6ef613",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_ctypes.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6e45268f5a7131fbd54080f00f1f51100d8f24b4",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/mmap.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d5a69de33830172f684dcea233d8f441b6a3776a",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqmacheif.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "196178011da1c5174a2059b8710c78a427345310",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtMultimedia.framework/Versions/Current",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a4b5a2b777302f59a28e0c2e30581afb71be9840",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_philox.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "1894de687e795f50c2a7f5622c47168fa76d659c",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_pcg64.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "bb3c086cf4dacdf483e0567ad20450c94efbc7f9",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_common.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d4653307ca9ea5937289297e6f6e2380770841e2",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/resource.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "571ab992b207a331c616840677aa71116efe06ce",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqicns.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "27a034ab9c86945bd6ca350a49c92abecf7bfb96",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtMultimedia.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "bda157337a1905a9dc524ca19fcf104470a6a80d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_codecs_jp.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6f37f989f38aa26b0f0d394559f86df82bdd59a1",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_lzma.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b037763d1b7a1a403e768d3bf617e6cda8664894",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtOpenGL.framework/Versions/Current",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "7ad27f52b478812d73add5ac4be6d3264ed5402b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_zstd.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6bd354258e41977c0e406b8fd4866a4ad31f59bf",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqwebp.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d65a42f52a5a8cc27d596f92f2daa499583b9618",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/termios.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "be38934615467110405278d5240b945dce302012",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_socket.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "04aa8a42ba3247949073fa395407d4774220d756",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/libswscale.10.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "0681d9047e751d86f24e1eff4e1274571d5eac59",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqico.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "dece9562be526e305dcb57d3074d903171ceb8e7",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/libcrypto.4.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d5239c8ca1dfa3343f507e6b26fa840ba3f3d3b0",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/MacOS/listBuddy",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "0bddc8191a9d70d87ef27d77b2a513ee0b711888",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/libcrypto.4.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d5239c8ca1dfa3343f507e6b26fa840ba3f3d3b0",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/libssl.4.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "3da4d3e2761b5e718d63c688a0444d18e2248e95",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/liblzma.5.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "9961a88e67e8000b1144f144df42683e01d43f72",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/libzstd.1.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "879bead63d423f37cc6abecc7aa6de423914a243",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/libmpdec.4.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "88b01d657a5dd86a801653f3e96a7e8e1db0c90e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/libexpat.1.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "cc85ba4ff076e4d24e73aecf7c675037ae8250f8",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_socket.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "04aa8a42ba3247949073fa395407d4774220d756",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_decimal.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "27da9075790619c8011ee9811bc1aadf4642bd7b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_hashlib.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "65ebf93275b04fcee63c64c89013b5e4a3715803",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/grp.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "9756338041c6f1432e18f2ae2be8ac107eea3e34",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_sha3.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "12b2b24db28e7de6f9797cfeb699afb227a15e03",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/fcntl.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "2aea722c58865dbd72e8b929b03f116c0cd359ea",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_ssl.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d8decec160007f00d220b9ad9eca6312cbc53950",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_statistics.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c6733f40a75bf631ff55a8a4f0a6c8f603db1d01",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_csv.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "dcb76ad7363b161de907f17c61a9910a8b1096ee",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_queue.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "289c63f45deb2db10fc5869a7a61584d2f14620c",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_blake2.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "cf2c66072eed2492b814922602e89c3f1c29375b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_zstd.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6bd354258e41977c0e406b8fd4866a4ad31f59bf",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_struct.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d2039f795bfd2a687f2bd4204248fda69228cedc",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/array.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "1d11cd2f1a8a5e893d42bc4d6a5782cf4313bb27",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_interpreters.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c1decd7067abc1faca186f28f2f758d56e6935a4",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_sha1.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "0323bda88d26d027530891f50e53cff8b39a4edd",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_posixshmem.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "04a8fc4f38918bbac6e28916eef658e197b00c94",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_posixsubprocess.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "9d6403d3b303c6c9919f55516abe0b345ea74bb9",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/xxsubtype.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a8f492b4db6051e915a47b45015fb2ec9372afca",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_interpqueues.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6c4e4b5e70a7fc7bc6cb79b2e26f68dfdb713ac5",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_pickle.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b64ef32320f538c06039a5f09a01963ec0649602",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/readline.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "4fc6c553559a1d837ac795f238b7896e8f416f80",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/select.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d8dbec7c9576f289150e6ac0e2574e431249d506",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_lzma.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b037763d1b7a1a403e768d3bf617e6cda8664894",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/pyexpat.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "3ae7d49f78b90839e65659a7c0c5d0ef89124231",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/unicodedata.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b72eb7b9373ec4a6a1ec307cf9db5869cbe51132",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/zlib.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "3082f79b5e9b34c619e8b0f55b2b2715512e1f8d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/termios.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "be38934615467110405278d5240b945dce302012",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_asyncio.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "e2c0f6e44273e5b0ef038f3ee41a19af75219260",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_codecs_cn.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "1323edf9b65ec1ef147e447ef75c5d8ba57c9b66",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_multibytecodec.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "2c2f6388080b17f39ecd612d93af638c751c7b9e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_bisect.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c42353a3cb812839a6e42d8fa137ec96b6c7688b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/math.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "760a0a56ce03a6c785d9434ac34ab65084875140",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_sha2.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "8da2396fc213f619e9d2ee9851ea9bf98b6ef613",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_codecs_iso2022.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "01904e7269797cd71e86709278fc2dd34e0574fc",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/mmap.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d5a69de33830172f684dcea233d8f441b6a3776a",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_ctypes.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6e45268f5a7131fbd54080f00f1f51100d8f24b4",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_bz2.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "1a0ada04fb04876f3821aa01dd9caa1e958db242",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_codecs_jp.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6f37f989f38aa26b0f0d394559f86df82bdd59a1",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_codecs_hk.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a9e397449cc17c7312ae45151981fff360aab783",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/resource.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "571ab992b207a331c616840677aa71116efe06ce",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_random.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "7d64bce118e20d8e3103ebf4d190a9130c22299d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_json.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "59217d117ff691eabff3cccbf7a7d4d8c6625c6e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/binascii.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "81a06eb726b71ee822301162bf95976a64e1c0c6",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_multiprocessing.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "85bb3b6a94e60186a5e636afa798918adf58d227",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_md5.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c8d5c16b1961641e96e16148e4ead31418837ce0",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_hmac.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "ec68d5bee9229937d89c2f4bc118eab2e3bd64ec",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_scproxy.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6874cd0e4831ec12effea8efc2db132a7ed946f4",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_codecs_kr.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "2e7834a86b2824f14de9fdbceb7b45729842e8b4",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_codecs_tw.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a7ce0269aa93169efc638dec68cd4edd94a69225",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_heapq.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c4baebc0f1fbbc442cc1e8e7c2416c9986c08cb7",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/python3__dot__14/lib-dynload/_elementtree.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "f95812a51fe599ee2019ef22a4a81c36cbc92d3c",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/shiboken6/libshiboken6.abi3.6.12.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "7750950c67c336b361e69357dfa99e88a07c3beb",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/shiboken6/Shiboken.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "f227d4d5b95630200c08515ce0e4218d058dd04f",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/linalg/_umath_linalg.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "aa113b056e71227e30cd8d3dcd0edf2351d92019",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/_core/_multiarray_tests.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6b520d5e6a9dd5e11d4ac11177c584e0fe97d11f",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/_core/_multiarray_umath.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "222251b52a20998aeed2d37679851d3c2268e4da",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/fft/_pocketfft_umath.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c45706adf8ab8204cd34d515d676b2a477da1a7a",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/bit_generator.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "e01fc80114fee519d41474205f66f1bd5f16bccf",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_mt19937.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "2292e45c04d14fb6f20a558fa561d77364a0fb72",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_philox.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "1894de687e795f50c2a7f5622c47168fa76d659c",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_bounded_integers.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "92e45695103cf62d27f6d321c30085c1df705109",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_pcg64.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "bb3c086cf4dacdf483e0567ad20450c94efbc7f9",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_sfc64.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "1e1cddf60ef79b4cf49d188405f1f8197f6af67b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_common.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d4653307ca9ea5937289297e6f6e2380770841e2",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/mtrand.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "1c709e469b4decafbdca22fcd6a2d7d35da00c2a",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/numpy/random/_generator.cpython-314-darwin.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "3184cb9cb7f62a455dfd75f24b4fb7089019102a",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtWidgets.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6c79b220f5e05cd315cd4508d80898f55bcae928",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtGui.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b861dd79c370aefb9a879b6843688c1ad54f398e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtSvg.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d3629e1f2618e8944db0f7c05f053310dfe6082f",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtConcurrent.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "62cfaee4c8b15cd5163acc28ab8ced354712d134",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/libpyside6.abi3.6.12.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "45063d79b3984457fdbcb9eee74c099aac2fc5b1",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtMultimediaWidgets.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b66729f087858da0407f81b10ce4f223b2b27c12",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtNetwork.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "4dd324911b74d6e1e21f78e15327ea9cd39dde1a",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtCore.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "24555ee82ea574a8e76c14d06443fe96b1cf3d34",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtDBus.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a65ae003b9673a66d171de2784f93e49984bd36e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/QtMultimedia.abi3.so",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "bda157337a1905a9dc524ca19fcf104470a6a80d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/platforms/libqoffscreen.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c1815b022e8bcba0ce819cff2679b69dbc5e8f84",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/platforms/libqminimal.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "f30a0cec1046ac66dc8a51638e1e4c06d2eab49d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/platforms/libqcocoa.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a9b445af34f53e1d3c661790827d69e15e30e80d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/styles/libqmacstyle.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "859a000bd33776064d0f89e7d32dc1464fcac96d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/tls/libqsecuretransportbackend.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "e4574803d5ea97888db0152c0d1440b6b3a57415",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/tls/libqopensslbackend.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "5356ab1bf069a901dd290c23578bc34f8bf80e4e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/tls/libqcertonlybackend.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a6ffa90af808ac441a001f6c1e717c143bccd59a",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/iconengines/libqsvgicon.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "17ca3c06ad8160a5b10dae41f8c4e503b4e53d42",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/multimedia/libffmpegmediaplugin.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b7074960b245e14469d86823174834b1203df7f5",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/multimedia/libdarwinmediaplugin.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "5e1945554d5dc85ab6b566b26723d0fe1088d17e",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqgif.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "f77c0f9a6cf61166da4bab2c52807bdbae432baf",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqwbmp.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "5fd47436da23016ae26dbc058eeae125ba6b8f80",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqwebp.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d65a42f52a5a8cc27d596f92f2daa499583b9618",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqico.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "dece9562be526e305dcb57d3074d903171ceb8e7",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqmacheif.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "196178011da1c5174a2059b8710c78a427345310",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqjpeg.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "aadd99b08f7de37f691502f3e641cc3184ca3a5b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqtiff.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c6df02ceefdeae2371c2ed373a287059f0733d74",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqsvg.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "cdf08ce24f484650655b796a6087b47a6ec2c623",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqicns.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "27a034ab9c86945bd6ca350a49c92abecf7bfb96",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqtga.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "3690da3dbcffed4bea7881840a68ef757ee207d4",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/imageformats/libqmacjp2.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "5449ac7f75c56c6ae24d1e6cb49d0d350a781e15",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/generic/libqtuiotouchplugin.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "7f320e4c5b4aff73c6f4d065b6a1edb336e9780b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/plugins/networkinformation/libqapplenetworkinformation.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "bee0d329511588139918e73003abe8fafdf7a052",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/libswresample.7.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "b6ef724f7bc96683d2f1652508d8cf11a8983207",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/libswscale.10.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "0681d9047e751d86f24e1eff4e1274571d5eac59",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/libavformat.63.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "09bfbf20b76d77cdd3effde17ff9f2fc19efd6e4",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/libavutil.61.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "79b1b0640082d4c5a6739c8cb35b490f70b2af83",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/libavcodec.63.dylib",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "3e6b7a3c0353a2f15288ae664bdd4512b8311fbc",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtGui.framework/Versions/A/QtGui",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "116cb5adf9164726af309a2390c74163f5a55190",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtDBus.framework/Versions/A/QtDBus",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "cdbd8d02734e3f9c3dcce297c5ffb82c55dcb0e1",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtCore.framework/Versions/A/QtCore",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "d60c2b3796f384188ecc9dc5031da02967266ce7",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtMultimedia.framework/Versions/A/QtMultimedia",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "a4b5a2b777302f59a28e0c2e30581afb71be9840",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtOpenGL.framework/Versions/A/QtOpenGL",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "7ad27f52b478812d73add5ac4be6d3264ed5402b",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtWidgets.framework/Versions/A/QtWidgets",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "0c0c7445e0c66cbb695987e4150553669435eb3f",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtNetwork.framework/Versions/A/QtNetwork",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "be2dc5c14296d61eff55026c7f906c1836e21dfc",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtSvg.framework/Versions/A/QtSvg",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "aefb92265cfc9288668cd801cb376c87d91ae0ac",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtMultimediaWidgets.framework/Versions/A/QtMultimediaWidgets",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "5d6a1aea698c64a35a1de77f685200e318d4e3e9",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/PySide6/Qt/lib/QtConcurrent.framework/Versions/A/QtConcurrent",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "74cd1853520fc1ace447b0b8d2a04ca4c9fb4712",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg/List Buddy.app/Contents/Frameworks/Python.framework/Versions/3.14/Python",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "8a8000c89d2ec085fc638a4ee0e0dc2cb059352d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "ListBuddy-1.0.0.dmg",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c52e5a2caf262f8d0caaf27880df81e1e4741797"
+    }
+  ],
+  "issues": null
+}
