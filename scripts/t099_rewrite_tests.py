@@ -24,6 +24,8 @@ Uso:
   - todo lo demás (fixtures, configuración): idéntico byte a byte;
   - un archivo borrado o un `conftest.py`/configuración nuevos cuentan como diferencia; otros archivos nuevos
     (tests nuevos y sus fixtures) no.
+  - un archivo nuevo en `tests/` que se llama como un módulo de la stdlib o de un paquete instalado
+    (`tests/ast.py`, `tests/numpy.py`, `tests/pathlib/…`) cuenta como diferencia;
   - un test nuevo que nombra un módulo de barandas (`test_module_size`, `test_import_layers`,
     `test_type_hints`, `_t099_ratchets`, `_t099_measure`, `_t099_guard`) cuenta como diferencia.
 Sale con 0 si no hay diferencias, 1 si las hay (mostrando el diff) y 2 ante un error.
@@ -44,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import importlib.metadata
 import io
 import json
 import pathlib
@@ -67,6 +70,14 @@ GUARD_MODULES = ("test_module_size", "test_import_layers", "test_type_hints", "_
                  "_t099_guard")
 GUARD_FILES = frozenset({f"tests/{m}.py" for m in GUARD_MODULES} | {"tests/test_t099_ratchets.py",
                                                                      "tests/test_t099_rewrite_tests.py"})
+
+
+def shadowable_names() -> frozenset[str]:
+    """Nombres que un archivo de `tests/` no puede tomar: con `tests/` en `sys.path` (pytest lo pone) taparían a
+    la stdlib o a un paquete instalado."""
+    return frozenset(sys.stdlib_module_names) | frozenset(importlib.metadata.packages_distributions())
+
+
 _GUARD_NAME = re.compile(r"\b(" + "|".join(GUARD_MODULES) + r")\b")
 
 _PATH = re.compile(r"[A-Za-z_]\w*(?:\(\))?(?:\.[A-Za-z_]\w*(?:\(\))?)*")
@@ -258,7 +269,15 @@ def check(root: pathlib.Path, ref: str, renames: list[Rename]) -> int:
         for e in errors:
             print(f"✗ {RATCHETS_REL} (contra {anchor[:10]}): {e}")
         bad += bool(errors)
+    shadow = shadowable_names()
     for rel in sorted(after - before):
+        first = rel.split("/")[1] if rel.startswith("tests/") and rel.count("/") >= 1 else ""
+        top = first[:-3] if first.endswith(".py") else first
+        if top in shadow and (rel.endswith(".py") or "/" in rel[len("tests/"):]):
+            print(f"✗ {rel}: se llama como un módulo de la stdlib o de un paquete instalado ({top}): con `tests/` "
+                  "en el path lo taparía")
+            bad += 1
+            continue
         if rel.rsplit("/", 1)[-1] in CONFIG_FILES:
             print(f"✗ {rel}: configuración de pytest nueva (cambia qué se recolecta o cómo corre)")
             bad += 1

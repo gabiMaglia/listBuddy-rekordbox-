@@ -301,3 +301,14 @@ def test_check_rejects_a_new_test_that_touches_the_guards(repo: pathlib.Path, bo
     r = _cli(repo, "--check")
     assert r.returncode == 1 and "tests/test_aaa_helper.py: test nuevo que nombra un módulo de barandas" in r.stdout, \
         r.stdout + r.stderr
+
+
+@pytest.mark.parametrize("rel", ["tests/ast.py", "tests/typing.py", "tests/numpy.py", "tests/pathlib/__init__.py"])
+def test_check_rejects_a_new_test_file_named_like_stdlib_or_an_installed_package(repo: pathlib.Path, rel: str) -> None:
+    _codemod_and_commit(repo)
+    (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+    (repo / rel).write_text("x = 1\n", encoding="utf-8")
+    _commit(repo, "sombra")
+    r = _cli(repo, "--check")
+    assert r.returncode == 1 and f"✗ {rel}: se llama como un módulo de la stdlib o de un paquete instalado" in r.stdout, \
+        r.stdout + r.stderr

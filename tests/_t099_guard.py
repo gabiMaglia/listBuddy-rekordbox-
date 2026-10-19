@@ -2,21 +2,44 @@
 # Copyright (C) 2025-2026 Gabriel Maglia
 """T-099: barandas sobre el árbol real, en un intérprete aislado (`python -I`).
 
-Uso: python -I tests/_t099_guard.py <size|size_exact|layers|layers_exact|typed|ratchets> [raíz]
-Imprime en JSON la lista de errores (vacía = verde). Lo llama `_t099_ratchets.run_guard`.
+Uso: python -I tests/_t099_guard.py <size|size_exact|layers|layers_exact|typed|ratchets|--all> [raíz]
+Con un tipo imprime en JSON la lista de errores (vacía = verde) y sale 0; lo llama `_t099_ratchets.run_guard`.
+Con `--all` corre los seis, imprime los errores y sale 1 si hay alguno; lo usa `scripts/t099_guard_check.py`.
+
+Los módulos de barandas se cargan por ruta (`spec_from_file_location`) y `tests/` NUNCA entra en `sys.path`: un
+`tests/ast.py` o `tests/typing.py` no puede reemplazar a la stdlib acá adentro, y `-I` deja afuera
+`PYTHONPATH`, el directorio actual y `site` del usuario.
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import pathlib
 import sys
+from types import ModuleType
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))   # -I no agrega la carpeta del script
+HERE = pathlib.Path(__file__).resolve().parent
+# Orden de carga: cada uno importa por nombre a los anteriores, que ya están en `sys.modules`.
+GUARD_MODULES = ("_t099_ratchets", "test_module_size", "test_import_layers", "test_type_hints", "_t099_measure")
 
-import _t099_ratchets as ratchets  # noqa: E402
-import test_import_layers as layers  # noqa: E402
-import test_module_size as size  # noqa: E402
-import test_type_hints as hints  # noqa: E402
+
+def load_guards(folder: pathlib.Path = HERE) -> dict[str, ModuleType]:
+    loaded: dict[str, ModuleType] = {}
+    for name in GUARD_MODULES:
+        spec = importlib.util.spec_from_file_location(name, folder / f"{name}.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+        loaded[name] = module
+    return loaded
+
+
+_G = load_guards()
+ratchets = _G["_t099_ratchets"]
+size = _G["test_module_size"]
+layers = _G["test_import_layers"]
+hints = _G["test_type_hints"]
 
 
 def _size(root: pathlib.Path) -> list[str]:
@@ -72,6 +95,15 @@ KINDS = {"size": _size, "size_exact": _size_exact, "layers": _layers, "layers_ex
 
 def main(argv: list[str]) -> int:
     root = pathlib.Path(argv[2]) if len(argv) > 2 else ratchets.ROOT
+    if argv[1] == "--all":
+        bad = 0
+        for kind, fn in KINDS.items():
+            errors = fn(root)
+            print(f"{'✗' if errors else 'OK'} baranda {kind}")
+            for e in errors:
+                print(f"  {e}")
+            bad += len(errors)
+        return 1 if bad else 0
     print(json.dumps(KINDS[argv[1]](root), ensure_ascii=False))
     return 0
 
