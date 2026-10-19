@@ -38,6 +38,13 @@ jobs:
       - name: Instalar dependencias
         run: python -m pip install -r requirements-dev.txt
 
+      - name: Barandas T-099 (fuera de pytest; ningún test las puede tocar)
+        run: python -I scripts/t099_guard_check.py
+
+      - name: Codemod T-099 contra la base (ADR-007 D5, solo ramas feat/t099-*)
+        if: startsWith(github.head_ref, 'feat/t099-')
+        run: python -I scripts/t099_guard_check.py --with-check
+
       - name: Tests
         run: python -m pytest -q
 
@@ -65,6 +72,13 @@ jobs:
 
       - name: Instalar dependencias
         run: python -m pip install --require-hashes -r requirements-dev.txt
+
+      - name: Barandas T-099 (fuera de pytest; ningún test las puede tocar)
+        run: python -I scripts/t099_guard_check.py
+
+      - name: Codemod T-099 contra la base (ADR-007 D5, solo ramas feat/t099-*)
+        if: startsWith(github.head_ref, 'feat/t099-')
+        run: python -I scripts/t099_guard_check.py --with-check
 
       - name: Tests
         run: python -m pytest -q -m "not qt and not posix"

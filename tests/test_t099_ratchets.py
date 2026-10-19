@@ -4,6 +4,10 @@
 
 Sin la ref base (clon superficial, sin `main`) el test FALLA y dice cómo traerla: saltearlo dejaría subir un
 trinquete sin que nadie lo vea.
+
+La GARANTÍA no es este test: es el paso `python -I scripts/t099_guard_check.py`, que corre antes de pytest en los
+dos jobs de `.github/workflows/tests.yml`. Cualquier chequeo dentro de pytest lo puede sabotear otro test del
+mismo repo (parchear `subprocess.run` o `Path.read_text` al importarse); acá queda como señal rápida en local.
 """
 from __future__ import annotations
 

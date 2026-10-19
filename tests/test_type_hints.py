@@ -6,6 +6,10 @@ Todo parámetro (salvo `self`/`cls`, incluidos posicionales puros, keyword-only,
 retorno anotados, en funciones de cualquier nivel. Los módulos van con nombre punteado (`pkg.mod` para
 subpaquetes). La lista crece con cada fase de T-099 y nunca se achica: lo vigila `tests/test_t099_ratchets.py`
 contra la base de la rama.
+
+La GARANTÍA no es este test: es el paso `python -I scripts/t099_guard_check.py`, que corre antes de pytest en los
+dos jobs de `.github/workflows/tests.yml`. Cualquier chequeo dentro de pytest lo puede sabotear otro test del
+mismo repo (parchear `subprocess.run` o `Path.read_text` al importarse); acá queda como señal rápida en local.
 """
 from __future__ import annotations
 

@@ -9,6 +9,13 @@ las que hereda (ADR-007 descarta los mixins: partir en herencia no esquiva el l�
 Trinquete: los que hoy se pasan quedan en `tests/baselines/t099_ratchets.json` (`max_lines`, `max_methods`)
 con su valor MEDIDO. Acá se exige que el registrado sea igual al real; `tests/test_t099_ratchets.py` exige que
 solo baje respecto de la base de la rama.
+
+La GARANTÍA no es este test: es el paso `python -I scripts/t099_guard_check.py`, que corre antes de pytest en los
+dos jobs de `.github/workflows/tests.yml`. Cualquier chequeo dentro de pytest lo puede sabotear otro test del
+mismo repo (parchear `subprocess.run` o `Path.read_text` al importarse); acá queda como señal rápida en local.
+
+Deuda declarada (QA intento 3, deducido 2): no cuentan como método `f = g` con `g` importada de otro módulo,
+`f = staticmethod(_f)` ni `f = functools.partialmethod(_f)`. Es raro en esta base de código; QA lo mira a mano.
 """
 from __future__ import annotations
 

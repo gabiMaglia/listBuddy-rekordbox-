@@ -169,7 +169,9 @@ GUARD_SCRIPT = pathlib.Path(__file__).with_name("_t099_guard.py")
 
 def run_guard(kind: str, root: pathlib.Path = ROOT) -> list[str]:
     """Corre una baranda en un intérprete propio (`python -I`): nada que otro test haga en este proceso
-    (parchear `root_sources`, las constantes, los módulos) llega a la medición."""
+    (parchear `root_sources`, las constantes, los módulos) llega a la medición. El resultado sí se lee desde el
+    proceso de pytest, que un test puede sabotear (`subprocess.run`): por eso la garantía es el paso de CI
+    `scripts/t099_guard_check.py`, no esto."""
     r = subprocess.run([sys.executable, "-I", str(GUARD_SCRIPT), kind, str(root)], capture_output=True,
                        text=True, encoding="utf-8", timeout=300)
     if r.returncode != 0:

@@ -10,6 +10,10 @@ import de Qt prohibido para la capa y ante un ciclo. Las violaciones de hoy vive
 con lo medido y `tests/test_t099_ratchets.py`, que solo se achiquen respecto de la base. Al cerrar T-099 quedan
 vacías.
 
+La GARANTÍA no es este test: es el paso `python -I scripts/t099_guard_check.py`, que corre antes de pytest en los
+dos jobs de `.github/workflows/tests.yml`. Cualquier chequeo dentro de pytest lo puede sabotear otro test del
+mismo repo (parchear `subprocess.run` o `Path.read_text` al importarse); acá queda como señal rápida en local.
+
 Chequeo manual de QA (no se puede por AST): D1 deja que L4 importe L1 «solo tipos de datos». El test admite
 cualquier import L4 → L1; QA revisa en cada fase que lo importado sean dataclasses/NamedTuple/enums y no
 funciones con E/S ni workers (hoy no hay ningún import L4 → L1).
