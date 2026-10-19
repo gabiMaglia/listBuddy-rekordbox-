@@ -34,8 +34,10 @@ def already_running_message(platform: str = sys.platform) -> str:
 
 def foreign_host_message(host: str, lock_path: Path, platform: str = sys.platform) -> str:
     if platform == "darwin":
+        # Ruta corta para tipear: el texto de este aviso no siempre se puede copiar. Es la de
+        # app_paths.data_dir() en macOS.
         how = ("Está en una carpeta oculta: en el Finder, menú Ir › Ir a la carpeta… (⇧⌘G), "
-               "pegá esa ruta y apretá Enter.")
+               "pegá esa ruta o escribí ~/Library/Application Support/listBuddy y apretá Enter.")
     else:
         how = ("Para llegar: abrí el Explorador de archivos, pegá esta carpeta en la barra de direcciones "
                f"y apretá Enter:\n{lock_path.parent}")

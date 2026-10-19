@@ -181,6 +181,26 @@ def test_foreign_host_message_names_the_host_and_the_full_lock_path() -> None:
     assert "borrá" in msg.lower() or "borrar" in msg.lower()
 
 
+def test_windows_message_gives_the_folder_alone_on_the_line_after_the_instruction() -> None:
+    # D-5 (QA): la ruta completa del lock ya contiene la carpeta; hay que mirar la línea de la instrucción.
+    import startup_guard
+    from pathlib import PureWindowsPath
+    lock = PureWindowsPath(r"C:\Users\dj\AppData\Roaming\listBuddy\listBuddy.lock")
+    lines = startup_guard.foreign_host_message("estudio-pc", lock, "win32").splitlines()  # type: ignore[arg-type]
+    i = next(n for n, line in enumerate(lines) if "barra de direcciones" in line)
+    assert lines[i + 1:i + 2] == [r"C:\Users\dj\AppData\Roaming\listBuddy"], lines
+
+
+def test_mac_message_offers_a_short_path_to_type() -> None:
+    # D-7: el texto de un `display alert` no siempre se puede copiar; la ruta corta se tipea en ⇧⌘G.
+    import startup_guard
+    lock = Path("/Users/dj/Library/Application Support/listBuddy/listBuddy.lock")
+    msg = startup_guard.foreign_host_message("estudio-pc", lock, "darwin")
+    how = next(line for line in msg.splitlines() if "⇧⌘G" in line)
+    assert "~/Library/Application Support/listBuddy" in how, msg
+    assert str(lock) in msg
+
+
 @pytest.mark.parametrize("platform, lock, how", [
     ("darwin", Path("/Users/dj/Library/Application Support/listBuddy/listBuddy.lock"),
      ("Finder", "Ir a la carpeta", "⇧⌘G")),
@@ -296,6 +316,32 @@ def test_same_machine_after_a_hostname_change_is_this_computer(tmp_path: Path, o
         assert "List Buddy ya está abierto" in text and "otra computadora" not in text, text
     else:
         assert r.returncode == 42 and "ARRANCA" in r.stdout, (r.returncode, r.stdout, r.stderr, text)
+
+
+_DROP_MACHINE_ID = """
+import sys
+from pathlib import Path
+p = Path(sys.argv[1])
+p.write_bytes(b'\\n'.join(p.read_bytes().splitlines()[:3]) + b'\\n')
+"""
+
+
+def test_lock_without_machine_id_from_this_host_and_a_live_owner_is_already_running(tmp_path: Path) -> None:
+    # D-4 (QA): sin id de máquina decide el hostname; si es este host y la copia vive, «ya está abierto».
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    holder = _start_holder(data, env)
+    try:
+        subprocess.run([sys.executable, "-c", _DROP_MACHINE_ID, str(data / "listBuddy.lock")], check=True, timeout=60)
+        assert len((data / "listBuddy.lock").read_bytes().splitlines()) == 3
+        alert = tmp_path / "alert.txt"
+        r = subprocess.run([sys.executable, "-c", _STARTS, str(alert)], cwd=PROJECT_ROOT, env=env,
+                           capture_output=True, text=True, encoding="utf-8", timeout=60)
+    finally:
+        _stop(holder)
+    assert r.returncode == 0 and "ARRANCA" not in r.stdout, (r.returncode, r.stdout, r.stderr)
+    text = alert.read_text(encoding="utf-8") if alert.exists() else ""
+    assert "List Buddy ya está abierto" in text and "otra computadora" not in text, text
 
 
 _FLOCK_HOLDER = """
