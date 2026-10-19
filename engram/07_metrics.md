@@ -9,6 +9,8 @@
 
 - 2026-10-19 · `nerv-metrics.sh` → «sin sesiones medidas» (hook PreToolUse sigue sin instalar; reportado al PO). Tokens de subagentes reportados por el harness en la sesión 16→19/10: ≈3,2 M (T-105 impl+verifier ×3 ≈0,6 M; T-106 impl+QA ×3+verifier ×3 ≈1,2 M; T-108 impl+QA+verifier ×2 ≈0,8 M; T-112 ≈0,1 M; resto QA/verifier). Rondas: QA 7 (3 rechazos), verifier 8 (4 refutaciones), todas con defecto real o test vacuo.
 
+- 2026-10-19 (cierre 13:40) · `nerv-metrics.sh` → «sin sesiones medidas» (hook sin instalar). Tokens de subagentes desde las 11:20: T-113 impl ≈95 k + QA ≈73 k; sesión B (roadmap 1.1) no medida acá.
+
 ## §Proceso — Sprint 4 (re-auditoría T-104, cerrado 2026-10-19)
 - Tickets: 8 (T-105..T-112) · Done: 8 · nivel S: 3 (T-105, T-106, T-108).
 - % rechazo QA: 3 de 7 rondas (43 %); refutaciones del verifier: 4 de 8 (50 %). Todas por defectos reales o tests vacuos; ninguna por criterio ambiguo.

@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-19 13:40] CIERRE DE SESIÓN (A)
+- Hecho desde el cierre de las 11:20: T-113 Done (sin Ko-fi/qrcode, QA aprobada), repo renombrado a gabiMaglia/listbuddy (URLs en código/docs/tests), cotas de tiempo solo fuera de CI (CI verde macOS+Windows), roadmap 1.1 de la sesión B mergeado. Guía de release entregada al PO (6 pasos; hoy no hay cert, perfil notary, environment, ruleset ni secrets).
+- Próximo paso: PO → cert Developer ID + API key (pasos 1-2) → Orquestador corre el ensayo local → GitHub + Polar → tag v1.0.0. En paralelo PO ratifica roadmap_1.1.md §3.
+- Quien retoma: nerv-orquestador (release y alta de T-114..T-120); nerv-arquitecto para ADR-007/008.
+
 ### [2026-10-19 12:05] CHECKPOINT (sin cierre) → sesión B planifica 1.1.0
 - Sesión A sigue con T-113 (en implementación) y el acompañamiento del release 1.0.0. Repo renombrado a gabiMaglia/listbuddy; auditoría de cierre postergada al post-release por el PO.
 - Sesión B: rama `plan/1.1.0` en worktree propio; escribe solo `engram/roadmap_1.1.md` y `engram/plans/1.1/`; no toca `main` ni el backlog (ver _state.md §CHECKPOINT).
