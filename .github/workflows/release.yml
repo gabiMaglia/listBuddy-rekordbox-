@@ -133,7 +133,7 @@ jobs:
           G2_CER="$RUNNER_TEMP/DeveloperIDG2CA.cer"
           curl -fsSL --retry 3 -o "$G2_CER" https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
           echo "f16cd3c54c7f83cea4bf1a3e6a0819c8aaa8e4a1528fd144715f350643d2df3a  $G2_CER" | shasum -a 256 -c - >/dev/null
-          security import "$G2_CER" -A -t cert -f der -k "$KEYCHAIN_PATH"
+          security import "$G2_CER" -t cert -k "$KEYCHAIN_PATH"   # formato DER autodetectado (-f no admite der)
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH"
           rm -f "$CERT_PATH" "$G2_CER"

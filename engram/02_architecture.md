@@ -379,3 +379,12 @@ existe solo como métodos privados de `MainWindow`, mezclado con widgets concret
 - Riesgo residual LGPL aceptado explícitamente por el PO con el informe del abogado (§6).
 
 ---
+
+### ADR-007 · Addendum 1 (PO, 2026-10-19, antes de F1)
+
+Ratificado por el PO en sesión (AskUserQuestion) a partir de los deducidos de QA y del verifier de T-099 F0:
+1. `app_logging` es capa **L4** (usa QtWidgets y `dialogs` en forma perezosa). Se agrega a la tabla D1.
+2. **L6** (`main`, `startup_guard`) puede importar `ui` **y los módulos de arranque**: `styles`, `app_logging`,
+   `startup_guard`, `single_instance` (T-098). Así la allowlist de capas puede quedar vacía al cerrar T-099.
+3. Límites de partida del trinquete de F0, medidos en `main` @ 6ec2e74: `ui.py` = 3.183 líneas,
+   `MainWindow` = 157 métodos, `ui_components.py` = 1.028 líneas (el plan decía 3.264 / 158, medidos antes de T-113).
