@@ -1,10 +1,10 @@
 {
   "max_lines": {
-    "ui.py": 3183,
+    "ui.py": 3264,
     "ui_components.py": 1028
   },
   "max_methods": {
-    "ui.py::MainWindow": 157
+    "ui.py::MainWindow": 158
   },
   "layer_edges": [
     ["footer", "waveform_worker"],

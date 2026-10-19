@@ -275,10 +275,14 @@ def test_a_rewrite_error_exits_2_and_writes_nothing(repo: pathlib.Path) -> None:
 
 def test_check_rejects_a_raised_ratchet_in_the_branch_that_creates_the_file(repo: pathlib.Path) -> None:
     _git(repo, "rm", "-q", "tests/baselines/t099_ratchets.json")
+    (repo / "ui.py").write_text("x = 1\n" * 3000, encoding="utf-8")   # lo que mide la base: 3000 líneas
+    _git(repo, "add", "ui.py")
     _commit(repo, "main sin trinquetes")
     _git(repo, "branch", "-f", "main", "HEAD")
     _codemod_and_commit(repo)
-    _set_ratchets(repo)                               # la rama lo crea
-    _set_ratchets(repo, max_lines={"ui.py": 3100})    # y después lo sube
+    _set_ratchets(repo)                               # la rama lo crea con lo medido
+    r = _cli(repo, "--check")
+    assert r.returncode == 0, r.stdout + r.stderr
+    _set_ratchets(repo, max_lines={"ui.py": 3100})    # y después lo sube por encima de la base medida
     r = _cli(repo, "--check")
     assert r.returncode == 1 and "max_lines: ui.py subió de 3000 a 3100" in r.stdout, r.stdout + r.stderr

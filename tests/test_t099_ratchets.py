@@ -105,14 +105,65 @@ def test_without_the_base_ref_it_fails_explaining_how_to_fetch_it(repo: pathlib.
         base_ratchets(repo)
 
 
-def test_the_branch_that_creates_the_file_compares_against_the_commit_that_added_it(repo: pathlib.Path) -> None:
+def _commit_ui(repo: pathlib.Path, n_lines: int, msg: str) -> None:
+    (repo / "ui.py").write_text("x = 1\n" * n_lines, encoding="utf-8")
+    _git(repo, "add", "ui.py")
+    _git(repo, "commit", "-q", "-m", msg)
+
+
+def _measured_base(repo: pathlib.Path) -> dict[str, Any]:
+    return base_ratchets(repo)[1]
+
+
+@pytest.mark.parametrize(("declared", "ok"), [(1300, False), (1200, True), (1100, True)])
+def test_a_new_json_cannot_declare_a_ceiling_above_what_the_base_measures(
+        repo: pathlib.Path, declared: int, ok: bool) -> None:
+    _commit_ui(repo, 1200, "main mide 1200")
     _git(repo, "checkout", "-q", "-b", "feat")
-    with pytest.raises(BaseUnavailable, match="no está commiteado"):
-        base_ratchets(repo)
-    _commit_ratchets(repo, BASE, "alta")
-    _commit_ratchets(repo, _with(max_lines={"ui.py": 3500}), "sube a escondidas")
-    _, base = base_ratchets(repo)
-    assert base["max_lines"] == {"ui.py": 3000}
+    _commit_ratchets(repo, _with(max_lines={"ui.py": declared}, max_methods={}, layer_edges=[], layer_qt=[],
+                                 layer_cycles=[]), "alta del JSON")
+    base = _measured_base(repo)
+    assert base["max_lines"] == {"ui.py": 1200}
+    errors = monotonic_errors(base, load(repo))
+    assert errors == ([] if ok else [f"max_lines: ui.py subió de 1200 a {declared} (solo puede bajar)"]), errors
+
+
+def test_main_growing_before_the_json_lands_does_not_break_the_branch(repo: pathlib.Path) -> None:
+    _commit_ui(repo, 1100, "main mide 1100")
+    _git(repo, "checkout", "-q", "-b", "feat")
+    _commit_ratchets(repo, _with(max_lines={"ui.py": 1100}, max_methods={}, layer_edges=[], layer_qt=[],
+                                 layer_cycles=[]), "alta del JSON con lo medido")
+    _git(repo, "checkout", "-q", "main")
+    _commit_ui(repo, 1200, "main crece (revert ajeno a la rama)")
+    _git(repo, "checkout", "-q", "feat")
+    _git(repo, "merge", "-q", "--no-edit", "main")
+    _commit_ratchets(repo, _with(max_lines={"ui.py": 1200}, max_methods={}, layer_edges=[], layer_qt=[],
+                                 layer_cycles=[]), "re-medido tras traer main")
+    assert monotonic_errors(_measured_base(repo), load(repo)) == []
+
+
+def test_a_new_json_needs_no_commit_and_typed_modules_floor_is_its_first_commit(repo: pathlib.Path) -> None:
+    _git(repo, "checkout", "-q", "-b", "feat")
+    (repo / RATCHETS_REL).parent.mkdir(parents=True, exist_ok=True)
+    (repo / RATCHETS_REL).write_text(json.dumps(_with(max_lines={}, max_methods={}, layer_edges=[], layer_qt=[],
+                                                      layer_cycles=[])), encoding="utf-8")
+    assert _measured_base(repo)["typed_modules"] == []          # sin commit todavía: sin piso
+    _commit_ratchets(repo, _with(max_lines={}, max_methods={}, layer_edges=[], layer_qt=[], layer_cycles=[],
+                                 typed_modules=["db", "worker"]), "alta")
+    _commit_ratchets(repo, _with(max_lines={}, max_methods={}, layer_edges=[], layer_qt=[], layer_cycles=[],
+                                 typed_modules=["db"]), "achica a escondidas")
+    assert monotonic_errors(_measured_base(repo), load(repo)) == [
+        "typed_modules: worker salió de la lista (solo puede crecer)"]
+
+
+def test_measured_base_includes_layer_violations_of_that_tree(repo: pathlib.Path) -> None:
+    (repo / "db.py").write_text("import ui\n", encoding="utf-8")
+    (repo / "ui.py").write_text("", encoding="utf-8")
+    _git(repo, "add", "db.py", "ui.py")
+    _git(repo, "commit", "-q", "-m", "L0 importa L5")
+    _git(repo, "checkout", "-q", "-b", "feat")
+    base = _measured_base(repo)
+    assert base["layer_edges"] == [["db", "ui"]] and base["max_lines"] == {}
 
 
 def test_once_merged_the_base_is_the_merge_base_version(repo: pathlib.Path) -> None:

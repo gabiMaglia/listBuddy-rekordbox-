@@ -4,8 +4,11 @@
 
 Los valores viven en `tests/baselines/t099_ratchets.json` y no en los tests: así bajar un trinquete no es
 «cambiar un test» (ADR-007 D5) y se puede verificar contra la base que solo bajó. La base es
-`git merge-base HEAD main`; si ahí el archivo todavía no existe (la rama que lo crea), se compara contra el
-commit que lo agregó.
+`git merge-base HEAD main`. Si ahí el JSON ya existe, manda ese JSON. Si todavía no existe (la rama que lo
+crea), manda lo MEDIDO sobre el árbol del merge-base (ADR-007 Addendum 1, nota): un JSON nuevo no puede
+declarar un techo mayor que la realidad de main, y lo que main cambie antes de que el JSON entre no rompe
+nada. `typed_modules` no se puede medir (es un compromiso, no una medida): su piso es el primer JSON
+commiteado en la rama.
 """
 from __future__ import annotations
 
@@ -13,7 +16,7 @@ import json
 import os
 import pathlib
 import subprocess
-from typing import Any
+from typing import Any, Callable
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RATCHETS_REL = "tests/baselines/t099_ratchets.json"
@@ -108,14 +111,36 @@ def merge_base(root: pathlib.Path = ROOT, refs: tuple[str, ...] = BASE_REFS) -> 
     )
 
 
-def base_ratchets(root: pathlib.Path = ROOT, refs: tuple[str, ...] = BASE_REFS) -> tuple[str, dict[str, Any]]:
-    """(commit, trinquetes) contra los que se compara la rama."""
+def _excluded(rel: str) -> bool:
+    return any(d in EXCLUDED_DIRS or d.startswith(".") for d in rel.split("/")[:-1])
+
+
+def tree_files(root: pathlib.Path, rev: str) -> dict[str, str]:
+    """Lo mismo que `project_files`, pero del árbol de `rev` en git."""
+    listed = _git(root, "ls-tree", "-r", "--name-only", rev).stdout.decode("utf-8").splitlines()
+    return {rel: _git(root, "show", f"{rev}:{rel}").stdout.decode("utf-8")
+            for rel in sorted(listed) if rel.endswith(".py") and not _excluded(rel)}
+
+
+Measure = Callable[[dict[str, str]], dict[str, Any]]
+
+
+def base_ratchets(root: pathlib.Path = ROOT, refs: tuple[str, ...] = BASE_REFS,
+                  measure: Measure | None = None) -> tuple[str, dict[str, Any]]:
+    """(commit, trinquetes) contra los que se compara la rama: el JSON del merge-base o, si ahí no existe,
+    lo medido sobre ese árbol."""
     base = merge_base(root, refs)
     shown = _git(root, "show", f"{base}:{RATCHETS_REL}")
     if shown.returncode == 0:
         return base, parse(shown.stdout.decode("utf-8"))
+    if measure is None:
+        from _t099_measure import measure_ratchets   # perezoso: _t099_measure importa los tests que usan este módulo
+        measure = measure_ratchets
+    measured = measure(tree_files(root, base))
     added = _git(root, "log", "--diff-filter=A", "--format=%H", "--reverse", "HEAD", "--", RATCHETS_REL)
     first = added.stdout.decode().split()
-    if not first:
-        raise BaseUnavailable(f"{RATCHETS_REL} no está commiteado: commitealo para fijar la línea de base")
-    return first[0], parse(_git(root, "show", f"{first[0]}:{RATCHETS_REL}").stdout.decode("utf-8"))
+    measured["typed_modules"] = (
+        parse(_git(root, "show", f"{first[0]}:{RATCHETS_REL}").stdout.decode("utf-8"))["typed_modules"]
+        if first else []
+    )
+    return base, parse(json.dumps(measured))
