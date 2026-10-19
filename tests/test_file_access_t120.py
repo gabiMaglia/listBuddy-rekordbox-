@@ -164,6 +164,52 @@ def test_atomic_copy_failure_mid_copy_keeps_destination_and_removes_tmp(
     assert not (tmp_path / "collection.nml.restoretmp").exists()
 
 
+def test_remove_deletes_and_by_default_tolerates_a_missing_file(tmp_path: Path) -> None:
+    p = tmp_path / "x.part"
+    p.write_bytes(b"x")
+    fa.remove(p)
+    assert not p.exists()
+    fa.remove(p)                                       # ya no está: missing_ok=True por defecto
+
+
+def test_remove_strict_raises_when_missing(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        fa.remove(tmp_path / "nada", missing_ok=False)
+
+
+@pytest.mark.parametrize("linesep", ["\r\n", "\n"])
+def test_rekordbox_xml_keeps_the_platform_line_endings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, linesep: str,
+) -> None:
+    """D2 (QA T-120): antes de la capa, `ElementTree.write(ruta)` abría en modo texto y en Windows
+    salía CRLF. `_pyio` lee `os.linesep` al abrir, así el caso Windows también corre en macOS."""
+    import _pyio
+    from xml.etree import ElementTree as ET
+
+    import rekordbox_xml as rx
+
+    xml = tmp_path / "rekordbox.xml"
+    xml.write_text(
+        '<?xml version="1.0" encoding="UTF-8"?><DJ_PLAYLISTS Version="1.0.0"><COLLECTION Entries="1">'
+        '<TRACK TrackID="1" Name="Ñandú" Artist="A" Location="file://localhost/x/a.mp3"/></COLLECTION>'
+        '<PLAYLISTS><NODE Type="0" Name="ROOT" Count="1"><NODE Type="1" Name="P" KeyType="0" Entries="1">'
+        '<TRACK Key="1"/></NODE></NODE></PLAYLISTS></DJ_PLAYLISTS>', encoding="utf-8")
+    pl = rx.get_playlist_tree(rx.open_library(xml))[0]["playlist"]
+    out = tmp_path / "out.xml"
+    monkeypatch.setattr(os, "linesep", linesep)
+    monkeypatch.setattr(fa, "open", _pyio.open, raising=False)
+    monkeypatch.setattr(ET, "open", _pyio.open, raising=False)
+    rx.write_playlists_xml([pl], out, source=xml)
+
+    # Lo que escribía el código anterior: ElementTree.write a un nombre de archivo.
+    ref = tmp_path / "ref.xml"
+    ET.ElementTree(ET.parse(out).getroot()).write(ref, encoding="UTF-8", xml_declaration=True)
+    data = out.read_bytes()
+    assert data == ref.read_bytes()
+    assert data.startswith(b"<?xml version='1.0' encoding='UTF-8'?>" + linesep.encode())
+    assert data.count(b"\n") == data.count(linesep.encode())
+
+
 def test_file_access_is_pure_stdlib_without_qt() -> None:
     """Capa L0 (ADR-007 D1): sin Qt; de lo propio solo `app_paths` (L0)."""
     tree = ast.parse((ROOT / "file_access.py").read_text(encoding="utf-8"))

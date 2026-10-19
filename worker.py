@@ -176,7 +176,7 @@ def _copy_atomic(src: Path, dest: Path, should_stop) -> None:
         os.replace(part, dest)
     except BaseException:
         try:
-            part.unlink()
+            file_access.remove(part, missing_ok=False)
         except OSError:
             pass
         raise
@@ -190,7 +190,7 @@ def _remove_orphan_parts(folder: Path, names: set[str]) -> None:
     """
     for name in names:
         try:
-            (folder / name).unlink()
+            file_access.remove(folder / name, missing_ok=False)
         except OSError:
             pass
 

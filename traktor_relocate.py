@@ -340,7 +340,7 @@ def _prune_backups(backups_dir: Path, keep: int = _BACKUP_RETENTION) -> None:
     )
     for old in backups[keep:]:
         try:
-            old.unlink()
+            file_access.remove(old, missing_ok=False)
         except OSError:
             pass  # poda es best-effort, no debe abortar la sesión
 

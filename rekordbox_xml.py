@@ -552,6 +552,7 @@ def write_playlists_xml(
             ET.SubElement(node, "TRACK", Key=ids[key_of(t)])
     ET.indent(root)
     file_access.ensure_dir(dest.parent)
-    with file_access.atomic_write(dest) as fh:
-        ET.ElementTree(root).write(fh, encoding="UTF-8", xml_declaration=True)
+    # En modo texto, como cuando ElementTree abría la ruta él mismo: CRLF en Windows, LF en macOS.
+    with file_access.atomic_write(dest, encoding="UTF-8", errors="xmlcharrefreplace") as fh:
+        ET.ElementTree(root).write(fh, encoding="unicode", xml_declaration=True)
     return WriteResult(len(playlists), len(ids), relocated, missing)

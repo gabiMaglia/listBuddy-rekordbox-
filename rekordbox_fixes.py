@@ -74,7 +74,7 @@ class FixStore:
         return merged
 
     def clear(self) -> None:
-        self.path.unlink(missing_ok=True)
+        file_access.remove(self.path)
 
     def count(self) -> int:
         return len(self.load())

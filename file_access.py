@@ -54,16 +54,23 @@ def copy_file(src: Path, dest: Path) -> None:
         raise
 
 
+def remove(path: Path, *, missing_ok: bool = True) -> None:
+    """Borra un archivo (`.part` cortado, backup podado, reparaciones)."""
+    Path(path).unlink(missing_ok=missing_ok)
+
+
 @contextlib.contextmanager
 def atomic_write(
     dest: Path, *, tmp_suffix: str = ".tmp", private: bool = False, encoding: str | None = None,
+    errors: str | None = None,
 ) -> Iterator[IO[Any]]:
     """Escribe en `<dest><tmp_suffix>` (misma carpeta), fsync y `os.replace`.
 
     Si algo falla, también una excepción del bloque `with`, el temporal se borra y
     `dest` queda como estaba. `private` crea el temporal ya en 0600 (sin ventana en la
     que otro usuario lo lea) y deja `dest` en 0600. Con `encoding` el archivo es de
-    texto; sin él, binario.
+    texto con los fines de línea de la plataforma (CRLF en Windows), igual que `open(..., "w")`;
+    sin él, binario.
     """
     dest = Path(dest)
     tmp = dest.with_name(dest.name + tmp_suffix)
@@ -71,9 +78,9 @@ def atomic_write(
     try:
         if private:
             fh: IO[Any] = os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600),
-                                    mode, encoding=encoding)
+                                    mode, encoding=encoding, errors=errors)
         else:
-            fh = open(tmp, mode, encoding=encoding)
+            fh = open(tmp, mode, encoding=encoding, errors=errors)
         with fh:
             yield fh
             fh.flush()
