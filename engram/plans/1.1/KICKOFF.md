@@ -8,7 +8,7 @@
 ## 0. Precondiciones (verificar en 1 minuto)
 
 ```bash
-cd /Users/gabrielsk/Desktop/REKORDBOX_EXTRACTOR
+cd "$(git rev-parse --show-toplevel)"   # raíz del checkout principal
 git status -sb                     # main limpio, = origin/main (si va «ahead», el PO pushea)
 git log --oneline -1               # ≥ 89e7017 (alta Sprint 5)
 source .venv/bin/activate && python -m pytest -q 2>&1 | tail -2   # exit 0 (~45 s)
