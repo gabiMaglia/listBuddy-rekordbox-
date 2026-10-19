@@ -1,0 +1,11 @@
+# T-099 (ADR-007 D5): renombres de rutas de acceso en los tests, versionados por fase.
+# Los aplica scripts/t099_rewrite_tests.py; QA corre `--check` contra main y espera diff vacío.
+# Cada entrada cambia el atributo `.old` por `.new` en tests/**/*.py (código, snippets en texto y comentarios).
+# `new` es una ruta de atributos y llamadas sin argumentos: `_export.start`, `_tree.entries()`.
+#
+# Ejemplo (F2, todavía no aplicado):
+# [[rename]]
+# old = "_start_export"
+# new = "_export.start"
+# phase = "F2"
+# note = "ExportController"
