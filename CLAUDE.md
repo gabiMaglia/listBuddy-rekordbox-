@@ -38,6 +38,7 @@ preview_card.py      → Tarjeta de carpeta de la vista previa: cabecera con est
 playlist_filter.py   → Filtro de playlists por nombre (sin Qt).
 row_blocks.py        → Bloques de filas rotas contiguas y estados/textos de la tarjeta de carpeta (sin Qt).
 startup_guard.py     → Guarda de arranque: si Qt no carga, diálogo nativo y salida 1 (solo stdlib).
+single_instance.py   → Instancia única (T-098): QLockFile en la carpeta de datos antes de cargar la UI; la segunda instancia avisa y sale.
 dialogs.py           → QMessageBox con botones en español rioplatense.
 icons.py             → Íconos SVG de trazo teñidos por token (derivan en parte de Feather, MIT).
 branding.py          → Nombre visible de la marca.
