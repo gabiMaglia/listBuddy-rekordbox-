@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from branding import APP_NAME, COPYRIGHT, LICENSE_PRICE_USD, PURCHASE_URL, SOURCE_URL
+from branding import APP_NAME, COPYRIGHT, SOURCE_URL
 from styles import ROOT, apply_title_tracking, token
 
 LICENSE_PATH = ROOT / "LICENSE"
@@ -39,7 +39,7 @@ DISCLAIMER_PATH = ROOT / "DISCLAIMER.md"
 
 # Igual a «Versión del aviso» de DISCLAIMER.md (un test lo verifica). Cambiarla
 # vuelve a mostrar el aviso a quien ya lo había aceptado.
-DISCLAIMER_VERSION = "2026-10-16.3"
+DISCLAIMER_VERSION = "2026-10-19.1"
 _DISCLAIMER_KEY = "disclaimer_accepted"
 
 _LEGAL_TEXT = (
@@ -52,8 +52,8 @@ _LEGAL_TEXT = (
     "Lo usás bajo tu responsabilidad: antes de reparar enlaces, tené una copia "
     "de tu librería."
     "<br><br>"
-    "Si compraste tu copia, tenés además los derechos de garantía y devolución "
-    "que te reconoce la ley de tu país (ver Aviso legal, sección 5 bis)."
+    "Nada de esto limita los derechos que la ley de tu país no permite "
+    "renunciar (ver Aviso legal, sección 5 bis)."
 )
 
 _TRADEMARKS_TEXT = (
@@ -65,11 +65,11 @@ _TRADEMARKS_TEXT = (
 )
 
 
-_SALE_TEXT = (
-    f"Licencia de uso y soporte: USD {LICENSE_PRICE_USD}, a través de Polar "
-    "(polar.sh), que cobra los impuestos y te factura. El programa se puede "
-    "descargar de Releases; lo que se paga es la licencia de uso con soporte, "
-    "no una donación."
+_LEGACY_TEXT = (
+    f"{APP_NAME} 1.0 es gratuito y libre (GPL-3.0), sin soporte ni garantía de "
+    "actualizaciones (versión legacy). Si te sirve, podés invitarme un café en "
+    "Ko-fi (voluntario). A partir de la versión 1.1 List Buddy se distribuye con "
+    "licencia de pago; la 1.0 queda disponible bajo GPL-3.0."
 )
 
 
@@ -202,7 +202,7 @@ class FirstRunNoticeDialog(QDialog):
         full_btn.setObjectName("close_dialog_btn")
         full_btn.clicked.connect(lambda: disclaimer_dialog(self).exec())
         ok_btn = QPushButton("Entendido")
-        ok_btn.setObjectName("about_btn")
+        ok_btn.setObjectName("kofi_btn")
         ok_btn.setDefault(True)
         ok_btn.clicked.connect(self.accept)
         row.addWidget(full_btn)
@@ -251,12 +251,10 @@ class AboutDialog(QDialog):
         source.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         layout.addWidget(source)
 
-        sale = QLabel(f"{_SALE_TEXT} {_link(PURCHASE_URL, 'Cómo comprar', token(theme, 'link'))}")
-        sale.setObjectName("about_body")
-        sale.setWordWrap(True)
-        sale.setOpenExternalLinks(True)
-        sale.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        layout.addWidget(sale)
+        legacy = QLabel(_LEGACY_TEXT)
+        legacy.setObjectName("about_body")
+        legacy.setWordWrap(True)
+        layout.addWidget(legacy)
 
         row = QHBoxLayout()
         row.setSpacing(8)
@@ -275,7 +273,7 @@ class AboutDialog(QDialog):
         layout.addLayout(row)
 
         close_btn = QPushButton("Cerrar")
-        close_btn.setObjectName("about_btn")
+        close_btn.setObjectName("kofi_btn")
         close_btn.setDefault(True)
         close_btn.clicked.connect(self.accept)
         layout.addWidget(close_btn)
