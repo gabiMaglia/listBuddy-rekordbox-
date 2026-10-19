@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 
-from PySide6.QtCore import QLockFile
+from PySide6.QtCore import QLockFile, QSysInfo
 
 from app_paths import data_dir
 
@@ -37,16 +37,46 @@ class InstanceGuard:
             self.lock.unlock()
 
 
+def _owner_is_unknowable(lock: QLockFile, path: Path) -> bool:
+    """El lock no se puede atribuir a un proceso de esta máquina: vacío, con basura o de otro host.
+
+    Qt solo comprueba el PID si el lock es de esta máquina; si no, con `setStaleLockTime(0)`
+    no lo considera viejo nunca y la app quedaría bloqueada para siempre (perfil roaming de
+    Windows tras un crash, carpeta de datos copiada de otra Mac, archivo truncado)."""
+    pid, host, _app = lock.getLockInfo()
+    if pid <= 0 or not host:
+        return True
+    if host != QSysInfo.machineHostName():
+        return True
+    # La 4.ª línea es el id de máquina que escribe Qt 6: mismo hostname no es misma máquina.
+    try:
+        lines = path.read_bytes().splitlines()
+    except OSError:
+        return False
+    theirs = lines[3].strip() if len(lines) > 3 else b""
+    ours = bytes(QSysInfo.machineUniqueId()).strip()
+    return bool(theirs and ours and theirs != ours)
+
+
 def acquire(directory: Path) -> InstanceGuard:
-    lock = QLockFile(str(directory / LOCK_NAME))
-    # Lock de toda la vida de la app: sin vencimiento por antigüedad. Si el dueño murió
-    # (crash, kill), tryLock lo detecta por PID y lo reemplaza solo.
+    path = directory / LOCK_NAME
+    lock = QLockFile(str(path))
+    # Lock de toda la vida de la app, sin vencimiento por antigüedad: si no, otra instancia
+    # podría robárselo a una ventana abierta hace horas. Un dueño muerto de esta máquina lo
+    # detecta tryLock por PID; uno que no se puede atribuir lo resuelve _owner_is_unknowable.
     lock.setStaleLockTime(0)
     if lock.tryLock(0):
         return InstanceGuard(LockStatus.ACQUIRED, lock)
-    if lock.error() == QLockFile.LockError.LockFailedError:
+    if lock.error() != QLockFile.LockError.LockFailedError:
+        return InstanceGuard(LockStatus.UNAVAILABLE, detail=f"{lock.error().name} en {lock.fileName()}")
+    if not _owner_is_unknowable(lock, path):
         return InstanceGuard(LockStatus.ALREADY_RUNNING)
-    return InstanceGuard(LockStatus.UNAVAILABLE, detail=f"{lock.error().name} en {lock.fileName()}")
+    # removeStaleLockFile no borra un lock que un proceso vivo tiene tomado (flock en
+    # macOS, archivo abierto en Windows), así que no pisa a un dueño real.
+    if lock.removeStaleLockFile() and lock.tryLock(0):
+        return InstanceGuard(LockStatus.ACQUIRED, lock)
+    # Mejor arrancar sin guarda que no poder abrir la app nunca.
+    return InstanceGuard(LockStatus.UNAVAILABLE, detail=f"lock ilegible o ajeno que no se pudo reemplazar: {path}")
 
 
 def acquire_in_data_dir() -> InstanceGuard:
