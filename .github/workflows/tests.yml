@@ -24,6 +24,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # T-099 F0: los trinquetes se comparan contra el merge-base con main
 
       - uses: actions/setup-python@v7
         with:
@@ -50,6 +52,8 @@ jobs:
       LISTBUDDY_NO_QT: '1'
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # T-099 F0: los trinquetes se comparan contra el merge-base con main
 
       - uses: actions/setup-python@v7
         with:
