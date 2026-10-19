@@ -19,19 +19,6 @@ def _flat(name: str) -> str:
     return " ".join(text.split())
 
 
-def test_no_free_of_charge_claim_in_user_facing_files() -> None:
-    # «Free Software Foundation» es un nombre propio; «software libre» va con «libre».
-    pattern = re.compile(r"gratuit|gratis|\bfree\b", re.I)
-    hits = []
-    for name in _TEXT_FILES:
-        text = _read(name).replace("Free Software Foundation", "")
-        hits += [f"{name}: {m.group(0)}" for m in pattern.finditer(text)]
-    assert hits == []
-    assert not (PROJECT_ROOT / "landing").exists() or not re.search(
-        pattern, " ".join(p.read_text(encoding="utf-8", errors="ignore")
-                          for p in (PROJECT_ROOT / "landing").rglob("*") if p.is_file()))
-
-
 def test_software_libre_wording_replaces_gratuito() -> None:
     assert "software libre (GPL v3)" in _flat("README.md")
     assert "software libre (GPL v3)" in _flat("about_dialog.py")
@@ -50,7 +37,7 @@ def test_disclaimer_liability_and_consumer_rights() -> None:
     for needle in (
         "En la máxima medida que permita la ley que te proteja",
         "daños indirectos, lucro cesante",
-        "se limita al precio que pagaste por tu copia",
+        "se limita a lo que hayas pagado por tu copia, si pagaste algo",
         "no se aplica** a los daños causados con dolo o culpa grave",
         "Ley 24.240", "Código Civil y Comercial", "Directiva 2019/770",
         "No condiciona ni limita ninguno de los derechos",
@@ -63,8 +50,8 @@ def test_disclaimer_liability_and_consumer_rights() -> None:
 def test_disclaimer_warranty_return_law_age_and_contact() -> None:
     flat = _flat("DISCLAIMER.md")
     for needle in (
-        "Garantía legal, conformidad y devolución",
-        "10 días corridos", "art. 34 de la Ley 24.240",
+        "Garantía legal, soporte y versión legacy",
+        "Ley 24.240",
         "Ley aplicable y jurisdicción", "leyes de la República Argentina",
         "mayor de edad",
         "Gabriel Maglia",
@@ -124,11 +111,11 @@ def test_source_code_notice_next_to_the_download() -> None:
     assert "SOURCE_URL" in about
 
 
-def test_first_run_notice_mentions_purchase_rights_and_non_official() -> None:
+def test_first_run_notice_mentions_consumer_rights_and_non_official() -> None:
     src = _flat("about_dialog.py")
     assert "con los derechos que te da la ley de tu país" in src
     assert "no es un producto oficial de AlphaTheta" in src
-    assert "Si compraste tu copia" in src
+    assert "Nada de esto limita los derechos que la ley de tu país no permite" in src
 
 
 def test_readme_explains_gatekeeper_block() -> None:

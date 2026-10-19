@@ -24,7 +24,7 @@ def test_no_visible_widget_text_or_window_title_says_listbuddy() -> None:
         BOOT
         + "from PySide6.QtWidgets import QLabel, QPushButton, QWidget\n"
         "w, _ = make()\n"
-        "d = ui.AboutDialog('1.0.0', 'dark', w); d.show(); app.processEvents()\n"
+        "d = ui.DonationDialog(w); d.show(); app.processEvents()\n"
         "texts = [w.windowTitle(), d.windowTitle()]\n"
         "for root in (w, d):\n"
         "    for c in root.findChildren(QWidget):\n"

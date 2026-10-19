@@ -379,3 +379,20 @@ existe solo como métodos privados de `MainWindow`, mezclado con widgets concret
 - Riesgo residual LGPL aceptado explícitamente por el PO con el informe del abogado (§6).
 
 ---
+
+### ADR-007 · Addendum 1 (PO, 2026-10-19, antes de F1)
+
+Ratificado por el PO en sesión (AskUserQuestion) a partir de los deducidos de QA y del verifier de T-099 F0:
+1. `app_logging` es capa **L4** (usa QtWidgets y `dialogs` en forma perezosa). Se agrega a la tabla D1.
+2. **L6** (`main`, `startup_guard`) puede importar `ui` **y los módulos de arranque**: `styles`, `app_logging`,
+   `startup_guard`, `single_instance` (T-098). Así la allowlist de capas puede quedar vacía al cerrar T-099.
+3. Límites de partida del trinquete de F0, medidos en `main` @ 6ec2e74: `ui.py` = 3.183 líneas,
+   `MainWindow` = 157 métodos, `ui_components.py` = 1.028 líneas (el plan decía 3.264 / 158, medidos antes de T-113).
+
+### ADR-007 · Addendum 1, nota (2026-10-19, hecho, no decisión)
+
+El PO revirtió T-113 en main (2a5d406: la 1.0.0 legacy conserva Ko-fi, T-122). Medido en main @ 57acaf9:
+`ui.py` = 3.264 líneas, `MainWindow` = 158 métodos, `ui_components.py` = 1.028 (vuelven a ser los números del
+plan original). Los límites de partida del trinquete de F0 son los MEDIDOS en el merge-base con main, no
+3.183 / 157: el punto 3 del Addendum 1 ratificó «los límites medidos», y la medición cambió por una decisión
+del propio PO. Cuando la 1.1 saque Ko-fi de nuevo (licencia paga, T-121), el trinquete bajará solo.
