@@ -22,5 +22,6 @@
 | 2026-10-16 | GitHub (origin) | `gh pr merge 1 --merge --delete-branch` (T-112 → main) — ejecutado por el Orquestador | https://github.com/gabiMaglia/listBuddy-rekordbox-/pull/1 | T-112 | PO (flujo rama + PR autorizado 2026-10-16) |
 | 2026-10-19 | GitHub (origin) | `git push origin main` (T-106 vista previa a escala) — ejecutado por el Orquestador | gabiMaglia/listBuddy-rekordbox- @ abe3031 | T-106 | PO (autorización de push de la sesión) |
 | 2026-10-19 | GitHub (origin) | `git push --force origin main` (historia reescrita con git filter-repo: `listBuddy_design/uploads/` purgada; 42f3317 → c0394c5) + `--delete feature/T-023-traktor-volume feature/T-028-matching-tolerante` — ejecutado por el PO a mano con el script del Orquestador | gabiMaglia/listBuddy-rekordbox- @ c0394c5 | T-111 | PO (autorizado 2026-10-16, ejecutado por él mismo). Backup previo: ~/Desktop/listBuddy-pre-purge-2026-10-19.bundle |
+| 2026-10-19 | GitHub (origin) | `git push origin main` ×5 (T-111 SPDX, fix del test de Cancelar de T-106, limpieza de repo, docs de cierre) — ejecutado por el Orquestador | gabiMaglia/listBuddy-rekordbox- @ 4051929 | T-106, T-111 | PO (autorización de push de la sesión) |
 
 - 2026-10-15 · (ninguna escritura externa en la sesión de la tarde: merges locales a main, sin push, sin PR, sin tracker) · T-086..T-097 · —

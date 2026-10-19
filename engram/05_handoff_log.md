@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-19 11:20] CIERRE DE SESIÓN
+- Hecho hoy: T-106 Done (verifier ×3 + QA ×3), T-111 Done (SPDX 32/32 + purga de historia con filter-repo, force push a mano por el PO), T-112 Done vía PR #1 (job Windows verde), limpieza de repo (plans/, research a engram/, assets a listBuddy_design, 22 ramas, dist/). Tanda T-104 cerrada completa; `origin/main` @ 4051929.
+- Próximo paso: PO configura GitHub (environment `release`, ruleset), Apple (cert + API key) y Polar (producto USD 9) → tag v1.0.0.
+- Quien retoma: nerv-orquestador (release) · nerv-desktop si el primer build real de Windows falla.
+
 ### [2026-10-16 14:20] Límite de API (reset 14:00) → 4 agentes reanudados · T-109 listo → QA (A)
 - Los 4 agentes (T-105, T-107, T-109, comparativa MoR) se cortaron por el límite de sesión; reanudados con `SendMessage` (contexto intacto) a las 14:01. T-109 volvió completo (8 commits, 9/10 ítems con rojo estricto; LEG-28 por mutación). `nerv-gate.sh` REJECTED FILES_MISMATCH por bug de la herramienta: `--files` se parte por espacios y los PNG borrados tienen espacios en el nombre → chequeos equivalentes a mano (295 líneas reviewables → A; rutas personales vacías; tests verdes). Bug reportado al playbook.
 - Quien retoma: nerv-qa T-109 → nerv-orquestador.

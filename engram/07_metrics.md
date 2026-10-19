@@ -7,6 +7,15 @@
 
 - 2026-10-16 · `nerv-metrics.sh` → «sin sesiones medidas» (hook PreToolUse NO instalado en este proyecto; reportado al PO). Tokens de subagentes reportados por el harness: QA 13 × 63-115k; verifier 9 × 87-164k; arquitecto 2 × ~111k; nerv-desktop 5 × 65-116k. Orden de magnitud: ~2,4M tokens de subagentes en la sesión.
 
+- 2026-10-19 · `nerv-metrics.sh` → «sin sesiones medidas» (hook PreToolUse sigue sin instalar; reportado al PO). Tokens de subagentes reportados por el harness en la sesión 16→19/10: ≈3,2 M (T-105 impl+verifier ×3 ≈0,6 M; T-106 impl+QA ×3+verifier ×3 ≈1,2 M; T-108 impl+QA+verifier ×2 ≈0,8 M; T-112 ≈0,1 M; resto QA/verifier). Rondas: QA 7 (3 rechazos), verifier 8 (4 refutaciones), todas con defecto real o test vacuo.
+
+## §Proceso — Sprint 4 (re-auditoría T-104, cerrado 2026-10-19)
+- Tickets: 8 (T-105..T-112) · Done: 8 · nivel S: 3 (T-105, T-106, T-108).
+- % rechazo QA: 3 de 7 rondas (43 %); refutaciones del verifier: 4 de 8 (50 %). Todas por defectos reales o tests vacuos; ninguna por criterio ambiguo.
+- Cycle time: T-107/T-109/T-110 1 día; T-105 y T-108 2 días; T-106 4 días (límite de API + 2 refutaciones + 2 rechazos); T-111/T-112 1 día.
+- Días en bloqueo: 2 (límite semanal de la API, 17→18/10) + ≈3 h (disco lleno, 16/10).
+- Edad del backlog: sin tickets abiertos del sprint; abiertos previos: T-086 (decisión PO), T-098, T-099, T-102.
+
 ## §Proceso — Sprint 1 (reskin + menores, cerrado 2026-10-13)
 | Métrica | Valor | Fuente |
 |---|---|---|
