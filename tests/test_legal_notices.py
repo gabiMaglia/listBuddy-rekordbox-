@@ -67,7 +67,7 @@ def test_about_dialog_shows_legal_notices_and_viewers_load() -> None:
         "d = about_dialog.AboutDialog('9.8.7', 'dark', w); d.show(); app.processEvents()\n"
         "text = ' '.join(l.text() for l in d.findChildren(QLabel))\n"
         "for needle in ('9.8.7', 'Gabriel Maglia', 'GPL', 'SIN NINGUNA GARANTÍA',\n"
-        "               'github.com/gabiMaglia/listBuddy-rekordbox-', 'AlphaTheta'):\n"
+        "               'github.com/gabiMaglia/listbuddy', 'AlphaTheta'):\n"
         "    assert needle in text, needle\n"
         "n = about_dialog.notices_dialog(d); n.show(); app.processEvents()\n"
         "body = n.findChild(QTextBrowser).toPlainText()\n"
@@ -88,7 +88,7 @@ def test_viewer_degrades_to_link_when_file_is_missing() -> None:
         "w, _ = make()\n"
         "v = about_dialog.TextViewerDialog('X', pathlib.Path('/no/existe.txt'), markdown=False, parent=w)\n"
         "t = v.findChild(QPlainTextEdit).toPlainText()\n"
-        "assert 'github.com/gabiMaglia/listBuddy-rekordbox-' in t, t\n"
+        "assert 'github.com/gabiMaglia/listbuddy' in t, t\n"
         "print('ok')\n"
     )
     assert r.returncode == 0 and "ok" in r.stdout, r.stderr[-2000:]

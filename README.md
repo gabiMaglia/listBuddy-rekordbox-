@@ -47,7 +47,7 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 
 ## Descargar
 
-Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
+Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listbuddy/releases).
 La descarga es pública; para usarla con licencia y soporte, mirá [Comprar](#comprar).
 
 - **Código fuente:** el de cada versión está en la sección [Código fuente](#código-fuente).
@@ -57,7 +57,7 @@ La descarga es pública; para usarla con licencia y soporte, mirá [Comprar](#co
   shasum -a 256 -c ListBuddy-<versión>.dmg.sha256     # debe decir: ListBuddy-<versión>.dmg: OK
   ```
 
-  Lo mismo vale para el fuente de esa versión, `listbuddy-<versión>-src.tar.gz` (con su `listbuddy-<versión>-src.tar.gz.sha256`). Si dice `FAILED`, no lo abras y bajalo de nuevo desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
+  Lo mismo vale para el fuente de esa versión, `listbuddy-<versión>-src.tar.gz` (con su `listbuddy-<versión>-src.tar.gz.sha256`). Si dice `FAILED`, no lo abras y bajalo de nuevo desde [Releases](https://github.com/gabiMaglia/listbuddy/releases).
 - **macOS 14.4 o posterior.** En 14.4-14.7 no está probado (se probó en 14.8). Hay un `.dmg` para Apple Silicon (`-arm64`) y otro para Intel (`-x86_64`);
   abrilo y arrastrá **List Buddy** a Aplicaciones.
   **¿Cuál bajo?** Menú  → **Acerca de esta Mac**: si dice «Chip Apple M…», bajá el `-arm64`; si dice
@@ -75,7 +75,7 @@ La descarga es pública; para usarla con licencia y soporte, mirá [Comprar](#co
 
   **Qué prueba el hash:** que el archivo que bajaste es idéntico al que figura en el `.sha256` (descarga corrupta o
   cortada). **Qué no prueba:** la autoría (quién lo publicó); si alguien pudiera reemplazar el zip también podría reemplazar el
-  `.sha256`, y sin firma no hay forma de distinguirlo. Bajalo solo desde [Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases).
+  `.sha256`, y sin firma no hay forma de distinguirlo. Bajalo solo desde [Releases](https://github.com/gabiMaglia/listbuddy/releases).
   Windows SmartScreen va a mostrar «Windows protegió tu PC»: hacé click en **Más información** →
   **Ejecutar de todas formas**.
 
@@ -93,8 +93,8 @@ La descarga es pública; para usarla con licencia y soporte, mirá [Comprar](#co
 ## Instalación desde fuente
 
 ```bash
-git clone https://github.com/gabiMaglia/listBuddy-rekordbox-.git
-cd listBuddy-rekordbox-
+git clone https://github.com/gabiMaglia/listbuddy.git
+cd listbuddy
 python -m venv .venv
 source .venv/bin/activate          # Windows: .\.venv\Scripts\activate
 pip install -r requirements.txt
@@ -265,7 +265,7 @@ Python · PySide6 · numpy · PyInstaller
 ## Código fuente
 
 List Buddy es software libre (GPL v3): el código de cada versión está en
-[github.com/gabiMaglia/listBuddy-rekordbox-](https://github.com/gabiMaglia/listBuddy-rekordbox-)
+[github.com/gabiMaglia/listbuddy](https://github.com/gabiMaglia/listbuddy)
 y podés compilarlo vos: el código fuente está disponible sin cargo.
 
 ## Comprar
@@ -273,7 +273,7 @@ y podés compilarlo vos: el código fuente está disponible sin cargo.
 La 1.0.0 es de pago: la **licencia de uso + soporte** cuesta **USD 9** y se compra en
 [Polar](https://polar.sh) (polar.sh), que actúa como merchant of record: cobra los impuestos,
 te factura y gestiona la devolución según su política. El `.dmg` es público en
-[Releases](https://github.com/gabiMaglia/listBuddy-rekordbox-/releases) y el programa es software
+[Releases](https://github.com/gabiMaglia/listbuddy/releases) y el programa es software
 libre (GPL v3): lo que comprás es la licencia de uso con soporte, no una donación. Tenés 10 días
 corridos para arrepentirte (ver el [Aviso legal](DISCLAIMER.md), sección 5 bis).
 

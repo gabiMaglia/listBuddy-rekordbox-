@@ -1,7 +1,7 @@
 # STATE — listBuddy · actualizado: 2026-10-19 11:20
 
 **Sprint:** 4 — Re-auditoría T-104 (Nivel 0 + Nivel 1) → CERRADO: T-105, T-106, T-107, T-108, T-109, T-110, T-111, T-112 Done (QA formal; T-105/T-106/T-108 además con verifier ciego, nivel S).
-**Rama activa:** `main` = `origin/main` @ 4051929 (historia reescrita el 2026-10-19: captura de rekordbox purgada; backup `~/Desktop/listBuddy-pre-purge-2026-10-19.bundle`, borrable cuando el PO lo confirme) → target: tag v1.0.0. Sin otras ramas locales ni remotas.
+**Rama activa:** `main` = `origin/main` @ 4051929 (historia reescrita el 2026-10-19: captura de rekordbox purgada; backup `~/Desktop/listBuddy-pre-purge-2026-10-19.bundle`, borrable cuando el PO lo confirme) → target: tag v1.0.0. Sin otras ramas locales ni remotas. Repo renombrado a `gabiMaglia/listbuddy` (2026-10-19).
 **En curso:** nada. Suite 909+ passed; CI Tests verde en macOS y Windows (job `windows-latest` nuevo).
 **Bloqueos (PO, fuera del repo):** (1) GitHub: environment `release` + ruleset de tags `v*` (docs/RELEASE.md). (2) Apple: cert «Developer ID Application» + API key de App Store Connect. (3) Polar: alta como MoR, producto USD 9 y pegar el enlace real (T-110). (4) Opcional: ticket a GitHub Support para quitar `refs/pull/1/head` (historia vieja con la captura, riesgo bajo).
 **Decisiones abiertas:** D-13 abogado · T-102 Mac App Store (1.1) · T-098 instancia única Windows · T-099 partir ui.py / virtualizar la lista (1.1) · pata Windows en release.yml + attestation (deuda T-108).

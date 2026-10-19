@@ -71,9 +71,9 @@ Código fuente correspondiente:
 List Buddy, a pedido de cualquier persona, se entrega una copia del código
 fuente exacto de estas bibliotecas LGPL tal como viajan en esa versión, por un
 costo no mayor al de hacer la copia. Pedilo abriendo un issue en
-<https://github.com/gabiMaglia/listBuddy-rekordbox-/issues>.
+<https://github.com/gabiMaglia/listbuddy/issues>.
 
 ## Código de List Buddy
 
 Copyright (C) 2025-2026 Gabriel Maglia. Código fuente completo:
-<https://github.com/gabiMaglia/listBuddy-rekordbox->
+<https://github.com/gabiMaglia/listbuddy>

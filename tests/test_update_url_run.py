@@ -6,7 +6,7 @@ import json
 
 import update_checker
 
-_OK = "https://github.com/gabiMaglia/listBuddy-rekordbox-/releases/tag/v9.0.0"
+_OK = "https://github.com/gabiMaglia/listbuddy/releases/tag/v9.0.0"
 
 
 def _run_with_payload(monkeypatch, payload: dict) -> list[object]:

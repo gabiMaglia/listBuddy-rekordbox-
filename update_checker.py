@@ -41,11 +41,11 @@ from PySide6.QtCore import QObject, Signal
 _log = logging.getLogger("listBuddy")
 
 _RELEASES_API_URL = (
-    "https://api.github.com/repos/gabiMaglia/listBuddy-rekordbox-/releases/latest"
+    "https://api.github.com/repos/gabiMaglia/listbuddy/releases/latest"
 )
-_RELEASES_PAGE_URL = "https://github.com/gabiMaglia/listBuddy-rekordbox-/releases"
+_RELEASES_PAGE_URL = "https://github.com/gabiMaglia/listbuddy/releases"
 _REQUEST_TIMEOUT_SECONDS = 4.0
-_RELEASES_PATH = "/gabiMaglia/listBuddy-rekordbox-/releases"
+_RELEASES_PATH = "/gabiMaglia/listbuddy/releases"
 
 
 def safe_release_url(url: object) -> str | None:

@@ -38,7 +38,7 @@ def test_import_error_shows_dialog_and_exits_1(tmp_path) -> None:
     text = out.read_text(encoding="utf-8")
     assert "List Buddy necesita macOS 14.4 o posterior" in text
     assert "built for macOS 26.0" in text
-    assert "https://github.com/gabiMaglia/listBuddy-rekordbox-/releases" in text
+    assert "https://github.com/gabiMaglia/listbuddy/releases" in text
     assert "Traceback" not in r.stderr
 
 

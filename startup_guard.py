@@ -13,7 +13,7 @@ from typing import Callable, TypeVar
 
 T = TypeVar("T")
 
-RELEASES_URL = "https://github.com/gabiMaglia/listBuddy-rekordbox-/releases"
+RELEASES_URL = "https://github.com/gabiMaglia/listbuddy/releases"
 TITLE = "List Buddy no pudo abrirse"
 _MAX_DETAIL = 300
 

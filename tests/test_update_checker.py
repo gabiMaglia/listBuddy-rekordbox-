@@ -131,7 +131,7 @@ class TestCertifiPackaging:
 
 import pytest
 
-_OK = "https://github.com/gabiMaglia/listBuddy-rekordbox-/releases/tag/v1.2.0"
+_OK = "https://github.com/gabiMaglia/listbuddy/releases/tag/v1.2.0"
 
 
 class TestSafeReleaseUrl:
@@ -144,15 +144,15 @@ class TestSafeReleaseUrl:
     @pytest.mark.parametrize("bad", [
         "file:///etc/passwd",
         "javascript:alert(1)",
-        "http://github.com/gabiMaglia/listBuddy-rekordbox-/releases",
-        "https://evil.com/gabiMaglia/listBuddy-rekordbox-/releases",
-        "https://github.com.evil.com/gabiMaglia/listBuddy-rekordbox-/releases",
-        "https://github.com@evil.com/gabiMaglia/listBuddy-rekordbox-/releases",
-        "https://github.com:8443/gabiMaglia/listBuddy-rekordbox-/releases",
+        "http://github.com/gabiMaglia/listbuddy/releases",
+        "https://evil.com/gabiMaglia/listbuddy/releases",
+        "https://github.com.evil.com/gabiMaglia/listbuddy/releases",
+        "https://github.com@evil.com/gabiMaglia/listbuddy/releases",
+        "https://github.com:8443/gabiMaglia/listbuddy/releases",
         "https://github.com/otro/repo/releases/tag/v9",
-        "https://github.com/gabiMaglia/listBuddy-rekordbox-/issues/1",
-        "https://github.com/gabiMaglia/listBuddy-rekordbox-/releases/../../../evil",
-        "https://github.com/gabiMaglia/listBuddy-rekordbox-/releasesX",
+        "https://github.com/gabiMaglia/listbuddy/issues/1",
+        "https://github.com/gabiMaglia/listbuddy/releases/../../../evil",
+        "https://github.com/gabiMaglia/listbuddy/releasesX",
         "",
         None,
         123,
@@ -166,7 +166,7 @@ class TestSafeReleaseUrlEncodedDots:
 
     @pytest.mark.parametrize("path", ["%2e%2e/evil", "%2E%2E/evil", ".%2e/evil", "a/%2e%2e/%2e%2e/x", "%2e/x"])
     def test_percent_encoded_dot_segments_are_rejected(self, path):
-        assert update_checker.safe_release_url(f"https://github.com/gabiMaglia/listBuddy-rekordbox-/releases/{path}") is None
+        assert update_checker.safe_release_url(f"https://github.com/gabiMaglia/listbuddy/releases/{path}") is None
 
     @pytest.mark.parametrize("tail", ["\n", "\t", " ", "\r"])
     def test_trailing_whitespace_is_rejected(self, tail):

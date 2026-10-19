@@ -206,7 +206,7 @@ el programa no requiere edad mínima; no recolecta datos de nadie.
 
 Vendedor/autor: Gabriel Maglia, Monotributista, CUIT 20-32758971-8, Rosario,
 Argentina. Consultas, reclamos y devoluciones: gab.maglia@gmail.com ·
-<https://github.com/gabiMaglia/listBuddy-rekordbox-/issues>
+<https://github.com/gabiMaglia/listbuddy/issues>
 
 ---
 

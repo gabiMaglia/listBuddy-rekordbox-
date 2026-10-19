@@ -17,7 +17,7 @@ ui.QDesktopServices.openUrl = staticmethod(lambda url: opened.append(url.toStrin
 w = ui.MainWindow(settings_path=pathlib.Path(tempfile.mkdtemp()) / "s.ini")
 '''
 
-_OK = "https://github.com/gabiMaglia/listBuddy-rekordbox-/releases/tag/v9.0.0"
+_OK = "https://github.com/gabiMaglia/listbuddy/releases/tag/v9.0.0"
 
 
 def test_open_update_link_refuses_foreign_url() -> None:
