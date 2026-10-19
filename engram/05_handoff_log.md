@@ -3,6 +3,13 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-19 21:30] Ola 1: T-120 Done (separación del PO) · T-098 a verifier 2 · F0 a QA intento 3
+- T-120: tercer rechazo del criterio 2 (guardia: hilos sin atribuir, apagable sin rojo) → el PO eligió separar. `feat/t120-capa` (376441a + main + docstring de huecos) → gate PASS X → QA confirmación APROBADO → merge aa68219, suite en main exit 0 → Done. La guardia pasa a T-124 desde `feat/t120-file-access`. Corrección registrada: la opción al PO decía que el detector AST pasó QA y verifier; el verifier lo había refutado.
+- T-098: verifier 1 REFUTÓ (lock huérfano no borrable) → addendum 3 (STUCK_LOCK) → QA intento 4 APROBADO → deuda D-8/D-9/D-10 cerrada (STUCK falsos en carreras 17/200 y 86/200 → 0/200) → gate PASS X → verifier ciego 2 en curso.
+- F0: verifier 2 REFUTÓ (herencia relativa, test nuevo que parchea barandas) → c31ce69 (barandas en subproceso, --check rechaza tests que nombran barandas) → gate PASS S → QA intento 3 en curso. ADR-007 nota 2: capas de file_access (L0) y single_instance (L2).
+- Alta T-123 (tests inestables: test_playlist_column 5 fallas en 4 ramas; el de 150 ms de T-106 bajo carga) y T-124 (guardia). Gate: las celdas «RECHAZADO (intento N)» no contaban rechazos (igualdad exacta) → normalizadas; se lo avisé a la sesión A. PO vio la app desde la rama de T-098 y el aviso real de segunda instancia.
+- Quien retoma: verifier T-098 → merge; QA F0 → verifier 3 → merge; después T-123 (prioritario: la suite completa sale roja ~1 de cada 2 con agentes en paralelo).
+
 ### [2026-10-19 17:30] Ola 1: segunda vuelta (T-120 a verifier X, T-098 a QA S, F0 intento 2)
 - T-098: el PO rechazó la corrección de D-1 (dejaba arrancar con lock de otra máquina) y eligió «bloquear también en red»; plan T-098 sellado ANTES de rehacer (75de0d6) + addendum (lock que es carpeta → UNAVAILABLE, §QUÉ 4). Gate PASS S (618 líneas). Error del Orquestador: pasé `--attempt 2` sin rechazo de QA y el gate escaló a X; re-corrido sin el flag.
 - T-120: gate PASS X (reintento derivado del rechazo), QA intento 2 APROBADO → verifier ciego con pase hostil. T-099 F0: verifier REFUTÓ (trinquete sin base, --check incompleto, D5 inalcanzable) → intento 2 con el implementador.

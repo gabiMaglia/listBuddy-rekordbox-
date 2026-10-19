@@ -29,6 +29,7 @@ db.py                → Utilidades compartidas: order_playlist_songs(), key_bpm
 rekordbox_xml.py     → Lector del rekordbox.xml exportado. open_library(), get_playlist_tree(), get_songs().
 rekordbox_export.py  → Lógica base validada. NO modificar sin causa mayor.
 app_paths.py         → Carpeta de datos del usuario (settings.ini, rekordbox_fixes.json): Application Support (macOS) / %APPDATA% (Windows).
+file_access.py       → Costura de acceso a disco (T-120, ADR-008): lectura del XML/NML, escritura atómica, backups. No-op en la versión directa; un test AST impide abrir rutas por fuera de ella.
 rekordbox_fixes.py   → Persistencia de reparaciones de Rekordbox en rekordbox_fixes.json; se aplican al cargar el XML.
 rekordbox_xml_relocate.py → Reparar enlaces de la fuente Rekordbox (busca por nombre); las rutas nuevas van a rekordbox_fixes.json. El XML nuevo importable lo escribe rekordbox_xml.write_playlists_xml.
 traktor_db.py        → Parser de colección NML de Traktor Pro 3/4. open_collection(), get_playlist_tree().

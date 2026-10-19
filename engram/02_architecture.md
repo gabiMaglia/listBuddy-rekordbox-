@@ -396,3 +396,11 @@ El PO revirtió T-113 en main (2a5d406: la 1.0.0 legacy conserva Ko-fi, T-122). 
 plan original). Los límites de partida del trinquete de F0 son los MEDIDOS en el merge-base con main, no
 3.183 / 157: el punto 3 del Addendum 1 ratificó «los límites medidos», y la medición cambió por una decisión
 del propio PO. Cuando la 1.1 saque Ko-fi de nuevo (licencia paga, T-121), el trinquete bajará solo.
+
+### ADR-007 · Addendum 1, nota 2 (2026-10-19, clasificación por la regla D1, no decisión nueva)
+
+Dos módulos nuevos de 1.1 se clasifican aplicando la tabla D1 tal cual (los dos verifiers de F0 lo marcaron como
+abstención porque no figuraban): `file_access` = **L0** (solo stdlib + `app_paths.make_private`, sin Qt; T-120,
+ADR-008) y `single_instance` = **L2** (usa `QtCore`, ni widgets ni controladores; T-098). `single_instance` además
+es importable por L6 según el punto 2 del Addendum 1. Un módulo nuevo sin capa sigue haciendo fallar
+`tests/test_import_layers.py` hasta que se lo declare acá y en el test.
