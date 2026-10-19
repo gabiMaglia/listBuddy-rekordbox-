@@ -3,6 +3,26 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-19 13:45] CIERRE DE SESIÓN (B)
+- Hecho hoy: planificación 1.1.0 completa y mergeada: roadmap con Gherkin (T-114..T-120), planes T-099 (ADR-007) y T-102 (ADR-008) por nerv-arquitecto, mockups de Buddy (layout C con fuentes apilables ≤ 9 y splitter, elegido por el PO), 11 decisiones ratificadas, Sprint 5 dado de alta en el backlog, ADR-007/008 aceptados en 02_architecture, tabla Stack corregida. `engram/plans/1.1/KICKOFF.md` deja la Ola 1 lista para ejecutar con Opus.
+- Próximo paso: PO pushea `main` (el clasificador bloquea el push al Orquestador) y, cuando tenga tiempo, abre sesión y lanza la Ola 1 de KICKOFF.md (T-099 F0 · T-098 · T-120, en paralelo, worktrees propios). El release 1.0.0 sigue esperando cert Apple + GitHub + Polar.
+- Quien retoma: nerv-orquestador → nerv-desktop ×3 (Opus) → gate → nerv-qa (+ verifier para T-099 F0).
+
+### [2026-10-19 13:45] nerv-orquestador → nerv-desktop T-099 F0 · Niv S — PREPARADO, sin lanzar
+- Entrega: barandas de T-099: tests estáticos con trinquete (tamaño, capas, type hints), codemod `scripts/t099_rewrite_tests.py` + `t099_renames.toml`, benchmark `scripts/t099_bench.py` con línea de base pegada. No toca `ui.py`.
+- Archivos a leer: CLAUDE.md · 03_backlog fila T-099 · engram/plans/1.1/T-099.md §3 F0 y §4 · 02_architecture §ADR-007 · playbook §nerv-desktop. Prompt exacto en engram/plans/1.1/KICKOFF.md §1.
+- Se espera: estado · archivos tocados · riesgos · cómo probar · salida rojo/verde · línea de base en ms.
+
+### [2026-10-19 13:45] nerv-orquestador → nerv-desktop T-098 · Niv B — PREPARADO, sin lanzar
+- Entrega: guarda de instancia única con `QLockFile` en la carpeta de datos (Windows y macOS), lock huérfano tolerado, fallback `delay=True` en el log. 4 criterios en el backlog.
+- Archivos a leer: CLAUDE.md · 03_backlog fila T-098 · app_paths.py · app_logging.py · startup_guard.py · playbook §nerv-desktop. Prompt en KICKOFF.md §1.
+- Se espera: retorno estructurado + test con subproceso.
+
+### [2026-10-19 13:45] nerv-orquestador → nerv-desktop T-120 · Niv B — PREPARADO, sin lanzar
+- Entrega: `file_access.py` no-op (costura para un eventual sandbox) por la que pasan lecturas de XML/NML y escrituras de export/backup; test AST que impide abrir rutas por fuera en módulos nuevos.
+- Archivos a leer: CLAUDE.md · 03_backlog fila T-120 · engram/plans/1.1/T-102.md §3 F1-a · 02_architecture §ADR-008 · playbook §nerv-desktop. Prompt en KICKOFF.md §1.
+- Se espera: retorno estructurado; suite verde sin cambios de aserciones.
+
 ### [2026-10-19 13:40] CIERRE DE SESIÓN (A)
 - Hecho desde el cierre de las 11:20: T-113 Done (sin Ko-fi/qrcode, QA aprobada), repo renombrado a gabiMaglia/listbuddy (URLs en código/docs/tests), cotas de tiempo solo fuera de CI (CI verde macOS+Windows), roadmap 1.1 de la sesión B mergeado. Guía de release entregada al PO (6 pasos; hoy no hay cert, perfil notary, environment, ruleset ni secrets).
 - Próximo paso: PO → cert Developer ID + API key (pasos 1-2) → Orquestador corre el ensayo local → GitHub + Polar → tag v1.0.0. En paralelo PO ratifica roadmap_1.1.md §3.

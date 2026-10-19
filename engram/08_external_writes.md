@@ -27,3 +27,5 @@
 | 2026-10-19 | GitHub (origin) | `git push origin main` (T-113 sin Ko-fi ni qrcode) — ejecutado por el Orquestador | gabiMaglia/listbuddy | T-113 | PO (autorización de push de la sesión) |
 
 - 2026-10-15 · (ninguna escritura externa en la sesión de la tarde: merges locales a main, sin push, sin PR, sin tracker) · T-086..T-097 · —
+| 2026-10-19 | claude.ai Artifacts | publicado mockup privado «Buddy listas propias» https://claude.ai/artifact/XLTsA9xSsxQiUkbYjREKQL (copia en engram/plans/1.1/buddy-disenos.html) | sesión B | T-115 | PO (pidió ver diseños) |
+- 2026-10-19 (sesión B) · `git push origin main` INTENTADO y bloqueado por el clasificador: sin escritura en GitHub; lo hace el PO · T-114..T-120 · —
