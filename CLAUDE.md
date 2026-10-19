@@ -57,7 +57,7 @@ about_dialog.py      → «Acerca de» (avisos GPL) + visor de LICENSE y THIRD_P
 licenses/            → Textos completos de licencias de terceros (regenerar con scripts/collect_licenses.py).
 rb_exporter.spec     → Spec de PyInstaller para empaquetar (produce "listBuddy" ejecutable).
 requirements.in / requirements.txt → Dependencias directas y su lock con hashes (T-096); lo mismo para requirements-dev.*.
-plans/               → Planes de implementación autocontenidos para ejecutar con Sonnet.
+listBuddy_design/    → Prototipos de diseño (HTML/JSX) y arte fuente del ícono; fuera del tarball (`export-ignore`).
 ```
 
 **Regla de imports:** `main → ui → worker/db → rekordbox_export`. Nunca al revés.

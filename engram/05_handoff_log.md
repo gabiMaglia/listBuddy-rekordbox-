@@ -416,3 +416,7 @@
 - Entrega: alta del proyecto en el registry, engram creado, app verificada corriendo (venv creado, deps instaladas, ventana abre y lee 35 playlists de Rekordbox correctamente).
 - Se espera: definir si T-001 pasa directo a nerv-desktop o requiere ADR de nerv-arquitecto antes (backup/escritura atómica del NML).
 - Pendientes: respuesta del PO a la pregunta abierta #1 en 01_requirements.md.
+
+## 2026-10-19 — Limpieza de repo (PO → Orquestador)
+- `plans/` (planes de junio para Sonnet, superados por `engram/plans/`) borrado. `reports/` y `research_notes/` (investigación de mercado) movidos a `engram/research/` (fuera del tarball GPL). `assets/*.png` (arte fuente del ícono, sin referencias en código) movidos a `listBuddy_design/`. 22 ramas locales mergeadas, 2 worktrees viejos y 3 ramas remotas mergeadas borrados; `dist/` vaciado. Se conservan `.rbe_settings.ini` y `rekordbox_fixes.json` de la raíz (los usa la app al correr desde el código, `app_paths.py`).
+
