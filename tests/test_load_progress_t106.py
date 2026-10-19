@@ -61,6 +61,16 @@ f = d / ("rekordbox.xml" if SOURCE == "rekordbox" else "collection.nml")
 (t.write_rb if SOURCE == "rekordbox" else t.write_nml)(f, 150_000)
 ini = d / "s.ini"
 ini.write_text("[General]\\n" + ("rb_xml_path=" if SOURCE == "rekordbox" else "tk_collection_path=") + str(f) + "\\n" + ("" if SOURCE == "rekordbox" else "source=traktor\\n"))
+# Piso de duración de la carga: en un runner rápido (CI macOS arm64) los 150k tracks se leen en menos de lo que
+# tarda el test en ver el porcentaje y clickear, y la tarjeta ya no está (botón None). Cada reporte de progreso
+# (uno por bloque de 1 MB, en el hilo del worker) duerme 40 ms: con ~30 bloques la carga dura > 1 s, y como la
+# cancelación se chequea por bloque, el click sigue cortando en < 1 s.
+import library_load_worker as llw
+_orig_report = llw.LibraryLoadWorker._report
+def _slow_report(self, done, total):
+    time.sleep(0.04)
+    _orig_report(self, done, total)
+llw.LibraryLoadWorker._report = _slow_report
 ui.MainWindow._load_playlists = load_async
 w = ui.MainWindow(settings_path=ini)
 w.resize(820, 600); w.show()
@@ -78,6 +88,7 @@ while time.monotonic() < end and "%" not in texts().get("not_installed_sub", "")
 shown_pct = texts().get("not_installed_sub", "")
 worker = w._load_worker
 b = btn()
+assert b is not None, f"la tarjeta de carga ya no está al ir a cancelar (sub={{shown_pct!r}}, worker={{worker!r}}, cards={{len(w._all_cards)}})"
 t0 = time.perf_counter(); b.click()
 while time.perf_counter() - t0 < 5 and (worker.isRunning() or texts().get("not_installed_title") != "Carga cancelada"):
     app.processEvents(); time.sleep(0.002)
