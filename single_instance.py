@@ -64,7 +64,10 @@ def acquire(directory: Path) -> InstanceGuard:
     if pid > 0 and host:
         ours = bytes(QSysInfo.machineUniqueId()).strip()
         theirs = _machine_id_in(path)
-        if host != QSysInfo.machineHostName() or (theirs and ours and theirs != ours):
+        # El id de máquina manda: macOS cambia el hostname con la red y la copia viva quedaría
+        # como «otra computadora». El hostname decide solo si falta el id.
+        foreign = theirs != ours if theirs and ours else host != QSysInfo.machineHostName()
+        if foreign:
             return InstanceGuard(LockStatus.FOREIGN_HOST, host=host, path=path)
         return InstanceGuard(LockStatus.ALREADY_RUNNING, path=path)
 

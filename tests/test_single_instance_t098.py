@@ -175,10 +175,26 @@ def test_message_is_rioplatense_and_says_where_to_look(platform: str, where: str
 def test_foreign_host_message_names_the_host_and_the_full_lock_path() -> None:
     import startup_guard
     lock = Path("/Users/dj/Library/Application Support/listBuddy/listBuddy.lock")
-    title, msg = startup_guard.ALREADY_RUNNING_TITLE, startup_guard.foreign_host_message("estudio-pc", lock)
+    title, msg = startup_guard.ALREADY_RUNNING_TITLE, startup_guard.foreign_host_message("estudio-pc", lock, "darwin")
     assert "otra computadora" in startup_guard.FOREIGN_HOST_TITLE and title != startup_guard.FOREIGN_HOST_TITLE
     assert "estudio-pc" in msg and str(lock) in msg
     assert "borrá" in msg.lower() or "borrar" in msg.lower()
+
+
+@pytest.mark.parametrize("platform, lock, how", [
+    ("darwin", Path("/Users/dj/Library/Application Support/listBuddy/listBuddy.lock"),
+     ("Finder", "Ir a la carpeta", "⇧⌘G")),
+    ("win32", Path("C:/Users/dj/AppData/Roaming/listBuddy/listBuddy.lock"),
+     ("Explorador", "barra de direcciones", str(Path("C:/Users/dj/AppData/Roaming/listBuddy")))),
+])
+def test_foreign_host_message_explains_how_to_reach_the_hidden_folder(platform: str, lock: Path,
+                                                                      how: tuple[str, ...]) -> None:
+    # Addendum 2: la carpeta está oculta (~/Library, %APPDATA%); sin esto el DJ no llega al archivo.
+    import startup_guard
+    msg = startup_guard.foreign_host_message("estudio-pc", lock, platform)
+    assert all(h in msg for h in how), msg
+    assert str(lock) in msg
+    assert "carpeta de datos" not in msg
 
 
 # D-1 (QA) con la decisión del PO «Bloquear también en red» (plan T-098 §QUÉ 2-3). El PID es el de
@@ -196,7 +212,8 @@ else:
     path.write_bytes({
         'empty': b'',
         'junk': b'\\x00basura\\xff\\nzz',
-        'foreign_host': f'{pid}\\nPython\\notra-maquina\\n{uid}\\n'.encode(),
+        'foreign_host': f'{pid}\\nPython\\notra-maquina\\n11111111-2222-3333-4444-555555555555\\n'.encode(),
+        'foreign_host_no_id': f'{pid}\\nPython\\notra-maquina\\n'.encode(),
         'foreign_machine': f'{pid}\\nPython\\n{host}\\n00000000-0000-0000-0000-000000000000\\n'.encode(),
     }[kind])
 """
@@ -223,14 +240,14 @@ def test_unreadable_orphan_lock_is_taken_over_and_the_app_starts(tmp_path: Path,
 _HOST = "import sys; from PySide6.QtCore import QSysInfo; print(QSysInfo.machineHostName())"
 
 
-@pytest.mark.parametrize("kind", ["foreign_host", "foreign_machine"])
+@pytest.mark.parametrize("kind", ["foreign_host", "foreign_host_no_id", "foreign_machine"])
 def test_lock_from_another_computer_blocks_startup_and_names_host_and_path(tmp_path: Path, kind: str) -> None:
     env = _user_env(tmp_path / "home")
     data = _data_dir(env)
     _write_lock(data, kind, env)
     lock = data / "listBuddy.lock"
     before = lock.read_bytes()
-    if kind == "foreign_host":
+    if kind in ("foreign_host", "foreign_host_no_id"):
         host = "otra-maquina"
     else:
         h = subprocess.run([sys.executable, "-c", _HOST], cwd=PROJECT_ROOT, env=env,
@@ -243,6 +260,42 @@ def test_lock_from_another_computer_blocks_startup_and_names_host_and_path(tmp_p
     text = alert.read_text(encoding="utf-8") if alert.exists() else ""
     assert "otra computadora" in text and host in text and str(lock) in text, text
     assert lock.read_bytes() == before   # nunca se toma ni se reescribe el lock ajeno
+
+
+_RENAME_HOST = """
+import sys
+from pathlib import Path
+p = Path(sys.argv[1])
+lines = p.read_bytes().splitlines()
+lines[2] = b'MacBook-renombrada-2.local'
+p.write_bytes(b'\\n'.join(lines) + b'\\n')
+"""
+
+
+@pytest.mark.parametrize("owner_alive", [True, False])
+def test_same_machine_after_a_hostname_change_is_this_computer(tmp_path: Path, owner_alive: bool) -> None:
+    # Addendum 2: macOS cambia el hostname con la red (DHCP, «-2» de Bonjour). Mismo id de máquina =
+    # esta Mac: con la copia viva es «ya está abierto» (nunca «otra computadora»: el aviso mandaría a
+    # borrar el lock y quedarían dos copias); con el PID muerto es un huérfano y arranca.
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    holder = _start_holder(data, env)
+    try:
+        if not owner_alive:
+            holder.kill()
+            holder.communicate(timeout=30)
+        subprocess.run([sys.executable, "-c", _RENAME_HOST, str(data / "listBuddy.lock")], check=True, timeout=60)
+        alert = tmp_path / "alert.txt"
+        r = subprocess.run([sys.executable, "-c", _STARTS, str(alert)], cwd=PROJECT_ROOT, env=env,
+                           capture_output=True, text=True, encoding="utf-8", timeout=60)
+    finally:
+        _stop(holder)
+    text = alert.read_text(encoding="utf-8") if alert.exists() else ""
+    if owner_alive:
+        assert r.returncode == 0 and "ARRANCA" not in r.stdout, (r.returncode, r.stdout, r.stderr)
+        assert "List Buddy ya está abierto" in text and "otra computadora" not in text, text
+    else:
+        assert r.returncode == 42 and "ARRANCA" in r.stdout, (r.returncode, r.stdout, r.stderr, text)
 
 
 _FLOCK_HOLDER = """

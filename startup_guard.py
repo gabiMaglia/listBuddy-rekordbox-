@@ -32,12 +32,18 @@ def already_running_message(platform: str = sys.platform) -> str:
     )
 
 
-def foreign_host_message(host: str, lock_path: Path) -> str:
+def foreign_host_message(host: str, lock_path: Path, platform: str = sys.platform) -> str:
+    if platform == "darwin":
+        how = ("Está en una carpeta oculta: en el Finder, menú Ir › Ir a la carpeta… (⇧⌘G), "
+               "pegá esa ruta y apretá Enter.")
+    else:
+        how = ("Para llegar: abrí el Explorador de archivos, pegá esta carpeta en la barra de direcciones "
+               f"y apretá Enter:\n{lock_path.parent}")
     return (
-        f"List Buddy figura abierto en otra computadora ({host}) que usa esta misma carpeta de datos. "
-        "Para no pisar tu configuración, acá no se abre.\n\n"
+        f"List Buddy figura abierto en otra computadora ({host}) que comparte la configuración con esta. "
+        "Para no pisarla, acá no se abre.\n\n"
         "Si en esa computadora no está abierto, borrá este archivo y volvé a abrir List Buddy:\n"
-        f"{lock_path}"
+        f"{lock_path}\n\n{how}"
     )
 
 
