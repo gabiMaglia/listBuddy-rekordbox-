@@ -56,3 +56,23 @@ def test_normal_rollover_still_rotates(tmp_path: Path) -> None:
     finally:
         h.close()
     assert path.with_name("listBuddy.log.1").exists()
+
+
+def test_failed_rollover_is_not_retried_in_the_same_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # D-3 (QA): reintentar en cada línea sería un rename fallido por registro y una nota repetida.
+    path = tmp_path / "listBuddy.log"
+    h = app_logging.make_file_handler(path, max_bytes=300)
+    calls: list[str] = []
+
+    def locked(source: str, dest: str) -> None:
+        calls.append(dest)
+        raise PermissionError(32, "El proceso no tiene acceso al archivo", source)
+
+    monkeypatch.setattr(h, "rotate", locked)
+    try:
+        for i in range(20):
+            h.emit(_record(i))
+    finally:
+        h.close()
+    assert len(calls) == 1, calls
+    assert path.read_text(encoding="utf-8").count("no se pudo rotar el log") == 1
