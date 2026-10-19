@@ -1,27 +1,19 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2025-2026 Gabriel Maglia
-"""T-099 F0: type hints completos en los módulos de TYPED_MODULES.
+"""T-099 F0: type hints completos en los módulos de `typed_modules` (`tests/baselines/t099_ratchets.json`).
 
-Todo parámetro (salvo `self`/`cls`, incluidos `*args`/`**kwargs`) y todo retorno anotados, en funciones de
-cualquier nivel. La lista crece con cada fase de T-099 y nunca se achica.
+Todo parámetro (salvo `self`/`cls`, incluidos posicionales puros, keyword-only, `*args` y `**kwargs`) y todo
+retorno anotados, en funciones de cualquier nivel. Los módulos van con nombre punteado (`pkg.mod` para
+subpaquetes). La lista crece con cada fase de T-099 y nunca se achica: lo vigila `tests/test_t099_ratchets.py`
+contra la base de la rama.
 """
 from __future__ import annotations
 
 import ast
-import pathlib
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+from _t099_ratchets import load, module_name, project_files
 
-# F0: los módulos de L0 (ADR-007 D1) que ya cumplen el 2026-10-19.
-TYPED_MODULES: tuple[str, ...] = (
-    "app_paths",
-    "audio_formats",
-    "branding",
-    "db",
-    "load_cancel",
-    "playlist_filter",
-    "row_blocks",
-)
+TYPED_MODULES: tuple[str, ...] = tuple(load()["typed_modules"])
 
 
 def missing_hints(source: str, filename: str = "<src>") -> list[str]:
@@ -39,12 +31,20 @@ def missing_hints(source: str, filename: str = "<src>") -> list[str]:
     return out
 
 
-def test_listed_modules_are_fully_type_hinted() -> None:
+def typed_errors(files: dict[str, str], typed: tuple[str, ...]) -> list[str]:
     errors: list[str] = []
-    for mod in TYPED_MODULES:
-        path = ROOT / f"{mod}.py"
-        assert path.is_file(), f"{mod}.py está en TYPED_MODULES pero no existe"
-        errors += missing_hints(path.read_text(encoding="utf-8"), path.name)
+    by_module = {module_name(rel): (rel, src) for rel, src in files.items()}
+    for mod in typed:
+        if mod not in by_module:
+            errors.append(f"{mod} está en typed_modules pero no existe")
+            continue
+        rel, src = by_module[mod]
+        errors += missing_hints(src, rel)
+    return errors
+
+
+def test_listed_modules_are_fully_type_hinted() -> None:
+    errors = typed_errors(project_files(), TYPED_MODULES)
     assert not errors, "\n".join(errors)
 
 
@@ -74,4 +74,14 @@ def test_keyword_only_and_positional_only_parameters_without_type_are_reported()
     assert missing_hints(src, "m.py") == [
         "m.py:1 f(): parámetro «a» sin tipo",
         "m.py:1 f(): parámetro «c» sin tipo",
+    ]
+
+
+def test_subpackage_modules_can_be_listed_and_are_checked() -> None:
+    files = {"pkg/__init__.py": "def f(a): ...\n", "pkg/sub/m.py": "def g() -> None: ...\n"}
+    assert typed_errors(files, ("pkg.sub.m",)) == []
+    assert typed_errors(files, ("pkg", "nada")) == [
+        "pkg/__init__.py:1 f(): parámetro «a» sin tipo",
+        "pkg/__init__.py:1 f(): retorno sin tipo",
+        "nada está en typed_modules pero no existe",
     ]

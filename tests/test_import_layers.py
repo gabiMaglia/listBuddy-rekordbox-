@@ -2,18 +2,24 @@
 # Copyright (C) 2025-2026 Gabriel Maglia
 """T-099 F0 (criterio 4, ADR-007 D1): capas de import con un solo sentido, vigiladas por AST.
 
-Se recorre el AST entero de cada módulo de la raíz, así que cuentan también los imports dentro de funciones,
-de `try` y de `if TYPE_CHECKING` (y `importlib.import_module("x")` con texto literal). Falla ante un import
-hacia una capa no permitida, ante un import de Qt prohibido para la capa y ante un ciclo. Las violaciones de
-hoy viven en ALLOWED_*: solo pueden achicarse, y al cerrar T-099 quedan vacías.
+Se recorre el AST entero de cada módulo de la app (raíz y subpaquetes, con nombre punteado `pkg.mod`), así
+que cuentan también los imports dentro de funciones, de `try` y de `if TYPE_CHECKING`, los relativos y
+`importlib.import_module("x")` con texto literal. Falla ante un import hacia una capa no permitida, ante un
+import de Qt prohibido para la capa y ante un ciclo. Las violaciones de hoy viven en
+`tests/baselines/t099_ratchets.json` (`layer_edges`, `layer_qt`, `layer_cycles`): acá se exige que coincidan
+con lo medido y `tests/test_t099_ratchets.py`, que solo se achiquen respecto de la base. Al cerrar T-099 quedan
+vacías.
+
+Chequeo manual de QA (no se puede por AST): D1 deja que L4 importe L1 «solo tipos de datos». El test admite
+cualquier import L4 → L1; QA revisa en cada fase que lo importado sean dataclasses/NamedTuple/enums y no
+funciones con E/S ni workers (hoy no hay ningún import L4 → L1).
 """
 from __future__ import annotations
 
 import ast
-import pathlib
 from typing import NamedTuple
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+from _t099_ratchets import load, module_name, project_files
 
 # ADR-007 D1 (engram/02_architecture.md). Incluye módulos que todavía no existen: se declaran antes de llegar.
 LAYERS: dict[str, int] = {
@@ -59,24 +65,10 @@ L6_ALLOWED_MODULES = frozenset({"ui"})
 QT_FORBIDDEN: dict[int, tuple[str, ...]] = {0: ("PySide6",), 1: ("PySide6",), 2: ("PySide6.QtWidgets",),
                                              3: ("PySide6.QtWidgets",)}
 
-# Violaciones medidas el 2026-10-19 sobre main (6ec2e74). Solo pueden achicarse.
-ALLOWED_EDGES: frozenset[tuple[str, str]] = frozenset({
-    ("rekordbox_export", "rekordbox_xml"),   # L0 → L1
-    ("footer", "waveform_worker"),           # L4 → L2
-    ("preview_card", "preview_worker"),      # L4 → L2
-    ("ui_components", "preview_worker"),     # L4 → L2
-    ("ui_components", "waveform_worker"),    # L4 → L2
-    ("main", "app_logging"),                 # L6 → L4
-    ("main", "startup_guard"),               # L6 → L6
-    ("main", "styles"),                      # L6 → L4
-})
-ALLOWED_QT: frozenset[tuple[str, str]] = frozenset({
-    ("relocate_core", "PySide6.QtCore"),     # L1 con Qt
-    ("update_checker", "PySide6.QtCore"),    # L1 con Qt
-})
-ALLOWED_CYCLES: frozenset[frozenset[str]] = frozenset({
-    frozenset({"preview_card", "ui_components"}),
-})
+_RATCHETS = load()
+ALLOWED_EDGES: frozenset[tuple[str, str]] = frozenset((a, b) for a, b in _RATCHETS["layer_edges"])
+ALLOWED_QT: frozenset[tuple[str, str]] = frozenset((a, b) for a, b in _RATCHETS["layer_qt"])
+ALLOWED_CYCLES: frozenset[frozenset[str]] = frozenset(frozenset(c) for c in _RATCHETS["layer_cycles"])
 
 
 class Imports(NamedTuple):
@@ -84,26 +76,39 @@ class Imports(NamedTuple):
     qt: set[str]
 
 
-def imports_of(source: str, project: set[str], filename: str = "<src>") -> Imports:
+def imports_of(source: str, project: set[str], filename: str = "<src>", module: str = "",
+               is_package: bool = False) -> Imports:
     """Módulos del proyecto y de PySide6 que importa `source`, en cualquier nivel del AST."""
     names: set[str] = set()
+    package = module.split(".") if is_package else module.split(".")[:-1]
     for node in ast.walk(ast.parse(source, filename=filename)):
         if isinstance(node, ast.Import):
             names.update(a.name for a in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-            names.add(node.module)
-            if node.module == "PySide6":
-                names.update(f"PySide6.{a.name}" for a in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                base = package[:len(package) - (node.level - 1)] if node.level - 1 <= len(package) else []
+                full = ".".join([*base, *([node.module] if node.module else [])])
+            else:
+                full = node.module or ""
+            if full:
+                names.add(full)
+            names.update(f"{full}.{a.name}" if full else a.name for a in node.names)
         elif (isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant)
               and isinstance(node.args[0].value, str) and _is_dynamic_import(node.func)):
             names.add(node.args[0].value)
     found = Imports(set(), set())
     for name in names:
-        top = name.split(".")[0]
-        if top in project:
-            found.project.add(top)
-        elif top == "PySide6":
-            found.qt.add(name)
+        parts = name.split(".")
+        if parts[0] == "PySide6":
+            if len(parts) <= 2 and not (len(parts) == 2 and not parts[1].startswith("Qt")):
+                found.qt.add(name)
+            continue
+        # El módulo del proyecto más largo que sea prefijo: `pkg.mod.Clase` → `pkg.mod`.
+        for k in range(len(parts), 0, -1):
+            cand = ".".join(parts[:k])
+            if cand in project:
+                found.project.add(cand)
+                break
     return found
 
 
@@ -113,9 +118,9 @@ def _is_dynamic_import(func: ast.expr) -> bool:
     return isinstance(func, ast.Attribute) and func.attr == "import_module"
 
 
-def graph_of(sources: dict[str, str]) -> dict[str, Imports]:
+def graph_of(sources: dict[str, str], packages: frozenset[str] = frozenset()) -> dict[str, Imports]:
     project = set(sources)
-    return {mod: imports_of(src, project, f"{mod}.py") for mod, src in sources.items()}
+    return {mod: imports_of(src, project, f"{mod}.py", mod, mod in packages) for mod, src in sources.items()}
 
 
 def cycles(graph: dict[str, set[str]]) -> set[frozenset[str]]:
@@ -163,8 +168,9 @@ class Violations(NamedTuple):
     cycles: set[frozenset[str]]
 
 
-def violations(sources: dict[str, str], layers: dict[str, int] = LAYERS) -> Violations:
-    graph = graph_of(sources)
+def violations(sources: dict[str, str], layers: dict[str, int] = LAYERS,
+               packages: frozenset[str] = frozenset()) -> Violations:
+    graph = graph_of(sources, packages)
     undeclared = sorted(m for m in graph if m not in layers)
     edges: set[tuple[str, str]] = set()
     qt: set[tuple[str, str]] = set()
@@ -209,12 +215,16 @@ def report(found: Violations) -> list[str]:
     return errors
 
 
-def root_sources(root: pathlib.Path = ROOT) -> dict[str, str]:
-    return {p.stem: p.read_text(encoding="utf-8") for p in sorted(root.glob("*.py"))}
+def root_sources() -> dict[str, str]:
+    return {module_name(rel): src for rel, src in project_files().items()}
+
+
+def root_packages() -> frozenset[str]:
+    return frozenset(module_name(rel) for rel in project_files() if rel.endswith("__init__.py"))
 
 
 def test_root_modules_respect_the_adr007_layers() -> None:
-    errors = report(violations(root_sources()))
+    errors = report(violations(root_sources(), packages=root_packages()))
     assert not errors, "\n".join(errors)
 
 
@@ -289,3 +299,25 @@ def test_stale_qt_and_cycle_allowlist_entries_must_be_removed() -> None:
     errors = report(violations(sources))
     assert "la violación Qt relocate_core → PySide6.QtCore ya no existe: sacala de ALLOWED_QT" in errors, errors
     assert "el ciclo preview_card ↔ ui_components ya no existe: sacalo de ALLOWED_CYCLES" in errors, errors
+
+
+def test_subpackage_modules_need_a_layer_and_obey_it() -> None:
+    sources = {"ui": "", "ctl": "", "ctl.export": "import ui\n"}
+    assert report(violations(sources, {"ui": 5}))[:2] == [
+        "módulo sin capa: declarar capa de ctl en tests/test_import_layers.py (LAYERS)",
+        "módulo sin capa: declarar capa de ctl.export en tests/test_import_layers.py (LAYERS)",
+    ]
+    assert violations(sources, {"ui": 5, "ctl": 3, "ctl.export": 3}).edges == {("ctl.export", "ui")}
+
+
+def test_relative_and_dotted_imports_resolve_to_the_longest_project_module() -> None:
+    project = {"ui", "pkg", "pkg.a", "pkg.b", "pkg.sub", "pkg.sub.c"}
+    src = "from . import b\nfrom .sub import c\nfrom .. import ui\nimport pkg.sub.c.Clase\n"
+    assert imports_of(src, project, module="pkg.a").project == {"ui", "pkg", "pkg.b", "pkg.sub", "pkg.sub.c"}
+    assert imports_of("from . import a\n", project, module="pkg", is_package=True).project == {"pkg", "pkg.a"}
+    assert imports_of("from .sub.c import X\n", project, module="pkg.a").project == {"pkg.sub.c"}
+
+
+def test_the_allowlists_hold_exactly_the_measured_violations() -> None:
+    found = violations(root_sources(), packages=root_packages())
+    assert (found.edges, found.qt, found.cycles) == (set(ALLOWED_EDGES), set(ALLOWED_QT), set(ALLOWED_CYCLES))
