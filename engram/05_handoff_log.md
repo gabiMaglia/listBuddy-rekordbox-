@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-19 14:50] Ola 1 de vuelta → nerv-gate (3 PASS) → nerv-qa
+- T-120: gate REJECTED `LEVEL_UNDERSTATED` (computado S, 590 líneas; KICKOFF lo estimó B sin plan). PO ratificó el plan RETROACTIVO (`engram/plans/T-120.md`, desvío P-19 declarado; la API sandbox de F1-a queda para 1.2). T-099: plan sellado por el PO (aprobado antes del código en la sesión B) en `engram/plans/T-099.md`. T-098: computado A (360 líneas), no B.
+- Después: 3 PASS. Los 3 agentes agregaron una línea a CLAUDE.md (la exige test_t109_repo_hygiene): aceptado. T-098 suma `single_instance.py` (falta declararlo en el test de capas de F0 al integrar). F0 midió ui.py 3183 / MainWindow 157 (no 3264/158).
+- Quien retoma: nerv-qa ×3 (artefacto qa/<T-ID>.md) → nerv-verifier para T-099 F0 y T-120 (nivel S) → merge en orden F0, T-120, T-098.
+
 ### [2026-10-19 14:05] Ola 1 LANZADA (Opus) → nerv-desktop ×3: T-099 F0 (S) · T-098 (B) · T-120 (B)
 - Precondiciones de KICKOFF.md: main = origin/main, peers idle, 219 GB libres. Suite base ROJA por `KICKOFF.md` con ruta personal (error del cierre B: el `git grep` excluyó justo la ruta del repo) → arreglado en 6ec2e74, suite exit 0. Ese commit falta pushear (PO).
 - Worktrees `../wt-t099-f0`, `../wt-t098`, `../wt-t120` desde 6ec2e74; archivos disjuntos declarados en cada prompt. F0 declara `file_access` como L0 por adelantado; si T-098 suma módulo, se declara al integrar.
