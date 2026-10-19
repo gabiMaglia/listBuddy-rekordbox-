@@ -63,8 +63,9 @@ La descarga es pública y gratuita (GPL-3.0); ver [Versión 1.0 (legacy)](#versi
   **¿Cuál bajo?** Menú  → **Acerca de esta Mac**: si dice «Chip Apple M…», bajá el `-arm64`; si dice
   «Procesador Intel», el `-x86_64`. Si elegís el equivocado, la app no abre (o abre muy lenta bajo
   emulación): borrala y bajá el otro, no se pierde nada.
-- **Windows:** todavía sin ejecutable probado; podés correrlo desde el código fuente. Cuando se publique, vendrá como
-  `listBuddy-<versión>-win64.zip` junto a su `.sha256`, y **no va a estar firmado** (decisión del proyecto: no pagamos un
+- **Windows:** el release trae `listBuddy-<versión>-win64.zip` (generado automáticamente en GitHub Actions, todavía
+  sin prueba manual en una PC real) junto a su `.sha256`. Descomprimilo entero y abrí `listBuddy\listBuddy.exe`; si no
+  aparece en el release, podés correrlo desde el código fuente. **No está firmado** (decisión del proyecto: no pagamos un
   certificado Authenticode). Con los dos archivos en la misma carpeta, en PowerShell:
 
   ```powershell

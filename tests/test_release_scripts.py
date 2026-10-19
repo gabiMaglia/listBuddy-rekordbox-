@@ -1170,3 +1170,11 @@ def test_t119_asset_check_tolerates_missing_windows_and_exports_the_list(tmp_pat
 def test_t119_windows_zip_only_one_artifact_name_and_no_overlap_with_mac() -> None:
     text = _WORKFLOW.read_text(encoding="utf-8")
     assert "listbuddy-${{ env.APP_VERSION }}-win64" in text
+
+
+def test_t119_docs_explain_windows_ci_and_that_it_is_optional() -> None:
+    doc = (PROJECT_ROOT / "docs" / "RELEASE.md").read_text(encoding="utf-8")
+    section = doc.split("## Windows (manual)", 1)[1].split("\n## ", 1)[0]
+    for needle in ("build-windows", "opcional", "release.yml"):
+        assert needle in section, needle
+    assert "no tiene release automático" not in doc
