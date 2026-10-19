@@ -165,14 +165,24 @@ def test_unwritable_lock_folder_does_not_block_startup(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("platform, where", [("darwin", "Dock"), ("win32", "barra de tareas")])
 def test_message_is_rioplatense_and_says_where_to_look(platform: str, where: str) -> None:
-    import single_instance
-    msg = single_instance.already_running_message(platform)
+    # Los textos viven en startup_guard (solo stdlib): este test no carga Qt en el proceso de pytest.
+    import startup_guard
+    msg = startup_guard.already_running_message(platform)
     assert where in msg and "List Buddy" in msg
-    assert single_instance.TITLE == "List Buddy ya está abierto"
+    assert startup_guard.ALREADY_RUNNING_TITLE == "List Buddy ya está abierto"
 
 
-# D-1 (QA): locks que Qt no puede atribuir a un proceso de esta máquina. El PID es el de pytest
-# (vivo) para que el que destrabe sea la regla de host/máquina y no el chequeo de PID de Qt.
+def test_foreign_host_message_names_the_host_and_the_full_lock_path() -> None:
+    import startup_guard
+    lock = Path("/Users/dj/Library/Application Support/listBuddy/listBuddy.lock")
+    title, msg = startup_guard.ALREADY_RUNNING_TITLE, startup_guard.foreign_host_message("estudio-pc", lock)
+    assert "otra computadora" in startup_guard.FOREIGN_HOST_TITLE and title != startup_guard.FOREIGN_HOST_TITLE
+    assert "estudio-pc" in msg and str(lock) in msg
+    assert "borrá" in msg.lower() or "borrar" in msg.lower()
+
+
+# D-1 (QA) con la decisión del PO «Bloquear también en red» (plan T-098 §QUÉ 2-3). El PID es el de
+# pytest (vivo): así lo que decide es el host/máquina del lock y no el chequeo de PID de Qt.
 _WRITE_LOCK = """
 import os, sys
 from pathlib import Path
@@ -198,8 +208,8 @@ def _write_lock(data: Path, kind: str, env: dict[str, str]) -> None:
     assert r.returncode == 0, r.stderr
 
 
-@pytest.mark.parametrize("kind", ["empty", "junk", "foreign_host", "foreign_machine"])
-def test_unattributable_lock_is_taken_over_and_the_app_starts(tmp_path: Path, kind: str) -> None:
+@pytest.mark.parametrize("kind", ["empty", "junk"])
+def test_unreadable_orphan_lock_is_taken_over_and_the_app_starts(tmp_path: Path, kind: str) -> None:
     env = _user_env(tmp_path / "home")
     data = _data_dir(env)
     _write_lock(data, kind, env)
@@ -208,6 +218,59 @@ def test_unattributable_lock_is_taken_over_and_the_app_starts(tmp_path: Path, ki
                        capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert r.returncode == 42 and "ARRANCA" in r.stdout, (r.returncode, r.stdout, r.stderr)
     assert not alert.exists(), alert.read_text(encoding="utf-8")
+
+
+_HOST = "import sys; from PySide6.QtCore import QSysInfo; print(QSysInfo.machineHostName())"
+
+
+@pytest.mark.parametrize("kind", ["foreign_host", "foreign_machine"])
+def test_lock_from_another_computer_blocks_startup_and_names_host_and_path(tmp_path: Path, kind: str) -> None:
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    _write_lock(data, kind, env)
+    lock = data / "listBuddy.lock"
+    before = lock.read_bytes()
+    if kind == "foreign_host":
+        host = "otra-maquina"
+    else:
+        h = subprocess.run([sys.executable, "-c", _HOST], cwd=PROJECT_ROOT, env=env,
+                           capture_output=True, text=True, encoding="utf-8", timeout=60)
+        host = h.stdout.strip()
+    alert = tmp_path / "alert.txt"
+    r = subprocess.run([sys.executable, "-c", _STARTS, str(alert)], cwd=PROJECT_ROOT, env=env,
+                       capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.returncode == 0 and "ARRANCA" not in r.stdout, (r.returncode, r.stdout, r.stderr)
+    text = alert.read_text(encoding="utf-8") if alert.exists() else ""
+    assert "otra computadora" in text and host in text and str(lock) in text, text
+    assert lock.read_bytes() == before   # nunca se toma ni se reescribe el lock ajeno
+
+
+_FLOCK_HOLDER = """
+import fcntl, sys
+f = open(sys.argv[1], 'r+')
+fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+print('HELD', flush=True)
+sys.stdin.read()
+"""
+
+
+def test_empty_lock_held_by_a_live_process_is_never_stolen(tmp_path: Path) -> None:
+    # Un lock ilegible solo es huérfano si se puede borrar: si un proceso vivo lo tiene tomado (flock en
+    # macOS/Linux; en Windows, archivo abierto) Qt no lo borra y la app avisa en vez de abrir otra copia.
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    _write_lock(data, "empty", env)
+    holder = subprocess.Popen([sys.executable, "-c", _FLOCK_HOLDER, str(data / "listBuddy.lock")],
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, encoding="utf-8")
+    try:
+        assert holder.stdout is not None and holder.stdout.readline().strip() == "HELD"
+        alert = tmp_path / "alert.txt"
+        r = subprocess.run([sys.executable, "-c", _STARTS, str(alert)], cwd=PROJECT_ROOT, env=env,
+                           capture_output=True, text=True, encoding="utf-8", timeout=60)
+    finally:
+        _stop(holder)
+    assert r.returncode == 0 and "ARRANCA" not in r.stdout, (r.returncode, r.stdout, r.stderr)
+    assert "List Buddy ya está abierto" in alert.read_text(encoding="utf-8")
 
 
 # D-2 (QA): si el lock no se puede crear, `main` arranca igual y lo deja como WARNING en el log.

@@ -7,7 +7,6 @@ rápido y sin tocar nada.
 """
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -17,12 +16,12 @@ from PySide6.QtCore import QLockFile, QSysInfo
 from app_paths import data_dir
 
 LOCK_NAME = "listBuddy.lock"
-TITLE = "List Buddy ya está abierto"
 
 
 class LockStatus(Enum):
     ACQUIRED = auto()
     ALREADY_RUNNING = auto()
+    FOREIGN_HOST = auto()  # lock de otra computadora (carpeta en red, perfil roaming): no se arranca
     UNAVAILABLE = auto()   # no se pudo crear el lock: se arranca igual, sin guarda
 
 
@@ -31,52 +30,49 @@ class InstanceGuard:
     status: LockStatus
     lock: QLockFile | None = None
     detail: str = ""
+    host: str = ""
+    path: Path | None = None
 
     def release(self) -> None:
         if self.lock is not None and self.lock.isLocked():
             self.lock.unlock()
 
 
-def _owner_is_unknowable(lock: QLockFile, path: Path) -> bool:
-    """El lock no se puede atribuir a un proceso de esta máquina: vacío, con basura o de otro host.
-
-    Qt solo comprueba el PID si el lock es de esta máquina; si no, con `setStaleLockTime(0)`
-    no lo considera viejo nunca y la app quedaría bloqueada para siempre (perfil roaming de
-    Windows tras un crash, carpeta de datos copiada de otra Mac, archivo truncado)."""
-    pid, host, _app = lock.getLockInfo()
-    if pid <= 0 or not host:
-        return True
-    if host != QSysInfo.machineHostName():
-        return True
-    # La 4.ª línea es el id de máquina que escribe Qt 6: mismo hostname no es misma máquina.
+def _machine_id_in(path: Path) -> bytes:
+    # 4.ª línea del lock de Qt 6: id de máquina. Mismo hostname no garantiza misma máquina.
     try:
         lines = path.read_bytes().splitlines()
     except OSError:
-        return False
-    theirs = lines[3].strip() if len(lines) > 3 else b""
-    ours = bytes(QSysInfo.machineUniqueId()).strip()
-    return bool(theirs and ours and theirs != ours)
+        return b""
+    return lines[3].strip() if len(lines) > 3 else b""
 
 
 def acquire(directory: Path) -> InstanceGuard:
     path = directory / LOCK_NAME
     lock = QLockFile(str(path))
-    # Lock de toda la vida de la app, sin vencimiento por antigüedad: si no, otra instancia
-    # podría robárselo a una ventana abierta hace horas. Un dueño muerto de esta máquina lo
-    # detecta tryLock por PID; uno que no se puede atribuir lo resuelve _owner_is_unknowable.
+    # Lock de toda la vida de la app, sin vencimiento por antigüedad. Qt solo lo da por
+    # huérfano si el dueño era de esta máquina y su PID ya no existe; uno de otra máquina
+    # no se puede verificar y se respeta aunque deje la app sin abrir (decisión del PO).
     lock.setStaleLockTime(0)
     if lock.tryLock(0):
-        return InstanceGuard(LockStatus.ACQUIRED, lock)
-    if lock.error() != QLockFile.LockError.LockFailedError:
-        return InstanceGuard(LockStatus.UNAVAILABLE, detail=f"{lock.error().name} en {lock.fileName()}")
-    if not _owner_is_unknowable(lock, path):
-        return InstanceGuard(LockStatus.ALREADY_RUNNING)
-    # removeStaleLockFile no borra un lock que un proceso vivo tiene tomado (flock en
-    # macOS, archivo abierto en Windows), así que no pisa a un dueño real.
+        return InstanceGuard(LockStatus.ACQUIRED, lock, path=path)
+    if lock.error() != QLockFile.LockError.LockFailedError or (path.exists() and not path.is_file()):
+        # Sin permisos, o en la ruta hay una carpeta: mejor arrancar sin guarda que no arrancar.
+        return InstanceGuard(LockStatus.UNAVAILABLE, detail=f"{lock.error().name} en {path}", path=path)
+
+    pid, host, _app = lock.getLockInfo()
+    if pid > 0 and host:
+        ours = bytes(QSysInfo.machineUniqueId()).strip()
+        theirs = _machine_id_in(path)
+        if host != QSysInfo.machineHostName() or (theirs and ours and theirs != ours):
+            return InstanceGuard(LockStatus.FOREIGN_HOST, host=host, path=path)
+        return InstanceGuard(LockStatus.ALREADY_RUNNING, path=path)
+
+    # Vacío o ilegible: huérfano solo si se puede borrar. Una copia viva lo tiene tomado
+    # (flock en macOS, archivo abierto en Windows) y ahí el borrado falla: nunca se pisa.
     if lock.removeStaleLockFile() and lock.tryLock(0):
-        return InstanceGuard(LockStatus.ACQUIRED, lock)
-    # Mejor arrancar sin guarda que no poder abrir la app nunca.
-    return InstanceGuard(LockStatus.UNAVAILABLE, detail=f"lock ilegible o ajeno que no se pudo reemplazar: {path}")
+        return InstanceGuard(LockStatus.ACQUIRED, lock, path=path)
+    return InstanceGuard(LockStatus.ALREADY_RUNNING, path=path)
 
 
 def acquire_in_data_dir() -> InstanceGuard:
@@ -85,11 +81,3 @@ def acquire_in_data_dir() -> InstanceGuard:
     except OSError as exc:
         return InstanceGuard(LockStatus.UNAVAILABLE, detail=str(exc))
     return acquire(directory)
-
-
-def already_running_message(platform: str = sys.platform) -> str:
-    where = "en el Dock" if platform == "darwin" else "en la barra de tareas"
-    return (
-        "Ya hay una ventana de List Buddy abierta y no se pueden usar dos a la vez.\n\n"
-        f"Buscala {where} y seguí ahí."
-    )

@@ -42,7 +42,12 @@ def main() -> None:
     # Antes del log y de settings.ini: una segunda instancia no tiene que tocarlos (T-098).
     guard = si.acquire_in_data_dir()
     if guard.status is si.LockStatus.ALREADY_RUNNING:
-        startup_guard.show_native_alert(si.TITLE, si.already_running_message(), "informational")
+        startup_guard.show_native_alert(
+            startup_guard.ALREADY_RUNNING_TITLE, startup_guard.already_running_message(), "informational")
+        raise SystemExit(0)
+    if guard.status is si.LockStatus.FOREIGN_HOST:
+        startup_guard.show_native_alert(
+            startup_guard.FOREIGN_HOST_TITLE, startup_guard.foreign_host_message(guard.host, guard.path), "warning")
         raise SystemExit(0)
 
     qt = guarded_import(_load_qt_stack)

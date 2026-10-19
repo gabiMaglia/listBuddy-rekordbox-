@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 from typing import Callable, TypeVar
 
 T = TypeVar("T")
@@ -16,6 +17,28 @@ T = TypeVar("T")
 RELEASES_URL = "https://github.com/gabiMaglia/listbuddy/releases"
 TITLE = "List Buddy no pudo abrirse"
 _MAX_DETAIL = 300
+
+
+# Instancia única (T-098). Viven acá porque se muestran con el diálogo nativo, antes de cargar la UI.
+ALREADY_RUNNING_TITLE = "List Buddy ya está abierto"
+FOREIGN_HOST_TITLE = "List Buddy figura abierto en otra computadora"
+
+
+def already_running_message(platform: str = sys.platform) -> str:
+    where = "en el Dock" if platform == "darwin" else "en la barra de tareas"
+    return (
+        "Ya hay una ventana de List Buddy abierta y no se pueden usar dos a la vez.\n\n"
+        f"Buscala {where} y seguí ahí."
+    )
+
+
+def foreign_host_message(host: str, lock_path: Path) -> str:
+    return (
+        f"List Buddy figura abierto en otra computadora ({host}) que usa esta misma carpeta de datos. "
+        "Para no pisar tu configuración, acá no se abre.\n\n"
+        "Si en esa computadora no está abierto, borrá este archivo y volvé a abrir List Buddy:\n"
+        f"{lock_path}"
+    )
 
 
 def build_message(exc: BaseException) -> str:
