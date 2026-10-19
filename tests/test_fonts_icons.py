@@ -70,7 +70,7 @@ def test_brand_and_section_titles_resolve_to_sora_with_tracking() -> None:
         "l, fi = info('settings_title', w)\n"
         "assert fi.family() == 'Sora' and 600 <= fi.weight() < 700, (fi.family(), fi.weight())\n"
         "assert abs(l.font().letterSpacing() - (-0.02 * fi.pixelSize())) < 0.05\n"
-        "d = ui.AboutDialog('1.0.0', 'dark', w); d.show(); app.processEvents()\n"
+        "d = ui.DonationDialog(w); d.show(); app.processEvents()\n"
         "l, fi = info('dialog_title', d)\n"
         "assert fi.family() == 'Sora' and 600 <= fi.weight() < 700, (fi.family(), fi.weight())\n"
         "assert abs(l.font().letterSpacing() - (-0.02 * fi.pixelSize())) < 0.05\n"
