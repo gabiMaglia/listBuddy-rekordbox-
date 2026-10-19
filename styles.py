@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025-2026 Gabriel Maglia
 """styles.py — listBuddy design tokens + QSS loader."""
 from __future__ import annotations
 

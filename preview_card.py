@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025-2026 Gabriel Maglia
 """Tarjeta de carpeta de la vista previa (T-065): cabecera con estado + filas en scroll interno.
 
 Sin animaciones ni timers propios: el fade-in lo hace MainWindow (T-029).

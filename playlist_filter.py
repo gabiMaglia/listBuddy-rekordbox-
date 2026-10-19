@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025-2026 Gabriel Maglia
 """Filtro de playlists por nombre: sin Qt, para poder testearlo en proceso."""
 from __future__ import annotations
 

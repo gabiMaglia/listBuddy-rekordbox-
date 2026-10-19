@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025-2026 Gabriel Maglia
 """Carpetas por usuario de la app (configuración y datos propios), por OS."""
 from __future__ import annotations
 

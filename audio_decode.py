@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025-2026 Gabriel Maglia
 """Helpers de decode de Qt compartidos (QAudioBuffer → numpy mono)."""
 from __future__ import annotations
 

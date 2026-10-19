@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025-2026 Gabriel Maglia
 """footer.py — footer de 76 px: reproductor, destino, exportar y progreso (T-063)."""
 from __future__ import annotations
 

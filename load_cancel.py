@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025-2026 Gabriel Maglia
 """Cancelación cooperativa de la carga de una librería (T-094)."""
 from __future__ import annotations
 

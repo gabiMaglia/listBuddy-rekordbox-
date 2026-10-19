@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025-2026 Gabriel Maglia
 """Nombre visible de la marca. Módulos, ejecutable y bundle siguen como «listBuddy» (T-025)."""
 from __future__ import annotations
 

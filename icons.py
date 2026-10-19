@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025-2026 Gabriel Maglia
 """Íconos SVG de trazo, teñidos por token. Sin glifos Unicode: se ven igual en macOS y Windows.
 
 Varios trazos derivan de Feather Icons (MIT, Cole Bemis): ver licenses/Feather.txt.

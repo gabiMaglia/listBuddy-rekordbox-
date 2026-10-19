@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025-2026 Gabriel Maglia
 """QMessageBox con botones en español rioplatense.
 
 Los botones estándar de Qt salen en inglés si no se empaquetan las

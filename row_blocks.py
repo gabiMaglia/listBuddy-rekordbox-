@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025-2026 Gabriel Maglia
 """Bloques de filas rotas contiguas (T-071, estilo D) y estados/textos de la tarjeta de carpeta (T-065).
 
 Sin Qt a propósito: la lógica se testea en el proceso de pytest sin cargar PySide6.

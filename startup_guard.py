@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025-2026 Gabriel Maglia
 """Guarda de arranque: si Qt no carga, avisa con un diálogo nativo (sin Qt) y sale con 1.
 
 Solo stdlib: tiene que funcionar justo cuando PySide6 está roto, p. ej. en un macOS

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2025-2026 Gabriel Maglia
 """Lista blanca de extensiones que se abren con FFmpeg (SEC-18).
 
 Una librería puede apuntar a cualquier archivo; solo los formatos de audio conocidos llegan
