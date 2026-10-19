@@ -52,7 +52,7 @@ def main() -> None:
         raise SystemExit(0)
     if guard.status is si.LockStatus.STUCK_LOCK:
         startup_guard.show_native_alert(
-            startup_guard.STUCK_LOCK_TITLE, startup_guard.stuck_lock_message(guard.path), "warning")
+            startup_guard.STUCK_LOCK_TITLE, startup_guard.stuck_lock_message(guard.path, owner_unknown=guard.owner_unknown), "warning")
         raise SystemExit(0)
 
     qt = guarded_import(_load_qt_stack)

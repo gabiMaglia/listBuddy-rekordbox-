@@ -421,6 +421,8 @@ def test_orphan_lock_that_cannot_be_deleted_blocks_startup_and_says_which_file(t
     text = alert.read_text(encoding="utf-8") if alert.exists() else ""
     assert "archivo trabado" in text and str(lock) in text, text
     assert "ya está abierto" not in text and "Dock" not in text.split(str(lock))[0], text
+    # Addendum 4.4: si ni se puede abrir para sondear, no se sabe si hay una copia viva.
+    assert ("si List Buddy no está abierta en ninguna ventana" in text) == (kind == "perm0000_dead"), text
 
 
 def test_read_only_lock_of_a_live_copy_is_still_already_running(tmp_path: Path) -> None:
@@ -448,12 +450,12 @@ _LATE_PROBE = """
 import sys
 from pathlib import Path
 import single_instance
-real = single_instance._held_by_live_copy
+real = single_instance._probe_owner
 calls = []
 def late(path):
     calls.append(path)
-    return False if len(calls) == 1 else real(path)
-single_instance._held_by_live_copy = late
+    return single_instance.Owner.FREE if len(calls) == 1 else real(path)
+single_instance._probe_owner = late
 print(single_instance.acquire(Path(sys.argv[1])).status.name, flush=True)
 """
 
@@ -469,6 +471,133 @@ def test_simultaneous_launch_loser_rechecks_the_owner_before_saying_stuck(tmp_pa
     finally:
         _stop(holder)
     assert r.stdout.strip() == "ALREADY_RUNNING", (r.stdout, r.stderr)
+
+
+# Addendum 4 (verificador 2, D1): con lanzamientos simultáneos sobre un huérfano, otra instancia lo borra
+# mientras esta lo inspecciona. Se inyecta ese borrado entre dos inspecciones del lock (stat/lstat, que es
+# lo que usa cualquier chequeo de «existe / es archivo»): nunca puede terminar en UNAVAILABLE (sin guarda).
+_VANISHES_BETWEEN_CHECKS = """
+import os, sys
+from pathlib import Path
+import single_instance
+lock = os.fspath(Path(sys.argv[1]) / 'listBuddy.lock')
+seen = [0]
+def spy(real):
+    def inspect(p, *args, **kwargs):
+        if isinstance(p, (str, os.PathLike)) and os.fspath(p) == lock:
+            seen[0] += 1
+            if seen[0] == 2:
+                try:
+                    os.unlink(lock)   # la otra instancia borró el huérfano justo acá
+                except FileNotFoundError:
+                    pass
+        return real(p, *args, **kwargs)
+    return inspect
+os.stat, os.lstat = spy(os.stat), spy(os.lstat)
+print(single_instance.acquire(Path(sys.argv[1])).status.name, flush=True)
+"""
+
+
+def test_lock_deleted_by_another_launch_mid_check_never_starts_without_guard(tmp_path: Path) -> None:
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    lock = _orphan_lock(data, env, "ro_dead")   # huérfano que Qt no puede borrar: obliga a inspeccionarlo
+    try:
+        r = subprocess.run([sys.executable, "-c", _VANISHES_BETWEEN_CHECKS, str(data)], cwd=PROJECT_ROOT, env=env,
+                           capture_output=True, text=True, encoding="utf-8", timeout=60)
+    finally:
+        _unlock_file(lock)
+    assert r.stdout.strip() in ("ACQUIRED", "ALREADY_RUNNING"), (r.stdout, r.stderr)
+
+
+# Addendum 4: lo estructural se decide con UNA inspección. Dos chequeos separados («existe» y «es archivo»)
+# ven un lock a medio borrar como «no es archivo»; acá se borra entre la primera y la segunda inspección.
+_STRUCTURAL_WITH_VANISHING_LOCK = """
+import os, sys
+from pathlib import Path
+import single_instance
+data = Path(sys.argv[1])
+lock = data / 'listBuddy.lock'
+lock.write_bytes(b'')
+seen = [0]
+def spy(real):
+    def inspect(p, *args, **kwargs):
+        if isinstance(p, (str, os.PathLike)) and os.fspath(p) == os.fspath(lock):
+            seen[0] += 1
+            if seen[0] == 2:
+                try:
+                    os.unlink(lock)
+                except FileNotFoundError:
+                    pass
+        return real(p, *args, **kwargs)
+    return inspect
+os.stat, os.lstat = spy(os.stat), spy(os.lstat)
+print(single_instance._structurally_impossible(data, lock), flush=True)
+"""
+
+
+def test_a_lock_vanishing_mid_inspection_is_not_structural(tmp_path: Path) -> None:
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    r = subprocess.run([sys.executable, "-c", _STRUCTURAL_WITH_VANISHING_LOCK, str(data)], cwd=PROJECT_ROOT, env=env,
+                       capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.stdout.strip() == "False", (r.stdout, r.stderr)
+
+
+# Addendum 4.2: si el bucle se agota sin un estado estable, no se abre. Errores de lock que no son
+# estructurales (la carpeta existe y se puede escribir) se tratan como transitorios.
+_ALWAYS_TRANSIENT = """
+import sys
+from pathlib import Path
+from PySide6.QtCore import QLockFile
+import single_instance
+class Flaky(QLockFile):
+    def tryLock(self, timeout=0):
+        return False
+    def error(self):
+        return QLockFile.LockError.UnknownError
+single_instance.QLockFile = Flaky
+print(single_instance.acquire(Path(sys.argv[1])).status.name, flush=True)
+"""
+
+
+def test_loop_exhausted_on_transient_errors_does_not_open(tmp_path: Path) -> None:
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    r = subprocess.run([sys.executable, "-c", _ALWAYS_TRANSIENT, str(data)], cwd=PROJECT_ROOT, env=env,
+                       capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.stdout.strip() == "ALREADY_RUNNING", (r.stdout, r.stderr)
+
+
+# Addendum 4.3: UNAVAILABLE solo si lo estructural se confirma en dos pasadas seguidas. Acá la carpeta en la
+# ruta del lock desaparece después de la primera inspección (era de otra instancia a mitad de algo).
+_DIR_GONE_AFTER_FIRST_LOOK = """
+import os, sys
+from pathlib import Path
+import single_instance
+lock = os.fspath(Path(sys.argv[1]) / 'listBuddy.lock')
+seen = [0]
+def spy(real):
+    def inspect(p, *args, **kwargs):
+        result = real(p, *args, **kwargs)
+        if isinstance(p, (str, os.PathLike)) and os.fspath(p) == lock:
+            seen[0] += 1
+            if seen[0] == 1:
+                os.rmdir(lock)
+        return result
+    return inspect
+os.stat, os.lstat = spy(os.stat), spy(os.lstat)
+print(single_instance.acquire(Path(sys.argv[1])).status.name, flush=True)
+"""
+
+
+def test_structural_failure_must_hold_on_two_consecutive_passes(tmp_path: Path) -> None:
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    (data / "listBuddy.lock").mkdir()
+    r = subprocess.run([sys.executable, "-c", _DIR_GONE_AFTER_FIRST_LOOK, str(data)], cwd=PROJECT_ROOT, env=env,
+                       capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.stdout.strip() == "ACQUIRED", (r.stdout, r.stderr)
 
 
 def test_old_lock_from_another_computer_is_still_foreign(tmp_path: Path) -> None:
@@ -508,6 +637,18 @@ def test_stuck_lock_message_reads_the_right_way_round() -> None:
     msg = startup_guard.stuck_lock_message(Path("/Users/dj/Library/Application Support/listBuddy/listBuddy.lock"), "darwin")
     assert "sin él" not in msg
     assert "Mientras ese archivo siga trabado" in msg and "dos copias" in msg, msg
+
+
+@pytest.mark.parametrize("platform", ["darwin", "win32"])
+def test_stuck_message_when_the_owner_cannot_be_checked(platform: str) -> None:
+    # Addendum 4.4: lock que ni se puede abrir para sondear → no se sabe si hay una copia viva.
+    import startup_guard
+    lock = Path("/Users/dj/Library/Application Support/listBuddy/listBuddy.lock")
+    unknown = startup_guard.stuck_lock_message(lock, platform, owner_unknown=True)
+    known = startup_guard.stuck_lock_message(lock, platform)
+    assert "si List Buddy no está abierta en ninguna ventana, borralo" in unknown, unknown
+    assert "si List Buddy no está abierta en ninguna ventana" not in known
+    assert str(lock) in unknown
 
 
 def test_foreign_message_names_the_same_hostname_case_and_what_is_protected() -> None:

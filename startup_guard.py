@@ -56,8 +56,12 @@ def foreign_host_message(host: str, lock_path: Path, platform: str = sys.platfor
     )
 
 
-def stuck_lock_message(lock_path: Path, platform: str = sys.platform) -> str:
-    if platform == "darwin":
+def stuck_lock_message(lock_path: Path, platform: str = sys.platform, owner_unknown: bool = False) -> str:
+    if owner_unknown:
+        # Ni se pudo abrir para sondearlo: no hay forma de saber si es de una copia abierta.
+        unlock = ("No se puede saber si es de una copia abierta: si List Buddy no está abierta en ninguna "
+                  "ventana, borralo.")
+    elif platform == "darwin":
         unlock = (f"Seleccioná {lock_path.name}, abrí Archivo › Obtener información y desmarcá «Bloqueado» "
                   "(o borralo).")
     else:
