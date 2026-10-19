@@ -32,6 +32,10 @@ on:
       - 'requirements.txt'
       - 'requirements-build.in'
       - 'requirements-build.txt'
+      - 'scripts/build_windows.ps1'
+      - 'scripts/check_bundle.ps1'
+      - 'scripts/bundle_forbidden.txt'
+      - 'requirements-build-windows.txt'
 
 permissions:
   contents: read
@@ -254,10 +258,58 @@ jobs:
         if: always() && env.KEYCHAIN_PATH != ''
         run: security delete-keychain "$KEYCHAIN_PATH" || true
 
+  # Windows (T-119): sin firma Authenticode (T-101) → no usa secrets ni environment. Corre en los mismos eventos
+  # que `build`. Si falla, el job `release` igual publica macOS (ver su `if:`); el zip es un extra opcional.
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Verificar versión
+        shell: pwsh
+        run: |
+          python --version
+          $m = Select-String -LiteralPath ui.py -Pattern '^_APP_VERSION = "(.*)"' | Select-Object -First 1
+          $v = $m.Matches[0].Groups[1].Value
+          "APP_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            $tag = $env:GITHUB_REF.Substring('refs/tags/v'.Length)
+            if ($tag -ne $v) { Write-Host "::error::el tag v$tag no coincide con _APP_VERSION=$v en ui.py"; exit 1 }
+          }
+
+      - name: Build Windows (build_windows.ps1)
+        shell: pwsh
+        run: |
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+          .\scripts\build_windows.ps1
+
+      - name: Resumen Windows
+        shell: pwsh
+        run: |
+          "## List Buddy $env:APP_VERSION (win64, sin firma)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Get-Content dist\*.sha256 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: listbuddy-${{ env.APP_VERSION }}-win64
+          path: |
+            dist/listBuddy-*-win64.zip
+            dist/listBuddy-*-win64.zip.sha256
+          if-no-files-found: error
+          compression-level: 0
+
   release:
     name: GitHub Release (borrador)
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    # Windows es opcional: un fallo de build-windows no frena el borrador de macOS (`always()` evita el skip
+    # automático por dependencia fallida; la condición exige solo las dos patas macOS).
+    if: always() && startsWith(github.ref, 'refs/tags/v') && needs.build.result == 'success'
+    needs: [build, build-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -271,7 +323,8 @@ jobs:
       - name: Listar assets
         run: ls -la assets
 
-      # Los 6 assets esperados; sin ellos no se crea el borrador (reemplaza fail_on_unmatched_files).
+      # Los 6 assets de macOS son obligatorios; sin ellos no se crea el borrador (reemplaza fail_on_unmatched_files).
+      # Los 2 de Windows son opcionales: si faltan, aviso en el resumen y el borrador sale solo con macOS.
       - name: Verificar assets esperados
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -280,6 +333,13 @@ jobs:
                    "listbuddy-${VERSION}-src.tar.gz" "listbuddy-${VERSION}-src.tar.gz.sha256"; do
             [ -f "assets/$f" ] || { echo "::error::falta el asset assets/$f"; exit 1; }
           done
+          if [ -f "assets/listBuddy-${VERSION}-win64.zip" ] && [ -f "assets/listBuddy-${VERSION}-win64.zip.sha256" ]; then
+            echo "WINDOWS_ASSETS=1" >> "$GITHUB_ENV"
+          else
+            MSG="el build de Windows no produjo listBuddy-${VERSION}-win64.zip (+ .sha256): el borrador sale solo con macOS"
+            echo "::warning::$MSG"
+            echo "> **Aviso:** $MSG" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       # `gh` es first-party (viene en el runner): ninguna action de terceros toca el token de escritura.
       - name: Crear release en borrador
@@ -288,8 +348,14 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          ASSETS=(
+            "assets/ListBuddy-${VERSION}-arm64.dmg" "assets/ListBuddy-${VERSION}-arm64.dmg.sha256"
+            "assets/ListBuddy-${VERSION}-x86_64.dmg" "assets/ListBuddy-${VERSION}-x86_64.dmg.sha256"
+            "assets/listbuddy-${VERSION}-src.tar.gz" "assets/listbuddy-${VERSION}-src.tar.gz.sha256"
+          )
+          if [ "${WINDOWS_ASSETS:-}" = "1" ]; then
+            ASSETS+=("assets/listBuddy-${VERSION}-win64.zip" "assets/listBuddy-${VERSION}-win64.zip.sha256")
+          fi
           gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes \
             --title "List Buddy ${GITHUB_REF_NAME}" \
-            "assets/ListBuddy-${VERSION}-arm64.dmg" "assets/ListBuddy-${VERSION}-arm64.dmg.sha256" \
-            "assets/ListBuddy-${VERSION}-x86_64.dmg" "assets/ListBuddy-${VERSION}-x86_64.dmg.sha256" \
-            "assets/listbuddy-${VERSION}-src.tar.gz" "assets/listbuddy-${VERSION}-src.tar.gz.sha256"
+            "${ASSETS[@]}"

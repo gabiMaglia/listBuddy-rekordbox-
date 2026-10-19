@@ -447,7 +447,8 @@ def test_c3_asset_check_step_really_fails_when_one_is_missing(tmp_path, missing)
     (tmp_path / "assets").mkdir()
     for n in names:
         (tmp_path / "assets" / n).write_bytes(b"x")
-    env = {"PATH": "/usr/bin:/bin", "GITHUB_REF_NAME": f"v{version}"}
+    env = {"PATH": "/usr/bin:/bin", "GITHUB_REF_NAME": f"v{version}", "GITHUB_ENV": str(tmp_path / "env"),
+           "GITHUB_STEP_SUMMARY": str(tmp_path / "summary")}
     ok = subprocess.run(["bash", "-e", "-c", script], cwd=tmp_path, env=env, capture_output=True, text=True)
     assert ok.returncode == 0, ok.stdout + ok.stderr
     (tmp_path / "assets" / names[missing]).unlink()
@@ -1099,3 +1100,73 @@ def test_t108_release_md_has_a_manual_windows_section() -> None:
                    "-win64.zip", ".sha256", "Authenticode", "Get-FileHash", "windows-latest", "pip-compile"):
         assert needle in section, needle
     assert "no hay runner ni firma" not in doc
+
+
+# ── T-119: pata Windows en release.yml ──────────────────────────────────────
+
+_WIN_ASSETS = ("listBuddy-${VERSION}-win64.zip", "listBuddy-${VERSION}-win64.zip.sha256")
+
+
+def test_t119_windows_job_runs_build_script_on_windows_latest_without_secrets() -> None:
+    job = _job_text("build-windows")
+    assert "runs-on: windows-latest" in job
+    assert "secrets." not in job and "environment:" not in job      # Windows va sin firma (T-101): nada que proteger
+    assert "actions/setup-python@" in job and "python-version: ${{ env.PYTHON_VERSION }}" in job
+    assert "Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass" in job
+    assert "scripts\\build_windows.ps1" in job
+    assert "shell: pwsh" in job
+    uploads = re.findall(r"uses: actions/upload-artifact@[^\n]*\n(.*?)(?=\n      - |\Z)", job, re.S)
+    assert uploads and all(a in uploads[0] for a in ("listBuddy-*-win64.zip", "win64.zip.sha256"))
+
+
+def test_t119_windows_job_runs_on_tags_and_dispatch_only_where_mac_does() -> None:
+    """Sin `if:` propio: corre en los mismos eventos que `build` (tag, dispatch, PR de empaquetado)."""
+    job = _job_text("build-windows")
+    assert not re.search(r"^    if:", job, re.M)
+    on = _WORKFLOW.read_text(encoding="utf-8").split("permissions:", 1)[0]
+    for p in ("scripts/build_windows.ps1", "scripts/check_bundle.ps1", "scripts/bundle_forbidden.txt",
+              "requirements-build-windows.txt"):
+        assert p in on, p
+
+
+def test_t119_release_job_waits_for_windows_but_only_requires_macos() -> None:
+    job = _job_text("release")
+    needs = re.search(r"^    needs: \[([^\]]*)\]", job, re.M)
+    assert needs and {n.strip() for n in needs.group(1).split(",")} == {"build", "build-windows"}
+    cond = re.search(r"^    if: (.*)$", job, re.M).group(1)
+    assert "always()" in cond and "needs.build.result == 'success'" in cond
+    assert "startsWith(github.ref, 'refs/tags/v')" in cond
+    assert "needs.build-windows.result == 'success'" not in cond     # un fallo de Windows no frena a macOS
+
+
+def test_t119_release_includes_windows_assets_when_present_and_warns_when_not() -> None:
+    check, create = _step_run("Verificar assets"), _step_run("Crear release")
+    for a in _WIN_ASSETS:
+        assert a in check and f"assets/{a}" in create, a
+    assert "::warning::" in check and "GITHUB_STEP_SUMMARY" in check
+    assert "--draft" in create and "--verify-tag" in create
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="requiere bash")
+@pytest.mark.parametrize("with_windows,expect_win", [(True, True), (False, False)])
+def test_t119_asset_check_tolerates_missing_windows_and_exports_the_list(tmp_path, with_windows, expect_win) -> None:
+    script = _step_run("Verificar assets")
+    v = "9.9.9"
+    (tmp_path / "assets").mkdir()
+    names = [a.replace("${VERSION}", v) for a in _EXPECTED_ASSETS]
+    if with_windows:
+        names += [a.replace("${VERSION}", v) for a in _WIN_ASSETS]
+    for n in names:
+        (tmp_path / "assets" / n).write_bytes(b"x")
+    env = {"PATH": "/usr/bin:/bin", "GITHUB_REF_NAME": f"v{v}", "GITHUB_ENV": str(tmp_path / "env"),
+           "GITHUB_STEP_SUMMARY": str(tmp_path / "summary")}
+    (tmp_path / "env").write_text("")
+    r = subprocess.run(["bash", "-e", "-c", script], cwd=tmp_path, env=env, capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert ("WINDOWS_ASSETS=1" in (tmp_path / "env").read_text()) is expect_win
+    assert ("::warning::" in r.stdout) is (not expect_win)
+
+
+def test_t119_windows_zip_only_one_artifact_name_and_no_overlap_with_mac() -> None:
+    text = _WORKFLOW.read_text(encoding="utf-8")
+    assert "listbuddy-${{ env.APP_VERSION }}-win64" in text
