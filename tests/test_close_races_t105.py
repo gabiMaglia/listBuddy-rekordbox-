@@ -145,7 +145,7 @@ def test_log_lines_do_not_wait_for_the_next_long_copy() -> None:  # V6
 _CALLBACKS = [
     "w._on_relocate_finished(3, 0, 0, 'ok')",
     "w._on_restore_backup_finished(True, '', 'collection.nml')",
-    "w._on_recheck_done(True)",
+    "w._on_recheck_done(frozenset({'x'}))",
     "w._on_library_loaded(SimpleNamespace(token=w._load_generation))",
     "w._on_library_failed(w._load_generation, 'boom')",
     "w._on_relocate_ask(SimpleNamespace())",
@@ -197,3 +197,13 @@ def test_relocate_finishing_during_close_does_not_start_a_library_load() -> None
     )
     assert r.returncode == 0, r.stderr[-1500:]
     assert "Destroyed while thread" not in r.stderr
+
+
+def test_recheck_finishing_during_close_leaves_the_caches_alone() -> None:  # D3 de T-106
+    r = _go(
+        "w, _ = make(); w._closing = True; w._exists_cache['x'] = True\n"
+        "w._on_recheck_done(frozenset({'x'}))\n"
+        "print('x' in w._exists_cache, flush=True)\n"
+    )
+    assert r.returncode == 0, r.stderr[-1500:]
+    assert r.stdout.strip().splitlines()[-1] == "True"

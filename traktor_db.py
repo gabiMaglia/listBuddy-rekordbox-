@@ -54,7 +54,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from load_cancel import CHECK_EVERY, CancelCheck, LoadCancelled
+from load_cancel import CHECK_EVERY, CancelCheck, LoadCancelled, ProgressCallback
 
 __all__ = ["LoadCancelled"]  # re-export: lo importan los tests y la UI desde acá
 
@@ -351,6 +351,7 @@ def detect_installed_version() -> str | None:
 
 def open_collection(
     path: Path | None = None, *, should_cancel: CancelCheck | None = None,
+    on_progress: ProgressCallback | None = None,
 ) -> TraktorCollection:
     """
     Parse the NML file and return a TraktorCollection.
@@ -367,7 +368,7 @@ def open_collection(
         )
 
     try:
-        root, track_index = _scan(path, should_cancel)
+        root, track_index = _scan(path, should_cancel, on_progress)
     except ET.ParseError as e:
         raise RuntimeError(
             f"No se pudo leer la librería de Traktor.\nDetalle: {e}"
@@ -377,7 +378,9 @@ def open_collection(
     return TraktorCollection(path=path, tree=tree)
 
 
-def _scan(path: Path, should_cancel: CancelCheck | None) -> tuple[ET.Element, dict[str, TraktorTrack]]:
+def _scan(
+    path: Path, should_cancel: CancelCheck | None, on_progress: ProgressCallback | None = None,
+) -> tuple[ET.Element, dict[str, TraktorTrack]]:
     """Parseo en streaming (T-094): cada COLLECTION/ENTRY se convierte en
     TraktorTrack y se vacía, así el DOM de la colección nunca se acumula;
     PLAYLISTS (solo referencias) sí queda en el árbol para `_build_tree`."""
@@ -387,26 +390,33 @@ def _scan(path: Path, should_cancel: CancelCheck | None) -> tuple[ET.Element, di
     seen_collection = False
     in_collection = False
     ticks = 0
-    for event, el in ET.iterparse(str(path), events=("start", "end")):
-        ticks += 1
-        if should_cancel is not None and ticks % CHECK_EVERY == 1 and should_cancel():
-            raise LoadCancelled()
-        if event == "start":
-            if root is None:
-                root = el
-            stack.append(el)
-            if el.tag == "COLLECTION" and len(stack) == 2 and not seen_collection:
-                seen_collection = in_collection = True
-            continue
-        stack.pop()
-        if el.tag == "COLLECTION" and len(stack) == 1:
-            in_collection = False
-        elif in_collection and el.tag == "ENTRY" and len(stack) == 2:
-            made = _entry_to_track(el)
-            if made is not None:
-                index[made[0]] = made[1]
-            el.clear()
-            stack[1].clear()
+    total = path.stat().st_size
+    with open(path, "rb") as fh:
+        for event, el in ET.iterparse(fh, events=("start", "end")):
+            ticks += 1
+            if ticks % CHECK_EVERY == 1:
+                if should_cancel is not None and should_cancel():
+                    raise LoadCancelled()
+                if on_progress is not None:
+                    on_progress(fh.tell(), total)
+            if event == "start":
+                if root is None:
+                    root = el
+                stack.append(el)
+                if el.tag == "COLLECTION" and len(stack) == 2 and not seen_collection:
+                    seen_collection = in_collection = True
+                continue
+            stack.pop()
+            if el.tag == "COLLECTION" and len(stack) == 1:
+                in_collection = False
+            elif in_collection and el.tag == "ENTRY" and len(stack) == 2:
+                made = _entry_to_track(el)
+                if made is not None:
+                    index[made[0]] = made[1]
+                el.clear()
+                stack[1].clear()
+    if on_progress is not None:
+        on_progress(total, total)
     assert root is not None  # ET.iterparse lanza ParseError ante un documento vacío
     return root, index
 

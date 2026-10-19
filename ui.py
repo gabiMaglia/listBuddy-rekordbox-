@@ -15,6 +15,7 @@ import time
 from io import BytesIO
 from functools import partial
 from pathlib import Path
+from collections.abc import Iterator
 from typing import Any, Callable, Literal
 from xml.etree import ElementTree as ET
 
@@ -242,7 +243,19 @@ class MainWindow(QMainWindow):
         self._all_cards: list[PlaylistCard] = []
         self._groups: list[PlaylistGroup] = []
         self._source: str = "rekordbox"  # "rekordbox" | "traktor"
-        self._preview_worker: PreviewWorker | None = None
+        self._preview_worker: PreviewWorker | None = None   # el último lanzado
+        self._preview_workers: list[PreviewWorker] = []      # T-106: uno por lote de extracción
+        # T-106 (TEC-23): trabajo por lotes con presupuesto de tiempo por tick del event loop.
+        self._mark_queue: list[PlaylistCard] = []            # «Marcar todas» pendiente
+        self._status_sub: QLabel | None = None               # detalle de la tarjeta de estado (progreso)
+        self._loading_detail = ""
+        self._scroll_to_restore: int | None = None           # scroll a devolver tras un recheck
+        self._populate_job: Iterator[None] | None = None     # poblado del árbol en curso
+        self._populate_on_done: Callable[[], None] | None = None
+        self._mark_value = True
+        self._feed_queue: list[PlaylistCard] = []            # tarjetas por extraer para la previa
+        self._feed_order: dict[PlaylistCard, int] = {}
+        self._feed_folders: dict[PlaylistCard, str] = {}
         self._relocate_worker: RelocateWorker | None = None
         self._relocate_source: str = "rekordbox"  # fuente activa al arrancar el relocate en curso
         # I-1: progreso conocido del relocate en curso (último valor de la
@@ -1240,9 +1253,13 @@ class MainWindow(QMainWindow):
     def _reload_after_path_change(self) -> None:
         """Vuelve a leer la fuente activa; las playlists marcadas se re-marcan al terminar la carga."""
         keep = {self._playlist_cache_key(c.playlist) for c in self._all_cards if c.isChecked()}
-        if self._load_worker is not None:
-            # Carga en curso sin tarjetas aún: la última selección conocida es la pendiente.
+        if (self._load_worker is not None or self._populate_job is not None
+                or self._populate_on_done is not None):
+            # Carga o poblado en curso: las marcas aún no se aplicaron, la pendiente es la última conocida.
             keep |= self._keep_after_load
+        if self._mark_value:
+            # Re-marcado por lotes a medias: las que faltan marcar también cuentan.
+            keep |= {self._playlist_cache_key(c.playlist) for c in self._mark_queue}
         self._clear_preview_layout()   # los datos reparados cambian con las mismas claves
         self._track_meta_cache.clear()
         self._exists_cache.clear()
@@ -1269,6 +1286,7 @@ class MainWindow(QMainWindow):
         worker = LibraryLoadWorker(self._load_generation, self._source, path, self._fixes_store)
         worker.loaded.connect(self._on_library_loaded)
         worker.failed.connect(self._on_library_failed)
+        worker.progress.connect(self._on_library_progress)
         self._load_worker = worker
         self._retain_thread(worker)
         self._show_loading()
@@ -1283,7 +1301,24 @@ class MainWindow(QMainWindow):
             return
         worker.loaded.disconnect()
         worker.failed.disconnect()
+        worker.progress.disconnect()
         worker.requestInterruption()
+
+    def _on_library_progress(self, token: int, pct: int) -> None:
+        sub = self._status_sub
+        if token != self._load_generation or sub is None or not isValid(sub):
+            return
+        sub.setText(f"{self._loading_detail} {pct} %")
+
+    def _on_cancel_load_clicked(self) -> None:
+        """Botón «Cancelar» de la tarjeta «Cargando librería…»: suelta la carga y deja la lista vacía."""
+        self._cancel_library_load()
+        self._keep_after_load = set()
+        self._show_status_card(
+            "Carga cancelada",
+            "Volvé a cargar la librería con Ver → Recargar librería.",
+        )
+        self._sync_maintenance_for_source()
 
     def _on_library_loaded(self, result: LibraryLoadResult) -> None:
         if self._closing:
@@ -1299,7 +1334,16 @@ class MainWindow(QMainWindow):
         else:
             playlist_song_count = rekordbox_xml.playlist_song_count
             src_label = "Rekordbox"
-        self._populate_playlists(result.tree, playlist_song_count)
+        self._populate_playlists(
+            result.tree, playlist_song_count,
+            on_done=partial(self._finish_library_load, result, src_label),
+        )
+
+    def _finish_library_load(self, result: LibraryLoadResult, src_label: str) -> None:
+        if self._closing:
+            return
+        if result.token != self._load_generation:
+            return
         self._log(f"{len(self._all_cards)} playlist(s) cargada(s) desde {src_label}.")
         if result.source == "rekordbox":
             stamp = f"{self._db.exported_at:%d/%m/%Y %H:%M}"
@@ -1307,10 +1351,11 @@ class MainWindow(QMainWindow):
             self._src_rb_btn.setToolTip(f"XML exportado el {stamp}")
         keep, self._keep_after_load = self._keep_after_load, set()
         if keep:
-            for card in self._all_cards:
-                if self._playlist_cache_key(card.playlist) in keep:
-                    card.setChecked(True)
-            self._update_order_numbers()
+            # Re-marcar en lotes: cientos de setChecked juntos congelan la ventana (T-106).
+            self._mark_queue = [c for c in self._all_cards
+                                if self._playlist_cache_key(c.playlist) in keep]
+            self._mark_value = True
+            self._pump_mark()
         self._sync_maintenance_for_source()
 
     def _on_library_failed(self, token: int, message: str) -> None:
@@ -1330,20 +1375,37 @@ class MainWindow(QMainWindow):
     # y llaman a esta referencia para ejercitar la carga real.
     _load_playlists_real = _load_playlists
 
-    def _populate_playlists(self, tree: list[dict], song_count: Callable[[Any], int]) -> None:
-        """Arma carpetas y filas desde el árbol; separado de la carga para testearlo sin DB."""
+    def _populate_playlists(
+        self, tree: list[dict], song_count: Callable[[Any], int],
+        on_done: Callable[[], None] | None = None,
+    ) -> None:
+        """Arma carpetas y filas desde el árbol; separado de la carga para testearlo sin DB.
+
+        T-106: en lotes de ≈10 ms (800 playlists de una vez congelaban la ventana). El primer lote
+        corre acá mismo, pero ya con 10 ms alcanza para pocas tarjetas (≈15 playlists vuelven con
+        ~6): el resto sigue en los ticks siguientes. Mientras falte, el contenedor queda oculto.
+        Para saber cuándo terminó están `on_done` y `_populate_job is None`; `on_done` corre en
+        el mismo tick del último lote, o en el siguiente si hubo que mostrar el contenedor."""
+        self._populate_job = self._populate_steps(tree, song_count)
+        self._populate_on_done = on_done
+        self._pump_populate()
+
+    def _populate_steps(
+        self, tree: list[dict], song_count: Callable[[Any], int],
+    ) -> Iterator[None]:
         card_index = 0
         layout = self.playlist_container_layout
 
-        def add_node(node: dict, group: PlaylistGroup | None = None) -> None:
+        def add_node(node: dict, group: PlaylistGroup | None = None) -> Iterator[None]:
             nonlocal card_index
             pl = node["playlist"]
             if pl.is_folder:
                 grp = PlaylistGroup(pl.Name)
                 self._groups.append(grp)
                 layout.insertWidget(layout.count() - 1, grp)
+                yield
                 for child in node["children"]:
-                    add_node(child, grp)
+                    yield from add_node(child, grp)
             else:
                 card = PlaylistCard(pl, song_count(pl), index=card_index)
                 card.toggled.connect(self._on_card_toggled)
@@ -1353,36 +1415,76 @@ class MainWindow(QMainWindow):
                     group.add_card(card)
                 else:
                     layout.insertWidget(layout.count() - 1, card)
+                card.ensurePolished()   # el pulido de estilos se paga por lote, no de golpe al mostrar
+                yield
 
         for node in tree:
-            add_node(node)
+            yield from add_node(node)
+        yield from self._filter_steps(100)   # con el contenedor oculto: barato, pero por tandas
 
+    def _pump_populate(self) -> None:
+        job = self._populate_job
+        if job is None:
+            return
+        if not isValid(self.playlist_container_layout):
+            self._populate_job = None
+            return
+        deadline = time.perf_counter() + self._BATCH_BUDGET_S
+        for _ in job:
+            if time.perf_counter() >= deadline:
+                # Cada lote hace que Qt re-acomode TODAS las tarjetas ya puestas (O(n) por tick:
+                # con 800 ≈ 200 ms). Mientras falte poblar, el contenedor queda oculto.
+                self.playlist_container.hide()
+                QTimer.singleShot(0, self._pump_populate)
+                return
+        self._populate_job = None
+        if self.playlist_container.isHidden():
+            self.playlist_container.show()   # el costo grande del final, solo en su tick
+            QTimer.singleShot(0, self._finish_populate)
+        else:
+            self._finish_populate()
+
+    def _finish_populate(self) -> None:
+        if self._populate_job is not None or not isValid(self.playlist_container_layout):
+            return   # arrancó otro poblado (o la ventana murió) mientras tanto
+        on_done, self._populate_on_done = self._populate_on_done, None
         self._update_order_numbers()
-        self._apply_filter()  # el texto del campo sobrevive a recargas (cambio de fuente)
         self._preview_debounce.start()
+        if on_done is not None:
+            on_done()
 
     def _apply_filter(self) -> None:
         """Muestra/oculta filas por nombre; solo de vista: no toca marcas, orden ni contador."""
-        query = self.playlist_search.text()
-        active = bool(query.strip())
         # Layout y repintado una sola vez al final: mostrar cientos de filas de
         # golpe (al borrar la consulta) costaba ~0,8 s con 300 playlists.
         layout = self.playlist_container_layout
         layout.setEnabled(False)
         self.playlist_container.setUpdatesEnabled(False)
         try:
-            for card in self._all_cards:
-                card.setVisible(matches(card.name, query))
-            for grp in self._groups:
-                grp.setVisible(not active or any(not c.isHidden() for c in grp.cards()))
+            for _ in self._filter_steps(0):
+                pass
         finally:
             self.playlist_container.setUpdatesEnabled(True)
             layout.setEnabled(True)
+
+    def _filter_steps(self, every: int) -> Iterator[None]:
+        """El filtro como generador: cede cada `every` tarjetas (0 = nunca) para repartirlo en ticks."""
+        query = self.playlist_search.text()
+        active = bool(query.strip())
+        for i, card in enumerate(self._all_cards, start=1):
+            card.setVisible(matches(card.name, query))
+            if every and i % every == 0:
+                yield
+        for grp in self._groups:
+            grp.setVisible(not active or any(not c.isHidden() for c in grp.cards()))
         none_visible = bool(self._all_cards) and all(c.isHidden() for c in self._all_cards)
         self._no_results.setText(f"Sin resultados para «{query.strip()}»")
         self._no_results.setVisible(active and none_visible)
 
     def _clear_playlist_area(self) -> None:
+        self._populate_job = None
+        self.playlist_container.show()
+        self._mark_queue.clear()
         self._all_cards.clear()
         self._groups.clear()
         layout = self.playlist_container_layout
@@ -1410,7 +1512,8 @@ class MainWindow(QMainWindow):
             detail = "Leyendo la colección de Traktor…"
         else:
             detail = "Leyendo el XML de Rekordbox. Con colecciones grandes puede tardar unos segundos."
-        self._show_status_card("Cargando librería…", detail)
+        self._loading_detail = detail
+        self._show_status_card("Cargando librería…", detail, ("Cancelar", self._on_cancel_load_clicked))
 
     def _show_status_card(
         self, title_text: str, detail: str,
@@ -1437,6 +1540,7 @@ class MainWindow(QMainWindow):
         cl.addWidget(title)
 
         sub = WrapLabel(detail)
+        self._status_sub = sub
         sub.setObjectName("not_installed_sub")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cl.addWidget(sub)
@@ -1456,7 +1560,9 @@ class MainWindow(QMainWindow):
 
     # ──────────────────────────────────────── Order tracking ─────────────
 
-    def _on_card_toggled(self, _card: PlaylistCard) -> None:
+    def _on_card_toggled(self, card: PlaylistCard) -> None:
+        if card in self._mark_queue:
+            self._mark_queue.remove(card)   # el usuario decidió esta: el lote no la pisa
         self._update_order_numbers()
 
     def _update_order_numbers(self) -> None:
@@ -1567,15 +1673,19 @@ class MainWindow(QMainWindow):
                     w.deleteLater()
 
     def _cancel_preview_worker(self) -> None:
-        worker = self._preview_worker
-        if worker is not None and worker.isRunning():
-            worker.group_ready.disconnect()
-            worker.done.disconnect()
-            worker.cancel()
-            worker.requestInterruption()
-            # No se espera: el hilo viejo termina solo (puede estar en un stat
-            # lento) y mientras tanto queda retenido, nunca destruido en vuelo.
-            self._retain_thread(worker)
+        self._feed_queue = []   # lo que no se alcanzó a extraer se vuelve a pedir
+        workers, self._preview_workers = self._preview_workers, []
+        if self._preview_worker is not None and self._preview_worker not in workers:
+            workers.append(self._preview_worker)
+        for worker in workers:
+            if worker.isRunning():
+                worker.group_ready.disconnect()
+                worker.done.disconnect()
+                worker.cancel()
+                worker.requestInterruption()
+                # No se espera: el hilo viejo termina solo (puede estar en un stat
+                # lento) y mientras tanto queda retenido, nunca destruido en vuelo.
+                self._retain_thread(worker)
 
     def _retain_thread(self, thread: QThread) -> None:
         """Mantiene vivo el wrapper de un hilo hasta su `finished` real.
@@ -1608,22 +1718,54 @@ class MainWindow(QMainWindow):
         self.preview_layout.addStretch(1)
         self._animate_fade_in(loading, duration=120)
 
-        # ── Extracción de metadata en el main thread (rápido: sólo queries a DB) ──
-        groups = self._extract_preview_data(selected)
-        self._name_groups_like_folders(groups)
-        self._launch_preview_worker(groups)
+        self._feed_preview(selected, {c: i for i, c in enumerate(selected, start=1)},
+                           self._folder_names_of(selected))
+
+    def _feed_preview(
+        self, cards: list[PlaylistCard], order: dict[PlaylistCard, int],
+        folders: dict[PlaylistCard, str],
+    ) -> None:
+        """T-106: extrae la metadata en el hilo de UI pero por lotes (≈25 ms por tick) y lanza un
+        `PreviewWorker` por lote, así las tarjetas empiezan a aparecer y la ventana responde."""
+        self._render_queue.clear()
+        self._feed_queue = list(cards)
+        self._feed_order = order
+        self._feed_folders = folders
+        self._pump_feed()
+
+    def _pump_feed(self) -> None:
+        queue = self._feed_queue
+        if not queue:
+            return
+        if not isValid(self.preview_layout):
+            queue.clear()
+            return
+        deadline = time.perf_counter() + self._BATCH_BUDGET_S
+        groups: list[GroupData] = []
+        while queue and (not groups or time.perf_counter() < deadline):
+            chunk = queue[:4]
+            del queue[:4]
+            groups.extend(self._extract_preview_data(chunk))
+        for g in groups:
+            g.order = self._feed_order.get(g.card, g.order)
+            g.name = self._feed_folders.get(g.card, g.name)
+        self._start_group_worker(groups)
+        if queue:
+            QTimer.singleShot(0, self._pump_feed)
 
     def _launch_preview_worker(self, groups: list[GroupData]) -> None:
-        # ── Worker: existence checks en background con cache compartido ──
         self._render_queue.clear()
-        self._preview_worker = PreviewWorker(
-            groups,
-            self._source == "traktor",
-            self._exists_cache,
-        )
-        self._preview_worker.group_ready.connect(self._queue_group)
-        self._preview_worker.done.connect(self._on_preview_done)
-        self._preview_worker.start()
+        self._start_group_worker(groups)
+
+    def _start_group_worker(self, groups: list[GroupData]) -> None:
+        # ── Worker: existence checks en background con cache compartido ──
+        worker = PreviewWorker(groups, self._source == "traktor", self._exists_cache)
+        worker.group_ready.connect(self._queue_group)
+        worker.done.connect(self._on_preview_done)
+        self._preview_workers = [w for w in self._preview_workers if w.isRunning()]
+        self._preview_workers.append(worker)
+        self._preview_worker = worker
+        worker.start()
 
     def _sync_preview_cards(self, selected: list[PlaylistCard]) -> None:
         """Tildar/destildar con la vista previa ya armada (T-089): quita las tarjetas de las
@@ -1642,11 +1784,7 @@ class MainWindow(QMainWindow):
         new = [c for c in selected if c not in self._preview_cards]
         if not new:
             return
-        groups = self._extract_preview_data(new)
-        self._name_groups_like_folders(groups)
-        for group in groups:
-            group.order = selected.index(group.card) + 1
-        self._launch_preview_worker(groups)
+        self._feed_preview(new, {c: i for i, c in enumerate(selected, start=1)}, folders)
 
     def _remove_preview_card(self, key: object) -> None:
         card = self._preview_cards.pop(key)
@@ -1823,15 +1961,22 @@ class MainWindow(QMainWindow):
         lo.addStretch(1)
         self._animate_fade_in(card, duration=180)
 
+        # T-106: armazón en este tick y filas en el siguiente, así ningún tick junta ambos costos.
+        QTimer.singleShot(0, partial(self._finish_group_rows, data, card))
+
+    def _finish_group_rows(self, data: GroupData, card: PreviewGroupCard) -> None:
         # Filas perezosas (T-089): la tarjeta construye ~12 y el resto al scrollear. Una carpeta
         # 100 % rota nace colapsada y no crea sus filas hasta que se expande (D4).
-        positions = block_positions([t.exists for t in data.tracks])
-        card.set_lazy_rows(list(zip(data.tracks, positions)), self._make_row_widget,
-                           data.missing_count > 0)
-
+        key = data.card if data.card is not None else card
+        if isValid(card) and self._preview_cards.get(key) is card:
+            positions = block_positions([t.exists for t in data.tracks])
+            card.set_lazy_rows(list(zip(data.tracks, positions)), self._make_row_widget,
+                               data.missing_count > 0)
         # Continuar con el siguiente grupo en el próximo tick
         if self._render_queue:
             QTimer.singleShot(0, self._pump_render_queue)
+        elif self._scroll_to_restore is not None and not self._feed_queue:
+            QTimer.singleShot(0, self._restore_preview_scroll)
 
     def _on_card_repair(self, auto: bool, data: GroupData) -> None:
         """Botonera de la tarjeta (D1 del PO): actúa SOLO sobre los rotos de esa carpeta."""
@@ -2238,14 +2383,36 @@ class MainWindow(QMainWindow):
         self._recheck_worker = worker
         worker.start()
 
-    def _on_recheck_done(self, changed: bool) -> None:
+    def _on_recheck_done(self, changed: frozenset[str]) -> None:
+        """T-106: rehace solo las tarjetas con alguna pista cuyo estado cambió y conserva el
+        resto y el scroll de la vista previa (antes se reconstruía todo y volvía arriba)."""
         if self._closing:
             return
         if not changed or self._export_state != "idle":
             return
-        self._exists_cache.clear()
-        self._clear_preview_layout()
-        self._start_preview_worker()
+        for raw in changed:
+            self._exists_cache.pop(raw, None)
+        affected = [card for card, pc in self._preview_cards.items()
+                    if any(t.raw_path in changed for t in pc.data.tracks)]
+        if not affected:
+            return
+        # A mitad del dibujo hay tarjetas marcadas aún sin dibujar: se cancela lo en vuelo (traería
+        # datos viejos) y se vuelve a pedir TODO lo que falta, no solo las afectadas.
+        self._cancel_preview_worker()
+        self._render_queue.clear()
+        for card in affected:
+            self._remove_preview_card(card)
+        self._set_broken_total(sum(g.missing_count for g in self._rendered_groups))
+        self._scroll_to_restore = self.preview_scroll.verticalScrollBar().value()
+        selected = [c for c in self._all_cards if c.isChecked()]
+        missing = [c for c in selected if c not in self._preview_cards]
+        self._feed_preview(missing, {c: i for i, c in enumerate(selected, start=1)},
+                           self._folder_names_of(selected))
+
+    def _restore_preview_scroll(self) -> None:
+        value, self._scroll_to_restore = self._scroll_to_restore, None
+        if value is not None and isValid(self.preview_scroll):
+            self.preview_scroll.verticalScrollBar().setValue(value)
 
     def _wait_export_block(self, worker: QThread) -> None:
         """Cierra sin abortar: la copia corta entre bloques de 1 MiB, pero un disco lento puede
@@ -2271,17 +2438,38 @@ class MainWindow(QMainWindow):
         if text.strip():
             self.settings.setValue("last_dest_folder", text.strip())
 
+    # Presupuesto de trabajo por tick: deja pasar el input y el repintado (TEC-23, ≤ 100 ms).
+    _BATCH_BUDGET_S = 0.010
+
     def _set_all(self, checked: bool, only_visible: bool = False) -> None:
-        for card in self._all_cards:
-            if only_visible and card.isHidden():
-                continue
-            card.setChecked(checked)
+        """Marca/desmarca en lotes: con cientos de playlists un solo bucle congelaba la ventana.
+        El primer lote corre acá mismo, así que las listas chicas quedan listas al volver."""
+        self._mark_queue = [c for c in self._all_cards if not (only_visible and c.isHidden())]
+        self._mark_value = checked
+        self._pump_mark()
+
+    def _pump_mark(self) -> None:
+        queue = self._mark_queue
+        if not queue or not isValid(self.playlist_container_layout):
+            return
+        deadline = time.perf_counter() + self._BATCH_BUDGET_S
+        done = 0
+        for card in queue:
+            card.setChecked(self._mark_value)
+            done += 1
+            if time.perf_counter() >= deadline:
+                break
+        del queue[:done]
         self._update_order_numbers()
+        if queue:
+            QTimer.singleShot(0, self._pump_mark)
 
     def _close_group_card(self, card: PlaylistCard) -> None:
         """T-015: botón de cerrar del header de un grupo en el preview — destilda
         el checkbox real de esa playlist en el árbol izquierdo (mismo efecto
         que destildarla ahí a mano)."""
+        if card in self._mark_queue:
+            self._mark_queue.remove(card)
         card.setChecked(False)
         self._update_order_numbers()
 

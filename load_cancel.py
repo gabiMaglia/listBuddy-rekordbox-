@@ -6,6 +6,9 @@ from typing import Callable
 # `should_cancel()` devuelve True cuando el hilo de carga fue interrumpido.
 CancelCheck = Callable[[], bool]
 
+# `on_progress(bytes_leídos, bytes_totales)`: la ventana lo usa para mostrar el avance (T-106).
+ProgressCallback = Callable[[int, int], None]
+
 # Cada cuántos eventos del parser se consulta la cancelación (barato pero no gratis).
 CHECK_EVERY = 2048
 
