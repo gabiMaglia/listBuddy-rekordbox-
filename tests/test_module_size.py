@@ -41,7 +41,10 @@ def class_method_counts(source: str, filename: str) -> dict[str, int]:
                     isinstance(b, (ast.FunctionDef, ast.AsyncFunctionDef)) for b in child.body
                 )
                 visit(child, f"{name}.")
-            elif not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                # Una clase local también es código que alguien mantiene: se mide igual (nombre tipo __qualname__).
+                visit(child, f"{prefix}{child.name}.<locals>.")
+            else:
                 visit(child, prefix)
 
     visit(ast.parse(source, filename=filename), "")
@@ -139,3 +142,10 @@ def test_the_allowlists_hold_exactly_the_measured_offenders() -> None:
     lines, methods = measure(root_sources())
     assert {k: v for k, v in lines.items() if v > MAX_LINES} == ALLOWED_LINES
     assert {k: v for k, v in methods.items() if v > MAX_METHODS} == ALLOWED_METHODS
+
+
+def test_classes_defined_inside_functions_are_measured_too() -> None:
+    body = "".join(f"        def m{i}(self) -> None: ...\n" for i in range(41))
+    src = f"def fabrica() -> None:\n    class Local:\n{body}"
+    assert class_method_counts(src, "m.py") == {"m.py::fabrica.<locals>.Local": 41}
+    assert all_errors({"m.py": src}, {}, {}) == ["m.py::fabrica.<locals>.Local: 41 métodos (máximo 40)"]

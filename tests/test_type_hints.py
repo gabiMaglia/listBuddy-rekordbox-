@@ -67,3 +67,11 @@ def test_missing_parameter_return_and_star_args_are_reported() -> None:
 
 def test_a_fully_hinted_source_passes() -> None:
     assert missing_hints("def f(a: int, *r: str, k: bool = False, **o: object) -> int:\n    return a\n") == []
+
+
+def test_keyword_only_and_positional_only_parameters_without_type_are_reported() -> None:
+    src = "def f(a, /, b: int, *, c) -> None: ...\n"
+    assert missing_hints(src, "m.py") == [
+        "m.py:1 f(): parámetro «a» sin tipo",
+        "m.py:1 f(): parámetro «c» sin tipo",
+    ]

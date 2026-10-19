@@ -269,3 +269,23 @@ def test_a_fixed_violation_must_leave_the_allowlist() -> None:
     sources["rekordbox_export"] = sources["rekordbox_export"].replace("rekordbox_xml", "rekordbox_xml_x")
     errors = report(violations(sources))
     assert "la violación rekordbox_export → rekordbox_xml ya no existe: sacala de ALLOWED_EDGES" in errors, errors
+
+
+def test_a_worker_importing_widgets_fails() -> None:
+    found = violations({"worker": "def f() -> None:\n    from PySide6.QtWidgets import QWidget\n"})
+    assert found.qt == {("worker", "PySide6.QtWidgets")}
+
+
+def test_a_controller_importing_a_view_fails() -> None:
+    sources = {"export_controller": "import dialogs\n", "dialogs": ""}
+    errors = [e for e in report(violations(sources)) if e.startswith("import prohibido")]
+    assert errors == ["import prohibido: export_controller (L3) → dialogs (L4)"]
+
+
+def test_stale_qt_and_cycle_allowlist_entries_must_be_removed() -> None:
+    sources = root_sources()
+    sources["relocate_core"] = sources["relocate_core"].replace("PySide6", "PySide6_x")
+    sources["preview_card"] = sources["preview_card"].replace("ui_components", "ui_components_x")
+    errors = report(violations(sources))
+    assert "la violación Qt relocate_core → PySide6.QtCore ya no existe: sacala de ALLOWED_QT" in errors, errors
+    assert "el ciclo preview_card ↔ ui_components ya no existe: sacalo de ALLOWED_CYCLES" in errors, errors
