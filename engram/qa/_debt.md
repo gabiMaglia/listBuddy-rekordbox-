@@ -36,3 +36,4 @@
 | T-078 | ídem (2026-10-12, iteración 1) | handoff no pidió artefacto |
 | T-101 | 03_backlog (Done 2026-10-16) | solo doc (README) + test estático, decisión explícita del PO de no firmar Windows; el Orquestador lo hizo sin nerv-qa por economía (P-E); cubierto por `test_readme_explains_unsigned_windows_build_and_smartscreen` |
 | T-112 | 03_backlog (Done 2026-10-16) + PR #1 | solo fixtures de tests y entorno UTF-8 de subprocesos, sin cambios funcionales; verificado por los dos jobs de CI (macOS 900+ y windows-latest 490 verdes); el Orquestador lo mergeó sin nerv-qa por economía (P-E) |
+| T-111 | 03_backlog (Done 2026-10-19) | la captura purgada de `main` sigue alcanzable en GitHub vía `refs/pull/1/head` (PR #1); solo la quita GitHub Support. Pendiente del PO: abrir el ticket de soporte o aceptar el residuo (riesgo bajo, LEG-25) |
