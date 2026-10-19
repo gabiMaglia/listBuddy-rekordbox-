@@ -1,11 +1,30 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2025-2026 Gabriel Maglia
-"""T-120: ningún módulo de la app abre rutas por fuera de `file_access.py`.
+"""T-120: guía para que los módulos de la app no abran rutas por fuera de `file_access.py`.
 
 Una versión con sandbox (Mac App Store, ADR-008) necesita que todo acceso a una ruta del usuario
-pase por un único punto. El test recorre el AST de cada módulo de la raíz, así un módulo nuevo
+pase por un único punto. El test recorre el AST de cada módulo del proyecto, así un módulo nuevo
 (Buddy) queda vigilado sin tener que anotarlo. Lo que queda afuera está en `ALLOWLIST` con su
-motivo, y una entrada que ya no hace falta también falla: la lista solo puede achicarse.
+motivo, y una entrada que ya no hace falta también falla.
+
+Es una GUÍA, no una garantía: atrapa las formas habituales, pero un análisis sintáctico no puede
+decidir qué hace cada expresión en Python. Huecos conocidos (informe `engram/qa/T-120-verifier.md`):
+
+- `Path.open()` sin argumentos (se ignora para no confundirlo con `QDialog.open()`).
+- `tree.write(dest)` cuando `tree` no está anotado o llega de otra función (`self.tree`, un helper).
+- `ET.ElementTree(file=ruta)` y `xml.dom.minidom.parse(ruta)`.
+- Dependencias inyectadas por parámetro (`opener=open`, `replace=os.replace`).
+- `functools.partial(open, ...)` y alias en un atributo de clase (`_open = staticmethod(open)`).
+- `tempfile` (`mkstemp`/`mkdtemp` en una carpeta del usuario).
+- `os.link`, `os.symlink` y `os.truncate`.
+- La API de archivos de Qt (`QFile`, `QSaveFile`, `QSettings`, `QDir`, `QImage.save`…).
+- Las carpetas excluidas (`tests`, `scripts`, `build`…) se saltean a cualquier profundidad, así que
+  `buddy/build/` o `buddy/tests/` quedan fuera.
+- La allowlist no es un trinquete: vive en este mismo archivo y el PR que agrega una excepción
+  puede aflojarla.
+
+La garantía es T-124 (guardia de auditoría en runtime + AST de la API de Qt, rama
+`feat/t120-file-access`).
 """
 from __future__ import annotations
 
