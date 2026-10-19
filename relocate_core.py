@@ -60,6 +60,8 @@ from typing import Any
 
 from PySide6.QtCore import QThread, Signal
 
+import file_access
+
 _BACKUP_DIR_NAME = "listBuddy_backups"
 
 # Logger al archivo rotativo (app_logging.py). Los self.log.emit() van al panel
@@ -262,19 +264,7 @@ def restore_backup(backup_path: Path, target_path: Path) -> None:
     check_disk_space_for_backup(
         backup_path, write_dir=target_path.parent, action="la restauración",
     )
-    tmp_path = target_path.parent / (target_path.name + ".restoretmp")
-    try:
-        with open(backup_path, "rb") as src, open(tmp_path, "wb") as dst:
-            shutil.copyfileobj(src, dst)
-            dst.flush()
-            os.fsync(dst.fileno())
-        os.replace(tmp_path, target_path)
-    except OSError:
-        try:
-            tmp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
-        raise
+    file_access.atomic_copy(backup_path, target_path, tmp_suffix=".restoretmp")
 
 
 class RestoreBackupWorker(QThread):

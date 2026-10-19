@@ -18,6 +18,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 
+import file_access
 from rekordbox_export import get_songs as _rb_get_songs
 from rekordbox_export import get_content, get_artist, resolve_path, sanitize
 from db import order_playlist_songs
@@ -175,7 +176,7 @@ def _copy_atomic(src: Path, dest: Path, should_stop) -> None:
         os.replace(part, dest)
     except BaseException:
         try:
-            part.unlink()
+            file_access.remove(part, missing_ok=False)
         except OSError:
             pass
         raise
@@ -189,7 +190,7 @@ def _remove_orphan_parts(folder: Path, names: set[str]) -> None:
     """
     for name in names:
         try:
-            (folder / name).unlink()
+            file_access.remove(folder / name, missing_ok=False)
         except OSError:
             pass
 
@@ -206,7 +207,7 @@ class DestinationCheck(QThread):
 
     def run(self) -> None:
         try:
-            self._path.mkdir(parents=True, exist_ok=True)
+            file_access.ensure_dir(self._path)
         except OSError:
             self.checked.emit(False)
             return
@@ -346,7 +347,7 @@ class ExportWorker(QThread):
             sorted_songs = songs   # ya ordenadas al armar playlist_songs
 
             try:
-                dest_dir.mkdir(parents=True, exist_ok=True)
+                file_access.ensure_dir(dest_dir)
             except OSError as e:
                 # Disco de destino desconectado (/Volumes/<disco> desmontado),
                 # sin permisos o solo lectura: se corta acá con un mensaje claro.
@@ -446,7 +447,7 @@ class ExportWorker(QThread):
                 if report_path is None:
                     self._emit(f"   ⚠  No se escribió _no_exportados.txt en {dest_dir}: es un acceso directo")
                     continue
-                report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                file_access.write_text(report_path, "\n".join(lines) + "\n")
             except OSError as e:
                 self._emit(f"   ⚠  No se pudo escribir _no_exportados.txt en {dest_dir}: {e}")
 

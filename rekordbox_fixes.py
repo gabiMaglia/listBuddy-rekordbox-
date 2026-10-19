@@ -9,13 +9,12 @@ URI `Location` original del XML → ruta nueva en disco.
 """
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
-import os
+import os  # noqa: F401  (los tests parchean os.replace a través de este módulo: rf.os)
 from pathlib import Path, PurePath
 
-from app_paths import make_private
+import file_access
 
 _log = logging.getLogger("listBuddy")
 _VERSION = 1
@@ -39,7 +38,7 @@ class FixStore:
         del usuario), así que no hace falta interpretar rutas de otro sistema.
         """
         try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
+            data = json.loads(file_access.read_text(self.path))
         except FileNotFoundError:
             return {}
         except (OSError, ValueError) as e:
@@ -63,22 +62,10 @@ class FixStore:
         return clean
 
     def save(self, mapping: dict[str, str]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_name(self.path.name + ".tmp")
-        try:
-            # Se crea ya en 0600: no hay ventana en la que otro usuario lo lea.
-            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump({"version": _VERSION, "fixes": mapping}, f, ensure_ascii=False, indent=1)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp, self.path)
-            # Lleva las rutas reales de la música del usuario (LEG-23/SEC-22).
-            make_private(self.path)
-        except BaseException:
-            with contextlib.suppress(OSError):
-                tmp.unlink(missing_ok=True)
-            raise
+        file_access.ensure_dir(self.path.parent)
+        # Privado (0600 desde el .tmp): lleva las rutas reales de la música del usuario (LEG-23/SEC-22).
+        with file_access.atomic_write(self.path, private=True, encoding="utf-8") as f:
+            json.dump({"version": _VERSION, "fixes": mapping}, f, ensure_ascii=False, indent=1)
 
     def merge(self, new: dict[str, str]) -> dict[str, str]:
         merged = self.load()
@@ -87,7 +74,7 @@ class FixStore:
         return merged
 
     def clear(self) -> None:
-        self.path.unlink(missing_ok=True)
+        file_access.remove(self.path)
 
     def count(self) -> int:
         return len(self.load())

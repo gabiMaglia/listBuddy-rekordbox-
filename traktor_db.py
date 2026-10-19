@@ -56,6 +56,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+import file_access
 from load_cancel import CHECK_EVERY, CancelCheck, LoadCancelled, ProgressCallback
 
 __all__ = ["LoadCancelled"]  # re-export: lo importan los tests y la UI desde acá
@@ -393,7 +394,7 @@ def _scan(
     in_collection = False
     ticks = 0
     total = path.stat().st_size
-    with open(path, "rb") as fh:
+    with file_access.open_read(path) as fh:
         for event, el in ET.iterparse(fh, events=("start", "end")):
             ticks += 1
             if ticks % CHECK_EVERY == 1:
