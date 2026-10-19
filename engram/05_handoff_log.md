@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-19 14:05] Ola 1 LANZADA (Opus) → nerv-desktop ×3: T-099 F0 (S) · T-098 (B) · T-120 (B)
+- Precondiciones de KICKOFF.md: main = origin/main, peers idle, 219 GB libres. Suite base ROJA por `KICKOFF.md` con ruta personal (error del cierre B: el `git grep` excluyó justo la ruta del repo) → arreglado en 6ec2e74, suite exit 0. Ese commit falta pushear (PO).
+- Worktrees `../wt-t099-f0`, `../wt-t098`, `../wt-t120` desde 6ec2e74; archivos disjuntos declarados en cada prompt. F0 declara `file_access` como L0 por adelantado; si T-098 suma módulo, se declara al integrar.
+- Quien retoma: nerv-orquestador al retorno de cada uno → nerv-gate → nerv-qa (artefacto qa/<T-ID>.md) → verifier ciego para T-099 F0.
+
 ### [2026-10-19 13:45] CIERRE DE SESIÓN (B)
 - Hecho hoy: planificación 1.1.0 completa y mergeada: roadmap con Gherkin (T-114..T-120), planes T-099 (ADR-007) y T-102 (ADR-008) por nerv-arquitecto, mockups de Buddy (layout C con fuentes apilables ≤ 9 y splitter, elegido por el PO), 11 decisiones ratificadas, Sprint 5 dado de alta en el backlog, ADR-007/008 aceptados en 02_architecture, tabla Stack corregida. `engram/plans/1.1/KICKOFF.md` deja la Ola 1 lista para ejecutar con Opus.
 - Próximo paso: PO pushea `main` (el clasificador bloquea el push al Orquestador) y, cuando tenga tiempo, abre sesión y lanza la Ola 1 de KICKOFF.md (T-099 F0 · T-098 · T-120, en paralelo, worktrees propios). El release 1.0.0 sigue esperando cert Apple + GitHub + Polar.
