@@ -1,0 +1,375 @@
+<title>Buddy listas propias</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: una página de propuesta, tabs por variante; mockups a escala de la app (tokens «Mezcla Cálida» de styles.py), dark-first como la app */
+:root{
+  --bg:#161513;--header:#1e1c19;--surface:#1e1c19;--surface2:#282520;--inset:#121110;
+  --line:#3a362f;--row:#2b2823;--text:#f2ede4;--muted:#aca59a;--accent:#f0a93b;--on-accent:#1a1408;
+  --sel:#2a251b;--danger:#f2a79a;--danger-soft:#3a2823;--ok:#9fd6ad;--chip:#c9c1b4;
+  --f-title:"Sora",system-ui,sans-serif;--f-body:"Public Sans",system-ui,sans-serif;--f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#f3efe7;--header:#fbf9f4;--surface:#fbf9f4;--surface2:#ebe6db;--inset:#f3efe7;--line:#d6cfc1;--row:#ebe6db;
+  --text:#1c1915;--muted:#5b554b;--accent:#8a5700;--on-accent:#fff;--sel:#f6e8cf;--danger:#8a2a1a;--danger-soft:#f1d2ca;--ok:#1f6b3a;--chip:#4a443b;color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#f3efe7;--header:#fbf9f4;--surface:#fbf9f4;--surface2:#ebe6db;--inset:#f3efe7;--line:#d6cfc1;--row:#ebe6db;
+  --text:#1c1915;--muted:#5b554b;--accent:#8a5700;--on-accent:#fff;--sel:#f6e8cf;--danger:#8a2a1a;--danger-soft:#f1d2ca;--ok:#1f6b3a;--chip:#4a443b;color-scheme:light}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--f-body);font-size:14px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 48px}
+.wrap{max-width:1100px;margin:0 auto;display:grid;gap:28px}
+h1{font-family:var(--f-title);font-size:26px;margin:0;letter-spacing:-.02em;text-wrap:balance}
+h2{font-family:var(--f-title);font-size:17px;margin:0 0 6px;letter-spacing:-.01em}
+h3{font-size:13px;margin:0 0 4px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+p{margin:0;max-width:68ch}
+.lede{color:var(--muted)}
+.eyebrow{font-family:var(--f-mono);font-size:12px;color:var(--accent);letter-spacing:.04em}
+.tabs{display:flex;gap:4px;background:var(--surface2);padding:3px;border-radius:10px;width:max-content;max-width:100%;overflow-x:auto}
+.tabs button{border:0;background:transparent;color:var(--muted);font:600 13px var(--f-body);padding:7px 14px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--text);box-shadow:0 1px 0 var(--line)}
+.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.panel[hidden]{display:none}
+.note{display:grid;gap:4px;padding:12px 14px;border-left:3px solid var(--accent);background:var(--surface);border-radius:0 8px 8px 0}
+.pros{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.pros div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.pros ul{margin:4px 0 0;padding-left:18px}
+.pros li{margin:2px 0}
+/* ---- mock app frame ---- */
+.app{background:var(--bg);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.app-header{display:flex;align-items:center;gap:14px;padding:10px 14px;background:var(--header);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.brand{font-family:var(--f-title);font-weight:700;letter-spacing:-.02em}
+.brand span{color:var(--accent)}
+.seg{display:flex;background:var(--surface2);border-radius:8px;padding:2px;border:1px solid var(--line)}
+.seg b{font-weight:600;font-size:12px;padding:5px 12px;border-radius:6px;color:var(--muted)}
+.seg b.on{background:var(--surface);color:var(--text);position:relative;padding-left:22px}
+.seg b.on::before{content:"";position:absolute;left:9px;top:50%;width:7px;height:7px;border-radius:50%;background:var(--accent);transform:translateY(-50%)}
+.hdr-right{margin-left:auto;display:flex;gap:8px}
+.ico{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);font-size:12px}
+.body{padding:12px;display:grid;gap:12px;min-height:420px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.box-bar{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--row);min-height:38px}
+.box-bar .t{font-family:var(--f-title);font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.box-bar .src{font-family:var(--f-mono);font-size:11px;color:var(--muted);letter-spacing:.04em}
+.back{border:0;background:transparent;color:var(--accent);font:600 13px var(--f-body);cursor:pointer;padding:2px 6px;border-radius:6px}
+.back:hover{background:var(--sel)}
+.rows{overflow:auto;flex:1;padding:4px 0}
+.row{display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:13px;border-bottom:1px solid var(--row);cursor:pointer;min-width:0}
+.row:hover{background:var(--sel)}
+.row.sel{background:var(--sel);box-shadow:inset 2px 0 0 var(--accent)}
+.row .n{font-family:var(--f-mono);font-size:11px;color:var(--muted);width:26px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
+.row .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .meta{font-family:var(--f-mono);font-size:11px;color:var(--muted);flex:none;font-variant-numeric:tabular-nums}
+.row .cnt{font-family:var(--f-mono);font-size:11px;color:var(--chip);background:var(--surface2);border-radius:10px;padding:0 7px;flex:none}
+.row .chev{color:var(--muted);flex:none}
+.row.folder .name::before{content:"▸ ";color:var(--muted)}
+.row.folder.open .name::before{content:"▾ "}
+.row.child{padding-left:26px}
+.row.broken .name{color:var(--danger)}
+.row.ghost{opacity:.45;border:1px dashed var(--accent);border-radius:6px;background:transparent}
+.ins{height:0;border-top:2px solid var(--accent);margin:0 8px;position:relative}
+.ins::before{content:"";position:absolute;left:-4px;top:-5px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.tools{display:flex;gap:6px;padding:6px 8px;border-top:1px solid var(--row);flex-wrap:wrap}
+.tb{border:1px solid var(--line);background:var(--surface2);color:var(--text);font:500 12px var(--f-body);padding:4px 9px;border-radius:6px;cursor:pointer}
+.tb.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:600}
+.tb.danger{color:var(--danger)}
+.tb[disabled]{opacity:.45;cursor:default}
+.empty{margin:auto;text-align:center;color:var(--muted);padding:20px;max-width:30ch}
+.empty b{display:block;color:var(--text);font-family:var(--f-title);margin-bottom:4px}
+.footer{display:flex;align-items:center;gap:12px;padding:8px 14px;border-top:1px solid var(--line);background:var(--header);font-size:12px;color:var(--muted);flex-wrap:wrap}
+.footer .pl{display:flex;align-items:center;gap:8px}
+.footer .wave{height:14px;width:160px;background:repeating-linear-gradient(90deg,var(--accent) 0 2px,transparent 2px 4px);opacity:.6;border-radius:2px;max-width:100%}
+/* variantes */
+.lay-a{grid-template-columns:1fr 1fr;grid-template-rows:200px 300px}
+.lay-a .box.mine{grid-column:1/3}
+.lay-b{grid-template-columns:1fr 1fr 1.6fr;grid-template-rows:500px}
+.lay-c{grid-template-columns:var(--srcw,42%) 10px 1fr;grid-template-rows:520px;gap:6px}
+.col{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:0}
+.col .box{flex:1;min-height:0}
+.handle{cursor:col-resize;border-radius:4px;background:transparent;position:relative}
+.handle::after{content:"";position:absolute;left:3px;top:50%;width:4px;height:36px;border-radius:2px;background:var(--line);transform:translateY(-50%)}
+.handle:hover::after,.handle.on::after{background:var(--accent)}
+.addsrc{border:1px dashed var(--line);background:transparent;color:var(--muted);font:500 12px var(--f-body);padding:6px;border-radius:8px;cursor:pointer}
+.addsrc:hover{color:var(--accent);border-color:var(--accent)}
+.addsrc[disabled]{opacity:.4;cursor:default}
+.box-bar .x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;padding:0 4px;border-radius:4px}
+.box-bar .x:hover{color:var(--danger)}
+@media (max-width:760px){.lay-a,.lay-b,.lay-c{grid-template-columns:1fr;grid-template-rows:none}.lay-a .box.mine{grid-column:auto}.box{min-height:220px}.handle{display:none}}
+/* context menu */
+.ctx{position:absolute;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:4px;min-width:200px;font-size:13px;z-index:5}
+.ctx div{padding:6px 10px;border-radius:5px;display:flex;justify-content:space-between;gap:16px}
+.ctx div:hover{background:var(--sel)}
+.ctx hr{border:0;border-top:1px solid var(--row);margin:4px 0}
+.ctx kbd{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.ctx .d{color:var(--danger)}
+.rel{position:relative}
+/* tables */
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--row);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+td code,pre,code{font-family:var(--f-mono);font-size:12px}
+pre{background:var(--inset);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow-x:auto;margin:0;line-height:1.45}
+.tbl{overflow-x:auto}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.kbd{font-family:var(--f-mono);font-size:11px;background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+.q{counter-reset:q;display:grid;gap:8px;padding-left:0;list-style:none;margin:0}
+.q li{display:grid;grid-template-columns:28px 1fr;gap:8px;align-items:start}
+.q li::before{counter-increment:q;content:"Q" counter(q);font-family:var(--f-mono);font-size:12px;color:var(--accent);padding-top:2px}
+.q b{font-weight:600}
+@media (prefers-reduced-motion:no-preference){.panel{animation:fade .18s ease}}
+@keyframes fade{from{opacity:.6}to{opacity:1}}
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:8px">
+    <span class="eyebrow">listBuddy 1.1 · propuesta de diseño · 2026-10-19</span>
+    <h1>Buddy: listas propias, armadas arrastrando desde Rekordbox y Traktor</h1>
+    <p class="lede">Tres variantes del mismo contenido para elegir el layout. En las tres, cada panel es un «browser»: lista de listas, click abre las pistas, flecha para volver. Los mockups son clickeables (abrir una lista, volver, menú contextual en «Mis listas»). Los datos son de ejemplo.</p>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="a">A · 2 arriba + 1 doble abajo</button>
+    <button role="tab" aria-selected="false" data-tab="b">B · 3 columnas</button>
+    <button role="tab" aria-selected="false" data-tab="c">C · Fuentes apilables + Mis listas (elegida)</button>
+    <button role="tab" aria-selected="false" data-tab="ctl">Controles</button>
+    <button role="tab" aria-selected="false" data-tab="data">Guardado y export</button>
+  </div>
+
+  <!-- ===== A ===== -->
+  <section class="panel" id="tab-a">
+    <div class="app">
+      <div class="app-header"><span class="brand">list<span>Buddy</span></span>
+        <div class="seg"><b>Listas</b><b class="on">Buddy</b></div>
+        <div class="hdr-right"><span class="ico">⚙</span><span class="ico">◐</span></div></div>
+      <div class="body lay-a">
+        <div class="box" data-browser="rb"></div>
+        <div class="box" data-browser="tk"></div>
+        <div class="box mine" data-browser="mine"></div>
+      </div>
+      <div class="footer"><div class="pl">▶ <span class="wave"></span> <span>Rufus Du Sol · Innerbloom</span></div><span style="margin-left:auto">Destino: /Volumes/USB_GIG</span><span class="tb primary">Exportar</span></div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="pros">
+      <div><h3>A favor</h3><ul><li>Es lo que pediste: 2 fuentes arriba, lista propia abajo con el doble de espacio.</li><li>El arrastre es vertical y corto (de arriba hacia abajo), fácil de apuntar.</li><li>Las dos fuentes se ven a la vez: sirve para armar una lista mezclando RB y Traktor.</li></ul></div>
+      <div><h3>En contra</h3><ul><li>Los paneles de arriba quedan bajos (200 px): con 800 playlists se navega con mucho scroll.</li><li>Pista de 3 columnas (Nº, nombre, key·bpm) apretada en media ventana.</li><li>Si solo tenés una fuente cargada, media fila superior queda vacía.</li></ul></div>
+    </div>
+  </section>
+
+  <!-- ===== B ===== -->
+  <section class="panel" id="tab-b" hidden>
+    <div class="app">
+      <div class="app-header"><span class="brand">list<span>Buddy</span></span>
+        <div class="seg"><b>Listas</b><b class="on">Buddy</b></div>
+        <div class="hdr-right"><span class="ico">⚙</span><span class="ico">◐</span></div></div>
+      <div class="body lay-b">
+        <div class="box" data-browser="rb"></div>
+        <div class="box" data-browser="tk"></div>
+        <div class="box mine" data-browser="mine"></div>
+      </div>
+      <div class="footer"><div class="pl">▶ <span class="wave"></span> <span>Rufus Du Sol · Innerbloom</span></div><span style="margin-left:auto">Destino: /Volumes/USB_GIG</span><span class="tb primary">Exportar</span></div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="pros">
+      <div><h3>A favor</h3><ul><li>Los tres paneles tienen toda la altura: menos scroll en librerías grandes.</li><li>Arrastre horizontal, como en Finder/Rekordbox (origen a la izquierda, destino a la derecha).</li><li>La lista propia es la más ancha: entra el Nº, el nombre y key·bpm sin recortar.</li></ul></div>
+      <div><h3>En contra</h3><ul><li>Tres columnas en una ventana de 1.000 px quedan angostas (~300 px cada fuente).</li><li>Rompe la grilla de dos columnas de la pantalla «Listas» actual.</li></ul></div>
+    </div>
+  </section>
+
+  <!-- ===== C ===== -->
+  <section class="panel" id="tab-c" hidden>
+    <div class="app">
+      <div class="app-header"><span class="brand">list<span>Buddy</span></span>
+        <div class="seg"><b>Listas</b><b class="on">Buddy</b></div>
+        <div class="hdr-right"><span class="ico">⚙</span><span class="ico">◐</span></div></div>
+      <div class="body lay-c" id="layc">
+        <div class="col" id="srccol">
+          <div class="box" data-browser="src"></div>
+          <div class="box" data-browser="src" data-src="tk"></div>
+          <button class="addsrc" id="addsrc">+ Agregar fuente (2 de 9)</button>
+        </div>
+        <div class="handle" id="handle" title="Arrastrá para ajustar el ancho"></div>
+        <div class="box mine" data-browser="mine"></div>
+      </div>
+      <div class="footer"><div class="pl">▶ <span class="wave"></span> <span>Rufus Du Sol · Innerbloom</span></div><span style="margin-left:auto">Destino: /Volumes/USB_GIG</span><span class="tb primary">Exportar</span></div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="pros">
+      <div><h3>Elegida por el PO (2026-10-19), con dos agregados</h3><ul><li>Cada fila de la columna izquierda es una fuente independiente con su propio selector Rekordbox | Traktor: podés tener Techno 2025 de Rekordbox arriba y Sets de Traktor abajo, y arrastrar desde las dos.</li><li>«+ Agregar fuente» suma una fila; tope 9. Cada fila se cierra con ×. Las filas reparten la altura en partes iguales con un divisor horizontal.</li><li>El divisor vertical entre fuentes y «Mis listas» se arrastra (probalo acá): el ancho se recuerda en settings.ini.</li></ul></div>
+      <div><h3>Qué implica</h3><ul><li>En Qt es un <code>QSplitter</code> horizontal (fuentes | Mis listas) con un <code>QSplitter</code> vertical adentro para las filas: ambos nativos, con el handle teñido por token.</li><li>Cada fila es la misma clase <code>SourceBrowser</code>; 9 filas son 9 vistas sobre el mismo modelo de librería (no se vuelve a leer el XML).</li><li>Con muchas filas cada una queda baja: a partir de la 4ª la lista interna scrollea.</li></ul></div>
+    </div>
+  </section>
+
+  <!-- ===== Controles ===== -->
+  <section class="panel" id="tab-ctl" hidden>
+    <div class="grid2">
+      <div>
+        <h2>Qué hacen los demás con las playlists</h2>
+        <p class="lede" style="margin-bottom:10px">Relevado de los manuales de Traktor y Rekordbox, Serato (crates), Lexicon y reproductores de escritorio. Lo que se repite en todos está marcado como base.</p>
+        <div class="tbl"><table>
+          <tr><th>Acción</th><th>Dónde aparece</th><th>Buddy 1.1</th></tr>
+          <tr><td>Crear lista / carpeta</td><td>Todos (click derecho en el árbol)</td><td>Base</td></tr>
+          <tr><td>Renombrar (F2 / doble click)</td><td>Todos</td><td>Base</td></tr>
+          <tr><td>Eliminar con confirmación</td><td>Todos</td><td>Base</td></tr>
+          <tr><td>Duplicar lista</td><td>Rekordbox, Lexicon, iTunes</td><td>Base</td></tr>
+          <tr><td>Arrastrar pistas con línea de inserción</td><td>Traktor (línea naranja), Rekordbox, Serato</td><td>Base</td></tr>
+          <tr><td>Reordenar dentro de la lista (drag, ↑/↓)</td><td>Todos</td><td>Base</td></tr>
+          <tr><td>Selección múltiple (Shift / Cmd-click)</td><td>Todos</td><td>Base</td></tr>
+          <tr><td>Quitar pista (Supr / click derecho)</td><td>Todos</td><td>Base</td></tr>
+          <tr><td>Aviso de pista duplicada al agregar</td><td>Rekordbox (agregar igual / saltar)</td><td>Base</td></tr>
+          <tr><td>Buscar dentro de la lista</td><td>Todos</td><td>Base (ya existe el filtro)</td></tr>
+          <tr><td>Carpetas anidadas de listas</td><td>Rekordbox, Traktor, Lexicon</td><td>1 nivel en 1.1 (decidir)</td></tr>
+          <tr><td>Listas inteligentes por filtro</td><td>Traktor, Rekordbox, iTunes</td><td>No en 1.1</td></tr>
+          <tr><td>Deshacer</td><td>Lexicon, reproductores</td><td>Decidir (ver Q4)</td></tr>
+          <tr><td>Importar M3U / exportar M3U</td><td>Rekordbox, Traktor, Serato</td><td>Export M3U barato; decidir</td></tr>
+        </table></div>
+      </div>
+      <div class="rel">
+        <h2>Cómo se ve en Buddy</h2>
+        <p class="lede" style="margin-bottom:10px">Barra de herramientas fija abajo del panel «Mis listas» para lo frecuente, menú contextual para todo, atajos de teclado para lo que ya saben de Rekordbox.</p>
+        <div class="app" style="box-shadow:none">
+          <div class="box" style="border:0;border-radius:0;height:300px">
+            <div class="box-bar"><button class="back">‹ Mis listas</button><span class="t">Warm-up viernes</span><span class="src">12 pistas · 58:40</span></div>
+            <div class="rows">
+              <div class="row"><span class="n">1</span><span class="name">Rufus Du Sol - Innerbloom</span><span class="meta">8A · 122</span></div>
+              <div class="row sel"><span class="n">2</span><span class="name">Bicep - Glue</span><span class="meta">6A · 128</span></div>
+              <div class="row sel"><span class="n">3</span><span class="name">Overmono - So U Kno</span><span class="meta">11B · 130</span></div>
+              <div class="ins"></div>
+              <div class="row ghost"><span class="n">·</span><span class="name">2 pistas desde Traktor › Techno 2025</span><span class="meta"></span></div>
+              <div class="row"><span class="n">4</span><span class="name">Fred again.. - Marea</span><span class="meta">4A · 125</span></div>
+              <div class="row broken"><span class="n">5</span><span class="name">Floating Points - Vocoder</span><span class="meta">rota</span></div>
+            </div>
+            <div class="tools"><button class="tb primary">+ Nueva lista</button><button class="tb">Renombrar</button><button class="tb">Duplicar</button><button class="tb">↑</button><button class="tb">↓</button><button class="tb danger">Quitar</button><button class="tb" style="margin-left:auto">Exportar ▾</button></div>
+          </div>
+        </div>
+        <div class="ctx" style="right:18px;top:120px">
+          <div>Reproducir <kbd>Espacio</kbd></div><hr>
+          <div>Mover arriba <kbd>⌘↑</kbd></div><div>Mover abajo <kbd>⌘↓</kbd></div><div>Quitar de la lista <kbd>⌫</kbd></div><hr>
+          <div>Ver en Rekordbox › Techno 2025</div><div>Mostrar archivo en Finder</div><hr>
+          <div class="d">Eliminar lista…</div>
+        </div>
+        <p class="lede" style="margin-top:12px">Línea ámbar de inserción al arrastrar (como Traktor), fantasma con «N pistas desde Fuente › Lista», pista rota en rojo con el mismo chip que usa la vista previa de hoy.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Datos ===== -->
+  <section class="panel" id="tab-data" hidden>
+    <div class="grid2">
+      <div style="display:grid;gap:12px">
+        <h2>Dónde y cómo se guarda</h2>
+        <p>Un archivo <code>buddy_lists.json</code> en la carpeta de datos (la misma de <code>settings.ini</code> y <code>rekordbox_fixes.json</code>). Nunca se toca el XML ni el NML del usuario. La pista se referencia por su ruta de archivo, que es lo único que Rekordbox y Traktor tienen en común; además se guarda de qué fuente y lista vino para poder mostrarlo y para recuperar cues y beatgrid al exportar.</p>
+<pre>{
+  "version": 1,
+  "lists": [
+    {
+      "id": "b7f3…",            // uuid4, estable al renombrar
+      "name": "Warm-up viernes",
+      "folder": null,           // 1 nivel de carpetas (si se aprueba)
+      "created": "2026-10-19T14:02:00",
+      "modified": "2026-10-19T15:10:31",
+      "tracks": [
+        {
+          "path": "/Volumes/MUSIC/House/Innerbloom.mp3",
+          "title": "Innerbloom", "artist": "Rufus Du Sol",
+          "bpm": 122.0, "key": "8A",
+          "origin": {"source": "rekordbox", "playlist": "Techno 2025",
+                     "track_id": "1842"}     // o "traktor" + KEY del NML
+        }
+      ]
+    }
+  ]
+}</pre>
+        <div class="note"><b>Por qué JSON y no SQLite</b><p>Pocas listas, pocos miles de pistas como mucho, lectura al abrir y escritura atómica al cambiar (mismo patrón <code>os.replace</code> de las fixes). Sin dependencia nueva, diffeable, y fácil de respaldar o compartir.</p></div>
+        <div class="note"><b>Escritura</b><p>Cada cambio (crear, mover, quitar) escribe el archivo entero a <code>.tmp</code> y lo reemplaza. Un backup rotativo diario en <code>listBuddy_backups/</code> como ya hace el relocate de Traktor.</p></div>
+      </div>
+      <div style="display:grid;gap:12px">
+        <h2>Cómo sale a cada plataforma</h2>
+        <div class="tbl"><table>
+          <tr><th>Destino</th><th>Qué se escribe</th><th>Qué se conserva</th></tr>
+          <tr><td>Rekordbox</td><td>XML nuevo con <code>write_playlists_xml</code> (ya existe): <code>COLLECTION</code> con las pistas y un <code>NODE</code> por lista; el usuario lo importa desde Archivo › Importar.</td><td>Si la pista vino del XML de Rekordbox, sus cues y beatgrid (están en <code>_src</code>). Si vino de Traktor, solo ruta, título, artista, bpm y key.</td></tr>
+          <tr><td>Traktor</td><td>Opción 1: <code>.nml</code> de playlist suelto (Traktor lo importa arrastrando). Opción 2: agregar un <code>NODE</code> a <code>collection.nml</code> con backup, como ya hace el relocate (Traktor cerrado).</td><td>Pistas que ya están en la colección de Traktor: todo. Las que vienen de Rekordbox: entrada nueva con ruta y metadatos básicos.</td></tr>
+          <tr><td>Carpeta (USB)</td><td>Lo mismo que hoy: <code>001 - Artista - Título.mp3</code> con el ExportWorker actual.</td><td>Archivos tal cual.</td></tr>
+          <tr><td>M3U8</td><td>Rutas absolutas en UTF-8. Barato y lo leen los tres programas.</td><td>Solo orden y rutas.</td></tr>
+        </table></div>
+        <div class="note"><b>Mezclar fuentes en una lista</b><p>Una pista existe en el disco una sola vez. Si la misma ruta aparece en Rekordbox y en Traktor, es la misma pista: la clave de duplicado es la ruta normalizada (ya hay una clave canónica desde D-11).</p></div>
+        <div class="note"><b>Pistas rotas</b><p>Al abrir Buddy se chequea existencia en segundo plano (PreviewWorker ya lo hace para la vista previa). Una pista rota se muestra en rojo y la exportación la salta con aviso, igual que hoy.</p></div>
+      </div>
+    </div>
+    <div style="margin-top:24px">
+      <h2>Lo que necesito que decidas</h2>
+      <ol class="q">
+        <li><div><b>Layout:</b> A (2 arriba + doble abajo, como pediste), B (3 columnas) o C (fuente con el selector actual + Mis listas).</div></li>
+        <li><div><b>Carpetas de listas propias:</b> plano en 1.1, o un nivel de carpetas desde el arranque (cambia el JSON y el árbol).</div></li>
+        <li><div><b>Export a Traktor:</b> archivo <code>.nml</code> suelto para arrastrar (sin tocar la colección) o escribir en <code>collection.nml</code> con backup como el relocate. Recomiendo empezar por el suelto.</div></li>
+        <li><div><b>Deshacer:</b> sin deshacer en 1.1 (solo confirmación al eliminar lista), o pila de undo para quitar/mover/eliminar. Recomiendo confirmación sola en 1.1 y undo en 1.2.</div></li>
+        <li><div><b>Reproducción:</b> el reproductor del footer sirve para las tres cajas (click en pista reproduce, como hoy en la vista previa).</div></li>
+        <li><div><b>Navegación:</b> «Listas | Buddy» como segmented control en el header (mockups) o dos pestañas. Configuración sigue en ⚙.</div></li>
+      </ol>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var RB=[{f:"Gigs 2026",k:[["Warm-up viernes",12],["Peak time",24]]},{n:"Techno 2025",c:41},{n:"House clásicos",c:118},{n:"Nuevos octubre",c:17},{n:"Deep & melodic",c:63}];
+  var TK=[{n:"_RECORDINGS",c:9},{f:"Sets",k:[["Boiler 2024",22],["Cierre domingo",31]]},{n:"Techno 2025",c:38},{n:"Breaks",c:27}];
+  var MINE=[{n:"Warm-up viernes",c:12},{n:"Cumple Flor (mezcla RB+TK)",c:33},{n:"Para testear USB",c:5}];
+  var TRACKS=[["Rufus Du Sol - Innerbloom","8A · 122"],["Bicep - Glue","6A · 128"],["Overmono - So U Kno","11B · 130"],["Fred again.. - Marea","4A · 125"],["Floating Points - Vocoder","rota"],["Jamie xx - Gosh","2A · 132"],["Four Tet - Baby","9A · 124"],["Daniel Avery - Drone Logic","7A · 127"]];
+  function esc(s){return s.replace(/</g,"&lt;")}
+  function listRows(data,mine){
+    var h="";
+    data.forEach(function(d){
+      if(d.f){h+='<div class="row folder open"><span class="name">'+esc(d.f)+'</span></div>';
+        d.k.forEach(function(k){h+='<div class="row child" data-open="'+esc(k[0])+'"><span class="name">'+esc(k[0])+'</span><span class="cnt">'+k[1]+'</span><span class="chev">›</span></div>'})}
+      else h+='<div class="row" data-open="'+esc(d.n)+'"><span class="name">'+esc(d.n)+'</span><span class="cnt">'+d.c+'</span><span class="chev">›</span></div>';
+    });
+    if(mine) h+='<div class="row ghost"><span class="name">Soltá pistas acá para crear una lista nueva</span></div>';
+    return h;
+  }
+  function trackRows(n){
+    var h="";TRACKS.slice(0,n).forEach(function(t,i){h+='<div class="row'+(t[1]==="rota"?" broken":"")+'"><span class="n">'+(i+1)+'</span><span class="name">'+esc(t[0])+'</span><span class="meta">'+t[1]+'</span></div>'});
+    return h;
+  }
+  function render(box,state){
+    var kind=box.dataset.browser, title, src, data, mine=kind==="mine";
+    if(kind==="rb"){title="Rekordbox";src="rekordbox.xml";data=RB}
+    else if(kind==="tk"){title="Traktor";src="collection.nml";data=TK}
+    else if(kind==="src"){title=state.src==="tk"?"Traktor":"Rekordbox";src=state.src==="tk"?"collection.nml":"rekordbox.xml";data=state.src==="tk"?TK:RB}
+    else {title="Mis listas";src="buddy_lists.json";data=MINE}
+    var bar='';
+    if(state.open){bar='<button class="back" data-back>‹ '+esc(title)+'</button><span class="t">'+esc(state.open)+'</span><span class="src">'+(mine?"12 pistas":"desde "+esc(title))+'</span>'}
+    else{bar='<span class="t">'+(kind==="src"?"Fuente":esc(title))+'</span>'+(kind==="src"?'<span class="seg" style="padding:1px"><b class="'+(state.src!=="tk"?"on":"")+'" data-src="rb">Rekordbox</b><b class="'+(state.src==="tk"?"on":"")+'" data-src="tk">Traktor</b></span><button class="x" data-close title="Cerrar fuente">×</button>':'<span class="src">'+esc(src)+'</span>')}
+    var rows=state.open?trackRows(mine?8:6):listRows(data,mine);
+    var tools=mine?(state.open?'<div class="tools"><button class="tb">↑</button><button class="tb">↓</button><button class="tb danger">Quitar</button><button class="tb" style="margin-left:auto">Exportar ▾</button></div>':'<div class="tools"><button class="tb primary">+ Nueva lista</button><button class="tb">Renombrar</button><button class="tb">Duplicar</button><button class="tb danger">Eliminar</button><button class="tb" style="margin-left:auto">Exportar ▾</button></div>'):'';
+    box.innerHTML='<div class="box-bar">'+bar+'</div><div class="rows">'+rows+'</div>'+tools;
+  }
+  function wire(box){
+    var state={open:null,src:box.dataset.src||"rb"};render(box,state);
+    box.addEventListener('click',function(e){
+      var t=e.target.closest('[data-open],[data-back],[data-src],[data-close]');if(!t)return;
+      if(t.dataset.close!==undefined){box.remove();updateAdd();return}
+      if(t.dataset.back!==undefined)state.open=null;else if(t.dataset.src)state.src=t.dataset.src;else state.open=t.dataset.open;
+      render(box,state);
+    });
+  }
+  document.querySelectorAll('[data-browser]').forEach(wire);
+  var MAX=9,col=document.getElementById('srccol'),add=document.getElementById('addsrc');
+  function updateAdd(){if(!col)return;var n=col.querySelectorAll('[data-browser]').length;add.textContent='+ Agregar fuente ('+n+' de '+MAX+')';add.disabled=n>=MAX}
+  if(add){add.addEventListener('click',function(){var n=col.querySelectorAll('[data-browser]').length;if(n>=MAX)return;var b=document.createElement('div');b.className='box';b.dataset.browser='src';b.dataset.src=n%2?'rb':'tk';col.insertBefore(b,add);wire(b);updateAdd()})}
+  var h=document.getElementById('handle'),lay=document.getElementById('layc');
+  if(h){var drag=false;
+    h.addEventListener('pointerdown',function(e){drag=true;h.classList.add('on');h.setPointerCapture(e.pointerId)});
+    h.addEventListener('pointermove',function(e){if(!drag)return;var r=lay.getBoundingClientRect();var pct=Math.min(75,Math.max(22,(e.clientX-r.left)/r.width*100));lay.style.setProperty('--srcw',pct+'%')});
+    h.addEventListener('pointerup',function(){drag=false;h.classList.remove('on')});
+    h.addEventListener('lostpointercapture',function(){drag=false;h.classList.remove('on')});
+  }
+  var tabs=document.querySelectorAll('[role=tab]');
+  tabs.forEach(function(b){b.addEventListener('click',function(){
+    tabs.forEach(function(x){x.setAttribute('aria-selected',x===b)});
+    document.querySelectorAll('.panel').forEach(function(p){p.hidden=p.id!=='tab-'+b.dataset.tab});
+    try{localStorage.setItem('buddy-tab',b.dataset.tab)}catch(e){}
+  })});
+  try{var s=localStorage.getItem('buddy-tab');if(s){var b=document.querySelector('[data-tab="'+s+'"]');if(b)b.click()}}catch(e){}
+})();
+</script>
