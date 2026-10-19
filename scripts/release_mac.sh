@@ -303,7 +303,19 @@ staple_with_retry() {
     sleep $((delay * i))
     i=$((i + 1))
   done
-  xcrun stapler validate "$target"
+  # La validación también habla con el servidor de tickets (CloudKit) y puede fallar por un corte de red
+  # transitorio justo después de un staple exitoso (run 39325553781, Intel: «The network connection was
+  # lost», exit 68). Mismo reintento con espera creciente; el ticket ya está grapado.
+  i=1
+  until xcrun stapler validate "$target"; do
+    if [ "$i" -ge "$attempts" ]; then
+      echo "ERROR: stapler validate falló $attempts veces sobre $target (ticket grapado; red hacia Apple)." >&2
+      return 1
+    fi
+    echo "AVISO: stapler validate falló ($i/$attempts) sobre $target; reintento en $((delay * i)) s." >&2
+    sleep $((delay * i))
+    i=$((i + 1))
+  done
 }
 # <<< staple-retry
 
