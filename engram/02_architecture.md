@@ -3,15 +3,20 @@
 ## Stack
 | Capa | Tech | Versión | ADR |
 |------|------|---------|-----|
-| UI | PyQt6 (NO PySide6 — confirmado por grep + requirements.txt, 2026-07-23) | 6.11.0 | — |
-| Runtime | Python | 3.14.3 | — |
-| Rekordbox | pyrekordbox (SQLCipher) | 0.4.4 | — |
-| Traktor | parser propio de collection.nml (traktor_db.py) | — | — |
-| Empaquetado | PyInstaller | — | — |
+| UI | PySide6 (Essentials + Addons; QtMultimedia con FFmpeg) | 6.12.0 | ADR-003 (LGPL), ADR-007 (capas) |
+| Runtime | Python (CPython) | 3.14.8 | — |
+| Rekordbox | parser propio del `rekordbox.xml` exportado (`rekordbox_xml.py`, expat sin DOM). Sin master.db, pyrekordbox ni SQLCipher | — | ADR-004, ADR-006 |
+| Traktor | parser propio de `collection.nml` (`traktor_db.py`, iterparse) | — | ADR-001, ADR-006 |
+| Listas propias (1.1) | `buddy_lists.json` en la carpeta de datos (`app_paths.py`), escritura atómica | esquema 1 | roadmap 1.1 (T-114) |
+| Empaquetado | PyInstaller (locks con hashes `requirements-build*.txt`) | 6.22.x | ADR-005 |
+| Distribución macOS | DMG notarizado con Developer ID + Polar (MoR). Sin Mac App Store en 1.1 | — | ADR-005, ADR-008 |
 
-## DB (resumen vivo: tablas y relaciones clave)
-- Rekordbox 6: SQLite cifrado (SQLCipher 4), acceso vía `pyrekordbox.Rekordbox6Database`. Tablas clave: `DjmdPlaylist`, `DjmdContent`. Ver CLAUDE.md del repo para esquema completo.
-- Traktor: `collection.nml` (XML plano). Parseado por `traktor_db.py`.
+> Tabla corregida el 2026-10-19 (decía PyQt6 6.11 y pyrekordbox 0.4.4, estado de 2026-07-23; ambos reemplazados por ADR-004 y T-033).
+
+## DB (resumen vivo)
+- Rekordbox: `rekordbox.xml` exportado por el usuario (solo lectura). `COLLECTION/TRACK` y `PLAYLISTS/NODE`; reparaciones aparte en `rekordbox_fixes.json` (T-081).
+- Traktor: `collection.nml` (XML plano). Parseado por `traktor_db.py`; el relocate lo escribe con backup (ADR-001).
+- listBuddy: `settings.ini`, `rekordbox_fixes.json`, `buddy_lists.json` (1.1) en la carpeta de datos del usuario.
 
 ## Índice ADRs
 | # | Título | Estado | Fecha |
@@ -21,6 +26,8 @@
 | ADR-004 | Rekordbox solo por el XML oficial exportado: sin master.db, pyrekordbox ni SQLCipher (reemplaza a ADR-002) | Aceptado | 2026-10-14 |
 | ADR-006 | Carga de librería asíncrona y sin DOM: TRACK de Rekordbox como texto crudo (expat) y estado de carga por generación en la UI (T-094) | Aceptado (PO, 2026-10-16) | 2026-10-16 |
 | ADR-005 | Modelo de release y firma en CI: secrets en environment `release` atado a tags `v*`, tags fail-closed, sin acciones de terceros con escritura, `release_mac.sh` como única lógica | Aceptado (PO, 2026-10-16) | 2026-10-16 |
+| ADR-007 | Composición de la ventana: 6 capas de import vigiladas por test AST, controladores sin widgets, vistas sin workers, modelos Qt reutilizables (`library_model`, `PlaylistTreeModel`, `TrackListModel`); base de Buddy (T-099) | Aceptado (PO, 2026-10-19) | 2026-10-19 |
+| ADR-008 | Canal Mac App Store: opción A (solo DMG notarizado + Polar) en 1.1; App Store recién en 1.2 con gates G1 técnico / G2 abogado / G3 negocio; costura `file_access.py` en 1.1 (T-102, T-120) | Aceptado (PO, 2026-10-19) | 2026-10-19 |
 
 ## ADR-001: Relocate de links rotos en playlists de Traktor (F-07)
 
@@ -214,3 +221,161 @@ fixes (I-1/I-2/I-4 se aplican dos veces por la duplicación).
 
 **Consecuencias:** + RSS 2,4× (≤ 3×), la ventana responde durante la carga y el round-trip del export es idéntico por construcción. − Se retiene el texto crudo de las pistas que están en alguna playlist (~1,6× el XML). El export reparsea cada fragmento. Las features nuevas que lean la librería tienen que esperar `_on_library_loaded` y respetar el estado «cargando».
 
+## ADR-007: Composición de la ventana: controladores sin widgets, vistas sin workers y modelos Qt reutilizables
+
+**Estado:** Aceptado (ratificado por el PO en la sesión B, 2026-10-19; decisiones Q7-Q10 de `engram/roadmap_1.1.md` §3). Propuesto por nerv-arquitecto el 2026-10-19; fases y Gherkin en `engram/plans/1.1/T-099.md`.
+
+**Contexto:** `MainWindow` (`ui.py:224-3264`) tiene 158 métodos y 15 responsabilidades (§1.2), y crece en cada
+ticket. 1.1 suma una sección entera (Buddy: 3 paneles, drag & drop, persistencia y export a XML/NML) que
+necesita reusar la carga de librería, el árbol de playlists, la lista de pistas y la reproducción. Hoy todo eso
+existe solo como métodos privados de `MainWindow`, mezclado con widgets concretos.
+
+**Decisión:**
+
+- **D1. Capas con un sentido único de import.** Generaliza la regla `main → ui → worker/db → rekordbox_export`:
+
+  | Capa | Módulos | Puede importar |
+  |---|---|---|
+  | L0 puros (sin Qt) | `rekordbox_export`, `db`, `models` (nuevo), `library_model` (nuevo), `row_blocks`, `playlist_filter`, `load_cancel`, `branding`, `app_paths`, `audio_formats`, `layout_metrics` (nuevo) | solo L0 |
+  | L1 fuentes y persistencia (sin Qt) | `rekordbox_xml`, `traktor_db`, `rekordbox_fixes`, `relocate_core`, `traktor_relocate`, `rekordbox_xml_relocate`, `update_checker` | L0, L1 |
+  | L2 workers (`QtCore`) | `worker`, `preview_worker`, `library_load_worker`, `waveform_worker`, `audio_player`, `audio_decode` | L0-L2 |
+  | L3 controladores y modelos Qt (`QtCore`/`QtGui`, **nunca `QtWidgets`**) | `thread_keeper`, `export_controller`, `maintenance_controller`, `playback_controller`, `library_controller`, `preview_controller`, `playlist_tree_model`, `track_list_model` | L0-L3 |
+  | L4 vistas (`QtWidgets`, **nunca workers ni controladores**) | `styles`, `icons`, `dialogs`, `ui_components`, `player_widgets`, `relocate_dialogs`, `preview_card`, `footer`, `window_chrome`, `settings_page`, `playlist_panel`, `preview_panel`, `track_delegate`, `about_dialog` | L0, L1 (solo tipos de datos), L4, y los modelos de L3 (`*_model`) |
+  | L5 raíz de composición | `ui` (`MainWindow`) | todo |
+  | L6 | `main`, `startup_guard` | `ui` |
+
+  Lo vigila un test estático (`tests/test_import_layers.py`) que recorre el AST de cada módulo **incluidos
+  los imports dentro de funciones**, falla ante un import hacia arriba o un ciclo y no tiene allowlist al
+  cerrar el ticket. Así la regla se cumple «sin excepciones» por construcción y no por revisión.
+
+- **D2. `MainWindow` como mediador.** Crea controladores y vistas y conecta sus señales. Conserva solo lo
+  transversal: los locks entre operaciones (`_sync_busy_locks`), `closeEvent`, el tema y la navegación. Los
+  controladores no se conocen entre sí. Cuando uno necesita el estado de otro (por ejemplo, el export
+  bloqueado mientras corre un relocate), `ui.py` lo cablea.
+
+- **D3. Inyección de workers por fábrica tardía.** Cada controlador recibe por parámetro la fábrica del worker
+  que usa (`worker_factory: Callable[..., ExportWorker]`). `ui.py` la pasa como `lambda *a: ExportWorker(*a)`,
+  que busca el nombre en el módulo `ui` al momento de la llamada. Con eso los parches existentes
+  (`ui.ExportWorker = Fake`, `ui.RelocateWorker`, `ui.WaveformWorker`, `ui.ExistenceRecheckWorker`) siguen
+  llegando sin tocar los tests, y se respeta la convención «sin estado global, dependencias por parámetro».
+  Por cada fábrica hay un test de mutación: se parchea `ui.X` y se asserta que el controlador usó el falso.
+
+- **D4. Confirmaciones por puerto.** Los controladores no abren diálogos. Reciben un `Prompter` (protocolo con
+  `confirm/inform/choose`) que `ui.py` implementa sobre el módulo `dialogs`. El código movido usa siempre
+  `import dialogs` + `dialogs.f(...)`, nunca `from dialogs import f`, para que sigan valiendo las 26
+  apariciones de `ui.dialogs.*` que parchean los tests (es el mismo objeto módulo).
+
+- **D5. «Comportamiento idéntico» verificable.** Cambiar la ruta por la que un test llega a un objeto
+  (`w._all_cards` → `w._tree.entries()`, `w._start_export()` → `w._export.start()`) **no** cuenta como cambiar
+  una aserción, siempre que el diff de los tests sea exactamente la salida de un codemod determinista
+  (`scripts/t099_rewrite_tests.py`, con un mapa de renombres versionado). QA lo comprueba aplicando el codemod
+  a los tests de `main` y comparando con la rama: diff vacío. En las fases que reemplazan widgets por
+  modelo + delegate (F8, F9) sí hay aserciones nuevas. Van en una lista cerrada y las aprueba el PO (§6, P1).
+
+- **D6. Modelos Qt reutilizables para Buddy.**
+  - `models.py` (L0): `TrackRow`, `GroupData` y `WaveData`. Los módulos actuales los re-exportan durante la
+    transición y la re-exportación se borra en F6.
+  - `library_model.py` (L0): `LibraryTrack` (pista agnóstica: `origin: Literal["rekordbox", "traktor", "buddy"]`,
+    `title`, `artist`, `path`, `key`, `bpm`, `ext`, `streaming`, `relocated`, `native: object | None`, que es
+    la referencia opaca a `RbxTrack`/`TraktorTrack` para el round-trip del export) y
+    `LibraryNode`/`LibraryPlaylist`, con adaptadores desde las dos fuentes.
+  - `playlist_tree_model.py` (L3): `QAbstractItemModel` del árbol carpetas/playlists, con estado de marca,
+    número de orden y filtro por proxy.
+  - `track_list_model.py` (L3): `QAbstractListModel` de pistas con `mimeData()` declarado y
+    `Qt.ItemIsDragEnabled` apagado hasta Buddy.
+  - `track_delegate.py` (L4): pinta una fila.
+
+  Los tres paneles de Buddy instancian estos modelos. Ninguno conoce `MainWindow`.
+
+- **D7. Navegación por enum.** `Page(IntEnum)`: `MAIN=0`, `SETTINGS=1` (Buddy suma `BUDDY=2`).
+  `ui.py` es el único que llama a `_stack.setCurrentIndex`.
+
+**Módulos destino** (líneas estimadas a partir de los rangos de §1.2; ± 20 %):
+
+| Módulo | Capa | Responsabilidad | Sale de | Líneas est. | Depende de |
+|---|---|---|---|---:|---|
+| `models.py` | L0 | `TrackRow`, `GroupData`, `WaveData` | `preview_worker.py:28-60`, `waveform_worker` | 80 | — |
+| `layout_metrics.py` | L0 | constantes de fila (`ROW_HEIGHT`, `KEYBPM_MIN_ROW_W`…) | `preview_card`, `ui_components` | 30 | — |
+| `library_model.py` | L0 | pista y playlist agnósticas + adaptadores | lógica de `ui.py:1830-1910` | 180 | `rekordbox_export`, `db` |
+| `thread_keeper.py` | L3 | retener hilos, esperar con tope, detectar colgados | `ui.py:1692-1700`, `2336-2359` | 90 | QtCore |
+| `export_controller.py` | L3 | chequeo de destino, export, progreso, cancelar, esperar | `ui.py:2419-2634` (sin «Marcar todas») | 230 | `worker` (fábrica), `thread_keeper` |
+| `maintenance_controller.py` | L3 | relocate TK/RB, restaurar backup, olvidar fixes, exportar XML RB, estado y locks | `ui.py:704-842`, `2638-3191` | 650 | `relocate_core`, `rekordbox_fixes`, `rekordbox_xml` |
+| `playback_controller.py` | L3 | play/pausa, resolver ruta, autoavance, onda, «sonando» | `ui.py:2094-2285` | 230 | `audio_player`, `waveform_worker` (fábrica) |
+| `library_controller.py` | L3 | carga por generación, cancelar, progreso, cambio de fuente/ruta | `ui.py:1249-1374`, `844-854` | 200 | `library_load_worker` |
+| `preview_controller.py` | L3 | cache de metadatos y existencia, alimentador por lotes, workers, recheck, debounce | `ui.py:1677-1830`, `1830-1910`, `2368-2412` | 380 | `preview_worker`, `library_model` |
+| `playlist_tree_model.py` | L3 | modelo del árbol (F8) | `ui.py:1380-1593` (lógica) | 300 | `library_model`, `playlist_filter` |
+| `track_list_model.py` | L3 | modelo de lista de pistas (F9) | — | 180 | `models` |
+| `window_chrome.py` | L4 | `HeaderBar`, `_ResizeGrip`, franja de actualización | `ui.py:128-152`, `412-615`, `426-442` | 300 | `styles`, `icons` |
+| `settings_page.py` | L4 | página Configuración; emite `path_changed`, `device_changed`, toggles | `ui.py:1019-1247` | 300 | `styles`, `dialogs` |
+| `playlist_panel.py` | L4 | columna izquierda: selector de fuente, buscador, árbol, tarjetas de estado | `ui.py:663-702`, `856-915`, `1380-1593`, `1504-1561` | 450 (F6), 300 (F8) | `ui_components` o `playlist_tree_model` |
+| `preview_panel.py` | L4 | columna derecha: tarjetas, cola de render, fades, vacío, scroll | `ui.py:919-1015`, `1599-2090` | 450 | `preview_card`, `track_delegate` |
+| `track_delegate.py` | L4 | pintado de fila (F9) | `ui.py:2033-2090` | 200 | `styles`, `row_blocks` |
+| `relocate_dialogs.py` | L4 | `RelocateDialog`, `RestoreBackupDialog` | `ui_components.py:779-1028` | 250 | `styles` |
+| `player_widgets.py` | L4 | `SeekBar`, `WaveformSeek`, `bar_*` | `ui_components.py:371-579` | 210 | `models` |
+| `ui.py` | L5 | `MainWindow`: composición, señales, locks, tema, navegación, cierre | — | ≤ 700, ≤ 40 métodos | todo |
+
+**Alternativas descartadas:**
+- **Mixins** (`class MainWindow(PreviewMixin, ExportMixin, …)`). Cumplen el «≤ 1.000 líneas» por archivo pero
+  `MainWindow` sigue teniendo 158 métodos y estado compartido implícito. Esquiva el criterio 1 por la forma,
+  sin resolverlo, y no deja nada que Buddy pueda instanciar.
+- **Propiedades de compatibilidad en `MainWindow`** (`_all_cards`, `_source`… reenviando al controlador) para
+  no tocar tests. Cada propiedad es un `FunctionDef`: harían falta más de 100 y el criterio 1 se rompe. Además
+  congelan la superficie del god-object. Se reemplazan por el codemod de D5.
+- **QML/QtQuick para Buddy.** QtQuick está excluido del bundle a propósito (T-096, `check_bundle.sh`). Volver
+  a meterlo suma tamaño y revisión de licencias.
+
+**Consecuencias:**
+- \+ Buddy reusa `LibraryController`, `PlaylistTreeModel`, `TrackListModel` y `PlaybackController` sin
+  tocar `MainWindow`.
+- \+ El poblado de 800 playlists deja de crear ~5.000 widgets.
+- \+ La regla de imports pasa a vigilarla un test.
+- \+ Los controladores se pueden probar sin ventana.
+- − 18 módulos nuevos.
+- − Un codemod de tests que QA tiene que auditar.
+- − El delegate pinta a mano: se pierden los `QLabel` accesibles por fila. «Enlace roto» hoy es un
+  `setAccessibleName` (`ui.py:2075`) y habrá que exponerlo con `Qt.AccessibleTextRole` desde el modelo.
+- − Los estilos de fila dejan de venir del QSS y pasan a tokens leídos en `paint()`. Hay que mantener la
+  paridad visual, y `test_contrast` y `test_styles_static` la cubren solo en parte.
+- − F8 y F9 cambian aserciones (P1).
+
+---
+
+## ADR-008: Canal Mac App Store (T-102)
+
+**Estado:** Aceptado (ratificado por el PO en la sesión B, 2026-10-19: «no entramos en 1.1»; Q11 de `engram/roadmap_1.1.md` §3). Propuesto por nerv-arquitecto el 2026-10-19; plan por fases, costos y análisis LGPL en `engram/plans/1.1/T-102.md`.
+
+### Contexto
+
+- La distribución macOS de 1.0 es directa: DMG notarizado con Developer ID (ADR-005), binario público en GitHub Releases, licencia + soporte a USD 9 vía Polar como merchant of record (T-110). El código propio es GPL-3.0-or-later con **un único titular** (`LICENSE:1`; `git shortlog` del repo: solo Gabriel Maglia).
+- Publicar en la Mac App Store (MAS) exige App Sandbox: «If you distribute your macOS app through the App Store, you must enable App Sandbox» [T-104 §5, Apple «Preparing your app for distribution»]; guideline 2.4.5(i) [T-086 §8].
+- La MAS prohíbe mecanismos propios de actualización (2.4.5(vii)) y cobros fuera de IAP (3.1.1; 3.2.2) [T-086 §8]. Ko-fi ya sale en T-113; quedan el chequeo de GitHub (`update_checker.py`) y el enlace de compra a Polar (`branding.PURCHASE_URL`, `about_dialog.py:254`).
+- QtVirtualKeyboard (GPL-only) ya no viaja (`rb_exporter.spec`, `check_bundle.sh`, T-096) [T-104 §5].
+- Qt/PySide6 son LGPLv3 y FFmpeg (dentro de PySide6_Addons) es LGPL 2.1+ [T-086_legal §4.3]; los wheels de PyPI no están compilados con `-feature-appstore-compliant`, que Qt pide para la tienda [T-086 §8, doc.qt.io/qt-6/macos.html].
+
+### Opciones
+
+| | Descripción | A favor | En contra |
+|---|---|---|---|
+| **A** | Solo directa (DMG notarizado + Polar). Status quo. | Cero costo nuevo; un pipeline; sin riesgo LGPL/App Review; actualizaciones inmediatas. | Sin descubrimiento en la tienda; compra fuera del flujo de Apple (más fricción para algunos usuarios). |
+| **B** | Solo MAS. | Un canal de cobro; actualizaciones por la tienda. | Obliga a sandboxear **a todos** los usuarios (UX peor: más diálogos de permiso); pierde Intel (§3, F3); el relocate de Traktor queda más frágil; el binario GPL igual sigue siendo libre → el DMG público no se puede «retirar» de verdad; App Review en el camino crítico de cada fix. **Descartada.** |
+| **C** | Ambos canales, un build por canal (`--target direct|mas`), mismo código con un flag de canal fijado en build. | Suma descubrimiento sin degradar la versión directa; el riesgo LGPL queda acotado a un canal que se puede retirar sin afectar a los usuarios directos. | Doble pipeline, doble firma, revisión por versión; ≈ 13-15 días iniciales + ≈ 0,5 día por release. |
+
+### Decisión recomendada
+
+**Decisión (PO): A para 1.1. C para 1.2 si y solo si** se cumplen los tres gates:
+
+- **G1 (técnico):** el spike de Fase 0 pasa sus 6 chequeos (§3) con firma ad-hoc + sandbox.
+- **G2 (legal, D-13):** opinión escrita de un abogado sobre §6 (LGPL vs términos de Apple) y sobre la retención impositiva de EE. UU. para un monotributista argentino.
+- **G3 (negocio):** el PO define qué tiene que traer el MAS (p. ej., «≥ N ventas incrementales en 6 meses») y acepta que no haya versión Intel en la tienda (o paga el lipo de F3).
+
+**Alternativa descartada:** «MAS en 1.1 junto con Buddy». Buddy y T-099 (partir `ui.py`) ya tocan la UI y el modelo de datos; sumar el sandbox, que cambia *todos* los accesos a disco, en el mismo release multiplica el riesgo de regresión y deja App Review en el camino crítico del primer release después de 1.0.
+
+**En 1.1 se hace igual (independiente de la decisión):** la costura `file_access.py` no-op (F1-a) y que Buddy guarde referencias a pistas a través de ella.
+
+### Consecuencias
+
+- (A) No cambia nada del pipeline actual. Buddy nace con la costura y su modelo de datos admite, sin migración, un `root_id` de permiso por pista (ver §3 F2-d).
+- (C, si se ratifica en 1.2) Nuevo ADR-005-bis para los secrets del canal MAS (environment `release-mas`, mismas reglas de ADR-005). La versión MAS nunca muestra enlaces de compra ni de actualización; la directa no cambia. El soporte tiene que conocer dos ubicaciones de datos y logs (`~/Library/Containers/com.gabrielmaglia.listbuddy/Data/...` en la MAS). Cada release cuesta una revisión de Apple; un fix urgente sale primero por la vía directa.
+- Riesgo residual LGPL aceptado explícitamente por el PO con el informe del abogado (§6).
+
+---
