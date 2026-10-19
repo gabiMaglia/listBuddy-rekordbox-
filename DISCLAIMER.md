@@ -184,7 +184,7 @@ de tu domicilio.
 ## 9 ter. Edad
 
 Usar el programa no requiere edad mínima; no recolecta datos de nadie. Para
-donar en Ko-fi rigen las condiciones de esa plataforma (mayoría de edad según
+donar en Ko-fi rigen las condiciones de esa plataforma (ser mayor de edad según
 la ley de tu país o autorización de tu madre, padre o tutor).
 
 ## 10. Contacto
