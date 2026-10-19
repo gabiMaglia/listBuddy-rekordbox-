@@ -7,6 +7,8 @@ rápido y sin tocar nada.
 """
 from __future__ import annotations
 
+import os
+import sys
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -22,6 +24,7 @@ class LockStatus(Enum):
     ACQUIRED = auto()
     ALREADY_RUNNING = auto()
     FOREIGN_HOST = auto()  # lock de otra computadora (carpeta en red, perfil roaming): no se arranca
+    STUCK_LOCK = auto()    # huérfano que no se puede borrar (solo lectura, «Bloqueado», de root): no se arranca
     UNAVAILABLE = auto()   # no se pudo crear el lock: se arranca igual, sin guarda
 
 
@@ -31,6 +34,7 @@ class InstanceGuard:
     lock: QLockFile | None = None
     detail: str = ""
     host: str = ""
+    same_name: bool = False   # otra máquina con el mismo hostname que esta
     path: Path | None = None
 
     def release(self) -> None:
@@ -66,16 +70,63 @@ def acquire(directory: Path) -> InstanceGuard:
         theirs = _machine_id_in(path)
         # El id de máquina manda: macOS cambia el hostname con la red y la copia viva quedaría
         # como «otra computadora». El hostname decide solo si falta el id.
-        foreign = theirs != ours if theirs and ours else host != QSysInfo.machineHostName()
+        local_host = QSysInfo.machineHostName()
+        foreign = theirs != ours if theirs and ours else host != local_host
         if foreign:
-            return InstanceGuard(LockStatus.FOREIGN_HOST, host=host, path=path)
-        return InstanceGuard(LockStatus.ALREADY_RUNNING, path=path)
+            return InstanceGuard(LockStatus.FOREIGN_HOST, host=host, same_name=host == local_host, path=path)
 
-    # Vacío o ilegible: huérfano solo si se puede borrar. Una copia viva lo tiene tomado
-    # (flock en macOS, archivo abierto en Windows) y ahí el borrado falla: nunca se pisa.
+    # De esta máquina, vacío o ilegible. Qt da LockFailedError tanto con un dueño vivo como con
+    # un huérfano que no pudo borrar (solo lectura, «Bloqueado», de root): lo que distingue a
+    # una copia viva es que tiene tomado el lock (flock en macOS, archivo abierto en Windows).
+    if sys.platform != "win32" and _held_by_live_copy(path):
+        return InstanceGuard(LockStatus.ALREADY_RUNNING, path=path)
     if lock.removeStaleLockFile() and lock.tryLock(0):
         return InstanceGuard(LockStatus.ACQUIRED, lock, path=path)
-    return InstanceGuard(LockStatus.ALREADY_RUNNING, path=path)
+    if sys.platform == "win32":
+        return _after_failed_delete_on_windows(lock, path)
+    # Nunca sin guarda: la próxima vez tampoco la tendría. El aviso dice qué archivo destrabar.
+    return InstanceGuard(LockStatus.STUCK_LOCK, path=path)
+
+
+def _held_by_live_copy(path: Path) -> bool:
+    """POSIX: QLockFile mantiene un flock mientras su dueño vive. Se prueba sobre un descriptor
+    de solo lectura para que funcione aunque el archivo no tenga permiso de escritura."""
+    import fcntl
+
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return False   # ni Qt lo puede abrir: no es de una copia viva de este usuario
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return True
+    except OSError:
+        return False
+    finally:
+        os.close(fd)   # cerrar el descriptor suelta el flock de prueba
+    return False
+
+
+_ERROR_SHARING_VIOLATION = 32
+
+
+def _after_failed_delete_on_windows(lock: QLockFile, path: Path) -> InstanceGuard:
+    """Windows: una copia viva tiene el archivo abierto y el borrado falla por «archivo en uso»;
+    si falla por permiso (atributo Solo lectura) es un huérfano trabado."""
+    try:
+        path.unlink()
+    except PermissionError as exc:
+        if getattr(exc, "winerror", None) == _ERROR_SHARING_VIOLATION:
+            return InstanceGuard(LockStatus.ALREADY_RUNNING, path=path)
+        return InstanceGuard(LockStatus.STUCK_LOCK, path=path)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        return InstanceGuard(LockStatus.STUCK_LOCK, path=path)
+    if lock.tryLock(0):
+        return InstanceGuard(LockStatus.ACQUIRED, lock, path=path)
+    return InstanceGuard(LockStatus.ALREADY_RUNNING, path=path)   # otra copia lo tomó recién
 
 
 def acquire_in_data_dir() -> InstanceGuard:

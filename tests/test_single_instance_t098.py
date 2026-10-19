@@ -8,8 +8,10 @@ Procesos reales: uno toma el lock y otro arranca `main.py` de verdad. Solo usan 
 from __future__ import annotations
 
 import os
+import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -279,6 +281,7 @@ def test_lock_from_another_computer_blocks_startup_and_names_host_and_path(tmp_p
     assert r.returncode == 0 and "ARRANCA" not in r.stdout, (r.returncode, r.stdout, r.stderr)
     text = alert.read_text(encoding="utf-8") if alert.exists() else ""
     assert "otra computadora" in text and host in text and str(lock) in text, text
+    assert ("con el mismo nombre" in text) == (kind == "foreign_machine"), text
     assert lock.read_bytes() == before   # nunca se toma ni se reescribe el lock ajeno
 
 
@@ -370,6 +373,112 @@ def test_empty_lock_held_by_a_live_process_is_never_stolen(tmp_path: Path) -> No
         _stop(holder)
     assert r.returncode == 0 and "ARRANCA" not in r.stdout, (r.returncode, r.stdout, r.stderr)
     assert "List Buddy ya está abierto" in alert.read_text(encoding="utf-8")
+
+
+# Verificador ciego D1 (plan T-098, Addendum 3): lock huérfano que no se puede borrar. Sin copia viva, la
+# app no arranca (nunca sin guarda) y el aviso dice qué archivo destrabar; con copia viva sigue «ya está abierto».
+def _unlock_file(path: Path) -> None:
+    if not path.exists():
+        return
+    if hasattr(os, "chflags"):
+        os.chflags(path, 0)
+    path.chmod(0o644)
+
+
+def _orphan_lock(data: Path, env: dict[str, str], kind: str) -> Path:
+    lock = data / "listBuddy.lock"
+    if kind == "ro_empty":
+        _write_lock(data, "empty", env)
+    else:
+        holder = _start_holder(data, env)
+        holder.kill()   # PID muerto, este host y este id
+        holder.communicate(timeout=30)
+    if kind == "uchg_dead":
+        os.chflags(lock, stat.UF_IMMUTABLE)   # «Bloqueado» en Obtener información del Finder
+    else:
+        lock.chmod(0o444)
+    return lock
+
+
+@pytest.mark.parametrize("kind", [
+    "ro_empty", "ro_dead",
+    pytest.param("uchg_dead", marks=pytest.mark.skipif(sys.platform != "darwin", reason="chflags de macOS")),
+])
+def test_orphan_lock_that_cannot_be_deleted_blocks_startup_and_says_which_file(tmp_path: Path, kind: str) -> None:
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    lock = _orphan_lock(data, env, kind)
+    try:
+        alert = tmp_path / "alert.txt"
+        r = subprocess.run([sys.executable, "-c", _STARTS, str(alert)], cwd=PROJECT_ROOT, env=env,
+                           capture_output=True, text=True, encoding="utf-8", timeout=60)
+        assert lock.exists()
+    finally:
+        _unlock_file(lock)
+    assert r.returncode == 0 and "ARRANCA" not in r.stdout, (r.returncode, r.stdout, r.stderr)
+    text = alert.read_text(encoding="utf-8") if alert.exists() else ""
+    assert "archivo trabado" in text and str(lock) in text, text
+    assert "ya está abierto" not in text and "Dock" not in text.split(str(lock))[0], text
+
+
+def test_read_only_lock_of_a_live_copy_is_still_already_running(tmp_path: Path) -> None:
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    holder = _start_holder(data, env)
+    lock = data / "listBuddy.lock"
+    try:
+        lock.chmod(0o444)
+        alert = tmp_path / "alert.txt"
+        r = subprocess.run([sys.executable, "-c", _STARTS, str(alert)], cwd=PROJECT_ROOT, env=env,
+                           capture_output=True, text=True, encoding="utf-8", timeout=60)
+    finally:
+        _unlock_file(lock)
+        _stop(holder)
+    assert r.returncode == 0 and "ARRANCA" not in r.stdout, (r.returncode, r.stdout, r.stderr)
+    assert "List Buddy ya está abierto" in alert.read_text(encoding="utf-8")
+
+
+def test_old_lock_from_another_computer_is_still_foreign(tmp_path: Path) -> None:
+    # Verificador D2: un lock real de otra máquina casi siempre es viejo; con el vencimiento por defecto
+    # de Qt (30 s) se tomaría y quedarían dos copias sobre la misma configuración.
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    _write_lock(data, "foreign_host", env)
+    lock = data / "listBuddy.lock"
+    hour_ago = time.time() - 3600
+    os.utime(lock, (hour_ago, hour_ago))
+    before = lock.read_bytes()
+    alert = tmp_path / "alert.txt"
+    r = subprocess.run([sys.executable, "-c", _STARTS, str(alert)], cwd=PROJECT_ROOT, env=env,
+                       capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.returncode == 0 and "ARRANCA" not in r.stdout, (r.returncode, r.stdout, r.stderr)
+    assert "otra computadora" in alert.read_text(encoding="utf-8")
+    assert lock.read_bytes() == before
+
+
+@pytest.mark.parametrize("platform, how", [
+    ("darwin", ("Obtener información", "«Bloqueado»", "~/Library/Application Support/listBuddy")),
+    ("win32", ("«Solo lectura»", "Explorador")),
+])
+def test_stuck_lock_message_says_how_to_unlock_it(platform: str, how: tuple[str, ...]) -> None:
+    import startup_guard
+    lock = Path("/Users/dj/Library/Application Support/listBuddy/listBuddy.lock")
+    msg = startup_guard.stuck_lock_message(lock, platform)
+    assert all(h in msg for h in how) and str(lock) in msg, msg
+    assert "borr" in msg and "volvé a abrir" in msg
+    assert "trabado" in startup_guard.STUCK_LOCK_TITLE
+
+
+def test_foreign_message_names_the_same_hostname_case_and_what_is_protected() -> None:
+    # Verificador D3: con el mismo nombre y otro id, «otra computadora (MiMac)» parecía esta misma Mac.
+    import startup_guard
+    lock = Path("/Users/dj/Library/Application Support/listBuddy/listBuddy.lock")
+    same = startup_guard.foreign_host_message("MiMac.local", lock, "darwin", same_name=True)
+    other = startup_guard.foreign_host_message("estudio-pc", lock, "darwin")
+    assert "otra computadora con el mismo nombre (MiMac.local)" in same
+    assert "con el mismo nombre" not in other and "otra computadora (estudio-pc)" in other
+    for msg in (same, other):
+        assert "tus listas" in msg and "Para no pisarla" not in msg
 
 
 # D-2 (QA): si el lock no se puede crear, `main` arranca igual y lo deja como WARNING en el log.

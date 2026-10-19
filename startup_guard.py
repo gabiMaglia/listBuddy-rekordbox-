@@ -32,20 +32,41 @@ def already_running_message(platform: str = sys.platform) -> str:
     )
 
 
-def foreign_host_message(host: str, lock_path: Path, platform: str = sys.platform) -> str:
+STUCK_LOCK_TITLE = "List Buddy tiene un archivo trabado"
+_MAC_FOLDER = "~/Library/Application Support/listBuddy"   # app_paths.data_dir() en macOS
+
+
+def _how_to_reach(lock_path: Path, platform: str) -> str:
     if platform == "darwin":
-        # Ruta corta para tipear: el texto de este aviso no siempre se puede copiar. Es la de
-        # app_paths.data_dir() en macOS.
-        how = ("Está en una carpeta oculta: en el Finder, menú Ir › Ir a la carpeta… (⇧⌘G), "
-               "pegá esa ruta o escribí ~/Library/Application Support/listBuddy y apretá Enter.")
-    else:
-        how = ("Para llegar: abrí el Explorador de archivos, pegá esta carpeta en la barra de direcciones "
-               f"y apretá Enter:\n{lock_path.parent}")
+        # Ruta corta para tipear: el texto de este aviso no siempre se puede copiar.
+        return ("Está en una carpeta oculta: en el Finder, menú Ir › Ir a la carpeta… (⇧⌘G), "
+                f"pegá esa ruta o escribí {_MAC_FOLDER} y apretá Enter.")
+    return ("Para llegar: abrí el Explorador de archivos, pegá esta carpeta en la barra de direcciones "
+            f"y apretá Enter:\n{lock_path.parent}")
+
+
+def foreign_host_message(host: str, lock_path: Path, platform: str = sys.platform,
+                         same_name: bool = False) -> str:
+    where = f"otra computadora con el mismo nombre ({host})" if same_name else f"otra computadora ({host})"
     return (
-        f"List Buddy figura abierto en otra computadora ({host}) que comparte la configuración con esta. "
-        "Para no pisarla, acá no se abre.\n\n"
+        f"List Buddy figura abierto en {where} que comparte la configuración con esta. "
+        "Para no pisar tus listas ni tu configuración, acá no se abre.\n\n"
         "Si en esa computadora no está abierto, borrá este archivo y volvé a abrir List Buddy:\n"
-        f"{lock_path}\n\n{how}"
+        f"{lock_path}\n\n{_how_to_reach(lock_path, platform)}"
+    )
+
+
+def stuck_lock_message(lock_path: Path, platform: str = sys.platform) -> str:
+    if platform == "darwin":
+        unlock = (f"Seleccioná {lock_path.name}, abrí Archivo › Obtener información y desmarcá «Bloqueado» "
+                  "(o borralo).")
+    else:
+        unlock = (f"Hacé click derecho en {lock_path.name} › Propiedades y desmarcá «Solo lectura» "
+                  "(o borralo).")
+    return (
+        "Quedó un archivo de una sesión anterior de List Buddy que no se puede borrar solo, y sin él "
+        "no hay forma de asegurar que no se abran dos copias que pisen tus listas y tu configuración:\n"
+        f"{lock_path}\n\n{_how_to_reach(lock_path, platform)}\n{unlock} Después volvé a abrir List Buddy."
     )
 
 
