@@ -1381,9 +1381,11 @@ class MainWindow(QMainWindow):
     ) -> None:
         """Arma carpetas y filas desde el árbol; separado de la carga para testearlo sin DB.
 
-        T-106: en lotes de ≈25 ms con el árbol parcial a la vista (800 playlists de una vez
-        congelaban la ventana). El primer lote corre acá mismo, así que un árbol chico queda
-        completo al volver; `on_done` corre cuando termina el último lote."""
+        T-106: en lotes de ≈10 ms (800 playlists de una vez congelaban la ventana). El primer lote
+        corre acá mismo, pero ya con 10 ms alcanza para pocas tarjetas (≈15 playlists vuelven con
+        ~6): el resto sigue en los ticks siguientes. Mientras falte, el contenedor queda oculto.
+        Para saber cuándo terminó están `on_done` y `_populate_job is None`; `on_done` corre en
+        el mismo tick del último lote, o en el siguiente si hubo que mostrar el contenedor."""
         self._populate_job = self._populate_steps(tree, song_count)
         self._populate_on_done = on_done
         self._pump_populate()
