@@ -8,7 +8,6 @@
 Lee Rekordbox (por el XML que exporta) y Traktor Pro 3/4, y copia las pistas a carpetas numeradas en orden.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Donar-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/gabrielmaglia)
 
 </div>
 
@@ -280,14 +279,6 @@ corridos para arrepentirte (ver el [Aviso legal](DISCLAIMER.md), sección 5 bis)
 El enlace de compra de Polar se publica con el release; hasta entonces esta sección es el punto de
 compra. Vendedor: Gabriel Maglia, Monotributista, CUIT 20-32758971-8, Rosario, Argentina ·
 gab.maglia@gmail.com.
-
-## Apoyar con un café
-
-Aparte de la licencia, si te sirvió y querés invitarme un café (propina voluntaria, no reemplaza
-la licencia), está Ko-fi:
-
-**[ko-fi.com/gabrielmaglia](https://ko-fi.com/gabrielmaglia)** — o escaneá el QR desde
-el menú **Ayuda → Donar en Ko-fi…** dentro de la app.
 
 ## Licencia
 

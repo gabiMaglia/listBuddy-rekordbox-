@@ -8,6 +8,9 @@ Versionado [SemVer](https://semver.org/lang/es/).
 Primera versión pública. Reúne todo el trabajo previo: las versiones internas
 «1.0.0» y «1.1.0» que figuraban antes en este archivo nunca se publicaron.
 
+### Cambios
+- Se quita el botón de donaciones (Ko-fi) y la dependencia qrcode.
+
 ### Exportar y escuchar
 - Lee **Rekordbox 6 y 7** a partir del XML que exporta (Archivo → Exportar
   colección en formato xml; no hace falta cerrar Rekordbox) y **Traktor Pro 3/4**

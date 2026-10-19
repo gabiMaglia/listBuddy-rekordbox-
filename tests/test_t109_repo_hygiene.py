@@ -65,11 +65,11 @@ def _flat_disclaimer() -> str:
     return " ".join((PROJECT_ROOT / "DISCLAIMER.md").read_text(encoding="utf-8").split())
 
 
-def test_disclaimer_attributes_qr_code_and_kofi() -> None:
-    """LEG-29."""
+def test_disclaimer_privacy_covers_only_the_polar_purchase() -> None:
+    """LEG-29 (reescrito en T-113): sin donaciones; la privacidad sigue cubriendo la compra vía Polar."""
     flat = _flat_disclaimer()
-    assert "«QR Code» es marca registrada de DENSO WAVE INCORPORATED" in flat
-    assert "Ko-fi procesa la donación según sus propios términos y su política de privacidad" in flat
+    assert "donación" not in flat and "DENSO WAVE" not in flat
+    assert "Polar Software Inc. (operador de polar.sh) procesa tus datos de compra" in flat
 
 
 def test_disclaimer_states_windows_scope() -> None:
