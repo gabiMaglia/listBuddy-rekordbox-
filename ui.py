@@ -29,7 +29,6 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QAction,
     QDesktopServices,
-    QImage,
     QIcon,
     QKeySequence,
     QMouseEvent,
@@ -102,7 +101,6 @@ from traktor_relocate import RelocateWorker, is_traktor_running
 from update_checker import UpdateCheckWorker, UpdateInfo, safe_release_url
 
 _logger = logging.getLogger("listBuddy")
-_KOFI_URL = "https://ko-fi.com/gabrielmaglia"
 # Va en cada confirmación antes de escribir sobre una librería (DISCLAIMER.md §3-4).
 _RESPONSIBILITY_LINE = (
     f"Lo hacés bajo tu responsabilidad: {APP_NAME} no se hace cargo de pérdidas "
@@ -150,73 +148,6 @@ class _ResizeGrip(QWidget):
                 event.accept()
                 return
         super().mousePressEvent(event)
-
-
-# ─────────────────────────────────────────────── Donation dialog ──────────
-
-class DonationDialog(QDialog):
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setObjectName("donation_dialog")
-        self.setWindowTitle(f"Apoyar — {APP_NAME}")
-        self.setFixedSize(310, 400)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 24, 28, 24)
-        layout.setSpacing(14)
-
-        title = QLabel(f"¿Te sirvió {APP_NAME}?")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setObjectName("dialog_title")
-        apply_title_tracking(title, 17)
-        layout.addWidget(title)
-
-        sub = QLabel("Podés invitarme un café en Ko-fi.\nContribución 100 % voluntaria.")
-        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub.setWordWrap(True)
-        layout.addWidget(sub)
-
-        qr_label = QLabel()
-        qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        px = self._make_qr()
-        if px:
-            qr_label.setPixmap(px)
-        else:
-            qr_label.setText(_KOFI_URL)
-        layout.addWidget(qr_label)
-
-        kofi_btn = QPushButton("☕  Abrir Ko-fi")
-        kofi_btn.setObjectName("kofi_btn")
-        kofi_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(_KOFI_URL)))
-        layout.addWidget(kofi_btn)
-
-        close_btn = QPushButton("Cerrar")
-        close_btn.setObjectName("close_dialog_btn")
-        close_btn.clicked.connect(self.accept)
-        layout.addWidget(close_btn)
-
-    @staticmethod
-    def _make_qr() -> QPixmap | None:
-        # qrcode solo aporta la matriz de módulos (sin Pillow): se pinta con Qt.
-        try:
-            import qrcode  # type: ignore
-
-            qr = qrcode.QRCode(border=2)
-            qr.add_data(_KOFI_URL)
-            qr.make(fit=True)
-            matrix = qr.get_matrix()
-            n = len(matrix)
-            img = QImage(n, n, QImage.Format.Format_RGB32)
-            for y, row in enumerate(matrix):
-                for x, dark in enumerate(row):
-                    img.setPixel(x, y, 0xFF000000 if dark else 0xFFFFFFFF)
-            return QPixmap.fromImage(img).scaled(
-                180, 180,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.FastTransformation,
-            )
-        except Exception:
-            return None
 
 
 # ─────────────────────────────────────────────────── MainWindow ──────────
@@ -377,7 +308,6 @@ class MainWindow(QMainWindow):
         self._reload_action.triggered.connect(self._reload_library)
         view_menu.addAction(self._reload_action)
         help_menu = self.menuBar().addMenu("Ayuda")
-        help_menu.addAction("☕  Donar en Ko-fi…").triggered.connect(self._show_donation)
         # AboutRole: en macOS Qt lo muda al menú de la app, donde se lo espera.
         help_menu.addAction("Aviso legal…").triggered.connect(
             lambda: disclaimer_dialog(self).exec()
@@ -500,13 +430,8 @@ class MainWindow(QMainWindow):
             lambda: self._apply_theme("light" if self._theme == "dark" else "dark")
         )
 
-        self._donate_btn = QPushButton(" Apoyar")
-        self._tint_icon(self._donate_btn, "heart", "muted", 15)
-        self._donate_btn.setObjectName("donate_btn")
-        self._donate_btn.clicked.connect(self._show_donation)
         lo.addWidget(self._settings_btn)
         lo.addWidget(self._theme_btn)
-        lo.addWidget(self._donate_btn)
 
         # T-016: botones propios de minimizar/maximizar/cerrar — solo en
         # Windows, donde la ventana es frameless y el frame nativo (que
@@ -590,7 +515,7 @@ class MainWindow(QMainWindow):
         right.setGeometry(max(0, w - m), m, m, max(0, h - 2 * m))
 
     def _fit_header(self) -> None:
-        """Si el header no entra a lo ancho, Mantenimiento y Apoyar quedan en solo ícono (D3)."""
+        """Si el header no entra a lo ancho, Mantenimiento queda en solo ícono (D3)."""
         bar = self._header_bar
         self._set_header_compact(False)  # medir siempre contra el ancho completo
         bar.layout().invalidate()
@@ -601,13 +526,10 @@ class MainWindow(QMainWindow):
 
     def _set_header_compact(self, compact: bool) -> None:
         self._maint_btn.set_compact(compact)
-        self._donate_btn.setText("" if compact else " Apoyar")
-        self._donate_btn.setToolTip("Apoyar" if compact else "")
-        self._donate_btn.setAccessibleName("Apoyar")
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        if hasattr(self, "_donate_btn"):  # puede llegar antes de armar el header
+        if hasattr(self, "_maint_btn"):  # puede llegar antes de armar el header
             self._fit_header()
         if self._grips:
             self._reposition_grips()
@@ -3229,9 +3151,6 @@ class MainWindow(QMainWindow):
     def _sync_theme_toggle(self, theme: str) -> None:
         # D5b: el ícono muestra el tema ACTUAL (luna en dark, sol en light).
         self._apply_icon(self._theme_btn, "moon" if theme == "dark" else "sun", "muted", 16)
-
-    def _show_donation(self) -> None:
-        DonationDialog(self).exec()
 
     def _show_about(self) -> None:
         AboutDialog(_APP_VERSION, self._theme, self).exec()

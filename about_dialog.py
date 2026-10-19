@@ -202,7 +202,7 @@ class FirstRunNoticeDialog(QDialog):
         full_btn.setObjectName("close_dialog_btn")
         full_btn.clicked.connect(lambda: disclaimer_dialog(self).exec())
         ok_btn = QPushButton("Entendido")
-        ok_btn.setObjectName("kofi_btn")
+        ok_btn.setObjectName("about_btn")
         ok_btn.setDefault(True)
         ok_btn.clicked.connect(self.accept)
         row.addWidget(full_btn)
@@ -275,7 +275,7 @@ class AboutDialog(QDialog):
         layout.addLayout(row)
 
         close_btn = QPushButton("Cerrar")
-        close_btn.setObjectName("kofi_btn")
+        close_btn.setObjectName("about_btn")
         close_btn.setDefault(True)
         close_btn.clicked.connect(self.accept)
         layout.addWidget(close_btn)

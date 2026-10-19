@@ -1,4 +1,4 @@
-"""T-062: header (marca, selector, Mantenimiento, ajustes, tema, Apoyar)."""
+"""T-062: header (marca, selector, Mantenimiento, ajustes, tema)."""
 from __future__ import annotations
 
 from _qt_isolated import PROJECT_ROOT, run_isolated
@@ -80,7 +80,7 @@ def test_header_is_56px_and_hosts_source_switcher_and_controls() -> None:
         "w, _ = make()\n"
         "bar = w.findChild(ui.QWidget, 'header_bar')\n"
         "assert bar.height() == 56, bar.height()\n"
-        "for name in ('_src_rb_btn', '_src_tk_btn', '_maint_btn', '_settings_btn', '_theme_btn', '_donate_btn'):\n"
+        "for name in ('_src_rb_btn', '_src_tk_btn', '_maint_btn', '_settings_btn', '_theme_btn'):\n"
         "    assert bar.isAncestorOf(getattr(w, name)), name\n"
         "assert w.findChild(ui.QWidget, 'header_eyebrow') is None\n"
         "print('ok')\n"
@@ -271,14 +271,14 @@ def test_header_fits_820_without_clipping_on_macos_layout() -> None:
 def test_header_fits_820_with_windows_chrome_using_compact_mode() -> None:
     out = run(FIT + "ui._IS_WINDOWS = True\n"
               "w, _ = make(); w._set_broken_total(30); app.processEvents()\n"
-              "print(clipped(w), w._donate_btn.text() == '', w._maint_btn.toolTip())\n")
-    assert out.strip().splitlines()[-1] == "([], False) True Mantenimiento"
+              "print(clipped(w), w._maint_btn.toolTip())\n")
+    assert out.strip().splitlines()[-1] == "([], False) Mantenimiento"
 
 
 def test_compact_mode_is_not_used_when_there_is_room() -> None:
     out = run("w, _ = make(); w.resize(1180, 700); app.processEvents()\n"
-              "print(w._donate_btn.text().strip(), w._maint_btn.toolTip() == '')\n")
-    assert out.strip().splitlines()[-1] == "Apoyar True"
+              "print(w._maint_btn.toolTip() == '')\n")
+    assert out.strip().splitlines()[-1] == "True"
 
 
 def test_update_notice_lives_in_its_own_strip_not_in_the_header() -> None:

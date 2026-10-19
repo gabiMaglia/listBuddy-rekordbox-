@@ -492,10 +492,10 @@ def test_c4_workflow_stores_profile_in_temp_keychain() -> None:
 
 
 def test_windows_lock_has_colorama_and_build_script_stops_on_pip_failure() -> None:
-    """Verifier T-092 D1: el lock se compila en macOS; qrcode y pytest exigen colorama solo en win32.
+    """Verifier T-092 D1: el lock se compila en macOS; pytest exige colorama solo en win32.
     Sin el pin explícito, `pip install --require-hashes` falla en Windows («must have their versions pinned»),
     y el .ps1 seguía igual porque $ErrorActionPreference no corta comandos nativos."""
-    for lock in ("requirements.txt", "requirements-dev.txt"):
+    for lock in ("requirements-dev.txt",):
         text = (PROJECT_ROOT / lock).read_text(encoding="utf-8")
         assert re.search(r"^colorama==[\d.]+ \\\n    --hash=sha256:[0-9a-f]{64}", text, re.M), f"{lock}: sin colorama pineado con hash"
     ps1 = (PROJECT_ROOT / "scripts" / "build_windows.ps1").read_text(encoding="utf-8")

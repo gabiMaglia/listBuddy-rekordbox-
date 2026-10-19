@@ -2,4 +2,7 @@
 #   pip-compile --generate-hashes --strip-extras --output-file=requirements-dev.txt requirements-dev.in
 -r requirements.in
 pytest==9.1.1
+# pytest exige colorama solo en win32; el lock se compila en macOS y no la traería:
+# se pinea explícita para que `pip install --require-hashes` funcione también en Windows (verifier T-092).
+colorama==0.4.6
 pytest-xdist==3.8.0
