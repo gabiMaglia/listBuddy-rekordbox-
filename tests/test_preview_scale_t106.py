@@ -130,13 +130,15 @@ def tree(n):
 
 # Cota 150 ms y no 100: el tick final, que muestra las 800 tarjetas de una vez, mide ≈100-105 ms
 # (costo propio de Qt al mostrar ~5000 widgets, no repartible); los tick de lotes miden ≈25-60 ms.
-def test_populating_800_playlists_never_blocks_the_ui_over_100ms_and_keeps_order() -> None:
+def test_populating_800_playlists_is_batched_never_blocks_the_ui_over_150ms_and_keeps_order() -> None:
     out = run(
         TREE_CODE +
         "w, _ = make(); warm_up()\n"
         "t = tree(800); dog = Watchdog()\n"
         "done_calls = []\n"
         "w._populate_playlists(t, lambda pl: 5, on_done=lambda: done_calls.append(1))\n"
+        # Por lotes de verdad: tras la primera llamada el poblado sigue en curso y el watchdog corre.
+        "batched = w._populate_job is not None and len(w._all_cards) < 800\n"
         "ok = spin(lambda: bool(done_calls))\n"
         "dog.stop()\n"
         "names = [c.name for c in w._all_cards]\n"
@@ -145,9 +147,9 @@ def test_populating_800_playlists_never_blocks_the_ui_over_100ms_and_keeps_order
         "    for n in ns:\n"
         "        (walk(n['children']) if n['playlist'].is_folder else expected.append(n['playlist'].Name))\n"
         "walk(t)\n"
-        "print(ok, len(names), names == expected, len(w._groups), dog.worst_ms < 150, int(dog.worst_ms))\n"
+        "print(ok, len(names), names == expected, len(w._groups), dog.worst_ms < 150, batched, len(dog.gaps) >= 20, int(dog.worst_ms))\n"
     )
-    assert out.startswith("True 800 True 20 True"), out
+    assert out.startswith("True 800 True 20 True True True"), out
 
 
 def test_recheck_with_one_changed_file_rebuilds_only_that_card_and_keeps_the_scroll() -> None:
@@ -208,6 +210,17 @@ def test_reload_in_the_middle_of_populating_keeps_the_pending_tick() -> None:
         "print(len(w._keep_after_load))\n"
     )
     assert out == "1", out
+
+
+def test_reload_in_the_middle_of_a_batched_remark_keeps_every_pending_mark() -> None:
+    out = run(
+        "w, _ = make(); cards = setup(w, 300)\n"
+        "w._set_all(True)\n"
+        "assert w._mark_queue, 'el re-marcado por lotes debía seguir en curso'\n"
+        "w._reload_after_path_change()\n"
+        "print(len(w._keep_after_load))\n"
+    )
+    assert out == "300", out
 
 
 def test_reload_between_end_of_populating_and_its_deferred_finish_keeps_the_pending_tick() -> None:
