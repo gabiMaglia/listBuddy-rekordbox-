@@ -11,6 +11,10 @@ Mide dos cosas con la ventana real (`tests/_window_boot.BOOT`, sin DB ni red, in
 Cada corrida va en un proceso nuevo (en un intérprete reusado el hueco medido crece con lo anterior, T-106).
 
 Uso: python scripts/t099_bench.py [--repeat 3] [--platform offscreen]
+
+Deuda declarada (D-8, verificación ciega 2): usa privados de `MainWindow` (`_all_cards`, `_populate_playlists`,
+`_exists_cache`, `_preview_workers`…) y el codemod solo reescribe `tests/`. En cada fase que los renombre hay
+que pasarlo a mano: `python scripts/t099_rewrite_tests.py scripts/t099_bench.py`.
 """
 from __future__ import annotations
 

@@ -286,3 +286,18 @@ def test_check_rejects_a_raised_ratchet_in_the_branch_that_creates_the_file(repo
     _set_ratchets(repo, max_lines={"ui.py": 3100})    # y después lo sube por encima de la base medida
     r = _cli(repo, "--check")
     assert r.returncode == 1 and "max_lines: ui.py subió de 3000 a 3100" in r.stdout, r.stdout + r.stderr
+
+
+@pytest.mark.parametrize("body", [
+    "import test_module_size as s\ns.root_sources = lambda: {}\n",
+    "def test_x(monkeypatch):\n    monkeypatch.setattr('_t099_ratchets.load', lambda: {})\n",
+    "from test_import_layers import LAYERS\nLAYERS['ui'] = 0\n",
+    "import importlib\nimportlib.import_module('_t099_guard')\n",
+])
+def test_check_rejects_a_new_test_that_touches_the_guards(repo: pathlib.Path, body: str) -> None:
+    _codemod_and_commit(repo)
+    (repo / "tests" / "test_aaa_helper.py").write_text(body, encoding="utf-8")
+    _commit(repo, "test nuevo que toca barandas")
+    r = _cli(repo, "--check")
+    assert r.returncode == 1 and "tests/test_aaa_helper.py: test nuevo que nombra un módulo de barandas" in r.stdout, \
+        r.stdout + r.stderr

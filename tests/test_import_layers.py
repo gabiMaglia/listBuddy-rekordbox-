@@ -19,7 +19,7 @@ from __future__ import annotations
 import ast
 from typing import NamedTuple
 
-from _t099_ratchets import load, module_name, project_files
+from _t099_ratchets import load, module_name, project_files, run_guard
 
 # ADR-007 D1 (engram/02_architecture.md). Incluye módulos que todavía no existen: se declaran antes de llegar.
 LAYERS: dict[str, int] = {
@@ -64,8 +64,10 @@ ALLOWED_LAYERS: dict[int, frozenset[int]] = {
 L6_ALLOWED_MODULES = frozenset({"ui", "styles", "app_logging", "startup_guard", "single_instance"})
 
 # Qt por capa: L0/L1 sin Qt; L2/L3 sin QtWidgets.
-QT_FORBIDDEN: dict[int, tuple[str, ...]] = {0: ("PySide6",), 1: ("PySide6",), 2: ("PySide6.QtWidgets",),
-                                             3: ("PySide6.QtWidgets",)}
+QT_BINDINGS = ("PySide6", "shiboken6", "PyQt6")
+QT_FORBIDDEN: dict[int, tuple[str, ...]] = {0: QT_BINDINGS, 1: QT_BINDINGS,
+                                             2: ("PySide6.QtWidgets", "PyQt6.QtWidgets"),
+                                             3: ("PySide6.QtWidgets", "PyQt6.QtWidgets")}
 
 _RATCHETS = load()
 ALLOWED_EDGES: frozenset[tuple[str, str]] = frozenset((a, b) for a, b in _RATCHETS["layer_edges"])
@@ -101,8 +103,8 @@ def imports_of(source: str, project: set[str], filename: str = "<src>", module: 
     found = Imports(set(), set())
     for name in names:
         parts = name.split(".")
-        if parts[0] == "PySide6":
-            if len(parts) <= 2 and not (len(parts) == 2 and not parts[1].startswith("Qt")):
+        if parts[0] in QT_BINDINGS:
+            if len(parts) == 1 or (len(parts) == 2 and parts[1].startswith("Qt")):
                 found.qt.add(name)
             continue
         # El módulo del proyecto más largo que sea prefijo: `pkg.mod.Clase` → `pkg.mod`.
@@ -226,7 +228,7 @@ def root_packages() -> frozenset[str]:
 
 
 def test_root_modules_respect_the_adr007_layers() -> None:
-    errors = report(violations(root_sources(), packages=root_packages()))
+    errors = run_guard("layers")   # en un intérprete propio: otro test no puede parchear la medición
     assert not errors, "\n".join(errors)
 
 
@@ -321,8 +323,8 @@ def test_relative_and_dotted_imports_resolve_to_the_longest_project_module() -> 
 
 
 def test_the_allowlists_hold_exactly_the_measured_violations() -> None:
-    found = violations(root_sources(), packages=root_packages())
-    assert (found.edges, found.qt, found.cycles) == (set(ALLOWED_EDGES), set(ALLOWED_QT), set(ALLOWED_CYCLES))
+    errors = run_guard("layers_exact")
+    assert not errors, "\n".join(errors)
 
 
 def test_l6_may_import_ui_and_the_startup_modules_but_nothing_else() -> None:
@@ -331,3 +333,10 @@ def test_l6_may_import_ui_and_the_startup_modules_but_nothing_else() -> None:
                "app_logging": "", "single_instance": "", "db": "", "worker": ""}
     assert violations(sources).edges == {("main", "db"), ("startup_guard", "worker")}
     assert "single_instance" in LAYERS
+
+
+def test_other_qt_bindings_count_as_qt() -> None:
+    sources = {"db": "import shiboken6\n", "traktor_db": "from PyQt6 import QtCore\n",
+               "worker": "from PyQt6.QtWidgets import QWidget\n"}
+    assert violations(sources).qt == {("db", "shiboken6"), ("traktor_db", "PyQt6"),
+                                      ("traktor_db", "PyQt6.QtCore"), ("worker", "PyQt6.QtWidgets")}

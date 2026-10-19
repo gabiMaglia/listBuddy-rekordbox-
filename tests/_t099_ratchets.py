@@ -16,14 +16,18 @@ import json
 import os
 import pathlib
 import subprocess
+import sys
 from typing import Any, Callable
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RATCHETS_REL = "tests/baselines/t099_ratchets.json"
 BASE_REFS = ("main", "origin/main")
 
-# Mismas exclusiones que T-120: lo que no es código de la app no se mide.
-EXCLUDED_DIRS = frozenset({"tests", "scripts", "listBuddy_design", "engram", "build", "dist", "__pycache__"})
+# Mismas exclusiones que T-120: lo que no es código de la app no se mide. `build/` y `dist/` son salidas de
+# PyInstaller y solo se saltean cuando no están en git (ignoradas): si alguien los commitea con `git add -f`,
+# son paquetes importables como cualquier otro y se miden.
+EXCLUDED_DIRS = frozenset({"tests", "scripts", "listBuddy_design", "engram", "__pycache__"})
+BUILD_DIRS = frozenset({"build", "dist"})
 
 SIZE_KINDS = ("max_lines", "max_methods")
 SET_KINDS = ("layer_edges", "layer_qt", "layer_cycles")
@@ -36,10 +40,24 @@ class BaseUnavailable(RuntimeError):
 
 
 def project_files(root: pathlib.Path = ROOT) -> dict[str, str]:
-    """`ruta/relativa.py` → fuente, recorriendo subpaquetes."""
+    """`ruta/relativa.py` → fuente, recorriendo subpaquetes.
+
+    En un repo git mide lo que se commitearía: lo trackeado (aunque esté ignorado, `git add -f`) más lo nuevo
+    no ignorado. Fuera de git recorre el disco y saltea `build/`/`dist/` del primer nivel."""
+    top = _git(root, "rev-parse", "--show-toplevel")
+    if top.returncode == 0 and pathlib.Path(top.stdout.decode().strip()).resolve() == root.resolve():
+        listed = _git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard").stdout
+        out_git: dict[str, str] = {}
+        for rel in sorted(set(listed.decode("utf-8").split("\0")) - {""}):
+            path = root / rel
+            if rel.endswith(".py") and not _excluded(rel) and path.is_file():
+                out_git[rel] = path.read_text(encoding="utf-8")
+        return out_git
     out: dict[str, str] = {}
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(d for d in dirnames if d not in EXCLUDED_DIRS and not d.startswith("."))
+        first_level = pathlib.Path(dirpath) == root
+        dirnames[:] = sorted(d for d in dirnames if d not in EXCLUDED_DIRS and not d.startswith(".")
+                             and not (first_level and d in BUILD_DIRS))
         for name in sorted(filenames):
             if name.endswith(".py"):
                 path = pathlib.Path(dirpath, name)
@@ -144,3 +162,16 @@ def base_ratchets(root: pathlib.Path = ROOT, refs: tuple[str, ...] = BASE_REFS,
         if first else []
     )
     return base, parse(json.dumps(measured))
+
+
+GUARD_SCRIPT = pathlib.Path(__file__).with_name("_t099_guard.py")
+
+
+def run_guard(kind: str, root: pathlib.Path = ROOT) -> list[str]:
+    """Corre una baranda en un intérprete propio (`python -I`): nada que otro test haga en este proceso
+    (parchear `root_sources`, las constantes, los módulos) llega a la medición."""
+    r = subprocess.run([sys.executable, "-I", str(GUARD_SCRIPT), kind, str(root)], capture_output=True,
+                       text=True, encoding="utf-8", timeout=300)
+    if r.returncode != 0:
+        return [f"la baranda {kind} no corrió (exit {r.returncode}): {r.stderr.strip()[-2000:]}"]
+    return json.loads(r.stdout)

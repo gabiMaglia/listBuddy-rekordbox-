@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import ast
 
-from _t099_ratchets import load, module_name, project_files
+from _t099_ratchets import load, module_name, project_files, run_guard
 
 MAX_LINES = 1000
 MAX_METHODS = 40
@@ -28,43 +28,105 @@ def count_lines(source: str) -> int:
     return len(source.splitlines())
 
 
-def _own_methods(cls: ast.ClassDef) -> int:
+def _own_methods(cls: ast.ClassDef, module_funcs: set[str]) -> int:
+    """`def` del cuerpo más atributos ligados a una lambda o a una función del módulo (`f = _f`)."""
     n = 0
     for b in cls.body:
         if isinstance(b, (ast.FunctionDef, ast.AsyncFunctionDef)):
             n += 1
-        elif isinstance(b, ast.Assign) and isinstance(b.value, ast.Lambda):
-            n += sum(isinstance(t, ast.Name) for t in b.targets)
-        elif isinstance(b, ast.AnnAssign) and isinstance(b.value, ast.Lambda):
-            n += 1
+        elif isinstance(b, (ast.Assign, ast.AnnAssign)) and b.value is not None and (
+                isinstance(b.value, ast.Lambda)
+                or (isinstance(b.value, ast.Name) and b.value.id in module_funcs)):
+            targets = b.targets if isinstance(b, ast.Assign) else [b.target]
+            n += sum(isinstance(t, ast.Name) for t in targets)
     return n
 
 
-def class_method_counts_all(sources: dict[str, str]) -> dict[str, int]:
-    """`archivo::Clase` → métodos propios más los de sus ancestros del proyecto (cada ancestro una vez)."""
+def _dotted(expr: ast.expr) -> list[str] | None:
+    parts: list[str] = []
+    while isinstance(expr, ast.Attribute):
+        parts.insert(0, expr.attr)
+        expr = expr.value
+    if isinstance(expr, ast.Name):
+        return [expr.id, *parts]
+    return None
+
+
+DYNAMIC = "<dinámica>"
+
+
+def class_method_counts_all(sources: dict[str, str], problems: list[str] | None = None) -> dict[str, int]:
+    """`archivo::Clase` → métodos propios más los de sus ancestros del proyecto (cada ancestro una vez).
+
+    Resuelve bases por nombre local, `from m import C`, `from . import m` / `from pkg import m` + `m.C`,
+    `import pkg.m [as x]` + `pkg.m.C`/`x.C` e imports relativos. Una base que es una expresión (`f()`) o un
+    nombre asignado a nivel módulo (`Mix = type(...)`) no se puede seguir: va a `problems` en vez de
+    ignorarse."""
     modules = {module_name(rel): rel for rel in sources}
     own: dict[str, int] = {}
     parents: dict[str, list[str]] = {}
     for rel, src in sources.items():
         tree = ast.parse(src, filename=rel)
-        top = {n.name for n in tree.body if isinstance(n, ast.ClassDef)}
-        names: dict[str, str] = {}     # nombre local → clase importada `archivo::Clase`
-        aliases: dict[str, str] = {}   # nombre local → archivo de un módulo del proyecto
+        mod = module_name(rel)
+        package = mod.split(".") if rel.endswith("__init__.py") else mod.split(".")[:-1]
+        top_classes = {n.name for n in tree.body if isinstance(n, ast.ClassDef)}
+        top_funcs = {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        top_assigned: set[str] = set()
+        for n in tree.body:
+            for t in (n.targets if isinstance(n, ast.Assign) else [n.target] if isinstance(n, ast.AnnAssign) else []):
+                if isinstance(t, ast.Name):
+                    top_assigned.add(t.id)
+        names: dict[str, str] = {}      # nombre local → clase importada `archivo::Clase`
+        aliases: dict[str, str] = {}    # nombre local → módulo del proyecto (punteado)
+        roots: set[str] = set()         # `import pkg.m` deja `pkg` como raíz de una ruta punteada
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module in modules:
+            if isinstance(node, ast.ImportFrom):
+                if node.level:
+                    keep = len(package) - (node.level - 1)
+                    base_parts = package[:keep] if keep >= 0 else []
+                    base_mod = ".".join([*base_parts, *([node.module] if node.module else [])])
+                else:
+                    base_mod = node.module or ""
                 for a in node.names:
-                    names[a.asname or a.name] = f"{modules[node.module]}::{a.name}"
+                    local = a.asname or a.name
+                    sub = f"{base_mod}.{a.name}" if base_mod else a.name
+                    if sub in modules:
+                        aliases[local] = sub
+                    elif base_mod in modules:
+                        names[local] = f"{modules[base_mod]}::{a.name}"
             elif isinstance(node, ast.Import):
                 for a in node.names:
-                    if a.name in modules and (a.asname or "." not in a.name):
-                        aliases[a.asname or a.name] = modules[a.name]
+                    if a.asname and a.name in modules:
+                        aliases[a.asname] = a.name
+                    elif not a.asname:
+                        roots.add(a.name.split(".")[0])
 
-        def resolve(base: ast.expr, rel: str = rel, top: set[str] = top, names: dict[str, str] = names,
-                    aliases: dict[str, str] = aliases) -> str | None:
-            if isinstance(base, ast.Name):
-                return f"{rel}::{base.id}" if base.id in top else names.get(base.id)
-            if isinstance(base, ast.Attribute) and isinstance(base.value, ast.Name) and base.value.id in aliases:
-                return f"{aliases[base.value.id]}::{base.attr}"
+        def by_path(parts: list[str], modules: dict[str, str] = modules) -> str | None:
+            for k in range(len(parts) - 1, 0, -1):
+                prefix = ".".join(parts[:k])
+                if prefix in modules:
+                    return f"{modules[prefix]}::{'.'.join(parts[k:])}"
+            return None
+
+        def resolve(base: ast.expr, rel: str = rel, top_classes: set[str] = top_classes,
+                    top_assigned: set[str] = top_assigned, names: dict[str, str] = names,
+                    aliases: dict[str, str] = aliases, roots: set[str] = roots) -> str | None:
+            if isinstance(base, ast.Subscript):   # Generic[T], Base[int]: cuenta la clase de afuera
+                base = base.value
+            parts = _dotted(base)
+            if parts is None:
+                return DYNAMIC
+            first = parts[0]
+            if len(parts) == 1:
+                if first in top_classes:
+                    return f"{rel}::{first}"
+                if first in names:
+                    return names[first]
+                return DYNAMIC if first in top_assigned else None
+            if first in aliases:
+                return by_path(aliases[first].split(".") + parts[1:])
+            if first in roots:
+                return by_path(parts)
             return None
 
         def visit(node: ast.AST, prefix: str) -> None:
@@ -72,8 +134,17 @@ def class_method_counts_all(sources: dict[str, str]) -> dict[str, int]:
                 if isinstance(child, ast.ClassDef):
                     name = f"{prefix}{child.name}"
                     key = f"{rel}::{name}"
-                    own[key] = _own_methods(child)
-                    parents[key] = [k for k in (resolve(b) for b in child.bases) if k is not None]
+                    own[key] = _own_methods(child, top_funcs)
+                    found: list[str] = []
+                    for b in child.bases:
+                        k = resolve(b)
+                        if k == DYNAMIC:
+                            if problems is not None:
+                                problems.append(f"{key}: base dinámica «{ast.unparse(b)}» "
+                                                "(no se puede contar lo que hereda)")
+                        elif k is not None:
+                            found.append(k)
+                    parents[key] = found
                     visit(child, f"{name}.")
                 elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     # Una clase local también es código que alguien mantiene: se mide igual (como __qualname__).
@@ -100,9 +171,9 @@ def class_method_counts(source: str, filename: str) -> dict[str, int]:
     return class_method_counts_all({filename: source})
 
 
-def measure(sources: dict[str, str]) -> tuple[dict[str, int], dict[str, int]]:
+def measure(sources: dict[str, str], problems: list[str] | None = None) -> tuple[dict[str, int], dict[str, int]]:
     lines = {name: count_lines(src) for name, src in sources.items()}
-    return lines, class_method_counts_all(sources)
+    return lines, class_method_counts_all(sources, problems)
 
 
 def ratchet_errors(
@@ -135,13 +206,14 @@ def all_errors(
     allowed_lines: dict[str, int] = ALLOWED_LINES,
     allowed_methods: dict[str, int] = ALLOWED_METHODS,
 ) -> list[str]:
-    lines, methods = measure(sources)
+    problems: list[str] = []
+    lines, methods = measure(sources, problems)
     return (ratchet_errors(lines, allowed_lines, MAX_LINES, "líneas")
-            + ratchet_errors(methods, allowed_methods, MAX_METHODS, "métodos"))
+            + ratchet_errors(methods, allowed_methods, MAX_METHODS, "métodos") + sorted(problems))
 
 
 def test_root_modules_and_classes_respect_the_size_ratchet() -> None:
-    errors = all_errors(root_sources())
+    errors = run_guard("size")   # en un intérprete propio: otro test no puede parchear la medición
     assert not errors, "\n".join(errors)
 
 
@@ -184,9 +256,8 @@ def test_an_allowlisted_entry_that_already_complies_must_be_removed() -> None:
 
 
 def test_the_allowlists_hold_exactly_the_measured_offenders() -> None:
-    lines, methods = measure(root_sources())
-    assert {k: v for k, v in lines.items() if v > MAX_LINES} == ALLOWED_LINES
-    assert {k: v for k, v in methods.items() if v > MAX_METHODS} == ALLOWED_METHODS
+    errors = run_guard("size_exact")
+    assert not errors, "\n".join(errors)
 
 
 def test_classes_defined_inside_functions_are_measured_too() -> None:
@@ -223,3 +294,34 @@ def test_a_diamond_counts_each_ancestor_once() -> None:
     src = ("class A:\n    def a(self) -> None: ...\nclass B(A):\n    pass\nclass C(A):\n    pass\n"
            "class D(B, C):\n    def d(self) -> None: ...\n")
     assert class_method_counts(src, "m.py")["m.py::D"] == 2
+
+
+MIX40 = "class Mix:\n" + "".join(f"    def x{i}(self) -> None: ...\n" for i in range(40))
+SUBCLASS = "class W({base}):\n    def w(self) -> None: ...\n"
+
+
+def test_relative_and_module_attribute_bases_are_resolved() -> None:
+    files = {"ctl/__init__.py": "", "ctl/mixins.py": MIX40,
+             "ctl/rel.py": "from .mixins import Mix\n" + SUBCLASS.format(base="Mix"),
+             "ctl/up.py": "from . import mixins\n" + SUBCLASS.format(base="mixins.Mix"),
+             "a.py": "from ctl import mixins\n" + SUBCLASS.format(base="mixins.Mix"),
+             "b.py": "import ctl.mixins\n" + SUBCLASS.format(base="ctl.mixins.Mix"),
+             "c.py": "import ctl.mixins as m\n" + SUBCLASS.format(base="m.Mix")}
+    counts = class_method_counts_all(files)
+    assert {k: v for k, v in counts.items() if k.endswith("::W")} == {
+        "ctl/rel.py::W": 41, "ctl/up.py::W": 41, "a.py::W": 41, "b.py::W": 41, "c.py::W": 41}
+
+
+def test_module_functions_bound_in_the_class_body_count_as_methods() -> None:
+    src = "def _f(self) -> None: ...\nclass W:\n    f = _f\n    g = h = _f\n    k = 3\n    n = len\n"
+    assert class_method_counts(src, "m.py") == {"m.py::W": 3}
+
+
+def test_a_dynamic_project_base_fails_instead_of_being_ignored() -> None:
+    src = ("from PySide6.QtWidgets import QWidget\nfrom typing import Generic, TypeVar\nT = TypeVar('T')\n"
+           "Mix = type('Mix', (), {})\n"
+           "class A(QWidget):\n    pass\nclass B(Generic[T]):\n    pass\nclass C(Mix):\n    pass\n"
+           "class D(fabrica()):\n    pass\n")
+    errors = all_errors({"m.py": src}, {}, {})
+    assert errors == ["m.py::C: base dinámica «Mix» (no se puede contar lo que hereda)",
+                      "m.py::D: base dinámica «fabrica()» (no se puede contar lo que hereda)"], errors

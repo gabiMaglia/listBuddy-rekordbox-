@@ -16,13 +16,12 @@ from typing import Any
 import pytest
 
 from _t099_ratchets import (RATCHETS_REL, ROOT, BaseUnavailable, base_ratchets, load, module_name,
-                            monotonic_errors, parse, project_files)
+                            monotonic_errors, parse, project_files, run_guard, tree_files)
 
 
 def test_the_branch_never_raises_a_ratchet_against_its_base() -> None:
-    commit, base = base_ratchets(ROOT)
-    errors = monotonic_errors(base, load(ROOT))
-    assert not errors, f"contra {commit[:10]}:\n" + "\n".join(errors)
+    errors = run_guard("ratchets")   # en un intérprete propio: otro test no puede parchear la medición
+    assert not errors, "\n".join(errors)
 
 
 BASE: dict[str, Any] = {
@@ -175,3 +174,23 @@ def test_once_merged_the_base_is_the_merge_base_version(repo: pathlib.Path) -> N
     _git(repo, "checkout", "-q", "feat")
     _, base = base_ratchets(repo)
     assert base["max_lines"] == {"ui.py": 3000}   # el merge-base, no la punta móvil de main
+
+
+def test_project_files_in_git_follow_what_would_be_committed_build_included(repo: pathlib.Path) -> None:
+    (repo / ".gitignore").write_text("build/\nprueba/\n", encoding="utf-8")
+    for rel in ("a.py", "build/ctl.py", "prueba/p.py", "nuevo.py", "tests/t.py", "pkg/__pycache__/c.py"):
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text("x = 1\n", encoding="utf-8")
+    _git(repo, "add", "a.py", ".gitignore")
+    _git(repo, "add", "-f", "build/ctl.py")    # forzado: ignorado pero commiteable, así que se mide
+    assert sorted(project_files(repo)) == ["a.py", "build/ctl.py", "nuevo.py"]
+    _git(repo, "commit", "-q", "-m", "build forzado")
+    assert "build/ctl.py" in tree_files(repo, "HEAD")
+
+
+def test_the_guard_measures_in_its_own_interpreter(monkeypatch: pytest.MonkeyPatch) -> None:
+    import test_module_size
+
+    monkeypatch.setattr(test_module_size, "root_sources", lambda: {"x.py": "x = 1\n" * 2000})
+    assert test_module_size.all_errors(test_module_size.root_sources(), {}, {}) == ["x.py: 2000 líneas (máximo 1000)"]
+    assert run_guard("size") == []   # el parche de este proceso no llega al intérprete de la baranda

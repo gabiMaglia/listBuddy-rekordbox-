@@ -24,7 +24,21 @@ Uso:
   - todo lo demás (fixtures, configuración): idéntico byte a byte;
   - un archivo borrado o un `conftest.py`/configuración nuevos cuentan como diferencia; otros archivos nuevos
     (tests nuevos y sus fixtures) no.
+  - un test nuevo que nombra un módulo de barandas (`test_module_size`, `test_import_layers`,
+    `test_type_hints`, `_t099_ratchets`, `_t099_measure`, `_t099_guard`) cuenta como diferencia.
 Sale con 0 si no hay diferencias, 1 si las hay (mostrando el diff) y 2 ante un error.
+
+Deuda declarada (verificación ciega 2, `engram/qa/T-099-F0-verifier2.md`); hasta cerrarla, lo cubre QA a mano:
+  - D-3: `old` solo tiene que ser un identificador; un renombre semántico (`isChecked` → `isEnabled`) cambia
+    aserciones y `--check` sale 0. QA revisa que cada entrada del mapa sea una ruta privada (`_…`).
+  - D-5: `--check` corre el script y el mapa de HEAD; `scripts/` no se compara contra la base. QA corre el
+    `--check` de la base: `git show <merge-base>:scripts/t099_rewrite_tests.py > /tmp/ck.py` y lo ejecuta con
+    `--root .`.
+  - D-6: CI no corre `--check` y `--check` no mira `.github/`: un `--deselect` en el workflow se ve solo en el
+    diff de la PR.
+  - D-7: el chequeo de destino no ve tuplas, `for`, `with` ni anotados (`w._x, b = …`, `for w._x in …`), ni
+    reescribe kwargs (`SimpleNamespace(_x=1)`) ni rutas en texto (`patch('ui.MainWindow._x')`). Falla ruidosa
+    (código inválido o error en runtime), no pasa en verde.
 """
 from __future__ import annotations
 
@@ -47,6 +61,13 @@ from _t099_ratchets import (RATCHETS_REL, BaseUnavailable, base_ratchets, merge_
                             monotonic_errors, parse)
 
 CONFIG_FILES = ("pytest.ini", "conftest.py", "pyproject.toml", "setup.cfg", "tox.ini")
+# Las barandas de T-099. Un test NUEVO no puede nombrarlas (importarlas o parchearlas): si pudiera, dejaría crecer
+# `ui.py` en verde. Los archivos que las implementan sí pueden ser nuevos (es la rama que las crea).
+GUARD_MODULES = ("test_module_size", "test_import_layers", "test_type_hints", "_t099_ratchets", "_t099_measure",
+                 "_t099_guard")
+GUARD_FILES = frozenset({f"tests/{m}.py" for m in GUARD_MODULES} | {"tests/test_t099_ratchets.py",
+                                                                     "tests/test_t099_rewrite_tests.py"})
+_GUARD_NAME = re.compile(r"\b(" + "|".join(GUARD_MODULES) + r")\b")
 
 _PATH = re.compile(r"[A-Za-z_]\w*(?:\(\))?(?:\.[A-Za-z_]\w*(?:\(\))?)*")
 _KEYS = {"old", "new", "phase", "note"}
@@ -241,6 +262,12 @@ def check(root: pathlib.Path, ref: str, renames: list[Rename]) -> int:
         if rel.rsplit("/", 1)[-1] in CONFIG_FILES:
             print(f"✗ {rel}: configuración de pytest nueva (cambia qué se recolecta o cómo corre)")
             bad += 1
+        elif rel.startswith("tests/") and rel.endswith(".py") and rel not in GUARD_FILES:
+            hit = _GUARD_NAME.search(_git(root, "show", f"HEAD:{rel}").decode("utf-8", errors="replace"))
+            if hit:
+                print(f"✗ {rel}: test nuevo que nombra un módulo de barandas ({hit.group(1)}): no puede "
+                      "importarlo ni parchearlo")
+                bad += 1
     status = subprocess.run(["git", "-C", str(root), "status", "--porcelain", "--", "tests", *CONFIG_FILES],
                             capture_output=True, text=True).stdout.strip()
     if status:

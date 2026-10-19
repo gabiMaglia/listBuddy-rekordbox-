@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import ast
 
-from _t099_ratchets import load, module_name, project_files
+from _t099_ratchets import load, module_name, project_files, run_guard
 
 TYPED_MODULES: tuple[str, ...] = tuple(load()["typed_modules"])
 
@@ -44,7 +44,7 @@ def typed_errors(files: dict[str, str], typed: tuple[str, ...]) -> list[str]:
 
 
 def test_listed_modules_are_fully_type_hinted() -> None:
-    errors = typed_errors(project_files(), TYPED_MODULES)
+    errors = run_guard("typed")   # en un intérprete propio: otro test no puede parchear la medición
     assert not errors, "\n".join(errors)
 
 
