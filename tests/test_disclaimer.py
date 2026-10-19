@@ -155,4 +155,4 @@ def test_users_who_accepted_2026_10_16_2_see_the_sale_notice_again() -> None:
         "pending = about_dialog.disclaimer_pending(s)\n"
         "about_dialog.mark_disclaimer_accepted(s)\n"
         "print(pending, about_dialog.disclaimer_pending(s), about_dialog.DISCLAIMER_VERSION)\n")
-    assert out == "True False 2026-10-16.3"
+    assert out == "True False 2026-10-19.1"

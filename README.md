@@ -48,7 +48,7 @@ Además podés **escuchar las pistas antes de exportar**, sin salir de la app.
 ## Descargar
 
 Bajá la última versión desde [Releases](https://github.com/gabiMaglia/listbuddy/releases).
-La descarga es pública; para usarla con licencia y soporte, mirá [Comprar](#comprar).
+La descarga es pública y gratuita (GPL-3.0); ver [Versión 1.0 (legacy)](#versión-10-legacy-gpl-30).
 
 - **Código fuente:** el de cada versión está en la sección [Código fuente](#código-fuente).
 - **Verificá la descarga:** cada release trae un `.sha256` junto al archivo. Con el `.dmg` y su `.dmg.sha256` en la misma carpeta:
@@ -268,23 +268,17 @@ List Buddy es software libre (GPL v3): el código de cada versión está en
 [github.com/gabiMaglia/listbuddy](https://github.com/gabiMaglia/listbuddy)
 y podés compilarlo vos: el código fuente está disponible sin cargo.
 
-## Comprar
+## Versión 1.0 (legacy, GPL-3.0)
 
-La 1.0.0 es de pago: la **licencia de uso + soporte** cuesta **USD 9** y se compra en
-[Polar](https://polar.sh) (polar.sh), que actúa como merchant of record: cobra los impuestos,
-te factura y gestiona la devolución según su política. El `.dmg` es público en
-[Releases](https://github.com/gabiMaglia/listbuddy/releases) y el programa es software
-libre (GPL v3): lo que comprás es la licencia de uso con soporte, no una donación. Tenés 10 días
-corridos para arrepentirte (ver el [Aviso legal](DISCLAIMER.md), sección 5 bis).
+List Buddy 1.0 es **gratuito y libre bajo GPL-3.0**. Se ofrece **sin soporte ni garantía de
+actualizaciones** («versión legacy»). Autor: Gabriel Maglia, Monotributista, CUIT 20-32758971-8,
+Rosario, Argentina · gab.maglia@gmail.com.
 
-El enlace de compra de Polar se publica con el release; hasta entonces esta sección es el punto de
-compra. Vendedor: Gabriel Maglia, Monotributista, CUIT 20-32758971-8, Rosario, Argentina ·
-gab.maglia@gmail.com.
+A partir de la versión 1.1 List Buddy se distribuye con licencia de pago; la 1.0 queda disponible bajo GPL-3.0.
 
 ## Apoyar con un café
 
-Aparte de la licencia, si te sirvió y querés invitarme un café (propina voluntaria, no reemplaza
-la licencia), está Ko-fi:
+Si te sirvió y querés invitarme un café (voluntario, no incluye soporte), está Ko-fi:
 
 **[ko-fi.com/gabrielmaglia](https://ko-fi.com/gabrielmaglia)** — o escaneá el QR desde
 el menú **Ayuda → Donar en Ko-fi…** dentro de la app.
