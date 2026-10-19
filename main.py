@@ -7,10 +7,18 @@ Entry point de listBuddy.
 """
 from __future__ import annotations
 
+import logging
 import sys
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
+import startup_guard
 from startup_guard import guarded_import
+
+
+def _load_single_instance() -> ModuleType:
+    # Solo QtCore: la segunda instancia sale antes de cargar la UI.
+    import single_instance
+    return single_instance
 
 
 def _load_qt_stack() -> SimpleNamespace:
@@ -30,8 +38,17 @@ def _load_qt_stack() -> SimpleNamespace:
 
 
 def main() -> None:
+    si = guarded_import(_load_single_instance)
+    # Antes del log y de settings.ini: una segunda instancia no tiene que tocarlos (T-098).
+    guard = si.acquire_in_data_dir()
+    if guard.status is si.LockStatus.ALREADY_RUNNING:
+        startup_guard.show_native_alert(si.TITLE, si.already_running_message(), "informational")
+        raise SystemExit(0)
+
     qt = guarded_import(_load_qt_stack)
     qt.setup_logging(qt.version)
+    if guard.status is si.LockStatus.UNAVAILABLE:
+        logging.getLogger("listBuddy").warning("Sin guarda de instancia única: %s", guard.detail)
     # Instalar el excepthook ANTES de crear la ventana: así también captura
     # cualquier error durante el arranque, no solo en los slots en runtime.
     qt.install_excepthook()
@@ -43,7 +60,9 @@ def main() -> None:
     qt.apply_theme(app, 'dark')
     win = qt.MainWindow()
     win.show()
-    sys.exit(app.exec())
+    rc = app.exec()
+    guard.release()
+    sys.exit(rc)
 
 
 if __name__ == "__main__":

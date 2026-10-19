@@ -28,24 +28,28 @@ def build_message(exc: BaseException) -> str:
     )
 
 
-def osascript_command(title: str, message: str) -> list[str]:
+# Íconos del aviso: nombre de AppleScript y su MB_ICON* de Windows.
+_WIN_ICONS = {"critical": 0x10, "warning": 0x30, "informational": 0x40}
+
+
+def osascript_command(title: str, message: str, icon: str = "critical") -> list[str]:
     def esc(s: str) -> str:
         return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
-    script = f'display alert "{esc(title)}" message "{esc(message)}" as critical'
+    script = f'display alert "{esc(title)}" message "{esc(message)}" as {icon}'
     return ["osascript", "-e", script]
 
 
-def show_native_alert(title: str, message: str) -> None:
+def show_native_alert(title: str, message: str, icon: str = "critical") -> None:
     """Diálogo nativo sin Qt; si no se puede, cae a stderr (sin traceback)."""
     try:
         if sys.platform == "darwin":
-            subprocess.run(osascript_command(title, message), check=True, timeout=300,
+            subprocess.run(osascript_command(title, message, icon), check=True, timeout=300,
                            capture_output=True)
             return
         if sys.platform == "win32":
             import ctypes
-            ctypes.windll.user32.MessageBoxW(0, message, title, 0x10)  # MB_ICONERROR
+            ctypes.windll.user32.MessageBoxW(0, message, title, _WIN_ICONS[icon])
             return
     except Exception:
         pass
