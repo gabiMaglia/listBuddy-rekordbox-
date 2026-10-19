@@ -3,6 +3,11 @@
 > Entradas nuevas ARRIBA. Máx. 6 líneas por entrada. Al superar 30 entradas,
 > el Orquestador mueve las más viejas a ~/.nerv/archive/listBuddy-handoffs-[fecha].md
 
+### [2026-10-19 12:05] CHECKPOINT (sin cierre) → sesión B planifica 1.1.0
+- Sesión A sigue con T-113 (en implementación) y el acompañamiento del release 1.0.0. Repo renombrado a gabiMaglia/listbuddy; auditoría de cierre postergada al post-release por el PO.
+- Sesión B: rama `plan/1.1.0` en worktree propio; escribe solo `engram/roadmap_1.1.md` y `engram/plans/1.1/`; no toca `main` ni el backlog (ver _state.md §CHECKPOINT).
+- Quien retoma 1.1: nerv-orquestador en sesión B, con nerv-arquitecto para T-099 (partir ui.py / virtualizar) y T-102.
+
 ### [2026-10-19 11:20] CIERRE DE SESIÓN
 - Hecho hoy: T-106 Done (verifier ×3 + QA ×3), T-111 Done (SPDX 32/32 + purga de historia con filter-repo, force push a mano por el PO), T-112 Done vía PR #1 (job Windows verde), limpieza de repo (plans/, research a engram/, assets a listBuddy_design, 22 ramas, dist/). Tanda T-104 cerrada completa; `origin/main` @ 4051929.
 - Próximo paso: PO configura GitHub (environment `release`, ruleset), Apple (cert + API key) y Polar (producto USD 9) → tag v1.0.0.
