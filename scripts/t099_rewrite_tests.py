@@ -69,7 +69,8 @@ CONFIG_FILES = ("pytest.ini", "conftest.py", "pyproject.toml", "setup.cfg", "tox
 GUARD_MODULES = ("test_module_size", "test_import_layers", "test_type_hints", "_t099_ratchets", "_t099_measure",
                  "_t099_guard")
 GUARD_FILES = frozenset({f"tests/{m}.py" for m in GUARD_MODULES} | {"tests/test_t099_ratchets.py",
-                                                                     "tests/test_t099_rewrite_tests.py"})
+                                                                     "tests/test_t099_rewrite_tests.py",
+                                                                     "tests/test_t099_guard_check.py"})
 
 
 def shadowable_names() -> frozenset[str]:
