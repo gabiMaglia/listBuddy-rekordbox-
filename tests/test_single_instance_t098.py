@@ -395,13 +395,15 @@ def _orphan_lock(data: Path, env: dict[str, str], kind: str) -> Path:
         holder.communicate(timeout=30)
     if kind == "uchg_dead":
         os.chflags(lock, stat.UF_IMMUTABLE)   # «Bloqueado» en Obtener información del Finder
+    elif kind == "perm0000_dead":
+        lock.chmod(0o000)   # ni se puede abrir: no es prueba de que haya una copia viva (QA D-9)
     else:
         lock.chmod(0o444)
     return lock
 
 
 @pytest.mark.parametrize("kind", [
-    "ro_empty", "ro_dead",
+    "ro_empty", "ro_dead", "perm0000_dead",
     pytest.param("uchg_dead", marks=pytest.mark.skipif(sys.platform != "darwin", reason="chflags de macOS")),
 ])
 def test_orphan_lock_that_cannot_be_deleted_blocks_startup_and_says_which_file(tmp_path: Path, kind: str) -> None:
@@ -438,6 +440,37 @@ def test_read_only_lock_of_a_live_copy_is_still_already_running(tmp_path: Path) 
     assert "List Buddy ya está abierto" in alert.read_text(encoding="utf-8")
 
 
+# QA D-8: lanzamientos en el mismo milisegundo con un lock huérfano. El perdedor sondea el flock justo
+# antes de que el ganador recree y tome el lock; su borrado falla contra el lock nuevo y le salía
+# «archivo trabado» con otra copia abriendo. Se reproduce la intercalación haciendo que la primera
+# sonda llegue tarde, con una copia viva que ya tiene el lock.
+_LATE_PROBE = """
+import sys
+from pathlib import Path
+import single_instance
+real = single_instance._held_by_live_copy
+calls = []
+def late(path):
+    calls.append(path)
+    return False if len(calls) == 1 else real(path)
+single_instance._held_by_live_copy = late
+print(single_instance.acquire(Path(sys.argv[1])).status.name, flush=True)
+"""
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="la sonda de flock es de POSIX")
+def test_simultaneous_launch_loser_rechecks_the_owner_before_saying_stuck(tmp_path: Path) -> None:
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    holder = _start_holder(data, env)
+    try:
+        r = subprocess.run([sys.executable, "-c", _LATE_PROBE, str(data)], cwd=PROJECT_ROOT, env=env,
+                           capture_output=True, text=True, encoding="utf-8", timeout=60)
+    finally:
+        _stop(holder)
+    assert r.stdout.strip() == "ALREADY_RUNNING", (r.stdout, r.stderr)
+
+
 def test_old_lock_from_another_computer_is_still_foreign(tmp_path: Path) -> None:
     # Verificador D2: un lock real de otra máquina casi siempre es viejo; con el vencimiento por defecto
     # de Qt (30 s) se tomaría y quedarían dos copias sobre la misma configuración.
@@ -467,6 +500,14 @@ def test_stuck_lock_message_says_how_to_unlock_it(platform: str, how: tuple[str,
     assert all(h in msg for h in how) and str(lock) in msg, msg
     assert "borr" in msg and "volvé a abrir" in msg
     assert "trabado" in startup_guard.STUCK_LOCK_TITLE
+
+
+def test_stuck_lock_message_reads_the_right_way_round() -> None:
+    # QA D-10: «sin él no hay forma de asegurar…» decía lo contrario; lo que impide asegurarlo es que siga trabado.
+    import startup_guard
+    msg = startup_guard.stuck_lock_message(Path("/Users/dj/Library/Application Support/listBuddy/listBuddy.lock"), "darwin")
+    assert "sin él" not in msg
+    assert "Mientras ese archivo siga trabado" in msg and "dos copias" in msg, msg
 
 
 def test_foreign_message_names_the_same_hostname_case_and_what_is_protected() -> None:

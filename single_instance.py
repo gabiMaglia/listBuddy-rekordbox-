@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -84,6 +85,22 @@ def acquire(directory: Path) -> InstanceGuard:
         return InstanceGuard(LockStatus.ACQUIRED, lock, path=path)
     if sys.platform == "win32":
         return _after_failed_delete_on_windows(lock, path)
+    return _stuck_unless_someone_took_it(lock, path)
+
+
+# En un lanzamiento simultáneo el perdedor puede sondear justo antes de que el ganador
+# recree y tome el lock; su borrado falla contra el lock nuevo y parecería trabado.
+_RECHECKS = 5
+_RECHECK_PAUSE_S = 0.02
+
+
+def _stuck_unless_someone_took_it(lock: QLockFile, path: Path) -> InstanceGuard:
+    for _ in range(_RECHECKS):
+        if _held_by_live_copy(path):
+            return InstanceGuard(LockStatus.ALREADY_RUNNING, path=path)
+        if lock.tryLock(0):   # el ganador ya salió o el archivo desapareció
+            return InstanceGuard(LockStatus.ACQUIRED, lock, path=path)
+        time.sleep(_RECHECK_PAUSE_S)
     # Nunca sin guarda: la próxima vez tampoco la tendría. El aviso dice qué archivo destrabar.
     return InstanceGuard(LockStatus.STUCK_LOCK, path=path)
 

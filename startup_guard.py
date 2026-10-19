@@ -64,8 +64,9 @@ def stuck_lock_message(lock_path: Path, platform: str = sys.platform) -> str:
         unlock = (f"Hacé click derecho en {lock_path.name} › Propiedades y desmarcá «Solo lectura» "
                   "(o borralo).")
     return (
-        "Quedó un archivo de una sesión anterior de List Buddy que no se puede borrar solo, y sin él "
-        "no hay forma de asegurar que no se abran dos copias que pisen tus listas y tu configuración:\n"
+        "Quedó un archivo de una sesión anterior de List Buddy que no se puede borrar solo. Mientras ese "
+        "archivo siga trabado, List Buddy no puede asegurarse de que no haya dos copias abiertas pisando "
+        "tus listas y tu configuración, así que no se abre.\n\nEl archivo es:\n"
         f"{lock_path}\n\n{_how_to_reach(lock_path, platform)}\n{unlock} Después volvé a abrir List Buddy."
     )
 
