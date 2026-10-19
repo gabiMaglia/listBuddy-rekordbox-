@@ -33,6 +33,8 @@ LAYERS: dict[str, int] = {
     # L2 workers
     "worker": 2, "preview_worker": 2, "library_load_worker": 2, "waveform_worker": 2, "audio_player": 2,
     "audio_decode": 2,
+    # Llega con T-098 (instancia única, QtCore/QtNetwork, sin widgets): declarado antes para que su merge no rompa.
+    "single_instance": 2,
     # L3 controladores y modelos Qt (nunca QtWidgets)
     "thread_keeper": 3, "export_controller": 3, "maintenance_controller": 3, "playback_controller": 3,
     "library_controller": 3, "preview_controller": 3, "playlist_tree_model": 3, "track_list_model": 3,
@@ -40,8 +42,7 @@ LAYERS: dict[str, int] = {
     "styles": 4, "icons": 4, "dialogs": 4, "ui_components": 4, "player_widgets": 4, "relocate_dialogs": 4,
     "preview_card": 4, "footer": 4, "window_chrome": 4, "settings_page": 4, "playlist_panel": 4,
     "preview_panel": 4, "track_delegate": 4, "about_dialog": 4,
-    # No figura en la tabla de ADR-007: usa QtWidgets y `dialogs` y lo importan `ui` y `main`, así que va con
-    # las vistas. A ratificar por el arquitecto.
+    # ADR-007 Addendum 1, punto 1 (PO, 2026-10-19): usa QtWidgets y `dialogs`.
     "app_logging": 4,
     # L5 raíz de composición
     "ui": 5,
@@ -49,7 +50,8 @@ LAYERS: dict[str, int] = {
     "main": 6, "startup_guard": 6,
 }
 
-# Columna «Puede importar» de D1. L4 lee además los modelos de L3 (`*_model`); L6 solo `ui`.
+# Columna «Puede importar» de D1. L4 lee además los modelos de L3 (`*_model`). L6 importa `ui` y los módulos de
+# arranque (ADR-007 Addendum 1, punto 2).
 ALLOWED_LAYERS: dict[int, frozenset[int]] = {
     0: frozenset({0}),
     1: frozenset({0, 1}),
@@ -59,7 +61,7 @@ ALLOWED_LAYERS: dict[int, frozenset[int]] = {
     5: frozenset({0, 1, 2, 3, 4, 5}),
     6: frozenset(),
 }
-L6_ALLOWED_MODULES = frozenset({"ui"})
+L6_ALLOWED_MODULES = frozenset({"ui", "styles", "app_logging", "startup_guard", "single_instance"})
 
 # Qt por capa: L0/L1 sin Qt; L2/L3 sin QtWidgets.
 QT_FORBIDDEN: dict[int, tuple[str, ...]] = {0: ("PySide6",), 1: ("PySide6",), 2: ("PySide6.QtWidgets",),
@@ -321,3 +323,11 @@ def test_relative_and_dotted_imports_resolve_to_the_longest_project_module() -> 
 def test_the_allowlists_hold_exactly_the_measured_violations() -> None:
     found = violations(root_sources(), packages=root_packages())
     assert (found.edges, found.qt, found.cycles) == (set(ALLOWED_EDGES), set(ALLOWED_QT), set(ALLOWED_CYCLES))
+
+
+def test_l6_may_import_ui_and_the_startup_modules_but_nothing_else() -> None:
+    boot = "import ui\nimport styles\nimport app_logging\nimport startup_guard\nimport single_instance\n"
+    sources = {"main": boot + "import db\n", "startup_guard": "import ui\nimport worker\n", "ui": "", "styles": "",
+               "app_logging": "", "single_instance": "", "db": "", "worker": ""}
+    assert violations(sources).edges == {("main", "db"), ("startup_guard", "worker")}
+    assert "single_instance" in LAYERS

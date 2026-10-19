@@ -8,9 +8,6 @@
   },
   "layer_edges": [
     ["footer", "waveform_worker"],
-    ["main", "app_logging"],
-    ["main", "startup_guard"],
-    ["main", "styles"],
     ["preview_card", "preview_worker"],
     ["rekordbox_export", "rekordbox_xml"],
     ["ui_components", "preview_worker"],
