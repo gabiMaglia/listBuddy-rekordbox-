@@ -65,7 +65,7 @@ La descarga es pública y gratuita (GPL-3.0); ver [Versión 1.0 (legacy)](#versi
   emulación): borrala y bajá el otro, no se pierde nada.
 - **Windows:** el release trae `listBuddy-<versión>-win64.zip` (generado automáticamente en GitHub Actions, todavía
   sin prueba manual en una PC real) junto a su `.sha256`. Descomprimilo entero y abrí `listBuddy\listBuddy.exe`; si no
-  aparece en el release, podés correrlo desde el código fuente. **No está firmado** (decisión del proyecto: no pagamos un
+  aparece en el release, podés correrlo desde el código fuente. **no va a estar firmado** (decisión del proyecto: no pagamos un
   certificado Authenticode). Con los dos archivos en la misma carpeta, en PowerShell:
 
   ```powershell
