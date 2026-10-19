@@ -8,6 +8,9 @@ Versionado [SemVer](https://semver.org/lang/es/).
 Primera versión pública. Reúne todo el trabajo previo: las versiones internas
 «1.0.0» y «1.1.0» que figuraban antes en este archivo nunca se publicaron.
 
+Es la **última versión gratuita y GPL-3.0** (legacy, sin soporte); desde la 1.1 List Buddy
+es de pago. Vuelve el botón de donaciones (Apoyar, Ayuda → Donar en Ko-fi…, QR).
+
 ### Exportar y escuchar
 - Lee **Rekordbox 6 y 7** a partir del XML que exporta (Archivo → Exportar
   colección en formato xml; no hace falta cerrar Rekordbox) y **Traktor Pro 3/4**

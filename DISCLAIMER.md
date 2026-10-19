@@ -1,6 +1,6 @@
 # Aviso legal y descargo de responsabilidad — List Buddy
 
-Versión del aviso: 2026-10-16.3
+Versión del aviso: 2026-10-19.1
 
 Este aviso explica qué hace List Buddy con tus archivos, qué garantías tenés y
 cuáles no, y cómo reclamar. Complementa las secciones 15 («Disclaimer of
@@ -81,35 +81,27 @@ Nada de este aviso limita derechos que la ley aplicable no permita excluir,
 incluidos los de las normas de defensa del consumidor de tu país (en la
 República Argentina, la Ley 24.240) cuando correspondan.
 
-## 5 bis. Garantía legal, conformidad y devolución
+## 5 bis. Garantía legal, soporte y versión legacy
 
-Si compraste List Buddy (licencia de uso y soporte, USD 9, vendida por Polar
-como merchant of record), tenés derecho a que haga lo que dice esta
+List Buddy 1.0 es **gratuito y libre (GPL-3.0)** y se ofrece **sin soporte ni
+garantía de actualizaciones** (versión legacy). Hace lo que dice esta
 documentación (sección 2 y README) en los sistemas indicados (macOS 14.4 o
 posterior; Windows 10 u 11 de 64 bits; Rekordbox 6 o 7 por su XML exportado;
-Traktor Pro 3 o 4). Si no funciona como se describe, avisanos y lo corregimos, te damos una versión
-equivalente o te devolvemos el dinero, a tu elección, según la ley de tu país.
+Traktor Pro 3 o 4), pero no hay compromiso de corregir errores ni de
+adaptarlo a nuevas versiones de esos programas. Si te sirve, podés invitar un
+café en Ko-fi: es voluntario y no te da derecho a soporte.
 
 El ejecutable de Windows, cuando se publique, se distribuye **sin firma de
-código**: Windows puede
-mostrar el aviso de SmartScreen al abrirlo por primera vez. Para verificar que
-lo que descargaste es el archivo publicado, comparalo con el `.sha256` que se
-publica junto a cada descarga, igual que en macOS.
+código**: Windows puede mostrar el aviso de SmartScreen al abrirlo por primera
+vez. Para verificar que lo que descargaste es el archivo publicado, comparalo
+con el `.sha256` que se publica junto a cada descarga, igual que en macOS.
 
-Además, podés **revocar la compra sin dar motivos dentro de los 10 días
-corridos** desde que la hiciste (art. 34 de la Ley 24.240). La devolución la
-gestiona Polar, que es quien te vendió, según la política de devolución de
-Polar, y te reintegra el importe por el mismo medio de pago; si preferís,
-escribinos al contacto de la sección 10 y te ayudamos con el trámite. Aparte
-de ese plazo, **te devolvemos el dinero si List Buddy no funciona** en alguno
-de los sistemas indicados arriba y no logramos corregirlo.
+**Garantía legal.** Todo esto es sin perjuicio de la garantía legal mínima y de
+los derechos irrenunciables que te reconozca la ley de tu país (en Argentina,
+la Ley 24.240) en la medida en que apliquen a software descargado sin cargo.
 
-**Garantía legal.** Se te reconoce la garantía legal mínima que corresponda
-según la ley de tu país (en Argentina, los arts. 10 bis y 11 de la Ley 24.240,
-en la medida en que apliquen a software descargado). Las copias obtenidas sin
-cargo (por ejemplo, compiladas desde el código fuente bajo la GPL) no incluyen
-soporte ni garantía comercial, sin perjuicio de los derechos que la ley te
-reconozca.
+A partir de la versión 1.1 List Buddy se distribuye con licencia de pago; la 1.0
+queda disponible bajo GPL-3.0.
 
 ## 6. Programas de terceros y marcas
 
@@ -174,13 +166,6 @@ Si hacés una donación desde la pantalla Apoyar, Ko-fi procesa la donación
 según sus propios términos y su política de privacidad; List Buddy no recibe ni
 guarda tus datos de pago.
 
-Si comprás List Buddy, Polar Software Inc. (operador de polar.sh) procesa tus
-datos de compra como vendedor de la licencia, según su política de privacidad;
-nosotros solo recibimos lo necesario para atender tu reclamo. Polar trata
-tu nombre, correo, país, datos de facturación e impuestos y medio de pago;
-detalles en <https://polar.sh/legal/privacy>. List Buddy no recibe ni guarda
-tus datos de pago.
-
 ## 9. Cambios a este aviso
 
 Este aviso puede cambiar con nuevas versiones del programa; la versión que
@@ -198,14 +183,14 @@ de tu domicilio.
 
 ## 9 ter. Edad
 
-Para comprar List Buddy tenés que tener 18 años o más (ser mayor de edad según
-la ley de tu país) o contar con autorización de tu madre, padre o tutor. Usar
-el programa no requiere edad mínima; no recolecta datos de nadie.
+Usar el programa no requiere edad mínima; no recolecta datos de nadie. Para
+donar en Ko-fi rigen las condiciones de esa plataforma (ser mayor de edad según
+la ley de tu país o autorización de tu madre, padre o tutor).
 
 ## 10. Contacto
 
-Vendedor/autor: Gabriel Maglia, Monotributista, CUIT 20-32758971-8, Rosario,
-Argentina. Consultas, reclamos y devoluciones: gab.maglia@gmail.com ·
+Autor: Gabriel Maglia, Monotributista, CUIT 20-32758971-8, Rosario,
+Argentina. Consultas y reclamos: gab.maglia@gmail.com ·
 <https://github.com/gabiMaglia/listbuddy/issues>
 
 ---
