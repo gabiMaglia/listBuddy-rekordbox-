@@ -19,7 +19,7 @@
 *VirtualKeyboard*
 *QtWebEngine*
 *Qt6WebEngine*
-# LEG-26: Pillow entra solo si el venv lo trae y no tiene aviso legal en el producto
+# LEG-26: Pillow entra solo si el venv lo trae (qrcode lo importa si existe) y no tiene aviso legal en el producto
 PIL
 Pillow*
 # ADR-003: un solo binding de Qt

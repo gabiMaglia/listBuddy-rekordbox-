@@ -123,6 +123,8 @@ modifica, descompila ni usa componentes de esos programas. Sus programas y
 formatos pueden cambiar en cualquier actualización y dejar de funcionar con
 List Buddy sin aviso. Cualquier uso de esos programas se rige por sus propias
 licencias, que vos aceptaste con ellos.
+«QR Code» es marca registrada de DENSO WAVE INCORPORATED; List Buddy usa el
+símbolo solo para mostrar el código de la pantalla Apoyar.
 
 ## 7. Tu música y tus derechos
 
@@ -167,6 +169,10 @@ log, `settings.ini`, `rekordbox_fixes.json` y las carpetas de datos y de logs
 quedan accesibles solo por tu usuario; `listBuddy_backups/` hereda los
 permisos de la carpeta de tu colección. En Windows se apoyan en los permisos
 de tu perfil de usuario.
+
+Si hacés una donación desde la pantalla Apoyar, Ko-fi procesa la donación
+según sus propios términos y su política de privacidad; List Buddy no recibe ni
+guarda tus datos de pago.
 
 Si comprás List Buddy, Polar Software Inc. (operador de polar.sh) procesa tus
 datos de compra como vendedor de la licencia, según su política de privacidad;

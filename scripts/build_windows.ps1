@@ -68,7 +68,7 @@ if ($pending.Count -gt 0) {
 }
 
 # ── 3. Virtualenv limpio ────────────────────────────────────────────────────
-# Siempre desde cero y nunca el .venv de desarrollo: ahí viven Pillow y PyQt6
+# Siempre desde cero y nunca el .venv de desarrollo: ahí viven Pillow y PyQt6, y qrcode importa PIL si existe
 # (LEG-26). Todo lo que entra al bundle sale de los locks con hashes.
 $venv = Join-Path $ROOT ".venv-build"
 if (Test-Path -LiteralPath $venv) {
