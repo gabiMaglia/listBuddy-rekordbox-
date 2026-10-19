@@ -28,4 +28,7 @@
 
 - 2026-10-15 · (ninguna escritura externa en la sesión de la tarde: merges locales a main, sin push, sin PR, sin tracker) · T-086..T-097 · —
 | 2026-10-19 | claude.ai Artifacts | publicado mockup privado «Buddy listas propias» https://claude.ai/artifact/XLTsA9xSsxQiUkbYjREKQL (copia en engram/plans/1.1/buddy-disenos.html) | sesión B | T-115 | PO (pidió ver diseños) |
+| 2026-10-19 | GitHub | environment `release` (regla de tag `v*`) + 5 environment secrets (MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD, NOTARY_KEY_ID, NOTARY_ISSUER_ID, NOTARY_KEY_P8_BASE64) — ejecutado por el PO en su terminal con el snippet del Orquestador | gabiMaglia/listbuddy | release 1.0.0 | PO |
+| 2026-10-19 | GitHub | ruleset `release-tags` (tag, active; creation/update/deletion/non_fast_forward sobre refs/tags/v*; bypass RepositoryRole admin) vía API — ejecutado por el Orquestador | id 25427004 | release 1.0.0 (ADR-005 §1) | PO (guía de release aprobada en sesión) |
+| 2026-10-19 | Apple | certificado Developer ID Application (4GP6785MU4, vence 2027-11-18) + API key App Store Connect 3CH99JPKB6 + perfil notarytool `listbuddy` en la Mac del PO — creados por el PO; perfil validado por el Orquestador | — | release 1.0.0 | PO |
 - 2026-10-19 (sesión B) · `git push origin main` INTENTADO y bloqueado por el clasificador: sin escritura en GitHub; lo hace el PO · T-114..T-120 · —
