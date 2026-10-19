@@ -41,9 +41,8 @@ romper imports existentes (tests/test_traktor_relocate.py).
 from __future__ import annotations
 
 import logging
-import os
 import platform
-import shutil
+import shutil  # noqa: F401  (los tests parchean shutil.copy2/disk_usage a través de este módulo)
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -51,6 +50,7 @@ from datetime import datetime
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+import file_access
 from relocate_core import (
     BaseRelocateWorker,
     Candidate,
@@ -324,14 +324,10 @@ def backup_collection(nml_path: Path) -> Path:
     """
     check_disk_space_for_backup(nml_path)
     backups_dir = nml_path.parent / _BACKUP_DIR_NAME
-    backups_dir.mkdir(parents=True, exist_ok=True)
+    file_access.ensure_dir(backups_dir)
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     dest = backups_dir / f"collection.{ts}.nml"
-    try:
-        shutil.copy2(nml_path, dest)
-    except OSError:
-        dest.unlink(missing_ok=True)
-        raise
+    file_access.copy_file(nml_path, dest)
     _prune_backups(backups_dir)
     return dest
 
@@ -358,19 +354,8 @@ def write_atomic(tree: ET.ElementTree, nml_path: Path) -> None:
     Windows como en macOS). Si algo falla, el .tmp se descarta y el
     original queda intacto (ADR-001, punto 2).
     """
-    tmp_path = nml_path.parent / (nml_path.name + ".tmp")
-    try:
-        with open(tmp_path, "wb") as f:
-            tree.write(f, encoding="UTF-8", xml_declaration=True)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, nml_path)
-    except OSError:
-        try:
-            tmp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
-        raise
+    with file_access.atomic_write(nml_path) as f:
+        tree.write(f, encoding="UTF-8", xml_declaration=True)
 
 
 # ─────────────────────────────────────────────── QThread worker ──────────
@@ -423,7 +408,8 @@ class RelocateWorker(BaseRelocateWorker):
             return
 
         try:
-            tree = ET.parse(str(self._nml_path))
+            with file_access.open_read(self._nml_path) as fh:
+                tree = ET.parse(fh)
         except ET.ParseError as e:
             # I-6: nada de texto crudo de excepción en pantalla (acá iba un
             # ET.ParseError tipo "not well-formed (invalid token): line 4212,

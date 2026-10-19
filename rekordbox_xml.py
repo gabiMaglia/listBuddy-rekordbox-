@@ -27,6 +27,7 @@ from urllib.parse import quote, unquote
 from xml.etree import ElementTree as ET
 from xml.parsers import expat
 
+import file_access
 from load_cancel import CancelCheck, LoadCancelled, ProgressCallback
 
 __all__ = ["LoadCancelled"]  # re-export: lo importan los tests y la UI desde acá
@@ -376,7 +377,7 @@ def _scan(
         parser.SetReparseDeferralEnabled(False)
     try:
         total = path.stat().st_size
-        with open(path, "rb") as fh:
+        with file_access.open_read(path) as fh:
             chunk = fh.read(_CHUNK)
             source_enc = _transcode_from(chunk[:512])
             decoder = codecs.getincrementaldecoder(source_enc)() if source_enc else None
@@ -550,12 +551,7 @@ def write_playlists_xml(
         for t in pl.tracks:
             ET.SubElement(node, "TRACK", Key=ids[key_of(t)])
     ET.indent(root)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        ET.ElementTree(root).write(tmp, encoding="UTF-8", xml_declaration=True)
-        os.replace(tmp, dest)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            tmp.unlink(missing_ok=True)
-        raise
+    file_access.ensure_dir(dest.parent)
+    with file_access.atomic_write(dest) as fh:
+        ET.ElementTree(root).write(fh, encoding="UTF-8", xml_declaration=True)
     return WriteResult(len(playlists), len(ids), relocated, missing)
