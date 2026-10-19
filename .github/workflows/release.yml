@@ -125,7 +125,13 @@ jobs:
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERT_PATH" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          # `security import` devuelve 1 también por «The specified item already exists in the keychain»
+          # (un .p12 con más de una identidad o con un cert repetido); eso no es un fallo: lo que decide
+          # es la verificación de la identidad más abajo. Cualquier otro error del import sí aborta.
+          if ! IMPORT_OUT=$(security import "$CERT_PATH" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH" 2>&1); then
+            echo "$IMPORT_OUT"
+            case "$IMPORT_OUT" in *"already exists"*) ;; *) echo "::error::security import falló"; exit 1 ;; esac
+          fi
           # El .p12 exportado desde Acceso a Llaveros trae solo el certificado hoja y su llave: sin el
           # intermedio «Developer ID Certification Authority (G2)» en el keychain, `find-identity -v` no
           # valida la cadena y no encuentra ninguna identidad (primer run real de v1.0.0). El intermedio es
