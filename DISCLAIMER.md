@@ -64,8 +64,10 @@ En la máxima medida que permita la ley que te proteja, el autor y quienes
 contribuyen a List Buddy no responden por daños indirectos, lucro cesante ni
 pérdida de oportunidades (por ejemplo, contrataciones o presentaciones
 perdidas) derivados del uso o de la imposibilidad de usar el programa, y la
-responsabilidad total por daños directos se limita al precio que pagaste por
-tu copia.
+responsabilidad total por daños directos se limita a lo que hayas pagado por
+tu copia, si pagaste algo. Si la obtuviste gratis (como la versión 1.0 bajo
+GPL-3.0), esta limitación no pretende excluir la responsabilidad que la ley no
+permite excluir: solo deja claro que no hay un precio que la mida.
 
 Esta limitación **no se aplica** a los daños causados con dolo o culpa grave,
 ni a los derechos que las normas de defensa del consumidor de tu país no

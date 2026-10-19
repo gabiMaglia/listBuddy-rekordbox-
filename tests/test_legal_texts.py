@@ -37,7 +37,7 @@ def test_disclaimer_liability_and_consumer_rights() -> None:
     for needle in (
         "En la máxima medida que permita la ley que te proteja",
         "daños indirectos, lucro cesante",
-        "se limita al precio que pagaste por tu copia",
+        "se limita a lo que hayas pagado por tu copia, si pagaste algo",
         "no se aplica** a los daños causados con dolo o culpa grave",
         "Ley 24.240", "Código Civil y Comercial", "Directiva 2019/770",
         "No condiciona ni limita ninguno de los derechos",
