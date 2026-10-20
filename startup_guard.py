@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 from typing import Callable, TypeVar
 
 T = TypeVar("T")
@@ -16,6 +17,85 @@ T = TypeVar("T")
 RELEASES_URL = "https://github.com/gabiMaglia/listbuddy/releases"
 TITLE = "List Buddy no pudo abrirse"
 _MAX_DETAIL = 300
+
+
+# Instancia única (T-098). Viven acá porque se muestran con el diálogo nativo, antes de cargar la UI.
+ALREADY_RUNNING_TITLE = "List Buddy ya está abierto"
+FOREIGN_HOST_TITLE = "List Buddy figura abierto en otra computadora"
+
+
+def already_running_message(platform: str = sys.platform) -> str:
+    where = "en el Dock" if platform == "darwin" else "en la barra de tareas"
+    return (
+        "Ya hay una ventana de List Buddy abierta y no se pueden usar dos a la vez.\n\n"
+        f"Buscala {where} y seguí ahí."
+    )
+
+
+STUCK_LOCK_TITLE = "List Buddy tiene un archivo trabado"
+_MAC_FOLDER = "~/Library/Application Support/listBuddy"   # app_paths.data_dir() en macOS
+
+
+def _how_to_reach(lock_path: Path, platform: str) -> str:
+    if platform == "darwin":
+        # Ruta corta para tipear: el texto de este aviso no siempre se puede copiar.
+        return ("Está en una carpeta oculta: en el Finder, menú Ir › Ir a la carpeta… (⇧⌘G), "
+                f"pegá esa ruta o escribí {_MAC_FOLDER} y apretá Enter.")
+    return ("Para llegar: abrí el Explorador de archivos, pegá esta carpeta en la barra de direcciones "
+            f"y apretá Enter:\n{lock_path.parent}")
+
+
+def foreign_host_message(host: str, lock_path: Path, platform: str = sys.platform,
+                         same_name: bool = False) -> str:
+    where = f"otra computadora con el mismo nombre ({host})" if same_name else f"otra computadora ({host})"
+    return (
+        f"List Buddy figura abierto en {where} que comparte la configuración con esta. "
+        "Para no pisar tus listas ni tu configuración, acá no se abre.\n\n"
+        "Si en esa computadora no está abierto, borrá este archivo y volvé a abrir List Buddy:\n"
+        f"{lock_path}\n\n{_how_to_reach(lock_path, platform)}"
+    )
+
+
+def stuck_lock_message(lock_path: Path, platform: str = sys.platform, owner_unknown: bool = False) -> str:
+    if owner_unknown:
+        # Ni se pudo abrir para sondearlo: no hay forma de saber si es de una copia abierta.
+        unlock = ("No se puede saber si es de una copia abierta: si List Buddy no está abierto en ninguna "
+                  "ventana, borralo.")
+    elif platform == "darwin":
+        unlock = (f"Seleccioná {lock_path.name}, abrí Archivo › Obtener información y desmarcá «Bloqueado» "
+                  "(o borralo).")
+    else:
+        unlock = (f"Hacé click derecho en {lock_path.name} › Propiedades y desmarcá «Solo lectura» "
+                  "(o borralo).")
+    return (
+        "Quedó un archivo de una sesión anterior de List Buddy que no se puede borrar solo. Mientras ese "
+        "archivo siga trabado, List Buddy no puede asegurarse de que no haya dos copias abiertas pisando "
+        "tus listas y tu configuración, así que no se abre.\n\nEl archivo es:\n"
+        f"{lock_path}\n\n{_how_to_reach(lock_path, platform)}\n{unlock} Después volvé a abrir List Buddy."
+    )
+
+
+NO_SPACE_TITLE = "List Buddy no tiene lugar en el disco"
+CANT_CREATE_TITLE = "List Buddy no pudo crear su archivo de bloqueo"
+
+
+def no_space_message(lock_path: Path, platform: str = sys.platform) -> str:
+    return (
+        "No queda espacio en el disco (o se llenó tu cuota) para el archivo con el que List Buddy evita "
+        "que se abran dos copias que pisen tus listas y tu configuración, así que no se abre.\n\n"
+        "Liberá espacio en el disco de esta carpeta y volvé a abrir List Buddy:\n"
+        f"{lock_path.parent}\n\n{_how_to_reach(lock_path, platform)}"
+    )
+
+
+def cant_create_message(lock_path: Path, detail: str, platform: str = sys.platform) -> str:
+    return (
+        "No se pudo crear el archivo de bloqueo con el que List Buddy evita que se abran dos copias que "
+        "pisen tus listas y tu configuración, así que no se abre:\n"
+        f"{lock_path}\n\nError: {detail}\n\n"
+        "Revisá que se pueda escribir en esa carpeta y volvé a abrir List Buddy.\n"
+        f"{_how_to_reach(lock_path, platform)}"
+    )
 
 
 def build_message(exc: BaseException) -> str:
@@ -28,24 +108,28 @@ def build_message(exc: BaseException) -> str:
     )
 
 
-def osascript_command(title: str, message: str) -> list[str]:
+# Íconos del aviso: nombre de AppleScript y su MB_ICON* de Windows.
+_WIN_ICONS = {"critical": 0x10, "warning": 0x30, "informational": 0x40}
+
+
+def osascript_command(title: str, message: str, icon: str = "critical") -> list[str]:
     def esc(s: str) -> str:
         return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
-    script = f'display alert "{esc(title)}" message "{esc(message)}" as critical'
+    script = f'display alert "{esc(title)}" message "{esc(message)}" as {icon}'
     return ["osascript", "-e", script]
 
 
-def show_native_alert(title: str, message: str) -> None:
+def show_native_alert(title: str, message: str, icon: str = "critical") -> None:
     """Diálogo nativo sin Qt; si no se puede, cae a stderr (sin traceback)."""
     try:
         if sys.platform == "darwin":
-            subprocess.run(osascript_command(title, message), check=True, timeout=300,
+            subprocess.run(osascript_command(title, message, icon), check=True, timeout=300,
                            capture_output=True)
             return
         if sys.platform == "win32":
             import ctypes
-            ctypes.windll.user32.MessageBoxW(0, message, title, 0x10)  # MB_ICONERROR
+            ctypes.windll.user32.MessageBoxW(0, message, title, _WIN_ICONS[icon])
             return
     except Exception:
         pass
