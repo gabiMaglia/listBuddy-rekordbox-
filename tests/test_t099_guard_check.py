@@ -89,6 +89,14 @@ def test_the_guard_ignores_a_stdlib_shadow_next_to_it(tmp_path: pathlib.Path) ->
     assert (r.returncode, r.stdout.strip()) == (0, "[]"), r.stdout + r.stderr
 
 
+def test_the_guard_runs_with_the_stdlib_only() -> None:
+    # El paso de CI usa `-I -S` antes de instalar: un módulo de barandas que importe pytest (o cualquier
+    # dependencia) lo rompería.
+    r = subprocess.run([sys.executable, "-I", "-S", str(ROOT / "tests" / "_t099_guard.py"), "size", str(ROOT)],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert (r.returncode, r.stdout.strip()) == (0, "[]"), r.stdout + r.stderr
+
+
 def test_the_ci_step_is_green_on_the_branch_and_red_when_ui_grows_even_with_a_saboteur(
         tmp_path: pathlib.Path) -> None:
     repo = _clone(tmp_path)

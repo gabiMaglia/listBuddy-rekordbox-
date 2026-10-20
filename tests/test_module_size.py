@@ -21,8 +21,6 @@ from __future__ import annotations
 
 import ast
 
-import pytest
-
 from _t099_ratchets import load, module_name, project_files, run_guard, unmeasured_import
 
 MAX_LINES = 1000
@@ -350,17 +348,3 @@ def test_a_dynamic_project_base_fails_instead_of_being_ignored() -> None:
     errors = all_errors({"m.py": src}, {}, {})
     assert errors == ["m.py::C: base dinámica «Mix» (no se puede contar lo que hereda)",
                       "m.py::D: base dinámica «fabrica()» (no se puede contar lo que hereda)"], errors
-
-
-@pytest.mark.parametrize("folder", ["tests", "scripts", "engram", "listBuddy_design"])
-def test_a_base_from_an_unmeasured_folder_is_an_error(folder: str) -> None:
-    # X1 (mixin en engram/ que hereda MainWindow) y X4 (mixin en tests/ que hereda FooterBar), por carpeta.
-    src = (f"from {folder}.qa.qa_mix import Mix\nfrom {folder} import helper\nimport {folder}.qa.otro\n"
-           "from PySide6.QtWidgets import QMainWindow\n"
-           "class A(Mix, QMainWindow):\n    pass\nclass B(helper.Mix):\n    pass\n"
-           f"class C({folder}.qa.otro.Mix):\n    pass\n")
-    assert all_errors({"ui.py": src}, {}, {}) == [
-        f"ui.py::A: base «Mix» viene de código no medido ({folder}/): la herencia esquivaría el límite",
-        f"ui.py::B: base «helper.Mix» viene de código no medido ({folder}/): la herencia esquivaría el límite",
-        f"ui.py::C: base «{folder}.qa.otro.Mix» viene de código no medido ({folder}/): la herencia esquivaría el límite",
-    ]

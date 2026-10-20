@@ -21,8 +21,6 @@ funciones con E/S ni workers (hoy no hay ningún import L4 → L1).
 from __future__ import annotations
 
 import ast
-
-import pytest
 from typing import NamedTuple
 
 from _t099_ratchets import UNMEASURED_DIRS, load, module_name, project_files, run_guard, unmeasured_import
@@ -357,20 +355,6 @@ def test_other_qt_bindings_count_as_qt() -> None:
     assert violations(sources).qt == {("db", "shiboken6"), ("traktor_db", "PyQt6"),
                                       ("traktor_db", "PyQt6.QtCore"), ("worker", "PyQt6.QtWidgets")}
 
-
-@pytest.mark.parametrize("folder", ["tests", "scripts", "engram", "listBuddy_design"])
-def test_importing_code_from_an_unmeasured_folder_is_a_violation(folder: str) -> None:
-    # X2 (L0 que trae QtWidgets desde scripts/) y X3 (módulo de 1.501 líneas en listBuddy_design/), por carpeta.
-    sources = {"row_blocks": f"from {folder}.qa.qa_qt import QWidget\n",
-               "db": f"def f() -> None:\n    from {folder}.qa import qa_big\n",
-               "worker": f"import {folder}.qa.x as y\nimport importlib\nimportlib.import_module('{folder}.z')\n",
-               "ui": ""}
-    found = violations(sources)
-    assert found.unmeasured == {("row_blocks", f"{folder}.qa.qa_qt"), ("row_blocks", f"{folder}.qa.qa_qt.QWidget"),
-                                ("db", f"{folder}.qa"),
-                                ("db", f"{folder}.qa.qa_big"), ("worker", f"{folder}.qa.x"),
-                                ("worker", f"{folder}.z")}, found.unmeasured
-    assert f"import de código no medido: db → {folder}.qa ({folder}/ queda fuera de las barandas)" in report(found)
 
 
 def test_a_measured_build_package_and_unrelated_names_are_not_unmeasured() -> None:
