@@ -35,10 +35,31 @@ def count_lines(source: str) -> int:
     return len(source.splitlines())
 
 
+_BLOCKS = (ast.If, ast.Try, ast.TryStar, ast.With, ast.AsyncWith, ast.For, ast.AsyncFor, ast.While, ast.Match)
+
+
+def _body_statements(stmts: list[ast.stmt]) -> list[ast.stmt]:
+    """Las sentencias del cuerpo de la clase, entrando en `if`/`try`/`with`/`match`/bucles (un `def` ahí también
+    queda en la clase), pero no en funciones ni clases anidadas."""
+    out: list[ast.stmt] = []
+    for st in stmts:
+        out.append(st)
+        if isinstance(st, ast.Match):
+            for case in st.cases:
+                out += _body_statements(case.body)
+        elif isinstance(st, _BLOCKS):
+            for field in ("body", "orelse", "finalbody"):
+                out += _body_statements(getattr(st, field, []) or [])
+            for handler in getattr(st, "handlers", []) or []:
+                out += _body_statements(handler.body)
+    return out
+
+
 def _own_methods(cls: ast.ClassDef, module_funcs: set[str]) -> int:
-    """`def` del cuerpo más atributos ligados a una lambda o a una función del módulo (`f = _f`)."""
+    """`def` del cuerpo (también dentro de `if`/`try`/`with`/`match`) más atributos ligados a una lambda o a una
+    función del módulo (`f = _f`)."""
     n = 0
-    for b in cls.body:
+    for b in _body_statements(cls.body):
         if isinstance(b, (ast.FunctionDef, ast.AsyncFunctionDef)):
             n += 1
         elif isinstance(b, (ast.Assign, ast.AnnAssign)) and b.value is not None and (
@@ -74,7 +95,10 @@ def class_method_counts_all(sources: dict[str, str], problems: list[str] | None 
     ignorarse."""
     modules = {module_name(rel): rel for rel in sources}
     own: dict[str, int] = {}
-    parents: dict[str, list[str]] = {}
+    parents: dict[str, list[tuple[str, str]]] = {}   # clase → [(clave de la base, texto de la base)]
+    exports: dict[str, dict[str, str]] = {}           # archivo → nombre importado → clave (para seguir re-exports)
+    assigned: dict[str, set[str]] = {}                # archivo → nombres asignados a nivel módulo
+    externals: dict[str, set[str]] = {}               # archivo → nombres que importa de afuera del proyecto
     for rel, src in sources.items():
         tree = ast.parse(src, filename=rel)
         mod = module_name(rel)
@@ -87,6 +111,7 @@ def class_method_counts_all(sources: dict[str, str], problems: list[str] | None 
                 if isinstance(t, ast.Name):
                     top_assigned.add(t.id)
         names: dict[str, str] = {}      # nombre local → clase importada `archivo::Clase`
+        external: set[str] = set()      # nombres importados de afuera del proyecto
         aliases: dict[str, str] = {}    # nombre local → módulo del proyecto (punteado)
         roots: set[str] = set()         # `import pkg.m` deja `pkg` como raíz de una ruta punteada
         for node in ast.walk(tree):
@@ -107,6 +132,8 @@ def class_method_counts_all(sources: dict[str, str], problems: list[str] | None 
                         aliases[local] = sub
                     elif base_mod in modules:
                         names[local] = f"{modules[base_mod]}::{a.name}"
+                    else:
+                        external.add(local)   # `from PySide6.QtWidgets import QWidget`: no es del proyecto
             elif isinstance(node, ast.Import):
                 for a in node.names:
                     folder = unmeasured_import(a.name, set(modules))
@@ -154,7 +181,7 @@ def class_method_counts_all(sources: dict[str, str], problems: list[str] | None 
                     name = f"{prefix}{child.name}"
                     key = f"{rel}::{name}"
                     own[key] = _own_methods(child, top_funcs)
-                    found: list[str] = []
+                    found: list[tuple[str, str]] = []
                     for b in child.bases:
                         k = resolve(b)
                         if k == DYNAMIC:
@@ -166,7 +193,7 @@ def class_method_counts_all(sources: dict[str, str], problems: list[str] | None 
                                 problems.append(f"{key}: base «{ast.unparse(b)}» viene de código no medido "
                                                 f"({k[len(UNMEASURED):]}/): la herencia esquivaría el límite")
                         elif k is not None:
-                            found.append(k)
+                            found.append((k, ast.unparse(b)))
                     parents[key] = found
                     visit(child, f"{name}.")
                 elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -176,6 +203,50 @@ def class_method_counts_all(sources: dict[str, str], problems: list[str] | None 
                     visit(child, prefix)
 
         visit(tree, "")
+        exports[rel] = {**{a: v for a, v in aliases.items() if v.startswith(UNMEASURED)}, **names}
+        assigned[rel] = top_assigned
+        externals[rel] = external | {a.asname or a.name.split(".")[0] for n in ast.walk(tree)
+                                     if isinstance(n, ast.Import) for a in n.names if a.name not in modules}
+
+    def follow(key: str) -> str:
+        """Lleva `archivo::Nombre` a la clase que de verdad lo define, siguiendo re-exports (`from m import C` en
+        un módulo intermedio o en un `__init__`). Devuelve la clave, DYNAMIC, UNMEASURED+carpeta o «?archivo»."""
+        seen: set[str] = set()
+        while key not in own and key not in seen:
+            seen.add(key)
+            rel, name = key.split("::", 1)
+            if rel not in exports or "." in name:
+                return "?" + rel
+            if name in exports[rel]:
+                key = exports[rel][name]
+                if key.startswith(UNMEASURED):
+                    return key
+            elif name in externals[rel]:
+                return ""   # re-export de algo externo (`from styles import QWidget`): no suma
+            elif name in assigned[rel]:
+                return DYNAMIC + rel
+            else:
+                return "?" + rel
+        return key if key in own else "?" + key.split("::", 1)[0]
+
+    resolved: dict[str, list[str]] = {}
+    for key, bases in parents.items():
+        resolved[key] = []
+        for raw, text in bases:
+            target = follow(raw)
+            if target in own:
+                resolved[key].append(target)
+            elif problems is None or target == "":
+                continue
+            elif target.startswith(UNMEASURED):
+                problems.append(f"{key}: base «{text}» viene de código no medido ({target[len(UNMEASURED):]}/): "
+                                "la herencia esquivaría el límite")
+            elif target.startswith(DYNAMIC):
+                problems.append(f"{key}: base «{text}» es dinámica en {target[len(DYNAMIC):]} "
+                                "(no se puede contar lo que hereda)")
+            else:
+                problems.append(f"{key}: base «{text}» importada de {target[1:]} no se encuentra ahí "
+                                "(re-export que no se puede seguir)")
 
     def lineage(key: str) -> set[str]:
         seen: set[str] = set()
@@ -184,7 +255,7 @@ def class_method_counts_all(sources: dict[str, str], problems: list[str] | None 
             k = todo.pop()
             if k in own and k not in seen:
                 seen.add(k)
-                todo.extend(parents[k])
+                todo.extend(resolved[k])
         return seen
 
     return {key: sum(own[k] for k in lineage(key)) for key in own}
@@ -348,3 +419,52 @@ def test_a_dynamic_project_base_fails_instead_of_being_ignored() -> None:
     errors = all_errors({"m.py": src}, {}, {})
     assert errors == ["m.py::C: base dinámica «Mix» (no se puede contar lo que hereda)",
                       "m.py::D: base dinámica «fabrica()» (no se puede contar lo que hereda)"], errors
+
+
+def test_methods_defined_inside_blocks_of_the_class_body_count() -> None:
+    src = ("import sys\n\ndef _f(self) -> None: ...\n\nclass W:\n    def a(self) -> None: ...\n"
+           "    if sys.platform == 'win32':\n        def b(self) -> None: ...\n        def c(self) -> None: ...\n"
+           "    else:\n        d = _f\n"
+           "    try:\n        def e(self) -> None: ...\n    except ImportError:\n        f = lambda self: 1\n"
+           "    finally:\n        pass\n"
+           "    with open('x') as fh:\n        def g(self) -> None: ...\n"
+           "    match sys.platform:\n        case 'darwin':\n            async def h(self) -> None: ...\n"
+           "    def outer(self) -> None:\n        def not_a_method() -> None: ...\n"
+           "    class Inner:\n        def i(self) -> None: ...\n")
+    assert class_method_counts(src, "m.py") == {"m.py::W": 9, "m.py::W.Inner": 1}
+
+
+MIX10 = "class Mix:\n" + "".join(f"    def x{i}(self) -> None: ...\n" for i in range(10))
+
+
+def test_bases_reached_through_reexports_are_followed_to_their_definition() -> None:
+    files = {
+        "pw_base.py": "class Base30:\n" + "".join(f"    def b{i}(self) -> None: ...\n" for i in range(30)),
+        "pw_view.py": "from pw_base import Base30\n",
+        "pw_child.py": "from pw_view import Base30\nclass Child(Base30):\n"
+                       + "".join(f"    def c{i}(self) -> None: ...\n" for i in range(15)),
+        "mw_mix.py": MIX10, "mw_reexp.py": "from mw_mix import Mix as Mix\n",
+        "mwpkg/__init__.py": "from .mix import Mix\n", "mwpkg/mix.py": MIX10,
+        "a.py": "from mw_reexp import Mix\nclass A(Mix):\n    def a(self) -> None: ...\n",
+        "b.py": "from mwpkg import Mix\nclass B(Mix):\n    def b(self) -> None: ...\n",
+        "c.py": "import mwpkg\nclass C(mwpkg.Mix):\n    def c(self) -> None: ...\n",
+    }
+    counts = class_method_counts_all(files)
+    assert (counts["pw_child.py::Child"], counts["a.py::A"], counts["b.py::B"], counts["c.py::C"]) == (45, 11, 11, 11)
+    assert all_errors(files, {}, {}) == ["pw_child.py::Child: 45 métodos (máximo 40)"]
+
+
+def test_a_reexported_base_that_cannot_be_followed_is_an_error() -> None:
+    files = {"hueco.py": "x = 1\n", "alias.py": "from mw_mix import Mix\nMix2 = Mix\n", "mw_mix.py": MIX10,
+             "a.py": "from hueco import Mix\nclass A(Mix):\n    pass\n",
+             "b.py": "from alias import Mix2\nclass B(Mix2):\n    pass\n"}
+    assert all_errors(files, {}, {}) == [
+        "a.py::A: base «Mix» importada de hueco.py no se encuentra ahí (re-export que no se puede seguir)",
+        "b.py::B: base «Mix2» es dinámica en alias.py (no se puede contar lo que hereda)",
+    ]
+
+
+def test_a_reexported_external_base_is_not_an_error() -> None:
+    files = {"styles.py": "from PySide6.QtWidgets import QWidget\nimport PySide6\n",
+             "v.py": "from styles import QWidget\nclass V(QWidget):\n    pass\n"}
+    assert all_errors(files, {}, {}) == []

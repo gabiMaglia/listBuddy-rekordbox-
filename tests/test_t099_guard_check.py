@@ -58,13 +58,23 @@ def _git(cwd: pathlib.Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
 
 
+def _base_ref() -> str:
+    """La base como la resuelven las barandas: `main` local o, en el CI de una PR (HEAD detached, sin `main`
+    local), `origin/main`."""
+    for ref in ("refs/heads/main", "refs/remotes/origin/main"):
+        if subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--verify", "--quiet", ref],
+                          capture_output=True).returncode == 0:
+            return ref
+    raise AssertionError("sin main ni origin/main: traé la base con `git fetch origin main` (fetch-depth: 0)")
+
+
 def _clone(tmp_path: pathlib.Path) -> pathlib.Path:
     """Clon tipo CI: la rama en HEAD y `main` solo como `origin/main`."""
     repo = tmp_path / "clone"
     _git(tmp_path, "clone", "-q", "--no-hardlinks", str(ROOT), str(repo))
     _git(repo, "checkout", "-q", "--detach", subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip())
-    _git(repo, "fetch", "-q", str(ROOT), "main:refs/remotes/origin/main")
+    _git(repo, "fetch", "-q", str(ROOT), f"+{_base_ref()}:refs/remotes/origin/main")
     _git(repo, "config", "user.email", "t@example.invalid")
     _git(repo, "config", "user.name", "t")
     return repo
