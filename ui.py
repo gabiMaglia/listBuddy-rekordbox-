@@ -2442,6 +2442,8 @@ class MainWindow(QMainWindow):
 
     # Presupuesto de trabajo por tick: deja pasar el input y el repintado (TEC-23, ≤ 100 ms).
     _BATCH_BUDGET_S = 0.010
+    # Piso por tick (T-125): con la CPU cargada el presupuesto se agotaba tras 1-3 tarjetas. 32 rompe la cota de T-106.
+    _BATCH_MIN_CARDS = 8
 
     def _set_all(self, checked: bool, only_visible: bool = False) -> None:
         """Marca/desmarca en lotes: con cientos de playlists un solo bucle congelaba la ventana.
@@ -2455,11 +2457,9 @@ class MainWindow(QMainWindow):
         if not queue or not isValid(self.playlist_container_layout):
             return
         deadline = time.perf_counter() + self._BATCH_BUDGET_S
-        done = 0
-        for card in queue:
+        for done, card in enumerate(queue, 1):
             card.setChecked(self._mark_value)
-            done += 1
-            if time.perf_counter() >= deadline:
+            if done >= self._BATCH_MIN_CARDS and time.perf_counter() >= deadline:
                 break
         del queue[:done]
         self._update_order_numbers()

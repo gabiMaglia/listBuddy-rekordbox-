@@ -307,3 +307,31 @@ def test_space_in_the_search_box_does_not_toggle_playback() -> None:
         "w.playlist_search.setFocus(); app.processEvents(); w._on_space(); print(calls)\n"
     )
     assert out == "[]"
+
+
+# T-125: el lote de «Marcar todas» tiene presupuesto de 10 ms; con la máquina cargada (suite -n 4)
+# el primer lote marcaba 1 o 3 tarjetas y las listas chicas no quedaban listas al volver del clic.
+# Se simula la carga con presupuesto 0: el piso de tarjetas por tick tiene que cubrir una lista chica.
+def test_all_button_finishes_a_small_list_inline_even_when_the_time_budget_is_already_spent() -> None:
+    out = runf(
+        "w, _ = make(); load(w); w._BATCH_BUDGET_S = 0.0\n"
+        "w.all_btn.click(); a = sum(c.isChecked() for c in w._all_cards)\n"
+        "w.none_btn.click(); b = sum(c.isChecked() for c in w._all_cards)\n"
+        "w.all_btn.click(); print(a, b, sum(c.isChecked() for c in w._all_cards), w.count_pill.text())\n"
+    )
+    assert out == "6 0 6 6/6"
+
+
+def test_all_button_with_800_playlists_under_a_starved_budget_ends_with_all_marked() -> None:
+    out = runf(
+        "from types import SimpleNamespace\n"
+        "from ui_components import PlaylistCard\n"
+        "w, _ = make(); w._BATCH_BUDGET_S = 0.0\n"
+        "for i in range(800):\n"
+        "    w._all_cards.append(PlaylistCard(SimpleNamespace(Name=f'P{i}'), 5, index=i))\n"
+        "w._set_all(True)\n"
+        "end = time.monotonic() + 60\n"
+        "while w._mark_queue and time.monotonic() < end: app.processEvents()\n"
+        "print(sum(c.isChecked() for c in w._all_cards), len(w._selected_playlists()))\n"
+    )
+    assert out == "800 800"
