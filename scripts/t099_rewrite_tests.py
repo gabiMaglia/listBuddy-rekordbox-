@@ -3,7 +3,7 @@
 """T-099 (ADR-007 D5): reescribe en los tests las rutas de acceso que cambian al partir `ui.py`.
 
 Cada renombre de `scripts/t099_renames.toml` cambia el atributo `.old` por `.new` (por ejemplo
-`w._start_export()` → `w._export.start()`):
+`w._start_export()` -> `w._export.start()`):
   - en el código, un NAME precedido por un punto (no en sentencias `import`/`from`);
   - en literales de texto, f-strings y comentarios (los snippets de Qt viajan como texto), `.old` aunque haya
     espacios después del punto, salvo en un renglón que empieza con `import`/`from`;
@@ -31,7 +31,7 @@ Uso:
 Sale con 0 si no hay diferencias, 1 si las hay (mostrando el diff) y 2 ante un error.
 
 Deuda declarada (verificación ciega 2, `engram/qa/T-099-F0-verifier2.md`); hasta cerrarla, lo cubre QA a mano:
-  - D-3: `old` solo tiene que ser un identificador; un renombre semántico (`isChecked` → `isEnabled`) cambia
+  - D-3: `old` solo tiene que ser un identificador; un renombre semántico (`isChecked` -> `isEnabled`) cambia
     aserciones y `--check` sale 0. QA revisa que cada entrada del mapa sea una ruta privada (`_…`).
   - D-5: `--check` corre el script y el mapa de HEAD; `scripts/` no se compara contra la base. QA corre el
     `--check` de la base: `git show <merge-base>:scripts/t099_rewrite_tests.py > /tmp/ck.py` y lo ejecuta con
@@ -160,7 +160,7 @@ def rewrite(source: str, renames: list[Rename], filename: str = "<src>") -> str:
         if not table[old].endswith("()"):
             return
         if _ASSIGN_AFTER.match(source, end) or re.search(r"\bdel[ \t]+\S*$", _segment_before(source, start)):
-            raise RewriteError(f"{filename}:{line_of(start)}: «{old}» → «{table[old]}» quedaría como destino de "
+            raise RewriteError(f"{filename}:{line_of(start)}: «{old}» -> «{table[old]}» quedaría como destino de "
                                "una asignación o `del`: hace falta otra ruta en el mapa")
 
     def text_region(start: int, end: int) -> None:
@@ -210,7 +210,7 @@ def rewrite(source: str, renames: list[Rename], filename: str = "<src>") -> str:
         old = m.group(5)
         *prefix, last = table[old].split(".")
         if last.endswith("()"):
-            raise RewriteError(f"{filename}:{line_of(m.start())}: «{old}» → «{table[old]}» por texto en "
+            raise RewriteError(f"{filename}:{line_of(m.start())}: «{old}» -> «{table[old]}» por texto en "
                                f"`{m.group(0)}`: el último tramo es una llamada, hace falta otra ruta")
         if prefix:
             edits.append((m.end(1), m.end(1), "." + ".".join(prefix)))
@@ -255,7 +255,7 @@ def check(root: pathlib.Path, ref: str, renames: list[Rename]) -> int:
     bad = 0
     for rel in sorted(before):
         if rel not in after:
-            print(f"✗ {rel}: existe en la base y HEAD lo borró")
+            print(f"FALLA {rel}: existe en la base y HEAD lo borró")
             bad += 1
             continue
         if rel == RATCHETS_REL:
@@ -268,7 +268,7 @@ def check(root: pathlib.Path, ref: str, renames: list[Rename]) -> int:
                 _diff(expected, actual, base, rel)
                 bad += 1
         elif old_b != new_b:
-            print(f"✗ {rel}: no es un test .py y cambió (tiene que quedar idéntico byte a byte)")
+            print(f"FALLA {rel}: no es un test .py y cambió (tiene que quedar idéntico byte a byte)")
             try:
                 _diff(old_b.decode("utf-8"), new_b.decode("utf-8"), base, rel)
             except UnicodeDecodeError:
@@ -279,32 +279,32 @@ def check(root: pathlib.Path, ref: str, renames: list[Rename]) -> int:
         anchor, old_data = base_ratchets(root, refs)
         errors = monotonic_errors(old_data, parse(_git(root, "show", f"HEAD:{RATCHETS_REL}").decode("utf-8")))
         for e in errors:
-            print(f"✗ {RATCHETS_REL} (contra {anchor[:10]}): {e}")
+            print(f"FALLA {RATCHETS_REL} (contra {anchor[:10]}): {e}")
         bad += bool(errors)
     shadow = shadowable_names()
     for rel in sorted(after - before):
         first = rel.split("/")[1] if rel.startswith("tests/") and rel.count("/") >= 1 else ""
         top = first[:-3] if first.endswith(".py") else first
         if top.lower() in shadow and (rel.endswith(".py") or "/" in rel[len("tests/"):]):
-            print(f"✗ {rel}: se llama como un módulo de la stdlib o de un paquete instalado ({top}): con `tests/` "
+            print(f"FALLA {rel}: se llama como un módulo de la stdlib o de un paquete instalado ({top}): con `tests/` "
                   "en el path lo taparía")
             bad += 1
             continue
         if rel.rsplit("/", 1)[-1] in CONFIG_FILES:
-            print(f"✗ {rel}: configuración de pytest nueva (cambia qué se recolecta o cómo corre)")
+            print(f"FALLA {rel}: configuración de pytest nueva (cambia qué se recolecta o cómo corre)")
             bad += 1
         elif rel.startswith("tests/") and rel.endswith(".py") and rel not in GUARD_FILES:
             hit = _GUARD_NAME.search(_git(root, "show", f"HEAD:{rel}").decode("utf-8", errors="replace"))
             if hit:
-                print(f"✗ {rel}: test nuevo que nombra un módulo de barandas ({hit.group(1)}): no puede "
+                print(f"FALLA {rel}: test nuevo que nombra un módulo de barandas ({hit.group(1)}): no puede "
                       "importarlo ni parchearlo")
                 bad += 1
     status = subprocess.run(["git", "-C", str(root), "status", "--porcelain", "--", "tests", *CONFIG_FILES],
-                            capture_output=True, text=True).stdout.strip()
+                            capture_output=True, text=True, encoding="utf-8").stdout.strip()
     if status:
         print("aviso: hay cambios sin commitear en tests/ o en la configuración; --check mira solo HEAD")
     if bad:
-        print(f"✗ {bad} archivos difieren de la base {base[:10]} + codemod")
+        print(f"FALLA {bad} archivos difieren de la base {base[:10]} + codemod")
         return 1
     print(f"OK: {len(before)} archivos de la base {base[:10]} ({ref}), {len(renames)} renombres, diff vacío")
     return 0
@@ -323,6 +323,16 @@ def apply(files: list[pathlib.Path], renames: list[Rename]) -> int:
     return 0
 
 
+def _utf8_stdio() -> None:
+    """La consola de Windows en Actions es cp1252 y con `-I` no valen `PYTHONUTF8` ni `PYTHONIOENCODING`: sin esto
+    un carácter fuera de cp1252 mata el paso (run 39420211078). Los mensajes además son ASCII salvo tildes."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+        except (AttributeError, ValueError, OSError):
+            pass   # un stream que no se deja reconfigurar: los mensajes ASCII siguen saliendo
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("files", nargs="*", type=pathlib.Path, help="archivos a reescribir (default: tests/**/*.py)")
@@ -330,6 +340,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--base", default="main", help="ref cuyo merge-base con HEAD es la base (default: main)")
     ap.add_argument("--renames", type=pathlib.Path, default=DEFAULT_RENAMES)
     ap.add_argument("--root", type=pathlib.Path, default=REPO, help="raíz del repo (default: la de este script)")
+    _utf8_stdio()
     args = ap.parse_args(argv)
     try:
         renames = load_renames(args.renames)

@@ -45,7 +45,7 @@ class BaseUnavailable(RuntimeError):
 
 
 def project_files(root: pathlib.Path = ROOT) -> dict[str, str]:
-    """`ruta/relativa.py` → fuente, recorriendo subpaquetes.
+    """`ruta/relativa.py` -> fuente, recorriendo subpaquetes.
 
     En un repo git mide lo que se commitearía: lo trackeado (aunque esté ignorado, `git add -f`) más lo nuevo
     no ignorado. Fuera de git recorre el disco y saltea `build/`/`dist/` del primer nivel."""

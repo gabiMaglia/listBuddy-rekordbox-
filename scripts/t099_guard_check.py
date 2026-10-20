@@ -65,7 +65,7 @@ def _materialize(root: pathlib.Path, base: str, out: pathlib.Path) -> None:
             data, origin = _blob(root, "HEAD", rel), "HEAD (la base todavía no lo tiene)"
         if data is None:
             raise SystemExit(f"error: {rel} no está ni en la base ni en HEAD")
-        print(f"· {rel} ← {origin}")
+        print(f"- {rel} <- {origin}")
         (out / rel).parent.mkdir(parents=True, exist_ok=True)
         (out / rel).write_bytes(data)
     for rel in (RATCHETS, RENAMES):
@@ -76,11 +76,22 @@ def _materialize(root: pathlib.Path, base: str, out: pathlib.Path) -> None:
         (out / rel).write_bytes(data)
 
 
+def _utf8_stdio() -> None:
+    """La consola de Windows en Actions es cp1252 y con `-I` no valen `PYTHONUTF8` ni `PYTHONIOENCODING`: sin esto
+    un carácter fuera de cp1252 mata el paso (run 39420211078). Los mensajes además son ASCII salvo tildes."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+        except (AttributeError, ValueError, OSError):
+            pass   # un stream que no se deja reconfigurar: los mensajes ASCII siguen saliendo
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--base", default="main", help="ref cuyo merge-base con HEAD es la base (default: main)")
     ap.add_argument("--root", type=pathlib.Path, default=REPO)
     ap.add_argument("--with-check", action="store_true", help="correr también el --check del codemod de la base")
+    _utf8_stdio()
     args = ap.parse_args(argv)
     root = args.root.resolve()
     base = merge_base(root, args.base)
@@ -102,9 +113,9 @@ def main(argv: list[str] | None = None) -> int:
             failed |= check.returncode != 0
             if _blob(root, base, "tests/_t099_guard.py") is not None:
                 if _git(root, "diff", "--quiet", base, "HEAD", "--", ".github").returncode != 0:
-                    print("✗ .github/ cambió respecto de la base: una rama T-099 no toca CI (D-6)")
+                    print("FALLA .github/ cambió respecto de la base: una rama T-099 no toca CI (D-6)")
                     failed = True
-    print("✗ barandas T-099 en rojo" if failed else "OK: barandas T-099 en verde")
+    print("FALLA barandas T-099 en rojo" if failed else "OK: barandas T-099 en verde")
     return 1 if failed else 0
 
 
