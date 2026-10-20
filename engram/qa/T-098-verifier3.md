@@ -62,3 +62,24 @@ sondeo flock siempre FREE (`:252`), sonda de 0 bytes (`:190`), estructural → A
 ## Suite
 
 `python -m pytest -q` completa en el clon: exit 0 (sin fallos; los inestables de T-125 no aparecieron).
+
+## Recomprobación de B1 (commit 28e8b46)
+
+Arreglo leído: `single_instance.py:156` decide por `create_fail_streak >= _CONFIRM_PASSES` (racha de las últimas
+pasadas sin lock y sin poder crearlo) en vez del flag que la primera pasada apagaba. Mismo método: imagen APFS de
+30 MB llena (1176 KB libres de reserva), lock huérfano (PID 99999, mismo host e id), `h/run.py` con el shim.
+
+| Caso | Resultado |
+|---|---|
+| 1 lanzamiento | `NO_SPACE`: «no tiene lugar en el disco»; traza `LockFailedError` → `removeStale True` → `UnknownError` … → `STATUS NO_SPACE` |
+| 2 simultáneos con barrera, 10 rondas | 0 «ya está abierto», 0 arrancan: todos dan el aviso de espacio |
+| Control: copia viva real + APFS lleno | «ya está abierto» (cierto), la copia sigue viva |
+| Barrera 6 simultáneos sin disco lleno, 15 rondas × {huérfano, vacío} | 0 rondas con dos copias, 0 sin ninguna, 0 UNAVAILABLE, 0 avisos raros |
+
+**B1 CERRADO** para la secuencia de uso normal (la app se cae con el disco lleno y se reabre, una o dos veces).
+
+Deuda nueva (baja, no bloquea): con **6** lanzamientos exactos con barrera sobre huérfano + APFS lleno, 5 de 10 rondas
+dan al menos un «ya está abierto» falso (8 avisos en 60 lanzamientos; ninguno arranca). Mecanismo probable, no
+aislado: el sondeo `flock` de otra instancia (`:257`) o el bloqueo nativo de `removeStaleLockFile` de Qt se ven como
+`Owner.HELD` (`:137`) y la instancia sale enseguida. Con 2 simultáneos no aparece; 6 a la vez exactos no es uso normal.
+Las imágenes quedaron desmontadas.
