@@ -85,7 +85,7 @@ UNMEASURED = "<no medido>:"   # + carpeta: la base vive en código que no se mid
 
 
 def class_method_counts_all(sources: dict[str, str], problems: list[str] | None = None) -> dict[str, int]:
-    """`archivo::Clase` → métodos propios más los de sus ancestros del proyecto (cada ancestro una vez).
+    """`archivo::Clase` -> métodos propios más los de sus ancestros del proyecto (cada ancestro una vez).
 
     Una base importada de una carpeta no medida (`tests/`, `scripts/`, `engram/`, `listBuddy_design/`, `build/`
     o `dist/` sin commitear) también va a `problems`: sus métodos no se ven, así que heredarla esquivaría el límite.
@@ -95,10 +95,10 @@ def class_method_counts_all(sources: dict[str, str], problems: list[str] | None 
     ignorarse."""
     modules = {module_name(rel): rel for rel in sources}
     own: dict[str, int] = {}
-    parents: dict[str, list[tuple[str, str]]] = {}   # clase → [(clave de la base, texto de la base)]
-    exports: dict[str, dict[str, str]] = {}           # archivo → nombre importado → clave (para seguir re-exports)
-    assigned: dict[str, set[str]] = {}                # archivo → nombres asignados a nivel módulo
-    externals: dict[str, set[str]] = {}               # archivo → nombres que importa de afuera del proyecto
+    parents: dict[str, list[tuple[str, str]]] = {}   # clase -> [(clave de la base, texto de la base)]
+    exports: dict[str, dict[str, str]] = {}           # archivo -> nombre importado -> clave (para seguir re-exports)
+    assigned: dict[str, set[str]] = {}                # archivo -> nombres asignados a nivel módulo
+    externals: dict[str, set[str]] = {}               # archivo -> nombres que importa de afuera del proyecto
     for rel, src in sources.items():
         tree = ast.parse(src, filename=rel)
         mod = module_name(rel)
@@ -110,9 +110,9 @@ def class_method_counts_all(sources: dict[str, str], problems: list[str] | None 
             for t in (n.targets if isinstance(n, ast.Assign) else [n.target] if isinstance(n, ast.AnnAssign) else []):
                 if isinstance(t, ast.Name):
                     top_assigned.add(t.id)
-        names: dict[str, str] = {}      # nombre local → clase importada `archivo::Clase`
+        names: dict[str, str] = {}      # nombre local -> clase importada `archivo::Clase`
         external: set[str] = set()      # nombres importados de afuera del proyecto
-        aliases: dict[str, str] = {}    # nombre local → módulo del proyecto (punteado)
+        aliases: dict[str, str] = {}    # nombre local -> módulo del proyecto (punteado)
         roots: set[str] = set()         # `import pkg.m` deja `pkg` como raíz de una ruta punteada
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):

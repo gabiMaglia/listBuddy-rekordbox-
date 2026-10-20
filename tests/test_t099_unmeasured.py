@@ -26,7 +26,7 @@ def test_importing_code_from_an_unmeasured_folder_is_a_violation(folder: str) ->
                                 ("db", f"{folder}.qa"),
                                 ("db", f"{folder}.qa.qa_big"), ("worker", f"{folder}.qa.x"),
                                 ("worker", f"{folder}.z")}, found.unmeasured
-    assert f"import de código no medido: db → {folder}.qa ({folder}/ queda fuera de las barandas)" in report(found)
+    assert f"import de código no medido: db -> {folder}.qa ({folder}/ queda fuera de las barandas)" in report(found)
 
 
 @pytest.mark.parametrize("folder", ["tests", "scripts", "engram", "listBuddy_design"])

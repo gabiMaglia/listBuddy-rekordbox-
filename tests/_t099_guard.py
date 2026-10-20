@@ -95,13 +95,24 @@ KINDS = {"size": _size, "size_exact": _size_exact, "layers": _layers, "layers_ex
          "typed": _typed, "ratchets": _ratchets}
 
 
+def _utf8_stdio() -> None:
+    """La consola de Windows en Actions es cp1252 y con `-I` no valen `PYTHONUTF8` ni `PYTHONIOENCODING`: sin esto
+    un carácter fuera de cp1252 mata el paso (run 39420211078). Los mensajes además son ASCII salvo tildes."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+        except (AttributeError, ValueError, OSError):
+            pass   # un stream que no se deja reconfigurar: los mensajes ASCII siguen saliendo
+
+
 def main(argv: list[str]) -> int:
+    _utf8_stdio()
     root = pathlib.Path(argv[2]) if len(argv) > 2 else ratchets.ROOT
     if argv[1] == "--all":
         bad = 0
         for kind, fn in KINDS.items():
             errors = fn(root)
-            print(f"{'✗' if errors else 'OK'} baranda {kind}")
+            print(f"{'FALLA' if errors else 'OK'} baranda {kind}")
             for e in errors:
                 print(f"  {e}")
             bad += len(errors)

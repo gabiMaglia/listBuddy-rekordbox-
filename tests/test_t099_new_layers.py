@@ -5,11 +5,11 @@
 La capa de un módulo NUEVO va en `module_layers` de `tests/baselines/t099_ratchets.json` (dato de la PR, revisado
 contra la base); la de un módulo que ya existe vive en `LAYERS` del código de la baranda, que el paso de CI toma de
 la base. Reglas:
-  - entrada nueva para un módulo que no está en la base y sí en HEAD → aceptada;
-  - entrada para un módulo que ya existe en la base o que ya tiene capa en `LAYERS` → rojo (reclasificar no se
+  - entrada nueva para un módulo que no está en la base y sí en HEAD -> aceptada;
+  - entrada para un módulo que ya existe en la base o que ya tiene capa en `LAYERS` -> rojo (reclasificar no se
     puede desde la PR, H19);
-  - entrada para un módulo que no existe en HEAD → rojo (capa sin módulo);
-  - entrada heredada de la base que cambia o desaparece → rojo.
+  - entrada para un módulo que no existe en HEAD -> rojo (capa sin módulo);
+  - entrada heredada de la base que cambia o desaparece -> rojo.
 """
 from __future__ import annotations
 

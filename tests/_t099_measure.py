@@ -12,7 +12,7 @@ from _t099_ratchets import module_name
 
 
 def measure_ratchets(files: dict[str, str]) -> dict[str, Any]:
-    """`ruta.py` → fuente  ⇒  trinquetes medidos (`typed_modules` vacío: no se mide, se compromete)."""
+    """`ruta.py` -> fuente  =>  trinquetes medidos (`typed_modules` vacío: no se mide, se compromete)."""
     lines, methods = size.measure(files)
     modules = {module_name(rel): src for rel, src in files.items()}
     packages = frozenset(module_name(rel) for rel in files if rel.endswith("__init__.py"))

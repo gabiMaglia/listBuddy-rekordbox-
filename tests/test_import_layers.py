@@ -20,8 +20,8 @@ están en la base (`_t099_ratchets.new_layer_errors`). El undeclared sigue dicie
 nuevo, el lugar es `module_layers`.
 
 Chequeo manual de QA (no se puede por AST): D1 deja que L4 importe L1 «solo tipos de datos». El test admite
-cualquier import L4 → L1; QA revisa en cada fase que lo importado sean dataclasses/NamedTuple/enums y no
-funciones con E/S ni workers (hoy no hay ningún import L4 → L1).
+cualquier import L4 -> L1; QA revisa en cada fase que lo importado sean dataclasses/NamedTuple/enums y no
+funciones con E/S ni workers (hoy no hay ningún import L4 -> L1).
 """
 from __future__ import annotations
 
@@ -120,7 +120,7 @@ def imports_of(source: str, project: set[str], filename: str = "<src>", module: 
             if len(parts) == 1 or (len(parts) == 2 and parts[1].startswith("Qt")):
                 found.qt.add(name)
             continue
-        # El módulo del proyecto más largo que sea prefijo: `pkg.mod.Clase` → `pkg.mod`.
+        # El módulo del proyecto más largo que sea prefijo: `pkg.mod.Clase` -> `pkg.mod`.
         for k in range(len(parts), 0, -1):
             cand = ".".join(parts[:k])
             if cand in project:
@@ -234,21 +234,21 @@ def report(found: Violations) -> list[str]:
                for m in sorted(found.conflicts)]
     layer_of = found.layers or LAYERS
     for mod, name in sorted(found.unmeasured):   # sin allowlist: no hay ninguno y no puede haberlo
-        errors.append(f"import de código no medido: {mod} → {name} ({name.split('.')[0]}/ queda fuera de las "
+        errors.append(f"import de código no medido: {mod} -> {name} ({name.split('.')[0]}/ queda fuera de las "
                       "barandas)" if name.split(".")[0] in UNMEASURED_DIRS else
-                      f"import de código no medido: {mod} → {name} (carpeta no medida dentro de un paquete)")
+                      f"import de código no medido: {mod} -> {name} (carpeta no medida dentro de un paquete)")
     for mod, dep in sorted(found.edges - ALLOWED_EDGES):
-        errors.append(f"import prohibido: {mod} (L{layer_of[mod]}) → {dep} (L{layer_of[dep]})")
+        errors.append(f"import prohibido: {mod} (L{layer_of[mod]}) -> {dep} (L{layer_of[dep]})")
     for edge in sorted(ALLOWED_EDGES - found.edges):
-        errors.append(f"la violación {edge[0]} → {edge[1]} ya no existe: sacala de ALLOWED_EDGES")
+        errors.append(f"la violación {edge[0]} -> {edge[1]} ya no existe: sacala de ALLOWED_EDGES")
     for mod, q in sorted(found.qt - ALLOWED_QT):
         errors.append(f"Qt prohibido en L{layer_of[mod]}: {mod} importa {q}")
     for pair in sorted(ALLOWED_QT - found.qt):
-        errors.append(f"la violación Qt {pair[0]} → {pair[1]} ya no existe: sacala de ALLOWED_QT")
+        errors.append(f"la violación Qt {pair[0]} -> {pair[1]} ya no existe: sacala de ALLOWED_QT")
     for comp in sorted(found.cycles - ALLOWED_CYCLES, key=sorted):
-        errors.append(f"ciclo de imports: {' ↔ '.join(sorted(comp))}")
+        errors.append(f"ciclo de imports: {' <-> '.join(sorted(comp))}")
     for comp in sorted(ALLOWED_CYCLES - found.cycles, key=sorted):
-        errors.append(f"el ciclo {' ↔ '.join(sorted(comp))} ya no existe: sacalo de ALLOWED_CYCLES")
+        errors.append(f"el ciclo {' <-> '.join(sorted(comp))} ya no existe: sacalo de ALLOWED_CYCLES")
     return errors
 
 
@@ -273,8 +273,8 @@ def test_ui_components_importing_ui_inside_a_function_fails_as_upward_import_and
     sources = root_sources()
     sources["ui_components"] += "\n\ndef _late() -> None:\n    import ui  # noqa\n"
     errors = report(violations(sources))
-    assert "import prohibido: ui_components (L4) → ui (L5)" in errors, errors
-    assert any(e.startswith("ciclo de imports:") and "ui ↔" in e for e in errors), errors
+    assert "import prohibido: ui_components (L4) -> ui (L5)" in errors, errors
+    assert any(e.startswith("ciclo de imports:") and "ui <->" in e for e in errors), errors
 
 
 def test_from_import_and_dynamic_import_are_seen() -> None:
@@ -315,7 +315,7 @@ def test_a_fixed_violation_must_leave_the_allowlist() -> None:
     sources = root_sources()
     sources["rekordbox_export"] = sources["rekordbox_export"].replace("rekordbox_xml", "rekordbox_xml_x")
     errors = report(violations(sources))
-    assert "la violación rekordbox_export → rekordbox_xml ya no existe: sacala de ALLOWED_EDGES" in errors, errors
+    assert "la violación rekordbox_export -> rekordbox_xml ya no existe: sacala de ALLOWED_EDGES" in errors, errors
 
 
 def test_a_worker_importing_widgets_fails() -> None:
@@ -326,7 +326,7 @@ def test_a_worker_importing_widgets_fails() -> None:
 def test_a_controller_importing_a_view_fails() -> None:
     sources = {"export_controller": "import dialogs\n", "dialogs": ""}
     errors = [e for e in report(violations(sources)) if e.startswith("import prohibido")]
-    assert errors == ["import prohibido: export_controller (L3) → dialogs (L4)"]
+    assert errors == ["import prohibido: export_controller (L3) -> dialogs (L4)"]
 
 
 def test_stale_qt_and_cycle_allowlist_entries_must_be_removed() -> None:
@@ -334,8 +334,8 @@ def test_stale_qt_and_cycle_allowlist_entries_must_be_removed() -> None:
     sources["relocate_core"] = sources["relocate_core"].replace("PySide6", "PySide6_x")
     sources["preview_card"] = sources["preview_card"].replace("ui_components", "ui_components_x")
     errors = report(violations(sources))
-    assert "la violación Qt relocate_core → PySide6.QtCore ya no existe: sacala de ALLOWED_QT" in errors, errors
-    assert "el ciclo preview_card ↔ ui_components ya no existe: sacalo de ALLOWED_CYCLES" in errors, errors
+    assert "la violación Qt relocate_core -> PySide6.QtCore ya no existe: sacala de ALLOWED_QT" in errors, errors
+    assert "el ciclo preview_card <-> ui_components ya no existe: sacalo de ALLOWED_CYCLES" in errors, errors
 
 
 def test_subpackage_modules_need_a_layer_and_obey_it() -> None:

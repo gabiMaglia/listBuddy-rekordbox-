@@ -210,7 +210,7 @@ def test_check_fails_when_a_fixture_or_the_pytest_config_changed(repo: pathlib.P
     (repo / rel).write_text((repo / rel).read_text(encoding="utf-8") + "--deselect x\n", encoding="utf-8")
     _commit(repo, "cambia no-py")
     r = _cli(repo, "--check")
-    assert r.returncode == 1 and f"✗ {rel}: no es un test .py y cambió" in r.stdout, r.stdout + r.stderr
+    assert r.returncode == 1 and f"FALLA {rel}: no es un test .py y cambió" in r.stdout, r.stdout + r.stderr
 
 
 def test_check_fails_on_a_new_conftest(repo: pathlib.Path) -> None:
@@ -310,5 +310,5 @@ def test_check_rejects_a_new_test_file_named_like_stdlib_or_an_installed_package
     (repo / rel).write_text("x = 1\n", encoding="utf-8")
     _commit(repo, "sombra")
     r = _cli(repo, "--check")
-    assert r.returncode == 1 and f"✗ {rel}: se llama como un módulo de la stdlib o de un paquete instalado" in r.stdout, \
+    assert r.returncode == 1 and f"FALLA {rel}: se llama como un módulo de la stdlib o de un paquete instalado" in r.stdout, \
         r.stdout + r.stderr
