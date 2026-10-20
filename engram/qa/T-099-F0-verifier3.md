@@ -82,3 +82,31 @@ Grounded: sí (cada punto lleva archivo:línea o salida de comando).
 
 `python -m pytest -q` en mi clon (con `main` local): EXIT=0, 1068 tests. Ningún inestable de T-125 apareció.
 En el clon tipo CI, el test del defecto 3 falla.
+
+## Recomprobación (HEAD `d9e1af1`: arreglo `6b1e5ce` + merge de main `93bee3f` con T-098)
+
+Clones nuevos: tipo F1 (`origin/main` = `d9e1af1`) y tipo PR de GitHub (`git init` + fetch
+`+refs/heads/*:refs/remotes/origin/*`, HEAD detached en `d9e1af1`, sin `main` local). Mismos casos.
+
+| Bloqueante | Caso | Resultado |
+|---|---|---|
+| 1 | `if sys.platform == "win32":` + 3 `def` en `MainWindow` | EXIT=1 «ui.py::MainWindow: 161 métodos, creció sobre el trinquete 158» |
+| 1 | `try:` + 1 `def` | EXIT=1 «159 métodos, creció sobre el trinquete 158» |
+| 1 | `if True:` + 1 `def` | EXIT=1 «159 métodos» |
+| 2 | clase nueva 30+15 con la base re-exportada | EXIT=1 «pw_child.py::Child: 45 métodos (máximo 40)» |
+| 2 | mixin re-exportado por módulo (`mw_reexp`) | EXIT=1 «ui.py::MainWindow: 168 métodos» |
+| 2 | mixin re-exportado por `mwpkg/__init__.py` | EXIT=1 «ui.py::MainWindow: 168 métodos» |
+| 3 | `pytest -n 0 tests/test_t099_guard_check.py` en el clon tipo PR | PYTEST_EXIT=0, «4 passed in 10.77s» |
+
+El step `python -I -S scripts/t099_guard_check.py --with-check` en el clon tipo PR: GUARD_EXIT=0 («87 archivos
+de la base 93bee3f2f4 (main), 0 renombres, diff vacío»).
+
+**Los 3 bloqueantes quedaron CERRADOS.**
+
+Regresión, 40 mutaciones en el clon F1: los casos que antes daban rojo siguen en rojo (crecimiento de
+`ui.py`, `def` extra, lambda, mixin directo, imports y Qt prohibidos, ciclo, 1.001 líneas, módulo sin capa,
+reclasificación, JSON con techo subido / `typed_modules` sacado / arista nueva, import desde `tests/`,
+edición en HEAD del código de las barandas, `.github/` tocado). Los verdes esperados siguen en verde: módulo
+nuevo declarado (`m05`) y F1 bajando límites (`m08`, `m09`). Los únicos otros verdes son la deuda ya
+reportada, sin cambios: D-a (`n18`-`n20`), D-b (`m16`), D-c (`n26`), D-d (`m14`, `m28`, `m31`) y `m32`
+(`thread_keeper` nuevo, L3 con QtCore, correcto). No corrí la suite completa en esta pasada (no se pidió).
