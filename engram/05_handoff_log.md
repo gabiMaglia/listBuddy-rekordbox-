@@ -46,6 +46,11 @@
 - Archivos a leer: CLAUDE.md · 03_backlog fila T-120 · engram/plans/1.1/T-102.md §3 F1-a · 02_architecture §ADR-008 · playbook §nerv-desktop. Prompt en KICKOFF.md §1.
 - Se espera: retorno estructurado; suite verde sin cambios de aserciones.
 
+### [2026-10-19 20:40] CIERRE DE SESIÓN (A, segunda parte)
+- Hecho: pipeline de release 1.0.0 de punta a punta (cert Developer ID, API key, environment+secrets+ruleset, 7 tags hasta el run verde: intermedio G2, `-f der`, .p12 equivocado, identidad duplicada, G2 condicional, `stapler validate` con reintento); Release v1.0.0 en BORRADOR con DMG arm64/x86_64 notarizados, zip Windows (T-119, CI verde al primer run) y fuente; T-122 (1.0.0 legacy GPL con Ko-fi, sin textos de venta) y decisión de licencia paga desde 1.1 (T-121 pendiente); T-123 landing Astro publicada y aprobada (dirección «ficha técnica», slogan «Todas tus playlists. Un solo lugar.», mobile-first, fuentes autoalojadas); §4 del DISCLAIMER corregido (tope «si pagaste algo»); confirmado que Polar paga a Argentina.
+- Próximo paso: PO prueba DMG, publica el Release, pushea main, aporta las 2 fotos. Luego T-121 con arquitecto.
+- Quien retoma: nerv-orquestador.
+
 ### [2026-10-19 13:40] CIERRE DE SESIÓN (A)
 - Hecho desde el cierre de las 11:20: T-113 Done (sin Ko-fi/qrcode, QA aprobada), repo renombrado a gabiMaglia/listbuddy (URLs en código/docs/tests), cotas de tiempo solo fuera de CI (CI verde macOS+Windows), roadmap 1.1 de la sesión B mergeado. Guía de release entregada al PO (6 pasos; hoy no hay cert, perfil notary, environment, ruleset ni secrets).
 - Próximo paso: PO → cert Developer ID + API key (pasos 1-2) → Orquestador corre el ensayo local → GitHub + Polar → tag v1.0.0. En paralelo PO ratifica roadmap_1.1.md §3.
