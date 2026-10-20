@@ -71,7 +71,8 @@ GUARD_MODULES = ("test_module_size", "test_import_layers", "test_type_hints", "_
 GUARD_FILES = frozenset({f"tests/{m}.py" for m in GUARD_MODULES} | {"tests/test_t099_ratchets.py",
                                                                      "tests/test_t099_rewrite_tests.py",
                                                                      "tests/test_t099_guard_check.py",
-                                                                     "tests/test_t099_unmeasured.py"})
+                                                                     "tests/test_t099_unmeasured.py",
+                                                                     "tests/test_t099_new_layers.py"})
 
 
 def shadowable_names() -> frozenset[str]:

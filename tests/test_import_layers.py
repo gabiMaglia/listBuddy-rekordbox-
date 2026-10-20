@@ -14,6 +14,11 @@ La GARANTÍA no es este test: es el paso `python -I scripts/t099_guard_check.py`
 dos jobs de `.github/workflows/tests.yml`. Cualquier chequeo dentro de pytest lo puede sabotear otro test del
 mismo repo (parchear `subprocess.run` o `Path.read_text` al importarse); acá queda como señal rápida en local.
 
+Módulos nuevos (Y9): la PR que crea un módulo declara su capa en `module_layers` de
+`tests/baselines/t099_ratchets.json`; nunca pisa `LAYERS` (un choque es error) y solo vale para módulos que no
+están en la base (`_t099_ratchets.new_layer_errors`). El undeclared sigue diciendo «LAYERS»: para un módulo
+nuevo, el lugar es `module_layers`.
+
 Chequeo manual de QA (no se puede por AST): D1 deja que L4 importe L1 «solo tipos de datos». El test admite
 cualquier import L4 → L1; QA revisa en cada fase que lo importado sean dataclasses/NamedTuple/enums y no
 funciones con E/S ni workers (hoy no hay ningún import L4 → L1).
@@ -179,10 +184,20 @@ class Violations(NamedTuple):
     qt: set[tuple[str, str]]
     cycles: set[frozenset[str]]
     unmeasured: set[tuple[str, str]] = set()
+    conflicts: frozenset[str] = frozenset()
+    layers: dict[str, int] = {}
+
+
+# Capas de módulos nuevos que declara la PR en el JSON (Y9). Nunca pisan `LAYERS`: un choque es error.
+MODULE_LAYERS: dict[str, int] = dict(_RATCHETS["module_layers"])
 
 
 def violations(sources: dict[str, str], layers: dict[str, int] = LAYERS,
-               packages: frozenset[str] = frozenset()) -> Violations:
+               packages: frozenset[str] = frozenset(),
+               extra_layers: dict[str, int] | None = None) -> Violations:
+    extra = MODULE_LAYERS if extra_layers is None else extra_layers
+    conflicts = frozenset(m for m in extra if m in layers)
+    layers = {**{m: v for m, v in extra.items() if m not in layers}, **layers}
     graph = graph_of(sources, packages)
     undeclared = sorted(m for m in graph if m not in layers)
     edges: set[tuple[str, str]] = set()
@@ -200,7 +215,8 @@ def violations(sources: dict[str, str], layers: dict[str, int] = LAYERS,
         for q in imp.qt:
             if any(q == f or q.startswith(f + ".") for f in QT_FORBIDDEN.get(layer, ())):
                 qt.add((mod, q))
-    return Violations(undeclared, edges, qt, cycles({m: i.project for m, i in graph.items()}), unmeasured)
+    return Violations(undeclared, edges, qt, cycles({m: i.project for m, i in graph.items()}), unmeasured,
+                      conflicts, layers)
 
 
 def _may_import(layer: int, dep: str, dep_layer: int) -> bool:
@@ -214,16 +230,19 @@ def _may_import(layer: int, dep: str, dep_layer: int) -> bool:
 def report(found: Violations) -> list[str]:
     errors = [f"módulo sin capa: declarar capa de {m} en tests/test_import_layers.py (LAYERS)"
               for m in found.undeclared]
+    errors += [f"capa de {m} declarada también en module_layers: reclasificar no se puede desde la PR"
+               for m in sorted(found.conflicts)]
+    layer_of = found.layers or LAYERS
     for mod, name in sorted(found.unmeasured):   # sin allowlist: no hay ninguno y no puede haberlo
         errors.append(f"import de código no medido: {mod} → {name} ({name.split('.')[0]}/ queda fuera de las "
                       "barandas)" if name.split(".")[0] in UNMEASURED_DIRS else
                       f"import de código no medido: {mod} → {name} (carpeta no medida dentro de un paquete)")
     for mod, dep in sorted(found.edges - ALLOWED_EDGES):
-        errors.append(f"import prohibido: {mod} (L{LAYERS[mod]}) → {dep} (L{LAYERS[dep]})")
+        errors.append(f"import prohibido: {mod} (L{layer_of[mod]}) → {dep} (L{layer_of[dep]})")
     for edge in sorted(ALLOWED_EDGES - found.edges):
         errors.append(f"la violación {edge[0]} → {edge[1]} ya no existe: sacala de ALLOWED_EDGES")
     for mod, q in sorted(found.qt - ALLOWED_QT):
-        errors.append(f"Qt prohibido en L{LAYERS[mod]}: {mod} importa {q}")
+        errors.append(f"Qt prohibido en L{layer_of[mod]}: {mod} importa {q}")
     for pair in sorted(ALLOWED_QT - found.qt):
         errors.append(f"la violación Qt {pair[0]} → {pair[1]} ya no existe: sacala de ALLOWED_QT")
     for comp in sorted(found.cycles - ALLOWED_CYCLES, key=sorted):

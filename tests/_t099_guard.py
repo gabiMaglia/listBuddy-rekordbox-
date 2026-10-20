@@ -86,7 +86,9 @@ def _ratchets(root: pathlib.Path) -> list[str]:
         commit, base = ratchets.base_ratchets(root)
     except ratchets.BaseUnavailable as e:
         return [str(e)]
-    return [f"contra {commit[:10]}: {e}" for e in ratchets.monotonic_errors(base, ratchets.load(root))]
+    current = ratchets.load(root)
+    errors = ratchets.monotonic_errors(base, current) + ratchets.new_layer_errors(root, commit, base, current)
+    return [f"contra {commit[:10]}: {e}" for e in errors]
 
 
 KINDS = {"size": _size, "size_exact": _size_exact, "layers": _layers, "layers_exact": _layers_exact,

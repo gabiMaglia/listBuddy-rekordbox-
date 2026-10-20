@@ -35,7 +35,9 @@ UNMEASURED_DIRS = frozenset((EXCLUDED_DIRS - {"__pycache__"}) | BUILD_DIRS)
 SIZE_KINDS = ("max_lines", "max_methods")
 SET_KINDS = ("layer_edges", "layer_qt", "layer_cycles")
 GROWING_KINDS = ("typed_modules",)
-KINDS = frozenset(SIZE_KINDS + SET_KINDS + GROWING_KINDS)
+# Capas de módulos NUEVOS, declaradas por la PR que los crea (Y9). Una vez en la base no cambian ni se quitan.
+LAYER_KIND = "module_layers"
+KINDS = frozenset(SIZE_KINDS + SET_KINDS + GROWING_KINDS + (LAYER_KIND,))
 
 
 class BaseUnavailable(RuntimeError):
@@ -123,6 +125,15 @@ def monotonic_errors(base: dict[str, Any], current: dict[str, Any]) -> list[str]
     for kind in GROWING_KINDS:
         for mod in sorted(set(base[kind]) - set(current[kind])):
             errors.append(f"{kind}: {mod} salió de la lista (solo puede crecer)")
+    for mod, layer in sorted(base[LAYER_KIND].items()):
+        if mod not in current[LAYER_KIND]:
+            errors.append(f"{LAYER_KIND}: {mod} salió (una capa declarada no se quita)")
+        elif current[LAYER_KIND][mod] != layer:
+            errors.append(f"{LAYER_KIND}: {mod} cambió de L{layer} a L{current[LAYER_KIND][mod]} "
+                          "(reclasificar no se puede desde la PR)")
+    for mod, layer in sorted(current[LAYER_KIND].items()):
+        if not isinstance(layer, int) or not 0 <= layer <= 6:
+            errors.append(f"{LAYER_KIND}: {mod} tiene una capa inválida ({layer!r}): va de 0 a 6")
     return errors
 
 
@@ -174,7 +185,8 @@ def base_ratchets(root: pathlib.Path = ROOT, refs: tuple[str, ...] = BASE_REFS,
     added = _git(root, "log", "--diff-filter=A", "--format=%H", "--reverse", "HEAD", "--", RATCHETS_REL)
     first = added.stdout.decode().split()
     measured["typed_modules"] = (
-        parse(_git(root, "show", f"{first[0]}:{RATCHETS_REL}").stdout.decode("utf-8"))["typed_modules"]
+        # Sin parse(): el primer JSON de la rama puede tener un esquema anterior (sin `module_layers`).
+        json.loads(_git(root, "show", f"{first[0]}:{RATCHETS_REL}").stdout.decode("utf-8"))["typed_modules"]
         if first else []
     )
     return base, parse(json.dumps(measured))
@@ -193,3 +205,19 @@ def run_guard(kind: str, root: pathlib.Path = ROOT) -> list[str]:
     if r.returncode != 0:
         return [f"la baranda {kind} no corrió (exit {r.returncode}): {r.stderr.strip()[-2000:]}"]
     return json.loads(r.stdout)
+
+
+def new_layer_errors(root: pathlib.Path, base: str, base_data: dict[str, Any], current: dict[str, Any]) -> list[str]:
+    """Las entradas de `module_layers` que agrega la PR solo valen para módulos que la PR crea."""
+    added = sorted(set(current[LAYER_KIND]) - set(base_data[LAYER_KIND]))
+    if not added:
+        return []
+    in_base = {module_name(rel) for rel in tree_files(root, base)}
+    in_head = {module_name(rel) for rel in project_files(root)}
+    errors: list[str] = []
+    for mod in added:
+        if mod in in_base:
+            errors.append(f"{LAYER_KIND}: {mod} ya existe en la base (reclasificar no se puede desde la PR)")
+        elif mod not in in_head:
+            errors.append(f"{LAYER_KIND}: {mod} no existe en HEAD (capa sin módulo)")
+    return errors

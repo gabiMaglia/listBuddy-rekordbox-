@@ -125,7 +125,7 @@ def _git(cwd: pathlib.Path, *args: str) -> None:
 
 
 RATCHETS: dict[str, Any] = {"max_lines": {"ui.py": 3000}, "max_methods": {}, "layer_edges": [], "layer_qt": [],
-                            "layer_cycles": [], "typed_modules": ["db"]}
+                            "layer_cycles": [], "typed_modules": ["db"], "module_layers": {}}
 
 
 @pytest.fixture()

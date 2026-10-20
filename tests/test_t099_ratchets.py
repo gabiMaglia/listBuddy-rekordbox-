@@ -31,7 +31,7 @@ def test_the_branch_never_raises_a_ratchet_against_its_base() -> None:
 BASE: dict[str, Any] = {
     "max_lines": {"ui.py": 3000}, "max_methods": {"ui.py::MainWindow": 150},
     "layer_edges": [["footer", "waveform_worker"]], "layer_qt": [["relocate_core", "PySide6.QtCore"]],
-    "layer_cycles": [["a", "b"]], "typed_modules": ["db"],
+    "layer_cycles": [["a", "b"]], "typed_modules": ["db"], "module_layers": {},
 }
 
 

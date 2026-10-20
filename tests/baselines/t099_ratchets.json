@@ -28,5 +28,6 @@
     "load_cancel",
     "playlist_filter",
     "row_blocks"
-  ]
+  ],
+  "module_layers": {}
 }

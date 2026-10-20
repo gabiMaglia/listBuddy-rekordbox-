@@ -24,4 +24,5 @@ def measure_ratchets(files: dict[str, str]) -> dict[str, Any]:
         "layer_qt": sorted([a, b] for a, b in found.qt),
         "layer_cycles": sorted(sorted(c) for c in found.cycles),
         "typed_modules": [],
+        "module_layers": {},
     }
