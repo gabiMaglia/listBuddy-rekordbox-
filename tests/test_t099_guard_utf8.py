@@ -93,7 +93,7 @@ def test_the_guard_survives_a_cp1252_console(monkeypatch: pytest.MonkeyPatch) ->
     out, _ = _cp1252(monkeypatch)
     monkeypatch.setattr(guard, "KINDS", {"size": lambda root: ["✗ ui.py: 1 líneas ←"]})
     assert guard.main(["x", "--all", str(ROOT)]) == 1
-    assert "✗ baranda size" in out.getvalue().decode("utf-8")
+    assert "FALLA baranda size\n  ✗ ui.py: 1 líneas ←" in out.getvalue().decode("utf-8")
 
 
 def test_the_codemod_check_survives_a_cp1252_console(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
@@ -107,9 +107,10 @@ def test_the_codemod_check_survives_a_cp1252_console(monkeypatch: pytest.MonkeyP
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "base")
     _git(repo, "checkout", "-qb", "feat")
-    (repo / "tests" / "data" / "in.xml").write_text("<b/>\n", encoding="utf-8")
+    (repo / "tests" / "data" / "in.xml").write_text("<b>←</b>\n", encoding="utf-8")   # el diff trae un no-cp1252
     _git(repo, "commit", "-qam", "cambia un fixture")
     (tmp_path / "r.toml").write_text("", encoding="utf-8")
     out, _ = _cp1252(monkeypatch)
     assert cm.main(["--check", "--root", str(repo), "--renames", str(tmp_path / "r.toml")]) == 1
-    assert "✗ tests/data/in.xml" in out.getvalue().decode("utf-8")
+    text = out.getvalue().decode("utf-8")
+    assert "FALLA tests/data/in.xml" in text and "+<b>←</b>" in text, text
