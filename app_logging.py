@@ -45,10 +45,34 @@ class _PrivateRotatingFileHandler(RotatingFileHandler):
     """RotatingFileHandler cuyo archivo (también tras cada rotación) queda en 0600:
     el log lleva rutas con el nombre de usuario (SEC-11)."""
 
+    _rollover_blocked = False
+
     def _open(self):  # type: ignore[no-untyped-def]
         stream = super()._open()
         make_private(Path(self.baseFilename))
         return stream
+
+    def shouldRollover(self, record: logging.LogRecord) -> bool:
+        return not self._rollover_blocked and bool(super().shouldRollover(record))
+
+    def doRollover(self) -> None:
+        try:
+            super().doRollover()
+        except OSError as exc:
+            # Windows no deja renombrar un archivo que otro proceso tiene abierto (TEC-20).
+            # Se sigue escribiendo en el mismo archivo y no se reintenta en esta sesión:
+            # perder la rotación es mejor que perder cada línea del log.
+            self._rollover_blocked = True
+            if self.stream is None:
+                self.stream = self._open()
+            self.stream.write(f"(no se pudo rotar el log: {exc}; se sigue en este archivo)\n")
+
+
+def make_file_handler(path: Path, max_bytes: int = 512_000) -> RotatingFileHandler:
+    # delay: el archivo se abre recién al escribir la primera línea.
+    return _PrivateRotatingFileHandler(
+        path, maxBytes=max_bytes, backupCount=3, encoding="utf-8", delay=True
+    )
 
 
 def setup_logging(version: str = "") -> Path:
@@ -59,9 +83,7 @@ def setup_logging(version: str = "") -> Path:
     for old in path.parent.glob(path.name + ".*"):
         make_private(old)
     make_private(path)
-    file_h = _PrivateRotatingFileHandler(
-        path, maxBytes=512_000, backupCount=3, encoding="utf-8"
-    )
+    file_h = make_file_handler(path)
     file_h.setFormatter(logging.Formatter(
         "%(asctime)s  %(levelname)-7s  %(name)s: %(message)s"
     ))
