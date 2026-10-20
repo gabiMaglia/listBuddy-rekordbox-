@@ -76,12 +76,8 @@ ALLOWLIST: dict[tuple[str, str], str] = {
         "crea la carpeta de logs propia de la app; fuera de T-120 (otro agente en paralelo).",
     ("about_dialog", "TextViewerDialog.__init__"):
         "lee LICENSE y THIRD_PARTY_NOTICES empaquetados con la app (recursos propios).",
-    ("single_instance", "_machine_id_in"):
-        "lee el lock propio de la instancia única en la carpeta de datos (T-098); no es una ruta del usuario.",
     ("single_instance", "_probe_owner"):
         "abre el lock propio en solo lectura para sondear su flock sin tomarlo (T-098); la capa no da fds.",
-    ("single_instance", "_delete_on_windows"):
-        "borra el lock propio huérfano en Windows para distinguir «en uso» de «solo lectura» (T-098).",
 }
 
 

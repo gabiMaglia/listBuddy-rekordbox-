@@ -422,7 +422,7 @@ def test_orphan_lock_that_cannot_be_deleted_blocks_startup_and_says_which_file(t
     assert "archivo trabado" in text and str(lock) in text, text
     assert "ya está abierto" not in text and "Dock" not in text.split(str(lock))[0], text
     # Addendum 4.4: si ni se puede abrir para sondear, no se sabe si hay una copia viva.
-    assert ("si List Buddy no está abierta en ninguna ventana" in text) == (kind == "perm0000_dead"), text
+    assert ("si List Buddy no está abierto en ninguna ventana" in text) == (kind == "perm0000_dead"), text
 
 
 def test_read_only_lock_of_a_live_copy_is_still_already_running(tmp_path: Path) -> None:
@@ -544,29 +544,141 @@ def test_a_lock_vanishing_mid_inspection_is_not_structural(tmp_path: Path) -> No
     assert r.stdout.strip() == "False", (r.stdout, r.stderr)
 
 
-# Addendum 4.2: si el bucle se agota sin un estado estable, no se abre. Errores de lock que no son
-# estructurales (la carpeta existe y se puede escribir) se tratan como transitorios.
-_ALWAYS_TRANSIENT = """
-import sys
+# Addendum 4.2 y 5: Qt no puede crear el lock en ninguna pasada. Con el lock ya existente es un estado
+# ambiguo (no se abre: «ya está abierto»); sin lock es un error de creación con aviso propio: falta de
+# espacio o cuota (NO_SPACE) o cualquier otro (CANT_CREATE). Nunca «ya está abierto» sin copia viva.
+_QT_CANNOT_CREATE = """
+import errno, os, sys
 from pathlib import Path
 from PySide6.QtCore import QLockFile
-import single_instance
+import file_access, single_instance
 class Flaky(QLockFile):
     def tryLock(self, timeout=0):
         return False
     def error(self):
         return QLockFile.LockError.UnknownError
 single_instance.QLockFile = Flaky
+code = sys.argv[2]
+if code != 'none':
+    real_write = file_access.write_text
+    def write_text(path, text, **kwargs):   # lo que contesta el sistema al crear un archivo en esa carpeta
+        raise OSError(getattr(errno, code), os.strerror(getattr(errno, code)), str(path))
+    file_access.write_text = write_text
 print(single_instance.acquire(Path(sys.argv[1])).status.name, flush=True)
 """
 
 
-def test_loop_exhausted_on_transient_errors_does_not_open(tmp_path: Path) -> None:
+def _qt_cannot_create(data: Path, env: dict[str, str], code: str) -> str:
+    r = subprocess.run([sys.executable, "-c", _QT_CANNOT_CREATE, str(data), code], cwd=PROJECT_ROOT, env=env,
+                       capture_output=True, text=True, encoding="utf-8", timeout=60)
+    return r.stdout.strip() or r.stderr
+
+
+def test_lock_present_but_qt_errors_every_pass_does_not_open(tmp_path: Path) -> None:
     env = _user_env(tmp_path / "home")
     data = _data_dir(env)
-    r = subprocess.run([sys.executable, "-c", _ALWAYS_TRANSIENT, str(data)], cwd=PROJECT_ROOT, env=env,
-                       capture_output=True, text=True, encoding="utf-8", timeout=60)
+    (data / "listBuddy.lock").write_bytes(b"")
+    assert _qt_cannot_create(data, env, "none") == "ALREADY_RUNNING"
+
+
+@pytest.mark.parametrize("code, expected", [
+    ("ENOSPC", "NO_SPACE"),
+    pytest.param("EDQUOT", "NO_SPACE", marks=pytest.mark.skipif(sys.platform == "win32", reason="sin EDQUOT")),
+    ("EIO", "CANT_CREATE"),
+    ("none", "CANT_CREATE"),   # el sistema deja crear archivos pero Qt no puede crear el lock
+])
+def test_lock_that_cannot_be_created_has_its_own_status(tmp_path: Path, code: str, expected: str) -> None:
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    assert _qt_cannot_create(data, env, code) == expected
+    assert sorted(p.name for p in data.iterdir()) == []   # la sonda de espacio no deja basura
+
+
+_STARTS_QT_CANNOT_CREATE = """
+import errno, importlib, os, sys
+from PySide6.QtCore import QLockFile
+import file_access, single_instance, startup_guard
+def fake(title, message, *args, **kwargs):
+    open(sys.argv[1], 'w', encoding='utf-8').write(title + '\\n' + message)
+startup_guard.show_native_alert = fake
+class Flaky(QLockFile):
+    def tryLock(self, timeout=0):
+        return False
+    def error(self):
+        return QLockFile.LockError.UnknownError
+single_instance.QLockFile = Flaky
+code = sys.argv[2]
+def write_text(path, text, **kwargs):
+    raise OSError(getattr(errno, code), os.strerror(getattr(errno, code)), str(path))
+file_access.write_text = write_text
+app_main = importlib.import_module('main')
+def reached_qt():
+    print('ARRANCA', flush=True)
+    raise SystemExit(42)
+app_main._load_qt_stack = reached_qt
+app_main.main()
+"""
+
+
+@pytest.mark.parametrize("code, title, extra", [
+    ("ENOSPC", "List Buddy no tiene lugar en el disco", "espacio"),
+    ("EIO", "List Buddy no pudo crear su archivo de bloqueo", "listBuddy.lock"),
+])
+def test_main_shows_its_own_notice_when_the_lock_cannot_be_created(tmp_path: Path, code: str, title: str,
+                                                                    extra: str) -> None:
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    alert = tmp_path / "alert.txt"
+    r = subprocess.run([sys.executable, "-c", _STARTS_QT_CANNOT_CREATE, str(alert), code], cwd=PROJECT_ROOT,
+                       env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.returncode == 0 and "ARRANCA" not in r.stdout, (r.returncode, r.stdout, r.stderr)
+    text = alert.read_text(encoding="utf-8") if alert.exists() else ""
+    assert text.startswith(title) and extra in text and str(data) in text, text
+    assert "ya está abierto" not in text
+
+
+# QA intento 5, Q9: tomar un huérfano tiene que dejar el lock tomado de verdad; si no, el próximo
+# lanzamiento abre otra copia.
+@pytest.mark.parametrize("kind", ["empty", "junk", "dead"])
+def test_after_taking_an_orphan_the_next_launch_is_already_running(tmp_path: Path, kind: str) -> None:
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    if kind == "dead":
+        dead = _start_holder(data, env)
+        dead.kill()
+        dead.communicate(timeout=30)
+    else:
+        _write_lock(data, kind, env)
+    holder = _start_holder(data, env)   # toma el huérfano (assert ACQUIRED adentro) y lo sostiene
+    try:
+        r = subprocess.run([sys.executable, "-c", _HOLDER, str(data)], cwd=PROJECT_ROOT, env=env, input="",
+                           capture_output=True, text=True, encoding="utf-8", timeout=60)
+    finally:
+        _stop(holder)
     assert r.stdout.strip() == "ALREADY_RUNNING", (r.stdout, r.stderr)
+
+
+# QA intento 5: un lock que es symlink (a un archivo o colgante) no es «no creable»: nunca arranca sin guarda.
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks de POSIX")
+@pytest.mark.parametrize("target", ["regular_file", "dangling"])
+def test_symlink_lock_never_starts_without_guard(tmp_path: Path, target: str) -> None:
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    lock = data / "listBuddy.lock"
+    other = tmp_path / "otro.lock"
+    if target == "regular_file":
+        other.write_bytes(b"")
+    lock.symlink_to(other)
+    alert = tmp_path / "alert.txt"
+    r = subprocess.run([sys.executable, "-c", _STARTS_WITH_LOG, str(alert)], cwd=PROJECT_ROOT, env=env,
+                       capture_output=True, text=True, encoding="utf-8", timeout=60)
+    text = alert.read_text(encoding="utf-8") if alert.exists() else ""
+    assert "Sin guarda de instancia única" not in r.stdout + r.stderr
+    log_lines = [l for l in r.stdout.splitlines() if l.startswith("LOG=")]
+    if log_lines:
+        assert "Sin guarda" not in Path(log_lines[0][4:]).read_text(encoding="utf-8")
+    assert r.returncode == 0 and "ARRANCA" not in r.stdout, (r.returncode, r.stdout, r.stderr)
+    assert "archivo trabado" in text and str(lock) in text, text
 
 
 # Addendum 4.3: UNAVAILABLE solo si lo estructural se confirma en dos pasadas seguidas. Acá la carpeta en la
@@ -646,8 +758,8 @@ def test_stuck_message_when_the_owner_cannot_be_checked(platform: str) -> None:
     lock = Path("/Users/dj/Library/Application Support/listBuddy/listBuddy.lock")
     unknown = startup_guard.stuck_lock_message(lock, platform, owner_unknown=True)
     known = startup_guard.stuck_lock_message(lock, platform)
-    assert "si List Buddy no está abierta en ninguna ventana, borralo" in unknown, unknown
-    assert "si List Buddy no está abierta en ninguna ventana" not in known
+    assert "si List Buddy no está abierto en ninguna ventana, borralo" in unknown, unknown
+    assert "si List Buddy no está abierto en ninguna ventana" not in known
     assert str(lock) in unknown
 
 

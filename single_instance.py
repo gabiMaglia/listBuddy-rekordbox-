@@ -7,6 +7,7 @@ rápido y sin tocar nada.
 """
 from __future__ import annotations
 
+import errno
 import os
 import stat
 import sys
@@ -17,6 +18,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QLockFile, QSysInfo
 
+import file_access
 from app_paths import data_dir
 
 LOCK_NAME = "listBuddy.lock"
@@ -27,6 +29,8 @@ class LockStatus(Enum):
     ALREADY_RUNNING = auto()
     FOREIGN_HOST = auto()  # lock de otra computadora (carpeta en red, perfil roaming): no se arranca
     STUCK_LOCK = auto()    # huérfano que no se puede borrar (solo lectura, «Bloqueado», de root): no se arranca
+    NO_SPACE = auto()      # no hay lugar en el disco (o la cuota) para crear el lock: no se arranca
+    CANT_CREATE = auto()   # el lock no se pudo crear por otro motivo, en todas las pasadas: no se arranca
     UNAVAILABLE = auto()   # no se pudo crear el lock: se arranca igual, sin guarda
 
 
@@ -48,7 +52,8 @@ class InstanceGuard:
 def _machine_id_in(path: Path) -> bytes:
     # 4.ª línea del lock de Qt 6: id de máquina. Mismo hostname no garantiza misma máquina.
     try:
-        lines = path.read_bytes().splitlines()
+        with file_access.open_read(path) as f:
+            lines = f.read().splitlines()
     except OSError:
         return b""
     return lines[3].strip() if len(lines) > 3 else b""
@@ -79,23 +84,40 @@ def acquire(directory: Path) -> InstanceGuard:
     # no se puede verificar y se respeta aunque deje la app sin abrir (decisión del PO).
     lock.setStaleLockTime(0)
     structural_in_a_row = 0
-    stuck_every_pass = True   # en cada pasada: existía, nadie lo tenía y no se pudo borrar
+    stuck_every_pass = True          # en cada pasada: existía, nadie lo tenía y no se pudo borrar
+    create_failed_every_pass = True  # en cada pasada: no existía y Qt no lo pudo crear (Addendum 5)
+    no_space_every_pass = True
+    create_detail = ""
     owner_unknown = False
     for _ in range(_PASSES):
         if lock.tryLock(0):
             return InstanceGuard(LockStatus.ACQUIRED, lock, path=path)
-        if _structurally_impossible(directory, path):
+        kind = _entry_kind(path)
+        if _structurally_impossible(directory, path, kind):
             structural_in_a_row += 1
             if structural_in_a_row >= 2:
                 return InstanceGuard(LockStatus.UNAVAILABLE, detail=f"{lock.error().name} en {path}", path=path)
-            stuck_every_pass = False
+            stuck_every_pass = create_failed_every_pass = False
             time.sleep(_PAUSE_S)
             continue
         structural_in_a_row = 0
-        if lock.error() != QLockFile.LockError.LockFailedError:
-            stuck_every_pass = False   # transitorio: se reintenta
+        if kind is Entry.SYMLINK:
+            # Qt no lo reemplaza y no es algo que haya creado la app: trabado, con la ruta en el aviso.
+            create_failed_every_pass = False
+            owner_unknown = True
             time.sleep(_PAUSE_S)
             continue
+        if lock.error() != QLockFile.LockError.LockFailedError:
+            stuck_every_pass = False
+            if kind is Entry.MISSING:
+                problem = _creation_problem(directory)
+                no_space_every_pass = no_space_every_pass and problem is not None and _is_no_space(problem)
+                create_detail = problem.strerror or str(problem) if problem is not None else lock.error().name
+            else:
+                create_failed_every_pass = False   # existe y Qt falla: ambiguo, se reintenta
+            time.sleep(_PAUSE_S)
+            continue
+        create_failed_every_pass = False
 
         foreign = _foreign_owner(lock, path)
         if foreign is not None:
@@ -123,24 +145,71 @@ def acquire(directory: Path) -> InstanceGuard:
                 continue
         time.sleep(_PAUSE_S)
 
+    # Ningún desenlace abre sin guarda, y ninguno dice «ya está abierto» si se sabe que no hay copia viva.
+    if create_failed_every_pass:
+        if no_space_every_pass:
+            return InstanceGuard(LockStatus.NO_SPACE, path=path)
+        return InstanceGuard(LockStatus.CANT_CREATE, detail=create_detail, path=path)
     if stuck_every_pass:
-        # Nunca sin guarda: la próxima vez tampoco la tendría. El aviso dice qué archivo destrabar.
+        # La próxima vez tampoco tendría guarda. El aviso dice qué archivo destrabar.
         return InstanceGuard(LockStatus.STUCK_LOCK, path=path, owner_unknown=owner_unknown)
     return InstanceGuard(LockStatus.ALREADY_RUNNING, path=path)
 
 
-def _structurally_impossible(directory: Path, path: Path) -> bool:
-    """La ruta del lock no es un archivo, o no hay lock y la carpeta no deja crearlo. Un solo
-    lstat: dos chequeos separados ven estados a medias mientras otra instancia lo borra."""
+class Entry(Enum):
+    MISSING = auto()
+    REGULAR = auto()
+    SYMLINK = auto()
+    OTHER = auto()     # carpeta, FIFO, dispositivo
+    UNKNOWN = auto()   # lstat falló por otro motivo
+
+
+def _entry_kind(path: Path) -> Entry:
     try:
         st = os.lstat(path)
     except FileNotFoundError:
-        st = None
+        return Entry.MISSING
     except OSError:
-        return False
-    if st is not None:
-        return not stat.S_ISREG(st.st_mode)
-    return not directory.is_dir() or not os.access(directory, os.W_OK)
+        return Entry.UNKNOWN
+    if stat.S_ISLNK(st.st_mode):
+        return Entry.SYMLINK
+    return Entry.REGULAR if stat.S_ISREG(st.st_mode) else Entry.OTHER
+
+
+_NO_SPACE_ERRNOS = {errno.ENOSPC} | ({errno.EDQUOT} if hasattr(errno, "EDQUOT") else set())
+# ERROR_HANDLE_DISK_FULL, ERROR_DISK_FULL, ERROR_DISK_QUOTA_EXCEEDED
+_NO_SPACE_WINERRORS = {39, 112, 1295}
+
+
+def _is_no_space(exc: OSError) -> bool:
+    return exc.errno in _NO_SPACE_ERRNOS or getattr(exc, "winerror", None) in _NO_SPACE_WINERRORS
+
+
+def _creation_problem(directory: Path) -> OSError | None:
+    """Qt solo dice «UnknownError»: se intenta crear un archivo vacío al lado para saber por qué
+    (sin espacio, cuota, E/S). No es el lock: otra instancia nunca lo confunde con uno."""
+    probe = directory / f".{LOCK_NAME}.{os.getpid()}.probe"
+    try:
+        file_access.write_text(probe, "")
+    except OSError as exc:
+        return exc
+    try:
+        file_access.remove(probe)
+    except OSError:
+        pass
+    return None
+
+
+def _structurally_impossible(directory: Path, path: Path, kind: Entry | None = None) -> bool:
+    """En la ruta del lock hay una carpeta (u otra cosa que no es archivo ni symlink), o no hay
+    lock y la carpeta no deja crearlo. Un solo lstat: dos chequeos separados ven estados a medias
+    mientras otra instancia lo borra."""
+    kind = _entry_kind(path) if kind is None else kind
+    if kind is Entry.OTHER:
+        return True
+    if kind is Entry.MISSING:
+        return not directory.is_dir() or not os.access(directory, os.W_OK)
+    return False
 
 
 def _foreign_owner(lock: QLockFile, path: Path) -> InstanceGuard | None:
@@ -186,7 +255,7 @@ def _delete_on_windows(path: Path) -> Owner:
     """Windows: una copia viva tiene el archivo abierto y el borrado falla por «archivo en uso»;
     si falla por permiso (atributo Solo lectura) es un huérfano trabado (FREE)."""
     try:
-        path.unlink()
+        file_access.remove(path, missing_ok=False)
     except FileNotFoundError:
         return Owner.MISSING
     except PermissionError as exc:

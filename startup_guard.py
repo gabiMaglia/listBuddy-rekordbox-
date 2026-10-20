@@ -59,7 +59,7 @@ def foreign_host_message(host: str, lock_path: Path, platform: str = sys.platfor
 def stuck_lock_message(lock_path: Path, platform: str = sys.platform, owner_unknown: bool = False) -> str:
     if owner_unknown:
         # Ni se pudo abrir para sondearlo: no hay forma de saber si es de una copia abierta.
-        unlock = ("No se puede saber si es de una copia abierta: si List Buddy no está abierta en ninguna "
+        unlock = ("No se puede saber si es de una copia abierta: si List Buddy no está abierto en ninguna "
                   "ventana, borralo.")
     elif platform == "darwin":
         unlock = (f"Seleccioná {lock_path.name}, abrí Archivo › Obtener información y desmarcá «Bloqueado» "
@@ -72,6 +72,29 @@ def stuck_lock_message(lock_path: Path, platform: str = sys.platform, owner_unkn
         "archivo siga trabado, List Buddy no puede asegurarse de que no haya dos copias abiertas pisando "
         "tus listas y tu configuración, así que no se abre.\n\nEl archivo es:\n"
         f"{lock_path}\n\n{_how_to_reach(lock_path, platform)}\n{unlock} Después volvé a abrir List Buddy."
+    )
+
+
+NO_SPACE_TITLE = "List Buddy no tiene lugar en el disco"
+CANT_CREATE_TITLE = "List Buddy no pudo crear su archivo de bloqueo"
+
+
+def no_space_message(lock_path: Path, platform: str = sys.platform) -> str:
+    return (
+        "No queda espacio en el disco (o se llenó tu cuota) para el archivo con el que List Buddy evita "
+        "que se abran dos copias que pisen tus listas y tu configuración, así que no se abre.\n\n"
+        "Liberá espacio en el disco de esta carpeta y volvé a abrir List Buddy:\n"
+        f"{lock_path.parent}\n\n{_how_to_reach(lock_path, platform)}"
+    )
+
+
+def cant_create_message(lock_path: Path, detail: str, platform: str = sys.platform) -> str:
+    return (
+        "No se pudo crear el archivo de bloqueo con el que List Buddy evita que se abran dos copias que "
+        "pisen tus listas y tu configuración, así que no se abre:\n"
+        f"{lock_path}\n\nError: {detail}\n\n"
+        "Revisá que se pueda escribir en esa carpeta y volvé a abrir List Buddy.\n"
+        f"{_how_to_reach(lock_path, platform)}"
     )
 
 

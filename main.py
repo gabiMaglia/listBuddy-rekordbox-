@@ -50,6 +50,14 @@ def main() -> None:
             startup_guard.FOREIGN_HOST_TITLE,
             startup_guard.foreign_host_message(guard.host, guard.path, same_name=guard.same_name), "warning")
         raise SystemExit(0)
+    if guard.status is si.LockStatus.NO_SPACE:
+        startup_guard.show_native_alert(
+            startup_guard.NO_SPACE_TITLE, startup_guard.no_space_message(guard.path), "warning")
+        raise SystemExit(0)
+    if guard.status is si.LockStatus.CANT_CREATE:
+        startup_guard.show_native_alert(
+            startup_guard.CANT_CREATE_TITLE, startup_guard.cant_create_message(guard.path, guard.detail), "warning")
+        raise SystemExit(0)
     if guard.status is si.LockStatus.STUCK_LOCK:
         startup_guard.show_native_alert(
             startup_guard.STUCK_LOCK_TITLE, startup_guard.stuck_lock_message(guard.path, owner_unknown=guard.owner_unknown), "warning")
