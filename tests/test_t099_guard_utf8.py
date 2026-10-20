@@ -36,6 +36,15 @@ def _cp1252(monkeypatch: pytest.MonkeyPatch) -> tuple[io.BytesIO, io.BytesIO]:
     return out, err
 
 
+def _text(raw: io.BytesIO) -> str:
+    """UTF-8 si el punto de entrada reconfiguró la consola; cp1252 si no (los mensajes ASCII igual salen)."""
+    data = raw.getvalue()
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data.decode("cp1252")
+
+
 def _git(cwd: pathlib.Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
 
@@ -69,7 +78,7 @@ def test_the_ci_step_under_a_cp1252_textiowrapper_ends_with_the_right_exit(
     step = _load("scripts/t099_guard_check.py", "t099_guard_check_cp1252")
     out, _ = _cp1252(monkeypatch)
     assert step.main(["--root", str(repo)]) == code
-    text = out.getvalue().decode("utf-8")
+    text = _text(out)
     assert "<- " in text and text.rstrip().endswith(last), text
     assert grow == ("creció sobre el trinquete" in text), text
 
@@ -93,7 +102,7 @@ def test_the_guard_survives_a_cp1252_console(monkeypatch: pytest.MonkeyPatch) ->
     out, _ = _cp1252(monkeypatch)
     monkeypatch.setattr(guard, "KINDS", {"size": lambda root: ["✗ ui.py: 1 líneas ←"]})
     assert guard.main(["x", "--all", str(ROOT)]) == 1
-    assert "FALLA baranda size\n  ✗ ui.py: 1 líneas ←" in out.getvalue().decode("utf-8")
+    assert "FALLA baranda size\n  ✗ ui.py: 1 líneas ←" in _text(out)
 
 
 def test_the_codemod_check_survives_a_cp1252_console(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
@@ -112,5 +121,5 @@ def test_the_codemod_check_survives_a_cp1252_console(monkeypatch: pytest.MonkeyP
     (tmp_path / "r.toml").write_text("", encoding="utf-8")
     out, _ = _cp1252(monkeypatch)
     assert cm.main(["--check", "--root", str(repo), "--renames", str(tmp_path / "r.toml")]) == 1
-    text = out.getvalue().decode("utf-8")
+    text = _text(out)
     assert "FALLA tests/data/in.xml" in text and "+<b>←</b>" in text, text
