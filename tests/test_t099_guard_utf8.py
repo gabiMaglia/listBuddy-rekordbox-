@@ -38,7 +38,7 @@ def _cp1252(monkeypatch: pytest.MonkeyPatch) -> tuple[io.BytesIO, io.BytesIO]:
 
 def _text(raw: io.BytesIO) -> str:
     """UTF-8 si el punto de entrada reconfiguró la consola; cp1252 si no (los mensajes ASCII igual salen)."""
-    data = raw.getvalue()
+    data = raw.getvalue().replace(b"\r\n", b"\n")   # en Windows el TextIOWrapper traduce los fines de línea
     try:
         return data.decode("utf-8")
     except UnicodeDecodeError:
@@ -52,12 +52,12 @@ def _git(cwd: pathlib.Path, *args: str) -> None:
 def _clone(tmp_path: pathlib.Path, grow: bool) -> pathlib.Path:
     """Clon tipo CI de esta rama (`main` solo como `origin/main`); con `grow`, `ui.py` una línea arriba del techo."""
     repo = tmp_path / "clone"
-    head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True, encoding="utf-8").stdout.strip()
     _git(tmp_path, "clone", "-q", "--no-hardlinks", str(ROOT), str(repo))
     _git(repo, "checkout", "-q", "--detach", head)
     _git(repo, "update-ref", "refs/remotes/origin/main", head)
     for ref in subprocess.run(["git", "-C", str(repo), "for-each-ref", "--format=%(refname)", "refs/heads"],
-                              capture_output=True, text=True).stdout.split():
+                              capture_output=True, text=True, encoding="utf-8").stdout.split():
         _git(repo, "update-ref", "-d", ref)
     _git(repo, "config", "user.email", "t@example.invalid")
     _git(repo, "config", "user.name", "t")
