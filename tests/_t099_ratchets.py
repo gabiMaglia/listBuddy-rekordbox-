@@ -28,6 +28,9 @@ BASE_REFS = ("main", "origin/main")
 # son paquetes importables como cualquier otro y se miden.
 EXCLUDED_DIRS = frozenset({"tests", "scripts", "listBuddy_design", "engram", "__pycache__"})
 BUILD_DIRS = frozenset({"build", "dist"})
+# Carpetas que no se miden pero son importables (namespace packages): si un módulo medido trae código de ahí, ese
+# código esquivaría tamaño, capas y conteo de métodos. Importarlas desde la app es una violación.
+UNMEASURED_DIRS = frozenset((EXCLUDED_DIRS - {"__pycache__"}) | BUILD_DIRS)
 
 SIZE_KINDS = ("max_lines", "max_methods")
 SET_KINDS = ("layer_edges", "layer_qt", "layer_cycles")
@@ -63,6 +66,19 @@ def project_files(root: pathlib.Path = ROOT) -> dict[str, str]:
                 path = pathlib.Path(dirpath, name)
                 out[path.relative_to(root).as_posix()] = path.read_text(encoding="utf-8")
     return out
+
+
+def unmeasured_import(name: str, modules: set[str] | frozenset[str]) -> str | None:
+    """Si `name` (`a.b.c`) apunta a código de una carpeta no medida, devuelve esa carpeta; si no, None.
+
+    Un módulo o paquete medido que lo cubra (`build.ctl` commiteado) gana; un nombre ajeno (`numpy.testing`)
+    no cuenta."""
+    parts = name.split(".")
+    for k in range(len(parts), 0, -1):
+        prefix = ".".join(parts[:k])
+        if prefix in modules or any(m.startswith(prefix + ".") for m in modules):
+            return parts[k] if k < len(parts) and parts[k] in UNMEASURED_DIRS else None
+    return parts[0] if parts[0] in UNMEASURED_DIRS else None
 
 
 def module_name(rel: str) -> str:

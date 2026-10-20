@@ -76,7 +76,16 @@ GUARD_FILES = frozenset({f"tests/{m}.py" for m in GUARD_MODULES} | {"tests/test_
 def shadowable_names() -> frozenset[str]:
     """Nombres que un archivo de `tests/` no puede tomar: con `tests/` en `sys.path` (pytest lo pone) taparían a
     la stdlib o a un paquete instalado."""
-    return frozenset(sys.stdlib_module_names) | frozenset(importlib.metadata.packages_distributions())
+    installed = set(importlib.metadata.packages_distributions())
+    # El paso de CI corre con `-S` y antes de instalar: ahí no hay site-packages, así que se suman los nombres del
+    # lock (`requirements*.txt` del repo) y los bindings de Qt, que no se llaman como su distribución.
+    for req in REPO.glob("requirements*.txt"):
+        for line in req.read_text(encoding="utf-8").splitlines():
+            m = re.match(r"([A-Za-z0-9][A-Za-z0-9._-]*)==", line)
+            if m:
+                installed.add(m.group(1).replace("-", "_"))
+    installed |= {"PySide6", "shiboken6", "PyQt6", "xdist", "_pytest", "pytest"}
+    return frozenset(n.lower() for n in sys.stdlib_module_names) | frozenset(n.lower() for n in installed)
 
 
 _GUARD_NAME = re.compile(r"\b(" + "|".join(GUARD_MODULES) + r")\b")
@@ -274,7 +283,7 @@ def check(root: pathlib.Path, ref: str, renames: list[Rename]) -> int:
     for rel in sorted(after - before):
         first = rel.split("/")[1] if rel.startswith("tests/") and rel.count("/") >= 1 else ""
         top = first[:-3] if first.endswith(".py") else first
-        if top in shadow and (rel.endswith(".py") or "/" in rel[len("tests/"):]):
+        if top.lower() in shadow and (rel.endswith(".py") or "/" in rel[len("tests/"):]):
             print(f"✗ {rel}: se llama como un módulo de la stdlib o de un paquete instalado ({top}): con `tests/` "
                   "en el path lo taparía")
             bad += 1

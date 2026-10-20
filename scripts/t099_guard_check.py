@@ -4,7 +4,8 @@
 
 Por qué existe: cualquier chequeo que corra dentro de pytest lo puede sabotear otro test del mismo repo (parchear
 `subprocess.run` o `Path.read_text` al importarse, tapar la stdlib desde `tests/`). Este script es un proceso
-propio (`python -I`) que no importa nada de `tests/`:
+propio (`python -I -S`: sin `site`, así un `.pth` o `sitecustomize` de las dependencias no entra; corre antes de
+instalarlas) que no importa nada de `tests/`:
   1. Calcula el merge-base de HEAD con `main` (o `origin/main`).
   2. Saca de git, a una carpeta temporal, el código de las barandas (`tests/_t099_guard.py`, `_t099_ratchets.py`,
      `_t099_measure.py`, `test_module_size.py`, `test_import_layers.py`, `test_type_hints.py`) y el
@@ -87,13 +88,13 @@ def main(argv: list[str] | None = None) -> int:
     with tempfile.TemporaryDirectory(prefix="t099-guard-") as tmp:
         work = pathlib.Path(tmp)
         _materialize(root, base, work)
-        guard = subprocess.run([sys.executable, "-I", str(work / "tests" / "_t099_guard.py"), "--all", str(root)],
+        guard = subprocess.run([sys.executable, "-I", "-S", str(work / "tests" / "_t099_guard.py"), "--all", str(root)],
                                capture_output=True, text=True, encoding="utf-8")
         sys.stdout.write(guard.stdout)
         sys.stderr.write(guard.stderr)
         failed |= guard.returncode != 0
         if args.with_check:
-            check = subprocess.run([sys.executable, "-I", str(work / CHECK_SCRIPT), "--check", "--root", str(root),
+            check = subprocess.run([sys.executable, "-I", "-S", str(work / CHECK_SCRIPT), "--check", "--root", str(root),
                                     "--base", args.base, "--renames", str(work / RENAMES)],
                                    capture_output=True, text=True, encoding="utf-8")
             sys.stdout.write(check.stdout)

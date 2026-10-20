@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import ast
 
-from _t099_ratchets import load, module_name, project_files, run_guard
+import pytest
+
+from _t099_ratchets import load, module_name, project_files, run_guard, unmeasured_import
 
 MAX_LINES = 1000
 MAX_METHODS = 40
@@ -60,11 +62,14 @@ def _dotted(expr: ast.expr) -> list[str] | None:
 
 
 DYNAMIC = "<dinámica>"
+UNMEASURED = "<no medido>:"   # + carpeta: la base vive en código que no se mide
 
 
 def class_method_counts_all(sources: dict[str, str], problems: list[str] | None = None) -> dict[str, int]:
     """`archivo::Clase` → métodos propios más los de sus ancestros del proyecto (cada ancestro una vez).
 
+    Una base importada de una carpeta no medida (`tests/`, `scripts/`, `engram/`, `listBuddy_design/`, `build/`
+    o `dist/` sin commitear) también va a `problems`: sus métodos no se ven, así que heredarla esquivaría el límite.
     Resuelve bases por nombre local, `from m import C`, `from . import m` / `from pkg import m` + `m.C`,
     `import pkg.m [as x]` + `pkg.m.C`/`x.C` e imports relativos. Una base que es una expresión (`f()`) o un
     nombre asignado a nivel módulo (`Mix = type(...)`) no se puede seguir: va a `problems` en vez de
@@ -97,13 +102,19 @@ def class_method_counts_all(sources: dict[str, str], problems: list[str] | None 
                 for a in node.names:
                     local = a.asname or a.name
                     sub = f"{base_mod}.{a.name}" if base_mod else a.name
-                    if sub in modules:
+                    folder = unmeasured_import(sub, set(modules))
+                    if folder is not None:
+                        names[local] = aliases[local] = UNMEASURED + folder
+                    elif sub in modules:
                         aliases[local] = sub
                     elif base_mod in modules:
                         names[local] = f"{modules[base_mod]}::{a.name}"
             elif isinstance(node, ast.Import):
                 for a in node.names:
-                    if a.asname and a.name in modules:
+                    folder = unmeasured_import(a.name, set(modules))
+                    if a.asname and folder is not None:
+                        aliases[a.asname] = UNMEASURED + folder
+                    elif a.asname and a.name in modules:
                         aliases[a.asname] = a.name
                     elif not a.asname:
                         roots.add(a.name.split(".")[0])
@@ -131,9 +142,12 @@ def class_method_counts_all(sources: dict[str, str], problems: list[str] | None 
                     return names[first]
                 return DYNAMIC if first in top_assigned else None
             if first in aliases:
+                if aliases[first].startswith(UNMEASURED):
+                    return aliases[first]
                 return by_path(aliases[first].split(".") + parts[1:])
             if first in roots:
-                return by_path(parts)
+                folder = unmeasured_import(".".join(parts[:-1]), set(modules))
+                return UNMEASURED + folder if folder is not None else by_path(parts)
             return None
 
         def visit(node: ast.AST, prefix: str) -> None:
@@ -149,6 +163,10 @@ def class_method_counts_all(sources: dict[str, str], problems: list[str] | None 
                             if problems is not None:
                                 problems.append(f"{key}: base dinámica «{ast.unparse(b)}» "
                                                 "(no se puede contar lo que hereda)")
+                        elif k is not None and k.startswith(UNMEASURED):
+                            if problems is not None:
+                                problems.append(f"{key}: base «{ast.unparse(b)}» viene de código no medido "
+                                                f"({k[len(UNMEASURED):]}/): la herencia esquivaría el límite")
                         elif k is not None:
                             found.append(k)
                     parents[key] = found
@@ -332,3 +350,17 @@ def test_a_dynamic_project_base_fails_instead_of_being_ignored() -> None:
     errors = all_errors({"m.py": src}, {}, {})
     assert errors == ["m.py::C: base dinámica «Mix» (no se puede contar lo que hereda)",
                       "m.py::D: base dinámica «fabrica()» (no se puede contar lo que hereda)"], errors
+
+
+@pytest.mark.parametrize("folder", ["tests", "scripts", "engram", "listBuddy_design"])
+def test_a_base_from_an_unmeasured_folder_is_an_error(folder: str) -> None:
+    # X1 (mixin en engram/ que hereda MainWindow) y X4 (mixin en tests/ que hereda FooterBar), por carpeta.
+    src = (f"from {folder}.qa.qa_mix import Mix\nfrom {folder} import helper\nimport {folder}.qa.otro\n"
+           "from PySide6.QtWidgets import QMainWindow\n"
+           "class A(Mix, QMainWindow):\n    pass\nclass B(helper.Mix):\n    pass\n"
+           f"class C({folder}.qa.otro.Mix):\n    pass\n")
+    assert all_errors({"ui.py": src}, {}, {}) == [
+        f"ui.py::A: base «Mix» viene de código no medido ({folder}/): la herencia esquivaría el límite",
+        f"ui.py::B: base «helper.Mix» viene de código no medido ({folder}/): la herencia esquivaría el límite",
+        f"ui.py::C: base «{folder}.qa.otro.Mix» viene de código no medido ({folder}/): la herencia esquivaría el límite",
+    ]

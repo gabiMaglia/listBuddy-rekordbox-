@@ -105,8 +105,13 @@ def test_the_ci_step_is_green_on_the_branch_and_red_when_ui_grows_even_with_a_sa
     assert "ui.py: 3265 líneas, creció sobre el trinquete 3264" in r.stdout, r.stdout
 
 
-def test_the_workflow_runs_the_guard_step_before_pytest_in_both_jobs() -> None:
+def test_the_workflow_runs_the_guard_steps_before_installing_dependencies_in_both_jobs() -> None:
+    # Antes de instalar: un paquete del lock de HEAD podría dejar un `.pth` en site-packages; `-S` apaga `site`.
     text = (ROOT / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
-    for job in text.split("\n  windows:")[0], text.split("\n  windows:")[1]:
-        assert "python -I scripts/t099_guard_check.py" in job, job
-        assert job.index("t099_guard_check.py") < job.index("python -m pytest"), job
+    jobs = text.split("\n  windows:")
+    assert len(jobs) == 2
+    for job in jobs:
+        assert job.count("python -I -S scripts/t099_guard_check.py") == 2, job
+        assert "python -I scripts/t099_guard_check.py" not in job, job
+        last_guard = job.rindex("t099_guard_check.py")
+        assert last_guard < job.index("- name: Instalar dependencias") < job.index("python -m pytest"), job

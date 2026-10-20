@@ -21,9 +21,11 @@ funciones con E/S ni workers (hoy no hay ningún import L4 → L1).
 from __future__ import annotations
 
 import ast
+
+import pytest
 from typing import NamedTuple
 
-from _t099_ratchets import load, module_name, project_files, run_guard
+from _t099_ratchets import UNMEASURED_DIRS, load, module_name, project_files, run_guard, unmeasured_import
 
 # ADR-007 D1 (engram/02_architecture.md). Incluye módulos que todavía no existen: se declaran antes de llegar.
 LAYERS: dict[str, int] = {
@@ -82,6 +84,7 @@ ALLOWED_CYCLES: frozenset[frozenset[str]] = frozenset(frozenset(c) for c in _RAT
 class Imports(NamedTuple):
     project: set[str]
     qt: set[str]
+    unmeasured: set[str]
 
 
 def imports_of(source: str, project: set[str], filename: str = "<src>", module: str = "",
@@ -104,8 +107,11 @@ def imports_of(source: str, project: set[str], filename: str = "<src>", module: 
         elif (isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant)
               and isinstance(node.args[0].value, str) and _is_dynamic_import(node.func)):
             names.add(node.args[0].value)
-    found = Imports(set(), set())
+    found = Imports(set(), set(), set())
     for name in names:
+        if unmeasured_import(name, project) is not None:
+            found.unmeasured.add(name)
+            continue
         parts = name.split(".")
         if parts[0] in QT_BINDINGS:
             if len(parts) == 1 or (len(parts) == 2 and parts[1].startswith("Qt")):
@@ -174,6 +180,7 @@ class Violations(NamedTuple):
     edges: set[tuple[str, str]]
     qt: set[tuple[str, str]]
     cycles: set[frozenset[str]]
+    unmeasured: set[tuple[str, str]] = set()
 
 
 def violations(sources: dict[str, str], layers: dict[str, int] = LAYERS,
@@ -182,6 +189,7 @@ def violations(sources: dict[str, str], layers: dict[str, int] = LAYERS,
     undeclared = sorted(m for m in graph if m not in layers)
     edges: set[tuple[str, str]] = set()
     qt: set[tuple[str, str]] = set()
+    unmeasured = {(mod, name) for mod, imp in graph.items() for name in imp.unmeasured}
     for mod, imp in graph.items():
         if mod not in layers:
             continue
@@ -194,7 +202,7 @@ def violations(sources: dict[str, str], layers: dict[str, int] = LAYERS,
         for q in imp.qt:
             if any(q == f or q.startswith(f + ".") for f in QT_FORBIDDEN.get(layer, ())):
                 qt.add((mod, q))
-    return Violations(undeclared, edges, qt, cycles({m: i.project for m, i in graph.items()}))
+    return Violations(undeclared, edges, qt, cycles({m: i.project for m, i in graph.items()}), unmeasured)
 
 
 def _may_import(layer: int, dep: str, dep_layer: int) -> bool:
@@ -208,6 +216,10 @@ def _may_import(layer: int, dep: str, dep_layer: int) -> bool:
 def report(found: Violations) -> list[str]:
     errors = [f"módulo sin capa: declarar capa de {m} en tests/test_import_layers.py (LAYERS)"
               for m in found.undeclared]
+    for mod, name in sorted(found.unmeasured):   # sin allowlist: no hay ninguno y no puede haberlo
+        errors.append(f"import de código no medido: {mod} → {name} ({name.split('.')[0]}/ queda fuera de las "
+                      "barandas)" if name.split(".")[0] in UNMEASURED_DIRS else
+                      f"import de código no medido: {mod} → {name} (carpeta no medida dentro de un paquete)")
     for mod, dep in sorted(found.edges - ALLOWED_EDGES):
         errors.append(f"import prohibido: {mod} (L{LAYERS[mod]}) → {dep} (L{LAYERS[dep]})")
     for edge in sorted(ALLOWED_EDGES - found.edges):
@@ -344,3 +356,24 @@ def test_other_qt_bindings_count_as_qt() -> None:
                "worker": "from PyQt6.QtWidgets import QWidget\n"}
     assert violations(sources).qt == {("db", "shiboken6"), ("traktor_db", "PyQt6"),
                                       ("traktor_db", "PyQt6.QtCore"), ("worker", "PyQt6.QtWidgets")}
+
+
+@pytest.mark.parametrize("folder", ["tests", "scripts", "engram", "listBuddy_design"])
+def test_importing_code_from_an_unmeasured_folder_is_a_violation(folder: str) -> None:
+    # X2 (L0 que trae QtWidgets desde scripts/) y X3 (módulo de 1.501 líneas en listBuddy_design/), por carpeta.
+    sources = {"row_blocks": f"from {folder}.qa.qa_qt import QWidget\n",
+               "db": f"def f() -> None:\n    from {folder}.qa import qa_big\n",
+               "worker": f"import {folder}.qa.x as y\nimport importlib\nimportlib.import_module('{folder}.z')\n",
+               "ui": ""}
+    found = violations(sources)
+    assert found.unmeasured == {("row_blocks", f"{folder}.qa.qa_qt"), ("row_blocks", f"{folder}.qa.qa_qt.QWidget"),
+                                ("db", f"{folder}.qa"),
+                                ("db", f"{folder}.qa.qa_big"), ("worker", f"{folder}.qa.x"),
+                                ("worker", f"{folder}.z")}, found.unmeasured
+    assert f"import de código no medido: db → {folder}.qa ({folder}/ queda fuera de las barandas)" in report(found)
+
+
+def test_a_measured_build_package_and_unrelated_names_are_not_unmeasured() -> None:
+    sources = {"ui": "import build.ctl\nimport build\nimport numpy.testing\nfrom ui_tests import x\n",
+               "build.ctl": ""}
+    assert violations(sources, {"ui": 5, "build.ctl": 5}).unmeasured == set()
