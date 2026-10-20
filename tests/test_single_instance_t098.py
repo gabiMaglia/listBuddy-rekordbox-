@@ -641,6 +641,44 @@ def test_space_probe_never_uses_the_lock_name(tmp_path: Path) -> None:
         assert c["name"] != "listBuddy.lock" and c["parent"] == out["data"], out
 
 
+# Verificador 3: la app se cayó con el disco lleno y quedó un lock huérfano. La primera pasada lo ve
+# (LockFailedError), lo borra bien, y desde ahí Qt ya no puede crear el lock: decide el estado de las
+# últimas pasadas, no un flag que se apagó en la primera («ya está abierto» falso sin copia viva).
+_ORPHAN_THEN_CANNOT_CREATE = """
+import errno, os, sys
+from pathlib import Path
+from PySide6.QtCore import QLockFile
+import file_access, single_instance
+data, code = Path(sys.argv[1]), sys.argv[2]
+(data / 'listBuddy.lock').write_bytes(b'')   # huérfano vacío: nadie lo tiene, se puede borrar
+class FullDiskAfterFirst(QLockFile):
+    tries = 0
+    def tryLock(self, timeout=0):
+        FullDiskAfterFirst.tries += 1
+        return False
+    def error(self):
+        if FullDiskAfterFirst.tries == 1:
+            return QLockFile.LockError.LockFailedError
+        return QLockFile.LockError.UnknownError
+single_instance.QLockFile = FullDiskAfterFirst
+def write_text(path, text, **kwargs):
+    raise OSError(getattr(errno, code), os.strerror(getattr(errno, code)), str(path))
+file_access.write_text = write_text
+guard = single_instance.acquire(data)
+print(guard.status.name, (data / 'listBuddy.lock').exists(), flush=True)
+"""
+
+
+@pytest.mark.parametrize("code, expected", [("ENOSPC", "NO_SPACE"), ("EIO", "CANT_CREATE")])
+def test_orphan_removed_then_lock_cannot_be_created_is_not_already_running(tmp_path: Path, code: str,
+                                                                            expected: str) -> None:
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    r = subprocess.run([sys.executable, "-c", _ORPHAN_THEN_CANNOT_CREATE, str(data), code], cwd=PROJECT_ROOT,
+                       env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.stdout.split() == [expected, "False"], (r.stdout, r.stderr)   # y el huérfano se borró de verdad
+
+
 _STARTS_QT_CANNOT_CREATE = """
 import errno, importlib, os, sys
 from PySide6.QtCore import QLockFile

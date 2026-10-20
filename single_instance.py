@@ -73,6 +73,7 @@ class Owner(Enum):
 # alcanza para abrir sin guarda, y lo que no se estabiliza se resuelve sin abrir.
 _PASSES = 10
 _PAUSE_S = 0.02
+_CONFIRM_PASSES = 2   # un estado que decide el desenlace tiene que repetirse al menos en dos pasadas
 _ERROR_SHARING_VIOLATION = 32
 
 
@@ -85,8 +86,11 @@ def acquire(directory: Path) -> InstanceGuard:
     lock.setStaleLockTime(0)
     structural_in_a_row = 0
     stuck_every_pass = True          # en cada pasada: existía, nadie lo tenía y no se pudo borrar
-    create_failed_every_pass = True  # en cada pasada: no existía y Qt no lo pudo crear (Addendum 5)
-    no_space_every_pass = True
+    # Racha de las ÚLTIMAS pasadas en que el lock no existía y Qt no lo pudo crear (Addendum 5). Una
+    # pasada de otro tipo la corta: un huérfano borrado al principio no puede tapar un disco lleno
+    # después (verificador 3).
+    create_fail_streak = 0
+    streak_no_space = True
     create_detail = ""
     owner_unknown = False
     for _ in range(_PASSES):
@@ -97,13 +101,14 @@ def acquire(directory: Path) -> InstanceGuard:
             structural_in_a_row += 1
             if structural_in_a_row >= 2:
                 return InstanceGuard(LockStatus.UNAVAILABLE, detail=f"{lock.error().name} en {path}", path=path)
-            stuck_every_pass = create_failed_every_pass = False
+            stuck_every_pass = False
+            create_fail_streak = 0
             time.sleep(_PAUSE_S)
             continue
         structural_in_a_row = 0
         if kind is Entry.SYMLINK:
             # Qt no lo reemplaza y no es algo que haya creado la app: trabado, con la ruta en el aviso.
-            create_failed_every_pass = False
+            create_fail_streak = 0
             owner_unknown = True
             time.sleep(_PAUSE_S)
             continue
@@ -111,13 +116,15 @@ def acquire(directory: Path) -> InstanceGuard:
             stuck_every_pass = False
             if kind is Entry.MISSING:
                 problem = _creation_problem(directory)
-                no_space_every_pass = no_space_every_pass and problem is not None and _is_no_space(problem)
+                no_space = problem is not None and _is_no_space(problem)
+                streak_no_space = no_space if create_fail_streak == 0 else streak_no_space and no_space
+                create_fail_streak += 1
                 create_detail = problem.strerror or str(problem) if problem is not None else lock.error().name
             else:
-                create_failed_every_pass = False   # existe y Qt falla: ambiguo, se reintenta
+                create_fail_streak = 0   # existe y Qt falla: ambiguo, se reintenta
             time.sleep(_PAUSE_S)
             continue
-        create_failed_every_pass = False
+        create_fail_streak = 0
 
         foreign = _foreign_owner(lock, path)
         if foreign is not None:
@@ -146,8 +153,8 @@ def acquire(directory: Path) -> InstanceGuard:
         time.sleep(_PAUSE_S)
 
     # Ningún desenlace abre sin guarda, y ninguno dice «ya está abierto» si se sabe que no hay copia viva.
-    if create_failed_every_pass:
-        if no_space_every_pass:
+    if create_fail_streak >= _CONFIRM_PASSES:
+        if streak_no_space:
             return InstanceGuard(LockStatus.NO_SPACE, path=path)
         return InstanceGuard(LockStatus.CANT_CREATE, detail=create_detail, path=path)
     if stuck_every_pass:
