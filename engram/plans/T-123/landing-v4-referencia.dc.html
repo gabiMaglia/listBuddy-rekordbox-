@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>List Buddy — Ficha técnica</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400;62..125,500;62..125,700;62..125,900&family=IBM+Plex+Mono:wght@400;500&family=Silkscreen&display=swap">
+<style>
+body{margin:0;background:#1C1C1C}
+a{color:#E6E6E2}a:hover{color:#FFFFFF}
+.row:hover{background:#242424}
+.btn:hover{background:#FFFFFF}
+.btn2:hover{border-color:#E6E6E2;color:#FFFFFF}
+details summary{cursor:pointer}details summary::-webkit-details-marker{display:none}
+@media (max-width:900px){.g12{grid-template-columns:repeat(1,minmax(0,1fr)) !important}.g2{grid-template-columns:repeat(1,minmax(0,1fr)) !important}.navl{display:none !important}.pad{padding-left:16px !important;padding-right:16px !important}.h1{font-size:56px !important}.cell-r{border-left:none !important;border-top:1px solid #3A3A3A !important}.dl{grid-template-columns:minmax(0,1fr) !important}.dl span.meta{display:none !important}.wide{display:none !important}}
+</style>
+</helmet>
+<div style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; color: #E6E6E2; background: #1C1C1C; min-height: 100%; display: flex; flex-direction: column">
+
+  <header class="pad" style="border-bottom: 1px solid #3A3A3A">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 0 32px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 56px; gap: 16px">
+      <nav class="navl" aria-label="Secciones" style="display: flex; gap: 22px; font-size: 14px">
+        <a href="#spec" style="text-decoration: none; color: #B4B4AE">Función</a>
+        <a href="#modulos" style="text-decoration: none; color: #B4B4AE">Módulos</a>
+        <a href="#descargas" style="text-decoration: none; color: #B4B4AE">Descargas</a>
+        <a href="#faq" style="text-decoration: none; color: #B4B4AE">FAQ</a>
+      </nav>
+      <a href="#top" style="text-decoration: none; color: #E6E6E2; font-weight: 900; font-size: 18px; letter-spacing: 0.06em; text-transform: uppercase; font-variation-settings: 'wdth' 118; justify-self: center">List Buddy</a>
+      <div style="display: flex; justify-content: flex-end; gap: 18px; align-items: center">
+        <span style="font-family: Silkscreen, monospace; font-size: 11px; color: #8C8C86; letter-spacing: 0.02em" class="wide">LB·1.0.0</span>
+        <a class="btn" href="#descargas" style="background: #E6E6E2; color: #1C1C1C; text-decoration: none; font-weight: 700; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; padding: 0 16px; min-height: 40px; display: inline-flex; align-items: center">Descargar</a>
+      </div>
+    </div>
+  </header>
+
+  <section id="top" class="pad" style="border-bottom: 1px solid #3A3A3A">
+    <div class="g12" style="max-width: 1280px; margin: 0 auto; padding: 0 32px; display: grid; grid-template-columns: 7fr 5fr">
+      <div style="padding: 72px 40px 56px 0; display: flex; flex-direction: column; gap: 28px">
+        <p style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.06em; color: #8C8C86; text-transform: uppercase">LB-1.0 · Utilidad de exportación · macOS / Windows</p>
+        <h1 class="h1" style="margin: 0; font-size: 76px; line-height: 0.94; font-weight: 900; letter-spacing: -0.02em; text-transform: uppercase; font-variation-settings: 'wdth' 92; color: #FFFFFF">Todas tus playlists.<br>Un solo lugar.</h1>
+        <p style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 14px; letter-spacing: 0.04em; color: #F0A93B">rekordbox · Traktor · USB</p>
+        <p style="margin: 0; font-size: 18px; line-height: 1.5; color: #B4B4AE; max-width: 520px">Tu librería de rekordbox y la de Traktor en una sola vista. Marcás playlists, escuchás, y salen al USB como carpetas numeradas, en el orden en que las armaste. No convierte, no toca la base de datos, no usa red.</p>
+        <dl style="margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 24px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #B4B4AE">
+          <dt style="color: #8C8C86">Entrada</dt><dd style="margin: 0">rekordbox 6 / 7 · XML exportado — Traktor Pro 3 / 4 · collection.nml</dd>
+          <dt style="color: #8C8C86">Salida</dt><dd style="margin: 0">una carpeta por playlist · <span style="color: #E6E6E2">001 - Artista - Título.ext</span> · copia bit a bit</dd>
+          <dt style="color: #8C8C86">Audio</dt><dd style="margin: 0">previa con forma de onda · mp3 aiff wav flac m4a</dd>
+          <dt style="color: #8C8C86">Red</dt><dd style="margin: 0">ninguna (aviso de versión opcional)</dd>
+          <dt style="color: #8C8C86">Licencia</dt><dd style="margin: 0">1.0 GPL‑3.0, gratis · 1.1 en adelante con licencia de pago</dd>
+        </dl>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px">
+          <a class="btn" href="https://github.com/gabiMaglia/listbuddy/releases/latest" style="background: #E6E6E2; color: #1C1C1C; text-decoration: none; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; padding: 0 22px; min-height: 48px; display: inline-flex; align-items: center">Descargar · Mac</a>
+          <a class="btn2" href="https://github.com/gabiMaglia/listbuddy/releases/download/v1.0.0/listBuddy-1.0.0-win64.zip" style="border: 1px solid #5A5A56; color: #B4B4AE; text-decoration: none; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; padding: 0 22px; min-height: 48px; box-sizing: border-box; display: inline-flex; align-items: center">Descargar · Windows</a>
+        </div>
+      </div>
+      <figure class="cell-r" style="margin: 0; border-left: 1px solid #3A3A3A; position: relative; min-height: 560px; background: #111111; display: flex; align-items: flex-end">
+        <div aria-hidden="true" style="position: absolute; inset: 0; background: linear-gradient(180deg, #2A2A2A 0%, #141414 60%, #0C0C0C 100%)"></div>
+        <figcaption style="position: relative; padding: 20px 24px; display: flex; flex-direction: column; gap: 4px; width: 100%; box-sizing: border-box; border-top: 1px solid #3A3A3A; background: #111111">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #8C8C86; text-transform: uppercase">Fig. 01 · Foto</span>
+          <span style="font-size: 14px; line-height: 1.45; color: #B4B4AE">Macro de un pendrive entrando en el puerto USB de una reproductora, luz dura, fondo negro. Blanco y negro o color apagado. Sin logos legibles.</span>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="spec" class="pad" style="border-bottom: 1px solid #3A3A3A">
+    <div class="g12" style="max-width: 1280px; margin: 0 auto; padding: 0 32px; display: grid; grid-template-columns: 3fr 9fr">
+      <div style="padding: 36px 24px 36px 0; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86; letter-spacing: 0.06em">01</span>
+        <h2 style="margin: 0; font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; font-variation-settings: 'wdth' 100">Función</h2>
+      </div>
+      <div class="cell-r" style="border-left: 1px solid #3A3A3A; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr))" >
+        <div style="padding: 36px 24px; border-right: 1px solid #3A3A3A; display: flex; flex-direction: column; gap: 10px">
+          <span style="font-family: Silkscreen, monospace; font-size: 12px; color: #F0A93B">01</span>
+          <strong style="font-size: 16px; text-transform: uppercase; letter-spacing: 0.02em">Exportar colección</strong>
+          <span style="font-size: 14px; line-height: 1.5; color: #B4B4AE">rekordbox: Archivo → Exportar colección en xml. Traktor: ruta a collection.nml. No hace falta cerrar el programa.</span>
+        </div>
+        <div style="padding: 36px 24px; border-right: 1px solid #3A3A3A; display: flex; flex-direction: column; gap: 10px">
+          <span style="font-family: Silkscreen, monospace; font-size: 12px; color: #F0A93B">02</span>
+          <strong style="font-size: 16px; text-transform: uppercase; letter-spacing: 0.02em">Seleccionar · previa</strong>
+          <span style="font-size: 14px; line-height: 1.5; color: #B4B4AE">Árbol de carpetas y playlists. Vista previa de la salida, reproducción, detección de enlaces rotos.</span>
+        </div>
+        <div style="padding: 36px 24px; display: flex; flex-direction: column; gap: 10px">
+          <span style="font-family: Silkscreen, monospace; font-size: 12px; color: #F0A93B">03</span>
+          <strong style="font-size: 16px; text-transform: uppercase; letter-spacing: 0.02em">Copiar</strong>
+          <span style="font-size: 14px; line-height: 1.5; color: #B4B4AE">Destino: USB, SD o disco. Carpetas numeradas, progreso, registro de copiadas y faltantes.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pad" style="border-bottom: 1px solid #3A3A3A; background: #181818">
+    <div class="g12" style="max-width: 1280px; margin: 0 auto; padding: 0 32px; display: grid; grid-template-columns: 3fr 9fr">
+      <div style="padding: 36px 24px 36px 0; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86; letter-spacing: 0.06em">02</span>
+        <h2 style="margin: 0; font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em">Salida</h2>
+        <p style="margin: 8px 0 0; font-size: 14px; line-height: 1.5; color: #B4B4AE">Lo que queda en el volumen después de exportar tres playlists. Nombres de ejemplo.</p>
+      </div>
+      <div class="cell-r" style="border-left: 1px solid #3A3A3A; padding: 36px 24px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.8; color: #B4B4AE; overflow-x: auto">
+        <div style="display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; gap: 0 28px; min-width: 560px">
+          <span style="color: #8C8C86">/Volumes/USB_DJ</span><span></span><span style="color: #8C8C86">tamaño</span>
+          <span style="color: #E6E6E2">01_Warm_Up/</span><span></span><span>42 · 612 MB</span>
+          <span></span><span>001 - Jayda G - Both Of Us.mp3</span><span>14,1 MB</span>
+          <span></span><span>002 - Kerri Chandler - Rain.aiff</span><span>81,6 MB</span>
+          <span></span><span>003 - Moodymann - Shades Of Jae.flac</span><span>42,0 MB</span>
+          <span></span><span style="color: #8C8C86">… 039 más</span><span></span>
+          <span style="color: #E6E6E2">02_Peak/</span><span></span><span>58 · 1,1 GB</span>
+          <span></span><span>001 - Floating Points - Vocoder.aiff</span><span>64,2 MB</span>
+          <span></span><span style="color: #8C8C86">… 057 más</span><span></span>
+          <span style="color: #E6E6E2">03_Closing/</span><span></span><span>31 · 498 MB</span>
+          <span></span><span>001 - Larry Heard - Missing You.mp3</span><span>15,3 MB</span>
+          <span></span><span style="color: #8C8C86">… 030 más</span><span></span>
+          <span style="color: #F0A93B; margin-top: 10px">OK</span><span style="margin-top: 10px">131 copiadas · 0 faltantes · hashes verificados</span><span style="margin-top: 10px">2,2 GB</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="modulos" class="pad" style="border-bottom: 1px solid #3A3A3A">
+    <div class="g12" style="max-width: 1280px; margin: 0 auto; padding: 0 32px; display: grid; grid-template-columns: 3fr 9fr">
+      <div style="padding: 36px 24px 36px 0; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86; letter-spacing: 0.06em">03</span>
+        <h2 style="margin: 0; font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em">Módulos</h2>
+      </div>
+      <div class="cell-r" style="border-left: 1px solid #3A3A3A; display: flex; flex-direction: column">
+        <div class="row g2" style="display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 16px; padding: 22px 24px; border-bottom: 1px solid #3A3A3A"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #8C8C86">LB-01 EXPORT</span><div><strong style="display: block; margin-bottom: 4px">Copia con prefijo numérico</strong><span style="font-size: 14px; color: #B4B4AE; line-height: 1.5">Bit a bit, sin re-encode. Nombre limpio de caracteres inválidos. Progreso y registro por lote. Verificación de integridad al final.</span></div></div>
+        <div class="row g2" style="display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 16px; padding: 22px 24px; border-bottom: 1px solid #3A3A3A"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #8C8C86">LB-02 PREVIEW</span><div><strong style="display: block; margin-bottom: 4px">Vista previa y reproducción</strong><span style="font-size: 14px; color: #B4B4AE; line-height: 1.5">Lo que va a salir, playlist por playlist, antes de copiar. Reproductor con forma de onda y búsqueda. 800 playlists sin trabar la interfaz.</span></div></div>
+        <div class="row g2" style="display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 16px; padding: 22px 24px; border-bottom: 1px solid #3A3A3A"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #8C8C86">LB-03 RELOCATE</span><div><strong style="display: block; margin-bottom: 4px">Reparación de enlaces</strong><span style="font-size: 14px; color: #B4B4AE; line-height: 1.5">Archivos movidos de disco: búsqueda por nombre, propuesta de ruta nueva. rekordbox: las reparaciones se guardan aparte y se puede generar un XML importable. Traktor: escribe el NML con copia de seguridad previa.</span></div></div>
+        <div class="row g2" style="display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 16px; padding: 22px 24px; border-bottom: 1px solid #3A3A3A"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #8C8C86">LB-04 INTEGRITY</span><div><strong style="display: block; margin-bottom: 4px">Integridad del software</strong><span style="font-size: 14px; color: #B4B4AE; line-height: 1.5">macOS: firmado con Developer ID y notarizado por Apple. Windows: sin firma, hash SHA‑256 publicado. Dependencias fijadas con hashes. Código fuente de cada versión junto a la descarga.</span></div></div>
+        <div class="row g2" style="display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 16px; padding: 22px 24px"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #8C8C86">LB-05 PRIVACY</span><div><strong style="display: block; margin-bottom: 4px">Sin red</strong><span style="font-size: 14px; color: #B4B4AE; line-height: 1.5">No hay cuenta, servidor ni telemetría. La única conexión es el chequeo de versión nueva al iniciar, desactivable en Configuración → Privacidad.</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pad" style="border-bottom: 1px solid #3A3A3A; background: #181818">
+    <div class="g12" style="max-width: 1280px; margin: 0 auto; padding: 0 32px; display: grid; grid-template-columns: 3fr 9fr">
+      <div style="padding: 36px 24px 36px 0; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86; letter-spacing: 0.06em">04</span>
+        <h2 style="margin: 0; font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em">Interfaz</h2>
+        <p style="margin: 8px 0 0; font-size: 14px; line-height: 1.5; color: #B4B4AE">Captura real de la 1.0 en macOS, tema oscuro. Una sola, sin marco de dispositivo.</p>
+      </div>
+      <figure class="cell-r" style="margin: 0; border-left: 1px solid #3A3A3A; padding: 36px 24px">
+        <div style="border: 1px solid #3A362F; background: #161513; font-family: Inter, system-ui, sans-serif; font-size: 12px; color: #F2EDE4">
+          <div style="height: 38px; background: #1E1C19; border-bottom: 1px solid #3A362F; display: flex; align-items: center; padding: 0 12px; gap: 10px"><span style="font-weight: 700; font-size: 13px">List Buddy</span><span style="display: inline-flex; border: 1px solid #3A362F; margin-left: 8px"><span style="padding: 4px 10px; background: #F0A93B; color: #1A1408; font-weight: 600; font-size: 11px">Rekordbox</span><span style="padding: 4px 10px; color: #ACA59A; font-size: 11px">Traktor</span></span><span style="margin-left: auto; color: #ACA59A; font-size: 11px">Configuración</span></div>
+          <div style="display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 300px">
+            <aside style="border-right: 1px solid #3A362F; padding: 12px; display: flex; flex-direction: column; gap: 6px">
+              <span style="font-weight: 600">Playlists <span style="color: #ACA59A; font-weight: 400">186</span></span>
+              <span style="border: 1px solid #3A362F; background: #121110; padding: 5px 8px; color: #7E786D; font-size: 11px">Buscar playlist</span>
+              <span style="font-size: 11px; color: #ACA59A; padding: 6px 4px 2px; font-weight: 600">▾ Sets 2026</span>
+              <span style="padding: 6px 8px; background: #2A251B; border: 1px solid #3A362F; display: flex; gap: 8px; align-items: center; font-size: 11px"><span style="width: 11px; height: 11px; background: #F0A93B; display: inline-block"></span>Warm Up<span style="margin-left: auto; color: #ACA59A">42</span></span>
+              <span style="padding: 6px 8px; background: #2A251B; border: 1px solid #3A362F; display: flex; gap: 8px; align-items: center; font-size: 11px"><span style="width: 11px; height: 11px; background: #F0A93B; display: inline-block"></span>Peak<span style="margin-left: auto; color: #ACA59A">58</span></span>
+              <span style="padding: 6px 8px; display: flex; gap: 8px; align-items: center; font-size: 11px; color: #ACA59A"><span style="width: 11px; height: 11px; border: 1px solid #3A362F; display: inline-block"></span>Closing<span style="margin-left: auto">31</span></span>
+              <span style="padding: 6px 8px; display: flex; gap: 8px; align-items: center; font-size: 11px; color: #ACA59A"><span style="width: 11px; height: 11px; border: 1px solid #3A362F; display: inline-block"></span>Afterhours<span style="margin-left: auto">24</span></span>
+            </aside>
+            <main style="padding: 12px 14px; background: #121110; display: flex; flex-direction: column; gap: 10px">
+              <span style="font-weight: 700">Vista previa de la salida <span style="color: #ACA59A; font-weight: 400; font-size: 11px">2 playlists · 100 pistas</span></span>
+              <div style="background: #1E1C19; border: 1px solid #3A362F; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #C9C1B4">
+                <div style="padding: 7px 12px; border-bottom: 1px solid #2B2823; font-family: Inter, sans-serif; font-weight: 600; color: #F2EDE4; display: flex; gap: 8px"><span>Warm Up</span><span style="font-weight: 400; color: #ACA59A; font-size: 10px">42 archivos</span><span style="margin-left: auto; font-size: 10px; color: #9FD6AD">OK</span></div>
+                <div style="padding: 5px 12px; border-bottom: 1px solid #2B2823"><span style="color: #F0A93B">001</span>&nbsp; Jayda G - Both Of Us.mp3</div>
+                <div style="padding: 5px 12px; border-bottom: 1px solid #2B2823"><span style="color: #F0A93B">002</span>&nbsp; Kerri Chandler - Rain.aiff</div>
+                <div style="padding: 5px 12px"><span style="color: #F0A93B">003</span>&nbsp; Moodymann - Shades Of Jae.flac</div>
+              </div>
+              <div style="background: #1E1C19; border: 1px solid #3A362F; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #C9C1B4">
+                <div style="padding: 7px 12px; border-bottom: 1px solid #2B2823; font-family: Inter, sans-serif; font-weight: 600; color: #F2EDE4; display: flex; gap: 8px"><span>Peak</span><span style="font-weight: 400; color: #ACA59A; font-size: 10px">58 archivos</span><span style="margin-left: auto; font-size: 10px; color: #F2A79A">2 enlaces rotos · Reparar</span></div>
+                <div style="padding: 5px 12px; border-bottom: 1px solid #2B2823"><span style="color: #F0A93B">001</span>&nbsp; Floating Points - Vocoder.aiff</div>
+                <div style="padding: 5px 12px; background: #2A1E1B; color: #F2A79A">002&nbsp; Octo Octa - Spin Girl.mp3 · no encontrado</div>
+              </div>
+            </main>
+          </div>
+          <div style="height: 44px; background: #1E1C19; border-top: 1px solid #3A362F; display: flex; align-items: center; padding: 0 12px; gap: 10px; font-size: 11px"><span style="width: 26px; height: 26px; background: #F0A93B; display: inline-flex; align-items: center; justify-content: center"><svg width="10" height="10" viewBox="0 0 24 24" fill="#1A1408" aria-hidden="true"><path d="M7 4l12 8-12 8z"/></svg></span><span>Shades Of Jae <span style="color: #ACA59A">· Moodymann</span></span><span style="flex: 1; height: 14px; margin: 0 8px; background: repeating-linear-gradient(90deg, #F0A93B 0 2px, transparent 2px 5px) 0 0 / 40% 100% no-repeat, repeating-linear-gradient(90deg, #3A362F 0 2px, transparent 2px 5px)"></span><span style="font-family: 'IBM Plex Mono', monospace; color: #ACA59A">2:27 / 5:52</span><span style="border: 1px solid #3A362F; padding: 6px 10px; color: #ACA59A">/Volumes/USB_DJ</span><span style="background: #F0A93B; color: #1A1408; font-weight: 700; padding: 7px 12px">Exportar</span></div>
+        </div>
+        <figcaption style="margin-top: 10px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8C8C86; letter-spacing: 0.06em; text-transform: uppercase">Fig. 02 · Maqueta provisoria · reemplazar por captura 1600×1000</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="descargas" class="pad" style="border-bottom: 1px solid #3A3A3A">
+    <div class="g12" style="max-width: 1280px; margin: 0 auto; padding: 0 32px; display: grid; grid-template-columns: 3fr 9fr">
+      <div style="padding: 36px 24px 36px 0; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86; letter-spacing: 0.06em">05</span>
+        <h2 style="margin: 0; font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em">Descargas</h2>
+        <p style="margin: 8px 0 0; font-size: 14px; line-height: 1.5; color: #B4B4AE">Versión 1.0.0 · 2026‑10. Cada archivo con su .sha256.</p>
+      </div>
+      <div class="cell-r" style="border-left: 1px solid #3A3A3A; display: flex; flex-direction: column">
+        <a class="row dl" href="https://github.com/gabiMaglia/listbuddy/releases/download/v1.0.0/ListBuddy-1.0.0-arm64.dmg" style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.6fr) 80px 90px auto; gap: 16px; align-items: center; padding: 18px 24px; border-bottom: 1px solid #3A3A3A; text-decoration: none; color: #E6E6E2; min-height: 44px">
+          <strong style="text-transform: uppercase; letter-spacing: 0.02em">macOS · Apple Silicon</strong>
+          <span class="meta" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86">ListBuddy-1.0.0-arm64.dmg</span>
+          <span class="meta" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86">52 MB</span>
+          <span class="meta" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86">14.4+</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; justify-self: end">DMG ↓</span>
+        </a>
+        <a class="row dl" href="https://github.com/gabiMaglia/listbuddy/releases/download/v1.0.0/ListBuddy-1.0.0-x86_64.dmg" style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.6fr) 80px 90px auto; gap: 16px; align-items: center; padding: 18px 24px; border-bottom: 1px solid #3A3A3A; text-decoration: none; color: #E6E6E2; min-height: 44px">
+          <strong style="text-transform: uppercase; letter-spacing: 0.02em">macOS · Intel</strong>
+          <span class="meta" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86">ListBuddy-1.0.0-x86_64.dmg</span>
+          <span class="meta" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86">57 MB</span>
+          <span class="meta" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86">14.4+</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; justify-self: end">DMG ↓</span>
+        </a>
+        <a class="row dl" href="https://github.com/gabiMaglia/listbuddy/releases/download/v1.0.0/listBuddy-1.0.0-win64.zip" style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.6fr) 80px 90px auto; gap: 16px; align-items: center; padding: 18px 24px; border-bottom: 1px solid #3A3A3A; text-decoration: none; color: #E6E6E2; min-height: 44px">
+          <strong style="text-transform: uppercase; letter-spacing: 0.02em">Windows · 64 bits</strong>
+          <span class="meta" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86">listBuddy-1.0.0-win64.zip</span>
+          <span class="meta" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86">65 MB</span>
+          <span class="meta" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86">10 / 11</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; justify-self: end">ZIP ↓</span>
+        </a>
+        <a class="row dl" href="https://github.com/gabiMaglia/listbuddy/releases/download/v1.0.0/listbuddy-1.0.0-src.tar.gz" style="display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.6fr) 80px 90px auto; gap: 16px; align-items: center; padding: 18px 24px; border-bottom: 1px solid #3A3A3A; text-decoration: none; color: #E6E6E2; min-height: 44px">
+          <strong style="text-transform: uppercase; letter-spacing: 0.02em">Código fuente</strong>
+          <span class="meta" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86">listbuddy-1.0.0-src.tar.gz</span>
+          <span class="meta" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86">1,8 MB</span>
+          <span class="meta" style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86">GPL‑3.0</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; justify-self: end">TAR ↓</span>
+        </a>
+        <div style="padding: 18px 24px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.7; color: #8C8C86">
+          <span style="color: #B4B4AE">Verificación</span> · shasum -a 256 -c ListBuddy-1.0.0-arm64.dmg.sha256 → OK<br>
+          macOS: Developer ID + notarización Apple, abre con doble click. Windows: sin firma de código, SmartScreen puede avisar; comparar el hash.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" class="pad" style="border-bottom: 1px solid #3A3A3A; background: #181818">
+    <div class="g12" style="max-width: 1280px; margin: 0 auto; padding: 0 32px; display: grid; grid-template-columns: 3fr 9fr">
+      <div style="padding: 36px 24px 36px 0; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86; letter-spacing: 0.06em">06</span>
+        <h2 style="margin: 0; font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em">FAQ</h2>
+      </div>
+      <div class="cell-r" style="border-left: 1px solid #3A3A3A; display: flex; flex-direction: column">
+        <details style="border-bottom: 1px solid #3A3A3A; padding: 18px 24px"><summary style="font-weight: 700; list-style: none; min-height: 28px; display: flex; align-items: center; justify-content: space-between">¿Hay que cerrar rekordbox? <span aria-hidden="true" style="font-family: 'IBM Plex Mono', monospace; color: #8C8C86">+</span></summary><p style="margin: 8px 0 0; color: #B4B4AE; line-height: 1.55; font-size: 14px; max-width: 640px">No. Se lee el XML exportado. Para escribir el NML de Traktor (reparación de enlaces) sí conviene cerrarlo.</p></details>
+        <details style="border-bottom: 1px solid #3A3A3A; padding: 18px 24px"><summary style="font-weight: 700; list-style: none; min-height: 28px; display: flex; align-items: center; justify-content: space-between">¿Modifica la base de datos? <span aria-hidden="true" style="font-family: 'IBM Plex Mono', monospace; color: #8C8C86">+</span></summary><p style="margin: 8px 0 0; color: #B4B4AE; line-height: 1.55; font-size: 14px; max-width: 640px">Nunca abre ni escribe master.db. Las reparaciones de rekordbox van a un archivo propio; se puede generar un XML nuevo para importar.</p></details>
+        <details style="border-bottom: 1px solid #3A3A3A; padding: 18px 24px"><summary style="font-weight: 700; list-style: none; min-height: 28px; display: flex; align-items: center; justify-content: space-between">¿Convierte o normaliza el audio? <span aria-hidden="true" style="font-family: 'IBM Plex Mono', monospace; color: #8C8C86">+</span></summary><p style="margin: 8px 0 0; color: #B4B4AE; line-height: 1.55; font-size: 14px; max-width: 640px">No. Copia el archivo original byte a byte; solo cambia el nombre del archivo de destino.</p></details>
+        <details style="padding: 18px 24px"><summary style="font-weight: 700; list-style: none; min-height: 28px; display: flex; align-items: center; justify-content: space-between">¿Qué cambia en la 1.1? <span aria-hidden="true" style="font-family: 'IBM Plex Mono', monospace; color: #8C8C86">+</span></summary><p style="margin: 8px 0 0; color: #B4B4AE; line-height: 1.55; font-size: 14px; max-width: 640px">Listas propias y exportación cruzada, con licencia de pago. La 1.0 queda disponible bajo GPL‑3.0, sin soporte.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <footer class="pad" style="margin-top: auto">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 22px 32px; display: flex; flex-wrap: wrap; gap: 10px 28px; justify-content: space-between; align-items: center; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C8C86">
+      <span>© 2025‑2026 Gabriel Maglia · Rosario, AR</span>
+      <nav aria-label="Legal" style="display: flex; flex-wrap: wrap; gap: 18px">
+        <a href="https://github.com/gabiMaglia/listbuddy/blob/main/DISCLAIMER.md" style="color: #B4B4AE; text-decoration: none">Términos y privacidad</a>
+        <a href="https://github.com/gabiMaglia/listbuddy/blob/main/THIRD_PARTY_NOTICES.md" style="color: #B4B4AE; text-decoration: none">Terceros</a>
+        <a href="https://github.com/gabiMaglia/listbuddy" style="color: #B4B4AE; text-decoration: none">GitHub</a>
+        <a href="https://ko-fi.com/gabrielmaglia" style="color: #B4B4AE; text-decoration: none">Ko‑fi</a>
+      </nav>
+      <span style="width: 100%; line-height: 1.5">rekordbox: marca de AlphaTheta Corporation. Traktor, Native Instruments: marcas de Native Instruments GmbH. Sin afiliación.</span>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":3400}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
