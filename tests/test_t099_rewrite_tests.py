@@ -121,7 +121,7 @@ def test_the_versioned_rename_map_plus_an_entry_loads_that_entry(tmp_path: pathl
 
 
 def _git(cwd: pathlib.Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8")
 
 
 RATCHETS: dict[str, Any] = {"max_lines": {"ui.py": 3000}, "max_methods": {}, "layer_edges": [], "layer_qt": [],
@@ -154,7 +154,7 @@ def _commit(repo: pathlib.Path, msg: str) -> None:
 
 def _cli(repo: pathlib.Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run([sys.executable, str(SCRIPT), "--root", str(repo), "--renames",
-                           str(repo / "renames.toml"), *args], capture_output=True, text=True)
+                           str(repo / "renames.toml"), *args], capture_output=True, text=True, encoding="utf-8")
 
 
 def _codemod_and_commit(repo: pathlib.Path) -> None:

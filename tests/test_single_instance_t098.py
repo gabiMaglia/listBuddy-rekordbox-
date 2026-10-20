@@ -296,7 +296,9 @@ p.write_bytes(b'\\n'.join(lines) + b'\\n')
 """
 
 
-@pytest.mark.parametrize("owner_alive", [True, False])
+# Con la copia viva el test reescribe el lock que ella tiene abierto. En Windows Qt lo abre sin compartir escritura
+# y da PermissionError: es el comportamiento correcto de Windows, no un bug. Ese caso corre solo en POSIX.
+@pytest.mark.parametrize("owner_alive", [pytest.param(True, marks=pytest.mark.posix), False])
 def test_same_machine_after_a_hostname_change_is_this_computer(tmp_path: Path, owner_alive: bool) -> None:
     # Addendum 2: macOS cambia el hostname con la red (DHCP, «-2» de Bonjour). Mismo id de máquina =
     # esta Mac: con la copia viva es «ya está abierto» (nunca «otra computadora»: el aviso mandaría a
@@ -330,6 +332,9 @@ p.write_bytes(b'\\n'.join(p.read_bytes().splitlines()[:3]) + b'\\n')
 """
 
 
+# Reescribe el lock de una copia viva: en Windows Qt lo tiene abierto sin compartir escritura (PermissionError,
+# comportamiento correcto del sistema). Solo POSIX.
+@pytest.mark.posix
 def test_lock_without_machine_id_from_this_host_and_a_live_owner_is_already_running(tmp_path: Path) -> None:
     # D-4 (QA): sin id de máquina decide el hostname; si es este host y la copia vive, «ya está abierto».
     env = _user_env(tmp_path / "home")

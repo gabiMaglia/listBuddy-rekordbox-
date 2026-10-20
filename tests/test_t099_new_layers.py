@@ -36,12 +36,12 @@ def _git(cwd: pathlib.Path, *args: str) -> None:
 def f1_template(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
     """Clon tipo F1: `origin/main` ya tiene F0 (= HEAD de esta rama) y la PR parte de ahí."""
     repo = tmp_path_factory.mktemp("f1") / "clone"
-    head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True, encoding="utf-8").stdout.strip()
     _git(repo.parent, "clone", "-q", "--no-hardlinks", str(ROOT), str(repo))
     _git(repo, "checkout", "-q", "--detach", head)
     _git(repo, "update-ref", "refs/remotes/origin/main", head)
     for ref in subprocess.run(["git", "-C", str(repo), "for-each-ref", "--format=%(refname)", "refs/heads"],
-                              capture_output=True, text=True).stdout.split():
+                              capture_output=True, text=True, encoding="utf-8").stdout.split():
         _git(repo, "update-ref", "-d", ref)
     _git(repo, "config", "user.email", "t@example.invalid")
     _git(repo, "config", "user.name", "t")

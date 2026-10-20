@@ -73,7 +73,7 @@ def _clone(tmp_path: pathlib.Path) -> pathlib.Path:
     repo = tmp_path / "clone"
     _git(tmp_path, "clone", "-q", "--no-hardlinks", str(ROOT), str(repo))
     _git(repo, "checkout", "-q", "--detach", subprocess.run(
-        ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip())
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True, encoding="utf-8").stdout.strip())
     _git(repo, "fetch", "-q", str(ROOT), f"+{_base_ref()}:refs/remotes/origin/main")
     _git(repo, "config", "user.email", "t@example.invalid")
     _git(repo, "config", "user.name", "t")
