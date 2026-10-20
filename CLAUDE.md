@@ -250,6 +250,7 @@ pyinstaller rb_exporter.spec
   ```
 
   Mantener `pyinstaller` igual en `requirements-build.in` y `requirements-build-windows.in`. El lock trae `macholib` (marcador darwin, puro Python, inocuo en Windows).
+- **CI (T-119):** el job `build-windows` de `release.yml` (`windows-latest`, sin secrets) corre `build_windows.ps1` y sube el zip + `.sha256`; es opcional: si falla, el borrador de macOS sale igual (aviso en el resumen).
 - Los patrones prohibidos del bundle viven en `scripts/bundle_forbidden.txt` y los leen `check_bundle.sh` y `check_bundle.ps1`.
 
 ---

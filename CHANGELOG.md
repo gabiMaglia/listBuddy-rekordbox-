@@ -11,6 +11,9 @@ Primera versión pública. Reúne todo el trabajo previo: las versiones internas
 Es la **última versión gratuita y GPL-3.0** (legacy, sin soporte); desde la 1.1 List Buddy
 es de pago. Vuelve el botón de donaciones (Apoyar, Ayuda → Donar en Ko-fi…, QR).
 
+### Distribución
+- Windows: `listBuddy-<v>-win64.zip` + `.sha256` se generan en CI (sin firma Authenticode).
+
 ### Exportar y escuchar
 - Lee **Rekordbox 6 y 7** a partir del XML que exporta (Archivo → Exportar
   colección en formato xml; no hace falta cerrar Rekordbox) y **Traktor Pro 3/4**
