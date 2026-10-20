@@ -1,4 +1,4 @@
-# STATE — listBuddy · actualizado: 2026-10-19 21:40
+# STATE — listBuddy · actualizado: 2026-10-19 20:40
 
 **Release:** v1.0.0 publicado por la sesión A (borrador de Release creado, tag @ cebebdc, arm64 + x86_64 notarizados; 1.0.0 = legacy GPL con Ko-fi, T-122). main liberado para 1.1; antes de cada merge de código se avisa a la sesión A (rekordbox-extractor-4f).
 **Sprint 5 (1.1.0 Buddy) · Ola 1** (Orquestador sesión B, agentes Opus; protocolo: gate → QA → verifier ciego en S/X):
