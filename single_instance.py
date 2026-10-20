@@ -185,19 +185,25 @@ def _is_no_space(exc: OSError) -> bool:
     return exc.errno in _NO_SPACE_ERRNOS or getattr(exc, "winerror", None) in _NO_SPACE_WINERRORS
 
 
+# APFS reserva lugar para metadatos: con el disco lleno un archivo vacío todavía se crea y
+# recién escribir contenido da ENOSPC (QA intento 6).
+_PROBE_BYTES = 512
+
+
 def _creation_problem(directory: Path) -> OSError | None:
-    """Qt solo dice «UnknownError»: se intenta crear un archivo vacío al lado para saber por qué
+    """Qt solo dice «UnknownError»: se intenta escribir un archivo al lado para saber por qué
     (sin espacio, cuota, E/S). No es el lock: otra instancia nunca lo confunde con uno."""
     probe = directory / f".{LOCK_NAME}.{os.getpid()}.probe"
+    problem: OSError | None = None
     try:
-        file_access.write_text(probe, "")
+        file_access.write_text(probe, "x" * _PROBE_BYTES)
     except OSError as exc:
-        return exc
+        problem = exc
     try:
-        file_access.remove(probe)
+        file_access.remove(probe)   # también si la escritura falló a mitad: no dejar basura
     except OSError:
         pass
-    return None
+    return problem
 
 
 def _structurally_impossible(directory: Path, path: Path, kind: Entry | None = None) -> bool:

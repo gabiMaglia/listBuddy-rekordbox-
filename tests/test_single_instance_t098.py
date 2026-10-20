@@ -7,6 +7,7 @@ Procesos reales: uno toma el lock y otro arranca `main.py` de verdad. Solo usan 
 """
 from __future__ import annotations
 
+import errno
 import os
 import stat
 import subprocess
@@ -592,6 +593,52 @@ def test_lock_that_cannot_be_created_has_its_own_status(tmp_path: Path, code: st
     data = _data_dir(env)
     assert _qt_cannot_create(data, env, code) == expected
     assert sorted(p.name for p in data.iterdir()) == []   # la sonda de espacio no deja basura
+
+
+# QA intento 6: en APFS lleno un archivo vacío todavía entra (reserva de metadatos) y la sonda no veía
+# ENOSPC. La sonda escribe contenido, y si la escritura falla a mitad no deja el archivo creado.
+# D-11: la sonda nunca usa el nombre del lock (otra instancia la tomaría por un lock).
+_PROBE_SPY = """
+import errno, json, os, sys
+from pathlib import Path
+import file_access, single_instance
+data = Path(sys.argv[1])
+calls = []
+def write_text(path, text, **kwargs):
+    calls.append({"name": Path(path).name, "parent": str(Path(path).parent), "size": len(text.encode())})
+    open(path, "w").close()   # el sistema llegó a crear el archivo y se quedó sin lugar al escribir
+    raise OSError(errno.ENOSPC, os.strerror(errno.ENOSPC), str(path))
+file_access.write_text = write_text
+problem = single_instance._creation_problem(data)
+print(json.dumps({"errno": getattr(problem, "errno", None), "calls": calls,
+                  "left": sorted(p.name for p in data.iterdir())}), flush=True)
+"""
+
+
+def _probe_spy(tmp_path: Path) -> dict[str, object]:
+    import json
+    env = _user_env(tmp_path / "home")
+    data = _data_dir(env)
+    r = subprocess.run([sys.executable, "-c", _PROBE_SPY, str(data)], cwd=PROJECT_ROOT, env=env,
+                       capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    out["data"] = str(data)
+    return out
+
+
+def test_space_probe_writes_content_and_leaves_nothing_when_the_write_fails(tmp_path: Path) -> None:
+    out = _probe_spy(tmp_path)
+    assert out["errno"] == errno.ENOSPC
+    assert out["calls"] and all(c["size"] >= 512 for c in out["calls"]), out
+    assert out["left"] == [], out
+
+
+def test_space_probe_never_uses_the_lock_name(tmp_path: Path) -> None:
+    out = _probe_spy(tmp_path)
+    assert out["calls"], out
+    for c in out["calls"]:
+        assert c["name"] != "listBuddy.lock" and c["parent"] == out["data"], out
 
 
 _STARTS_QT_CANNOT_CREATE = """
