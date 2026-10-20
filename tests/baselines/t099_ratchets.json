@@ -1,0 +1,33 @@
+{
+  "max_lines": {
+    "ui.py": 3264,
+    "ui_components.py": 1028
+  },
+  "max_methods": {
+    "ui.py::MainWindow": 158
+  },
+  "layer_edges": [
+    ["footer", "waveform_worker"],
+    ["preview_card", "preview_worker"],
+    ["rekordbox_export", "rekordbox_xml"],
+    ["ui_components", "preview_worker"],
+    ["ui_components", "waveform_worker"]
+  ],
+  "layer_qt": [
+    ["relocate_core", "PySide6.QtCore"],
+    ["update_checker", "PySide6.QtCore"]
+  ],
+  "layer_cycles": [
+    ["preview_card", "ui_components"]
+  ],
+  "typed_modules": [
+    "app_paths",
+    "audio_formats",
+    "branding",
+    "db",
+    "load_cancel",
+    "playlist_filter",
+    "row_blocks"
+  ],
+  "module_layers": {}
+}

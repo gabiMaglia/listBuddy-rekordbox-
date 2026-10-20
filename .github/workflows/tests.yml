@@ -24,6 +24,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # T-099 F0: los trinquetes se comparan contra el merge-base con main
 
       - uses: actions/setup-python@v7
         with:
@@ -32,6 +34,15 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             requirements-dev.txt
+
+      # T-099: antes de instalar nada (un paquete del lock de HEAD podría dejar un .pth en site-packages) y con
+      # -I -S (sin site): solo stdlib y git. Ningún test ni dependencia de la rama puede tocar este paso.
+      - name: Barandas T-099 (fuera de pytest; ningún test las puede tocar)
+        run: python -I -S scripts/t099_guard_check.py
+
+      - name: Codemod T-099 contra la base (ADR-007 D5, solo ramas feat/t099-*)
+        if: startsWith(github.head_ref, 'feat/t099-')
+        run: python -I -S scripts/t099_guard_check.py --with-check
 
       - name: Instalar dependencias
         run: python -m pip install -r requirements-dev.txt
@@ -50,6 +61,8 @@ jobs:
       LISTBUDDY_NO_QT: '1'
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # T-099 F0: los trinquetes se comparan contra el merge-base con main
 
       - uses: actions/setup-python@v7
         with:
@@ -58,6 +71,15 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             requirements-dev.txt
+
+      # T-099: antes de instalar nada (un paquete del lock de HEAD podría dejar un .pth en site-packages) y con
+      # -I -S (sin site): solo stdlib y git. Ningún test ni dependencia de la rama puede tocar este paso.
+      - name: Barandas T-099 (fuera de pytest; ningún test las puede tocar)
+        run: python -I -S scripts/t099_guard_check.py
+
+      - name: Codemod T-099 contra la base (ADR-007 D5, solo ramas feat/t099-*)
+        if: startsWith(github.head_ref, 'feat/t099-')
+        run: python -I -S scripts/t099_guard_check.py --with-check
 
       - name: Instalar dependencias
         run: python -m pip install --require-hashes -r requirements-dev.txt
