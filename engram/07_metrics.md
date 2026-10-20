@@ -11,6 +11,8 @@
 
 - 2026-10-19 (cierre 13:40) · `nerv-metrics.sh` → «sin sesiones medidas» (hook sin instalar). Tokens de subagentes desde las 11:20: T-113 impl ≈95 k + QA ≈73 k; sesión B (roadmap 1.1) no medida acá.
 
+- 2026-10-19 (cierre 20:40) · `nerv-metrics.sh` → «sin sesiones medidas» (hook sin instalar). Tokens de subagentes desde las 13:40 (reportados por el harness): T-119 impl ≈106 k + QA ≈84 k; T-122 impl ≈87 k + QA ≈82 k; T-123 web ≈160 k + QA ×2 ≈95 k+; total ≈0,6 M; más el trabajo directo del Orquestador (release, diseño).
+
 ## §Proceso — Sprint 4 (re-auditoría T-104, cerrado 2026-10-19)
 - Tickets: 8 (T-105..T-112) · Done: 8 · nivel S: 3 (T-105, T-106, T-108).
 - % rechazo QA: 3 de 7 rondas (43 %); refutaciones del verifier: 4 de 8 (50 %). Todas por defectos reales o tests vacuos; ninguna por criterio ambiguo.
